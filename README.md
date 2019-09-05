@@ -1,0 +1,2 @@
+This repo is for playing around with [System.IO.Pipelines](https://devblogs.microsoft.com/dotnet/system-io-pipelines-high-performance-io-in-net/) and [SSH](https://en.wikipedia.org/wiki/Secure_Shell).
+The goal is to learn, not to build something that is usable/should be used.
