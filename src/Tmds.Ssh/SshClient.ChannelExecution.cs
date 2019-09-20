@@ -60,6 +60,8 @@ namespace Tmds.Ssh
             internal async Task ExecuteAsync()
             {
                 await _handler(this);
+                // TODO: this musn't complete until the peer has sent us a channel close
+                //       or the connection was closed.
             }
         }
     }

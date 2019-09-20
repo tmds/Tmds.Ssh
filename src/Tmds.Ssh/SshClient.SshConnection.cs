@@ -12,12 +12,12 @@ namespace Tmds.Ssh
 {
     public sealed partial class SshClient
     {
-        sealed class SshClientSshConnection : SshConnection
+        sealed class SocketSshConnection : SshConnection
         {
             private readonly SshClient _client;
             private readonly Socket _socket;
 
-            public SshClientSshConnection(SshClient client, Socket socket)
+            public SocketSshConnection(SshClient client, Socket socket)
             {
                 _client = client;
                 _socket = socket;

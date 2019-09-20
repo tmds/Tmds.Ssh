@@ -78,7 +78,8 @@ namespace Tmds.Ssh
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 // Connect to the remote host
                 await socket.ConnectAsync(_settings.Host, _settings.Port, ct);
-                return new SshClientSshConnection(this, socket);
+                socket.NoDelay = true;
+                return new SocketSshConnection(this, socket);
             }
             catch
             {
@@ -105,8 +106,16 @@ namespace Tmds.Ssh
                 // Authenticate the SSH connection
                 await SetupConnectionAsync(sshConnection, connectCts.Token);
 
-                // ConnectAsync completed successfully.
+                // Allow sending.
+                _sendQueue = Channel.CreateUnbounded<PendingSend>(new UnboundedChannelOptions
+                {
+                    SingleWriter = false,
+                    SingleReader = true,
+                    AllowSynchronousContinuations = true
+                });
+                // Allow connection users.
                 _connectionUsers = new List<Task>();
+                // ConnectAsync completed successfully.
                 connectTcs.SetResult(null);
             }
             catch (Exception e)
@@ -149,19 +158,16 @@ namespace Tmds.Ssh
         {
             try
             {
-                Task sendTask = SendLoopAsync(sshConnection);
-                Task receiveTask = ReceiveLoopAsync(sshConnection);
-                lock (_gate)
-                {
-                    _connectionUsers.Add(sendTask);
-                    _connectionUsers.Add(receiveTask);
-                }
-
                 try
                 {
-                    await sendTask;
+                    Task sendTask = SendLoopAsync(sshConnection);
+                    AddConnectionUser(sendTask);
+                    AddConnectionUser(ReceiveLoopAsync(sshConnection));
+
+                    // Wait for a task that runs as long as the connection.
+                    await sendTask.ContinueWith(_ => { /* Ignore Failed/Canceled */ });
                 }
-                catch (Exception e)
+                catch (Exception e) // Unexpected: the continuation doesn't throw.
                 {
                     Abort(e);
                 }
@@ -174,27 +180,101 @@ namespace Tmds.Ssh
                         // Accept no new users.
                         _connectionUsers = null;
                     }
-                    // Aggregate Exceptions from all users.
+                    // Wait for all connection users.
                     await Task.WhenAll(_connectionUsers);
                 }
             }
             catch (Exception e)
             {
-                Abort(e);
+                Abort(e); // Unlikely, Abort will be called already.
             }
             finally
             {
                 sshConnection.Dispose();
             }
+
+            async void AddConnectionUser(Task task)
+            {
+                lock (_gate)
+                {
+                    _connectionUsers.Add(task);
+                }
+
+                try
+                {
+                    await task;
+                    RemoveConnectionUser(task);
+                }
+                catch (Exception e)
+                {
+                    RemoveConnectionUser(task);
+                    Abort (e);
+                }
+
+                void RemoveConnectionUser(Task task)
+                {
+                    lock (_gate)
+                    {
+                        List<Task> connectionUsers = _connectionUsers;
+
+                        if (connectionUsers != null)
+                        {
+                            connectionUsers.Remove(task);
+                        }
+                    }
+                }
+            }
         }
 
         internal async Task HandleChannelAsync(ChannelHandler handler, CancellationToken ct)
         {
+            Func<Task> runChannel = async () =>
+            {
+                // Yield to avoid holding _gate lock.
+                await Task.Yield();
+
+                int channelNumber;
+                lock (_gate)
+                {
+                    channelNumber = _nextChannelNumber++; // TODO: handle numbering
+                }
+                try
+                {
+                    using (var channelContext = new ChannelExecution(this, channelNumber, _abortCts.Token, ct, handler))
+                    {
+                        lock (_channels)
+                        {
+                            _channels[channelNumber] = channelContext;
+                        }
+                        try
+                        {
+                            await channelContext.ExecuteAsync();
+                        }
+                        finally
+                        {
+                            // No more messages will be queued to this channel.
+                            lock (_channels)
+                            {
+                                _channels.Remove(channelNumber);
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    lock (_gate)
+                    {
+                        // TODO: return channel number
+                    }
+                }
+            };
+
             Task task;
             lock (_gate)
             {
-                List<Task> connectionUsers = _connectionUsers;
+                ThrowIfDisposed();
 
+                List<Task> connectionUsers = _connectionUsers;
                 if (connectionUsers == null)
                 {
                     if (_abortReason != null)
@@ -203,53 +283,39 @@ namespace Tmds.Ssh
                     }
                     else
                     {
-                        // Trying to add a channel before ConnectAsync was started.
+                        // Trying to add a channel before ConnectAsync completed.
                         ThrowInvalidOperationException("Not connected");
                     }
                 }
 
-                int channelNumber = _nextChannelNumber++; // TODO: handle numbering
-                task = RunChannel(channelNumber, handler, ct);
+                task = runChannel();
                 connectionUsers.Add(task);
             }
 
             try
             {
                 await task;
+                RemoveConnectionUser(task);
             }
-            finally
+            catch (Exception e)
+            {
+                RemoveConnectionUser(task);
+                bool isOce = e is OperationCanceledException;
+                if (!isOce)
+                {
+                    Abort(e);
+                }
+                throw;
+            }
+
+            void RemoveConnectionUser(Task t)
             {
                 lock (_gate)
                 {
-                    // TODO: free channel number
-                    if (_connectionUsers != null)
+                    List<Task> connectionUsers = _connectionUsers;
+                    if (connectionUsers != null)
                     {
-                        _connectionUsers.Remove(task);
-                    }
-                }
-            }
-        }
-
-        private async Task RunChannel(int channelNumber, ChannelHandler handler, CancellationToken userCt)
-        {
-            // Yield to avoid holding lock in HandleChannelAsync
-            await Task.Yield();
-
-            using (var channelContext = new ChannelExecution(this, channelNumber, _abortCts.Token, userCt, handler))
-            {
-                lock (_channels)
-                {
-                    _channels[channelNumber] = channelContext;
-                }
-                try
-                {
-                    await channelContext.ExecuteAsync();
-                }
-                finally
-                {
-                    lock (_channels)
-                    {
-                        _channels.Remove(channelNumber);
+                        connectionUsers.Remove(t);
                     }
                 }
             }
@@ -271,7 +337,7 @@ namespace Tmds.Ssh
                     }
                     else
                     {
-                        // Trying to send before SendLoopAsync was started.
+                        // Trying to send before SendLoopAsync completed.
                         ThrowInvalidOperationException("Not connected");
                     }
                 }
@@ -293,7 +359,7 @@ namespace Tmds.Ssh
                     }
                     return new ValueTask(cts.Task);
                 }
-                catch (Exception e) // This shouldn't ever happen.
+                catch (Exception e) // This shouldn't happen.
                 {
                     packet.Dispose();
                     Abort(e);
@@ -312,12 +378,6 @@ namespace Tmds.Ssh
             CancellationToken abortToken = _abortCts.Token;
             try
             {
-                _sendQueue = Channel.CreateUnbounded<PendingSend>(new UnboundedChannelOptions
-                {
-                    SingleWriter = false,
-                    SingleReader = true,
-                    AllowSynchronousContinuations = true
-                });
                 while (true)
                 {
                     PendingSend send = await _sendQueue.Reader.ReadAsync(abortToken); // TODO: maybe use ReadAllAsync
@@ -335,9 +395,12 @@ namespace Tmds.Ssh
                             send.TaskCompletion.SetResult(null);
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception e) // SendPacket failed or connection aborted.
                     {
                         Abort(e);
+
+                        // The sender isn't responsible for the fail,
+                        // report this as canceled.
                         send.TaskCompletion.SetCanceled();
                     }
                     finally
@@ -348,6 +411,7 @@ namespace Tmds.Ssh
             }
             catch (Exception e) // Happens on Abort.
             {
+                // Ensure Abort is called so further SendPacketAsync calls return Canceled.
                 Abort(e); // In case the Exception was not caused by Abort.
             }
             finally
@@ -375,34 +439,27 @@ namespace Tmds.Ssh
         private async Task ReceiveLoopAsync(SshConnection sshConnection)
         {
             CancellationToken abortToken = _abortCts.Token;
-            try
+            while (true)
             {
-                while (true)
+                var packet = await sshConnection.ReceivePacketAsync(abortToken);
+                if (packet == null)
                 {
-                    var packet = await sshConnection.ReceivePacketAsync(abortToken);
-                    if (packet == null)
-                    {
-                        Abort(ClosedByPeer);
-                        break;
-                    }
-                    else
-                    {
-                        // for now, eat everything.
-                        packet.Dispose();
-                    }
-                    // Dispatch to channels:
-                    // lock (_channels)
-                    // {
-                    //     var channelExecution = _channels[channelNumber];
-                    //     channelExecution.QueueReceivedPacket(packet);
-                    // }
-                    // Handle global requests
-                    // ...
+                    Abort(ClosedByPeer);
+                    break;
                 }
-            }
-            catch (Exception e)
-            {
-                Abort(e);
+                else
+                {
+                    // for now, eat everything.
+                    packet.Dispose();
+                }
+                // Dispatch to channels:
+                // lock (_channels)
+                // {
+                //     var channelExecution = _channels[channelNumber];
+                //     channelExecution.QueueReceivedPacket(packet);
+                // }
+                // Handle global requests
+                // ...
             }
         }
 
@@ -450,6 +507,8 @@ namespace Tmds.Ssh
                 throw new ArgumentNullException(nameof(reason));
             }
 
+            // Capture the first exception to call Abort.
+            // Once we cancel the token, we can expect more Abort calls.
             if (Interlocked.CompareExchange(ref _abortReason, reason, null) == null)
             {
                 _abortCts.Cancel();
