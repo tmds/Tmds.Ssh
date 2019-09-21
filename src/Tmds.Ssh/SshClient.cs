@@ -27,6 +27,7 @@ namespace Tmds.Ssh
         private List<Task> _connectionUsers;                   // Tasks that use the connection (like Channels)
         private int _nextChannelNumber;
         private readonly Dictionary<int, ChannelExecution> _channels = new Dictionary<int, ChannelExecution>();
+        private readonly SequencePool _sequencePool = null;
 
         // TODO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
         struct PendingSend
@@ -45,7 +46,7 @@ namespace Tmds.Ssh
             _abortCts = new CancellationTokenSource();
         }
 
-        public async Task ConnectAsync(CancellationToken cancellationToken)
+        public async Task ConnectAsync(CancellationToken cancellationToken = default)
         {
             Task task;
             // ConnectAsync can be cancelled by calling DisposeAsync.
@@ -70,16 +71,16 @@ namespace Tmds.Ssh
             await task;
         }
 
-        private async Task<SshConnection> EstablishConnectionAsync(CancellationToken ct)
+        internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct)
         {
             Socket socket = null;
             try
             {
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 // Connect to the remote host
-                await socket.ConnectAsync(_settings.Host, _settings.Port, ct);
+                await socket.ConnectAsync(settings.Host, settings.Port, ct);
                 socket.NoDelay = true;
-                return new SocketSshConnection(this, socket);
+                return new SocketSshConnection(logger, sequencePool, socket);
             }
             catch
             {
@@ -101,10 +102,10 @@ namespace Tmds.Ssh
                 connectCts.CancelAfter(_settings.ConnectTimeout);
 
                 // Connect to the remote host
-                sshConnection = await EstablishConnectionAsync(connectCts.Token);
+                sshConnection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
 
                 // Authenticate the SSH connection
-                await SetupConnectionAsync(sshConnection, connectCts.Token);
+                await _settings.SetupConnectionAsync(sshConnection, _logger, _settings, connectCts.Token);
 
                 // Allow sending.
                 _sendQueue = Channel.CreateUnbounded<PendingSend>(new UnboundedChannelOptions
@@ -149,7 +150,7 @@ namespace Tmds.Ssh
             await HandleConnectionAsync(sshConnection);
         }
 
-        private async Task SetupConnectionAsync(SshConnection sshConnection, CancellationToken token)
+        internal static async Task SetupConnectionAsync(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token)
         {
             await Task.Delay(0);
         }
@@ -249,6 +250,10 @@ namespace Tmds.Ssh
                         try
                         {
                             await channelContext.ExecuteAsync();
+                        }
+                        catch (OperationCanceledException) when (_abortReason != null)
+                        {
+                            ThrowNewConnectionClosedException();
                         }
                         finally
                         {

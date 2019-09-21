@@ -35,7 +35,15 @@ namespace Tmds.Ssh
                 // async completion
                 using (cancellationToken.UnsafeRegister(a => Socket.CancelConnectAsync((SocketAsyncEventArgs)a), connectSea))
                 {
-                    await tcs.Task;
+                    try
+                    {
+                        await tcs.Task;
+                    }
+                    catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        throw;
+                    }
                 }
             }
 

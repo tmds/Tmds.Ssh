@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
 {
@@ -14,12 +15,14 @@ namespace Tmds.Ssh
     {
         sealed class SocketSshConnection : SshConnection
         {
-            private readonly SshClient _client;
+            private readonly ILogger _logger;
+            private readonly SequencePool _sequencePool;
             private readonly Socket _socket;
 
-            public SocketSshConnection(SshClient client, Socket socket)
+            public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket)
             {
-                _client = client;
+                _logger = logger;
+                _sequencePool = sequencePool;
                 _socket = socket;
             }
 
