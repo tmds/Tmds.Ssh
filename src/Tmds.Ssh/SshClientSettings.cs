@@ -20,6 +20,6 @@ namespace Tmds.Ssh
         internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshClient.EstablishConnectionAsync;
         internal delegate Task SetupConnectionAsyncDelegate(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token);
         internal SetupConnectionAsyncDelegate SetupConnectionAsync = SshClient.SetupConnectionAsync;
-        internal static readonly SetupConnectionAsyncDelegate NoSetup = async (_1, _2, _3, _4) => {};
+        internal static readonly SetupConnectionAsyncDelegate NoSetup = (_1, _2, _3, _4) => Task.CompletedTask;
     }
 }

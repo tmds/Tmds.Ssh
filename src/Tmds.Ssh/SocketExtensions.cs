@@ -25,7 +25,7 @@ namespace Tmds.Ssh
             {
                 // synchronous completion
                 HandleCompletion(null, connectSea);
-                if (connectSea.SocketError == SocketError.Success)
+                if (connectSea.SocketError != SocketError.Success)
                 {
                     throw new SocketException((int)connectSea.SocketError);
                 }

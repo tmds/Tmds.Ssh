@@ -485,7 +485,7 @@ namespace Tmds.Ssh
                 _disposed = true;
                 runningConnectionTask = _runningConnectionTask;
             }
-            Abort(new ObjectDisposedException(GetType().FullName));
+            Abort(NewObjectDisposedException());
             if (runningConnectionTask != null)
             {
                 await runningConnectionTask;
@@ -513,7 +513,7 @@ namespace Tmds.Ssh
             }
 
             // Capture the first exception to call Abort.
-            // Once we cancel the token, we can expect more Abort calls.
+            // Once we cancel the token, we'll get more Abort calls.
             if (Interlocked.CompareExchange(ref _abortReason, reason, null) == null)
             {
                 _abortCts.Cancel();
