@@ -11,7 +11,7 @@ for buffering packets, we can make use of the [Channel](https://docs.microsoft.c
 
 As a type to represent packets, we want something that works wel together with the `Pipe` related types, like [Memory](https://docs.microsoft.com/en-us/dotnet/api/system.memory-1?view=netstandard-2.1), [ReadOnlySequence<T>](https://docs.microsoft.com/en-us/dotnet/api/system.buffers.readonlysequence-1?view=netstandard-2.1), and [SequenceReader<T>](https://docs.microsoft.com/en-us/dotnet/api/system.buffers.sequencereader-1?view=netcore-3.0).
 
-We want to pool the packet type so it can be re-used by the `SshConnection`.
+We want to pool the packet type so it can be re-used by the `SshClient`.
 Also, if an instance was parsed, we may want to trim it and allow passing it to the user.
 
 So our packet should be some type of _mutable_ counterpart of `ReadOnlySequence`.
@@ -25,7 +25,7 @@ class Sequence
     void Append(Sequence);                  // Extracts data from other sequence and adds it to this sequence.
     // Reader API
     void Remove(int);                       // PipeReader.AdvanceTo (Removes data from the front of the Sequence)
-    ReadOnlySequence<byte> GetReadOnlySequence();     // Allows the Sequence to be read, e.g. by SequenceReader
+    ReadOnlySequence<byte> AsReadOnlySequence();      // Allows the Sequence to be read, e.g. by SequenceReader
     ReadOnlySequence<byte> ExtractReadOnlySequence(); // Extracts data from the Sequence
     // Pooling
     Dispose(); // return to pool
@@ -40,7 +40,7 @@ The following picture shows the data flow on an SSH connection which has two cha
 ```
 +---------------------------------------------------------------------------------------------+
 |                                                                                             |
-|  SshConnection                         +--------------------------------------------------+ |
+|  SshClient                             +--------------------------------------------------+ |
 |                                        |                                                  | |
 |                                  +----^+                 SSH Channel                      | |
 |                                  | +---+                                                  | |
@@ -71,28 +71,28 @@ The following picture shows the data flow on an SSH connection which has two cha
 
 All `Sequences` on this diagram are decrypted packets. Decryption happens when packets are read from the socket. Encryption when they are sent to the socket.
 
-The basis for supporting different type of channels will be the capability to add a channel handler into the `SshConnection`.
+The basis for supporting different type of channels will be the capability to add a channel handler into the `SshClient`.
 
 The API will be something like:
 ```cs
 delegate Task ChannelHandler(ChannelContext);
 
-class SshConnection
+class SshClient
 {
     Task HandleChannelAsync(ChannelHandler, CancellationToken);
 }
 
 class ChannelContext
 {
-    int ChannelNumber; // Channel number of the local end, chosen by SshConnection.
+    int ChannelNumber; // Channel number of the local end, chosen by SshClient.
     CancellationToken ChannelStopped; // triggered when a channel should stop
-    ValueTask<Sequence> ReadPacketAsync(CancellationToken = default);
-    ValueTask SendPacketAsync(Sequence, CancellationToken = default);
-    ValueTask SendPacketAsync(Span<byte>, CancellationToken = default);
-    Sequence RentSequence(); // rent a Sequence from the SshConnection.SequencePool
+    ValueTask<Sequence> ReadPacketAsync();
+    ValueTask SendPacketAsync(Sequence);  // Sends can't be canceled because they may have partially occured
+    ValueTask SendPacketAsync(Span<byte>);
+    Sequence RentSequence(); // rent a Sequence from the SshClient.SequencePool
 }
 ```
 
-Thanks to the inversion of control pattern, a channel type can be implemented (and tested) independent of `SshConnection`.
+Thanks to the inversion of control pattern, a channel type can be implemented (and tested) independent of `SshClient`.
 
-`SshConnection` will cancel the `CannelStopped` cancellation token when the connection is closed, and wait for `ChannelHandlers` to complete. So when we're done disposing the `SshConnection`, all `Sequences` that were allocated from the `SequencePool` should be returned. A `ChannelHandler` may keep the data past this, by using the `ExtractReadOnlySequence` method.
+`SshClient` will cancel the `CannelStopped` cancellation token when the connection is closed, and wait for `ChannelHandlers` to complete. So when we're done disposing the `SshClient`, all `Sequences` that were allocated from the `SequencePool` should be returned. A `ChannelHandler` may keep the data past this, by using the `ExtractReadOnlySequence` method.
