@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Threading;
@@ -28,6 +29,7 @@ namespace Tmds.Ssh
         private int _nextChannelNumber;
         private readonly Dictionary<int, ChannelExecution> _channels = new Dictionary<int, ChannelExecution>();
         private readonly SequencePool _sequencePool = null;
+        private SemaphoreSlim _keyReExchangeSemaphore;
 
         // TODO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
         struct PendingSend
@@ -61,7 +63,7 @@ namespace Tmds.Ssh
                 }
 
                 // ConnectAsync waits for this Task.
-                var connectionCompletedTcs = new TaskCompletionSource<object>();
+                var connectionCompletedTcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
                 task = connectionCompletedTcs.Task;
 
                 // DisposeAsync waits for this Task to complete.
@@ -104,8 +106,26 @@ namespace Tmds.Ssh
                 // Connect to the remote host
                 sshConnection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
 
-                // Authenticate the SSH connection
-                await _settings.SetupConnectionAsync(sshConnection, _logger, _settings, connectCts.Token);
+                // Setup ssh connection
+                if (!_settings.NoProtocolVersionExchange)
+                {
+                    await _settings.ExchangeProtocolVersionAsync(sshConnection, _logger, _settings, connectCts.Token);
+                }
+                if (!_settings.NoKeyExchange)
+                {
+                    {
+                        using Sequence localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                        await sshConnection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
+                    }
+                    {
+                        using Sequence remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
+                        await _settings.ExchangeKeysAsync(sshConnection, remoteExchangeInitMsg, _logger, _settings, connectCts.Token);
+                    }
+                }
+                if (!_settings.NoUserAuthentication)
+                {
+                    await _settings.AuthenticateUserAsync(sshConnection, _logger, _settings, connectCts.Token);
+                }
 
                 // Allow sending.
                 _sendQueue = Channel.CreateUnbounded<PendingSend>(new UnboundedChannelOptions
@@ -209,7 +229,7 @@ namespace Tmds.Ssh
                 catch (Exception e)
                 {
                     RemoveConnectionUser(task);
-                    Abort (e);
+                    Abort(e);
                 }
 
                 void RemoveConnectionUser(Task task)
@@ -328,48 +348,47 @@ namespace Tmds.Ssh
 
         private ValueTask SendPacketAsync(Sequence packet, CancellationToken ct)
         {
-            // Synchronize with SendLoopAsync stopping.
-            lock (_gate)
+            Channel<PendingSend> sendQueue = _sendQueue;
+
+            if (sendQueue == null)
             {
-                Channel<PendingSend> sendQueue = _sendQueue;
+                // Trying to send before SendLoopAsync completed.
+                ThrowInvalidOperationException("Not connected");
+            }
 
-                if (sendQueue == null)
-                {
-                    if (_abortReason != null)
-                    {
-                        // SendLoopAsync stopped.
-                        return new ValueTask(Task.FromCanceled(_abortCts.Token));
-                    }
-                    else
-                    {
-                        // Trying to send before SendLoopAsync completed.
-                        ThrowInvalidOperationException("Not connected");
-                    }
-                }
+            if (_abortReason != null)
+            {
+                return new ValueTask(Task.FromCanceled(_abortCts.Token));
+            }
 
-                try
+            try
+            {
+                var cts = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var send = new PendingSend
                 {
-                    var cts = new TaskCompletionSource<object>();
-                    bool written = sendQueue.Writer.TryWrite(new PendingSend
+                    Packet = packet,
+                    TaskCompletion = cts,
+                    CancellationToken = ct,
+                    CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<object>)s).SetCanceled(), cts)
+                };
+                bool written = sendQueue.Writer.TryWrite(send);
+                if (!written)
+                {
+                    // SendLoopAsync stopped.
+                    send.CancellationTokenRegistration.Dispose();
+                    if (!send.TaskCompletion.Task.IsCanceled)
                     {
-                        Packet = packet,
-                        TaskCompletion = cts,
-                        CancellationToken = ct,
-                        CancellationTokenRegistration = ct.Register(s => ((TaskCompletionSource<object>)s).SetCanceled(), cts)
-                    });
-                    if (!written)
-                    {
-                        // Unexpected: write to an unbound queue is always successfull.
-                        ThrowInvalidOperationException("Write to SendQueue failed");
+                        send.TaskCompletion.SetCanceled();
                     }
-                    return new ValueTask(cts.Task);
-                }
-                catch (Exception e) // This shouldn't happen.
-                {
                     packet.Dispose();
-                    Abort(e);
-                    throw;
                 }
+                return new ValueTask(cts.Task);
+            }
+            catch (Exception e) // This shouldn't happen.
+            {
+                packet.Dispose();
+                Abort(e);
+                throw;
             }
         }
 
@@ -396,8 +415,24 @@ namespace Tmds.Ssh
                             // If we weren't canceled by send.CancellationToken, do the send.
                             // We use abortToken instead of send.CancellationToken because
                             // we can't allow partial sends unless we're aborting the connection.
-                            await sshConnection.SendPacketAsync(packet.AsReadOnlySequence(), abortToken);
+                            ReadOnlySequence<byte> data = packet.AsReadOnlySequence();
+                            await sshConnection.SendPacketAsync(data, abortToken);
+
+                            SemaphoreSlim keyExchangeSemaphore = null;
+                            if (data.FirstSpan[0] == MessageNumber.SSH_MSG_KEXINIT)
+                            {
+                                keyExchangeSemaphore = _keyReExchangeSemaphore;
+                                _keyReExchangeSemaphore = null;
+                            }
+
                             send.TaskCompletion.SetResult(null);
+
+                            // Don't send any more packets until Key Re-Exchange completed.
+                            if (keyExchangeSemaphore != null)
+                            {
+                                await keyExchangeSemaphore.WaitAsync(abortToken);
+                                keyExchangeSemaphore.Dispose();
+                            }
                         }
                     }
                     catch (Exception e) // SendPacket failed or connection aborted.
@@ -422,20 +457,18 @@ namespace Tmds.Ssh
             finally
             {
                 // Empty _sendQueue and prevent new sends.
-                lock (_gate)
+                if (_sendQueue != null)
                 {
-                    if (_sendQueue != null)
+                    _sendQueue.Writer.Complete();
+
+                    while (_sendQueue.Reader.TryRead(out PendingSend send))
                     {
-                        while (_sendQueue.Reader.TryRead(out PendingSend send))
+                        send.CancellationTokenRegistration.Dispose();
+                        if (!send.TaskCompletion.Task.IsCanceled)
                         {
-                            send.CancellationTokenRegistration.Dispose();
-                            if (!send.TaskCompletion.Task.IsCanceled)
-                            {
-                                send.TaskCompletion.SetCanceled();
-                            }
-                            send.Packet.Dispose();
+                            send.TaskCompletion.SetCanceled();
                         }
-                        _sendQueue = null;
+                        send.Packet.Dispose();
                     }
                 }
             }
@@ -457,6 +490,11 @@ namespace Tmds.Ssh
                     // for now, eat everything.
                     packet.Dispose();
                 }
+                var data = packet.AsReadOnlySequence();
+                byte msgType = data.FirstSpan[0];
+
+                // Connection Protocol: https://tools.ietf.org/html/rfc4254.
+
                 // Dispatch to channels:
                 // lock (_channels)
                 // {
@@ -465,6 +503,38 @@ namespace Tmds.Ssh
                 // }
                 // Handle global requests
                 // ...
+
+                switch (msgType)
+                {
+                    case MessageNumber.SSH_MSG_KEXINIT:
+                        // Key Re-Exchange: https://tools.ietf.org/html/rfc4253#section-9.
+                        try
+                        {
+                            // When we send SSH_MSG_KEXINIT, we can't send other packets until key exchange completes.
+                            // This is implemented using _keyReExchangeSemaphore.
+                            Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                            var keyExchangeSemaphore = new SemaphoreSlim(0, 1);
+                            _keyReExchangeSemaphore = keyExchangeSemaphore;
+                            try
+                            {
+                                // this will await _keyReExchangeSemaphore and set it to null.
+                                await SendPacketAsync(keyExchangeInitMsg, abortToken);
+                            }
+                            catch
+                            {
+                                _keyReExchangeSemaphore.Dispose();
+                                _keyReExchangeSemaphore = null;
+                                throw;
+                            }
+                            await _settings.ExchangeKeysAsync(sshConnection, packet, _logger, _settings, abortToken);
+                            keyExchangeSemaphore.Release();
+                        }
+                        finally
+                        {
+                            packet.Dispose();
+                        }
+                    break;
+                }
             }
         }
 

@@ -19,7 +19,11 @@ namespace Tmds.Ssh
         internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);
         internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshClient.EstablishConnectionAsync;
         internal delegate Task SetupConnectionAsyncDelegate(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token);
-        internal SetupConnectionAsyncDelegate SetupConnectionAsync = SshClient.SetupConnectionAsync;
-        internal static readonly SetupConnectionAsyncDelegate NoSetup = (_1, _2, _3, _4) => Task.CompletedTask;
+        internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
+        internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
+        internal AuthenticateUserAsyncDelegate AuthenticateUserAsync = UserAuthentication.Default;
+        internal bool NoProtocolVersionExchange = false;
+        internal bool NoKeyExchange = false;
+        internal bool NoUserAuthentication = false;
     }
 }

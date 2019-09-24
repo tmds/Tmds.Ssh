@@ -11,6 +11,7 @@ namespace Tmds.Ssh
 {
     // Represents an established connection.
     // Handles encryption, compression and integrity verification.
+    // Binary packet protocol: https://tools.ietf.org/html/rfc4253#section-6.
     abstract class SshConnection : IDisposable
     {
         public abstract ValueTask ReceiveLineAsync(StringBuilder sb, int maxLength, CancellationToken ct);

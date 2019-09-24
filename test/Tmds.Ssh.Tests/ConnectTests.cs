@@ -22,7 +22,9 @@ namespace Tmds.Ssh.Tests
                 {
                     Host = localEndPoint.Address.ToString(),
                     Port = localEndPoint.Port,
-                    SetupConnectionAsync = SshClientSettings.NoSetup
+                    NoKeyExchange = true,
+                    NoProtocolVersionExchange = true,
+                    NoUserAuthentication = true
                 };
 
                 await using var sshClient = new SshClient(clientSettings);
