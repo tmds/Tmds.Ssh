@@ -53,7 +53,7 @@ namespace Tmds.Ssh
         {
             if (sizeHint < 0)
             {
-                ThrowArgumentOutOfRange(nameof(sizeHint));
+                ThrowHelper.ThrowArgumentOutOfRange(nameof(sizeHint));
             }
             else if (sizeHint == 0 || sizeHint > 1024)
             {
@@ -89,19 +89,24 @@ namespace Tmds.Ssh
 
         public void AppendAlloced(int length)
         {
-            if ((uint)length > (uint)_endSegment!.BytesUnused)
+            if ((uint)length > (uint)(_endSegment?.BytesUnused ?? 0))
             {
-                ThrowArgumentOutOfRange(nameof(length));
+                ThrowHelper.ThrowArgumentOutOfRange(nameof(length));
             }
 
-            _endSegment.Advance(length);
+            _endSegment!.Advance(length);
         }
 
         public void Remove(long consumed)
         {
             while (consumed > 0)
             {
-                Segment startSegment = _startSegment!;
+                Segment? startSegment = _startSegment;
+                if (startSegment == null)
+                {
+                    ThrowHelper.ThrowArgumentOutOfRange(nameof(consumed));
+                }
+
                 int length = startSegment.End - startSegment.Start;
                 if (length > consumed)
                 {
@@ -138,11 +143,6 @@ namespace Tmds.Ssh
             {
                 return new ReadOnlySequence<byte>(_startSegment, _startSegment.Start, _endSegment!, _endSegment!.End);
             }
-        }
-
-        private static void ThrowArgumentOutOfRange(string paramName)
-        {
-            throw new ArgumentOutOfRangeException(paramName);
         }
 
         void IBufferWriter<byte>.Advance(int count)

@@ -8,12 +8,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
 {
-    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection sshConnection, Sequence remoteInitPacket, ILogger logger, SshClientSettings settings, CancellationToken token);
+    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection sshConnection, Sequence? remoteInitPacket, ILogger logger, SshClientSettings settings, CancellationToken token);
     sealed class KeyExchange
     {
         public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-        private static Task PerformDefaultExchange(SshConnection sshConnection, Sequence remoteInitPacket, ILogger logger, SshClientSettings settings, CancellationToken token)
+        private static Task PerformDefaultExchange(SshConnection sshConnection, Sequence? remoteInitPacket, ILogger logger, SshClientSettings settings, CancellationToken token)
         {
             // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
 

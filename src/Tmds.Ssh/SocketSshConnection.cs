@@ -31,7 +31,7 @@ namespace Tmds.Ssh
         {
             while (true)
             {
-                if (TryParseLine(maxLength, out string line))
+                if (TryParseLine(maxLength, out string? line))
                 {
                     return line!;
                 }
