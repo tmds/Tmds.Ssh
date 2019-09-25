@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh
 {
@@ -21,31 +22,39 @@ namespace Tmds.Ssh
         private readonly object _gate = new object();
         private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
         private bool _disposed;
-        private Channel<PendingSend> _sendQueue;               // Multiple senders push into the queue
-        private Task _runningConnectionTask;                   // Task that encompasses all operations
-        private Exception _abortReason;                        // Reason why the client stopped
+        private Channel<PendingSend>? _sendQueue;              // Multiple senders push into the queue
+        private Task ?_runningConnectionTask;                  // Task that encompasses all operations
+        private Exception? _abortReason;                       // Reason why the client stopped
         private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
-        private List<Task> _connectionUsers;                   // Tasks that use the connection (like Channels)
+        private List<Task>? _connectionUsers;                  // Tasks that use the connection (like Channels)
         private int _nextChannelNumber;
         private readonly Dictionary<int, ChannelExecution> _channels = new Dictionary<int, ChannelExecution>();
-        private readonly SequencePool _sequencePool = null;
-        private SemaphoreSlim _keyReExchangeSemaphore;
+        private readonly SequencePool _sequencePool = new SequencePool();
+        private SemaphoreSlim? _keyReExchangeSemaphore;
 
         // TODO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
         struct PendingSend
         {
             public Sequence Packet;
-            public TaskCompletionSource<object> TaskCompletion;
+            public TaskCompletionSource<bool> TaskCompletion;
             public CancellationToken CancellationToken;
             public CancellationTokenRegistration CancellationTokenRegistration;
         }
 
-        public SshClient(SshClientSettings settings, ILogger logger = null)
+        public SshClient(SshClientSettings settings, ILogger? logger = null)
         {
-            // TODO: validate settings
+            ValidateSettings(settings);
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _logger = logger;
+            _logger = logger ?? NullLogger.Instance;
             _abortCts = new CancellationTokenSource();
+        }
+
+        private static void ValidateSettings(SshClientSettings settings)
+        {
+            if (settings.Host == null)
+            {
+                throw new ArgumentNullException(nameof(settings.Host));
+            }
         }
 
         public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -63,7 +72,7 @@ namespace Tmds.Ssh
                 }
 
                 // ConnectAsync waits for this Task.
-                var connectionCompletedTcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var connectionCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 task = connectionCompletedTcs.Task;
 
                 // DisposeAsync waits for this Task to complete.
@@ -75,12 +84,12 @@ namespace Tmds.Ssh
 
         internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct)
         {
-            Socket socket = null;
+            Socket? socket = null;
             try
             {
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 // Connect to the remote host
-                await socket.ConnectAsync(settings.Host, settings.Port, ct);
+                await socket.ConnectAsync(settings.Host!, settings.Port, ct);
                 socket.NoDelay = true;
                 return new SocketSshConnection(logger, sequencePool, socket);
             }
@@ -91,9 +100,9 @@ namespace Tmds.Ssh
             }
         }
 
-        private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<object> connectTcs)
+        private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
         {
-            SshConnection sshConnection = null;
+            SshConnection? sshConnection = null;
             try
             {
                 // Cancel when:
@@ -137,7 +146,7 @@ namespace Tmds.Ssh
                 // Allow connection users.
                 _connectionUsers = new List<Task>();
                 // ConnectAsync completed successfully.
-                connectTcs.SetResult(null);
+                connectTcs.SetResult(true);
             }
             catch (Exception e)
             {
@@ -197,12 +206,12 @@ namespace Tmds.Ssh
                     Task[] connectionUsers;
                     lock (_gate)
                     {
-                        connectionUsers = _connectionUsers.ToArray();
+                        connectionUsers = _connectionUsers!.ToArray();
                         // Accept no new users.
                         _connectionUsers = null;
                     }
                     // Wait for all connection users.
-                    await Task.WhenAll(_connectionUsers);
+                    await Task.WhenAll(connectionUsers);
                 }
             }
             catch (Exception e)
@@ -218,7 +227,7 @@ namespace Tmds.Ssh
             {
                 lock (_gate)
                 {
-                    _connectionUsers.Add(task);
+                    _connectionUsers!.Add(task);
                 }
 
                 try
@@ -236,7 +245,7 @@ namespace Tmds.Ssh
                 {
                     lock (_gate)
                     {
-                        List<Task> connectionUsers = _connectionUsers;
+                        List<Task> connectionUsers = _connectionUsers!;
 
                         if (connectionUsers != null)
                         {
@@ -249,7 +258,7 @@ namespace Tmds.Ssh
 
         internal async Task HandleChannelAsync(ChannelHandler handler, CancellationToken ct)
         {
-            Func<Task> runChannel = async () =>
+            async Task runChannel()
             {
                 // Yield to avoid holding _gate lock.
                 await Task.Yield();
@@ -261,27 +270,25 @@ namespace Tmds.Ssh
                 }
                 try
                 {
-                    using (var channelContext = new ChannelExecution(this, channelNumber, _abortCts.Token, ct, handler))
+                    using var channelContext = new ChannelExecution(this, channelNumber, _abortCts.Token, ct, handler);
+                    lock (_channels)
                     {
+                        _channels[channelNumber] = channelContext;
+                    }
+                    try
+                    {
+                        await channelContext.ExecuteAsync();
+                    }
+                    catch (OperationCanceledException) when (_abortReason != null)
+                    {
+                        ThrowNewConnectionClosedException();
+                    }
+                    finally
+                    {
+                        // No more messages will be queued to this channel.
                         lock (_channels)
                         {
-                            _channels[channelNumber] = channelContext;
-                        }
-                        try
-                        {
-                            await channelContext.ExecuteAsync();
-                        }
-                        catch (OperationCanceledException) when (_abortReason != null)
-                        {
-                            ThrowNewConnectionClosedException();
-                        }
-                        finally
-                        {
-                            // No more messages will be queued to this channel.
-                            lock (_channels)
-                            {
-                                _channels.Remove(channelNumber);
-                            }
+                            _channels.Remove(channelNumber);
                         }
                     }
                 }
@@ -292,14 +299,14 @@ namespace Tmds.Ssh
                         // TODO: return channel number
                     }
                 }
-            };
+            }
 
             Task task;
             lock (_gate)
             {
                 ThrowIfDisposed();
 
-                List<Task> connectionUsers = _connectionUsers;
+                List<Task>? connectionUsers = _connectionUsers;
                 if (connectionUsers == null)
                 {
                     if (_abortReason != null)
@@ -314,7 +321,7 @@ namespace Tmds.Ssh
                 }
 
                 task = runChannel();
-                connectionUsers.Add(task);
+                connectionUsers!.Add(task);
             }
 
             try
@@ -337,7 +344,7 @@ namespace Tmds.Ssh
             {
                 lock (_gate)
                 {
-                    List<Task> connectionUsers = _connectionUsers;
+                    List<Task>? connectionUsers = _connectionUsers;
                     if (connectionUsers != null)
                     {
                         connectionUsers.Remove(t);
@@ -348,7 +355,7 @@ namespace Tmds.Ssh
 
         private ValueTask SendPacketAsync(Sequence packet, CancellationToken ct)
         {
-            Channel<PendingSend> sendQueue = _sendQueue;
+            Channel<PendingSend>? sendQueue = _sendQueue;
 
             if (sendQueue == null)
             {
@@ -363,15 +370,15 @@ namespace Tmds.Ssh
 
             try
             {
-                var cts = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var cts = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var send = new PendingSend
                 {
                     Packet = packet,
                     TaskCompletion = cts,
                     CancellationToken = ct,
-                    CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<object>)s).SetCanceled(), cts)
+                    CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
                 };
-                bool written = sendQueue.Writer.TryWrite(send);
+                bool written = sendQueue!.Writer.TryWrite(send);
                 if (!written)
                 {
                     // SendLoopAsync stopped.
@@ -404,7 +411,7 @@ namespace Tmds.Ssh
             {
                 while (true)
                 {
-                    PendingSend send = await _sendQueue.Reader.ReadAsync(abortToken); // TODO: maybe use ReadAllAsync
+                    PendingSend send = await _sendQueue!.Reader.ReadAsync(abortToken); // TODO: maybe use ReadAllAsync
                     Sequence packet = send.Packet;
                     try
                     {
@@ -418,14 +425,14 @@ namespace Tmds.Ssh
                             ReadOnlySequence<byte> data = packet.AsReadOnlySequence();
                             await sshConnection.SendPacketAsync(data, abortToken);
 
-                            SemaphoreSlim keyExchangeSemaphore = null;
+                            SemaphoreSlim? keyExchangeSemaphore = null;
                             if (data.FirstSpan[0] == MessageNumber.SSH_MSG_KEXINIT)
                             {
-                                keyExchangeSemaphore = _keyReExchangeSemaphore;
+                                keyExchangeSemaphore = _keyReExchangeSemaphore!;
                                 _keyReExchangeSemaphore = null;
                             }
 
-                            send.TaskCompletion.SetResult(null);
+                            send.TaskCompletion.SetResult(true);
 
                             // Don't send any more packets until Key Re-Exchange completed.
                             if (keyExchangeSemaphore != null)
@@ -512,12 +519,12 @@ namespace Tmds.Ssh
                         {
                             // When we send SSH_MSG_KEXINIT, we can't send other packets until key exchange completes.
                             // This is implemented using _keyReExchangeSemaphore.
-                            Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             var keyExchangeSemaphore = new SemaphoreSlim(0, 1);
                             _keyReExchangeSemaphore = keyExchangeSemaphore;
                             try
                             {
                                 // this will await _keyReExchangeSemaphore and set it to null.
+                                Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                                 await SendPacketAsync(keyExchangeInitMsg, abortToken);
                             }
                             catch
@@ -549,7 +556,7 @@ namespace Tmds.Ssh
         // This method will just cut the connection.
         public async ValueTask DisposeAsync()
         {
-            Task runningConnectionTask = null;
+            Task? runningConnectionTask = null;
             lock (_gate)
             {
                 _disposed = true;
@@ -591,9 +598,7 @@ namespace Tmds.Ssh
         }
 
         private Sequence RentSequence()
-        {
-            throw new NotImplementedException();
-        }
+            => _sequencePool.RentSequence();
 
         private void ThrowNewConnectionClosedException()
         {
@@ -601,19 +606,14 @@ namespace Tmds.Ssh
             {
                 ThrowInvalidOperationException("Connection not closed");
             }
-            string message;
-            Exception innerException;
             if (_abortReason == ClosedByPeer)
             {
-                message = "Connection closed by peer.";
-                innerException = null;
+                throw new ConnectionClosedException("Connection closed by peer.");
             }
             else
             {
-                message = $"Connection closed: {_abortReason.Message}";
-                innerException = _abortReason;
+                throw new ConnectionClosedException($"Connection closed: {_abortReason!.Message}", _abortReason);
             }
-            throw new ConnectionClosedException(message, innerException);
         }
     }
 }

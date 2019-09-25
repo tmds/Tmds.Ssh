@@ -12,7 +12,7 @@ namespace Tmds.Ssh
     public sealed class SshClientSettings
     {
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-        public string Host { get; set; }
+        public string? Host { get; set; }
         public int Port { get; set; }
 
         // For testing:

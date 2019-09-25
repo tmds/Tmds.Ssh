@@ -25,7 +25,9 @@ namespace Tmds.Ssh
 
         public static Sequence CreateKeyExchangeInitMessage(SequencePool sequencePool, ILogger logger, SshClientSettings settings)
         {
-            return null;
+            var sequence = sequencePool.RentSequence();
+            // TODO
+            return sequence;
         }
     }
 }
