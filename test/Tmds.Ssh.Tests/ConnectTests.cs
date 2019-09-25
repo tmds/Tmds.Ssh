@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -11,31 +12,28 @@ namespace Tmds.Ssh.Tests
         [Fact]
         public async Task ClientCanConnectToServerSocket()
         {
-            using Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            listenSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-            listenSocket.Listen(1);
+            TaskCompletionSource<Sequence> serverReceivedTcs = new TaskCompletionSource<Sequence>();
 
-            IPEndPoint localEndPoint = listenSocket.LocalEndPoint as IPEndPoint;
+            await using var server = new TestServer(
+                async conn =>
+                {
+                    var packet = await conn.ReceivePacketAsync(default);
+                    serverReceivedTcs.SetResult(packet);
+                }
+            );
+            await using var client = await server.CreateClientAsync(
+                s =>
+                {
+                    s.NoKeyExchange = true;
+                    s.NoProtocolVersionExchange = true;
+                    s.NoUserAuthentication = true;
+                }
+            );
+            await client.DisposeAsync();
 
-            var clientSettings = new SshClientSettings
-            {
-                Host = localEndPoint.Address.ToString(),
-                Port = localEndPoint.Port,
-                NoKeyExchange = true,
-                NoProtocolVersionExchange = true,
-                NoUserAuthentication = true
-            };
-
-            await using var sshClient = new SshClient(clientSettings);
-            await sshClient.ConnectAsync();
-
-            listenSocket.Blocking = false;
-            Socket acceptedSocket = listenSocket.Accept();
-
-            await sshClient.DisposeAsync();
-
-            int bytesReceived = acceptedSocket.Receive(new byte[1]);
-            Assert.Equal(0, bytesReceived);
+            // Check the server received an EOF.
+            var serverReceivedPacket = await serverReceivedTcs.Task;
+            Assert.Null(serverReceivedPacket);
         }
     }
 }

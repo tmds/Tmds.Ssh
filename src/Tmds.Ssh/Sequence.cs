@@ -24,16 +24,7 @@ namespace Tmds.Ssh
             {
                 var next = segment.Next;
 
-                // Return Segment buffer
-                byte[]? buffer = segment.AllocatedBuffer;
-                if (buffer != null)
-                {
-                    _pool.ReturnByteBuffer(buffer);
-                }
-
-                // Return Segment
-                segment.Reset();
-                _pool.ReturnSegment(segment);
+                ReturnSegment(segment);
 
                 segment = next;
             }
@@ -44,7 +35,21 @@ namespace Tmds.Ssh
             _pool.ReturnSequence(this);
         }
 
-        public Memory<byte> AllocGetMemory(int sizeHint)
+        private void ReturnSegment(Segment segment)
+        {
+            // Return Segment buffer
+            byte[]? buffer = segment.AllocatedBuffer;
+            if (buffer != null)
+            {
+                _pool.ReturnByteBuffer(buffer);
+            }
+
+            // Return Segment
+            segment.Reset();
+            _pool.ReturnSegment(segment);
+        }
+
+        public Memory<byte> AllocGetMemory(int sizeHint = 0)
         {
             if (sizeHint < 0)
             {
@@ -79,7 +84,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public Span<byte> AllocGetSpan(int sizeHint)
+        public Span<byte> AllocGetSpan(int sizeHint = 0)
             => AllocGetMemory(sizeHint).Span;
 
         public void AppendAlloced(int length)
@@ -90,6 +95,37 @@ namespace Tmds.Ssh
             }
 
             _endSegment.Advance(length);
+        }
+
+        public void Remove(long consumed)
+        {
+            while (consumed > 0)
+            {
+                Segment startSegment = _startSegment!;
+                int length = startSegment.End - startSegment.Start;
+                if (length > consumed)
+                {
+                    startSegment.Remove((int)consumed);
+                    consumed = 0;
+                }
+                else
+                {
+                    _startSegment = startSegment.Next;
+
+                    ReturnSegment(startSegment);
+
+                    consumed -= length;
+                }
+            }
+
+            if (_startSegment != null)
+            {
+                _startSegment.UpdateRunningIndices();
+            }
+            else
+            {
+                _endSegment = null;
+            }
         }
 
         public ReadOnlySequence<byte> AsReadOnlySequence()
