@@ -68,7 +68,7 @@ namespace Tmds.Ssh
                 // SshClient allows a single ConnectAsync operation.
                 if (_runningConnectionTask != null)
                 {
-                    ThrowInvalidOperationException("Connect may be called once.");
+                    ThrowHelper.ThrowInvalidOperation("Connect may be called once.");
                 }
 
                 // ConnectAsync waits for this Task.
@@ -127,7 +127,7 @@ namespace Tmds.Ssh
                         await sshConnection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
                     }
                     {
-                        using Sequence remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
+                        using Sequence? remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
                         await _settings.ExchangeKeysAsync(sshConnection, remoteExchangeInitMsg, _logger, _settings, connectCts.Token);
                     }
                 }
@@ -316,7 +316,7 @@ namespace Tmds.Ssh
                     else
                     {
                         // Trying to add a channel before ConnectAsync completed.
-                        ThrowInvalidOperationException("Not connected");
+                        ThrowHelper.ThrowInvalidOperation("Not connected");
                     }
                 }
 
@@ -360,7 +360,7 @@ namespace Tmds.Ssh
             if (sendQueue == null)
             {
                 // Trying to send before SendLoopAsync completed.
-                ThrowInvalidOperationException("Not connected");
+                ThrowHelper.ThrowInvalidOperation("Not connected");
             }
 
             if (_abortReason != null)
@@ -399,11 +399,6 @@ namespace Tmds.Ssh
             }
         }
 
-        private void ThrowInvalidOperationException(string message)
-        {
-            throw new InvalidOperationException(message);
-        }
-
         private async Task SendLoopAsync(SshConnection sshConnection)
         {
             CancellationToken abortToken = _abortCts.Token;
@@ -428,7 +423,7 @@ namespace Tmds.Ssh
                             SemaphoreSlim? keyExchangeSemaphore = null;
                             if (data.FirstSpan[0] == MessageNumber.SSH_MSG_KEXINIT)
                             {
-                                keyExchangeSemaphore = _keyReExchangeSemaphore!;
+                                keyExchangeSemaphore = _keyReExchangeSemaphore;
                                 _keyReExchangeSemaphore = null;
                             }
 
@@ -586,7 +581,7 @@ namespace Tmds.Ssh
         {
             if (reason == null)
             {
-                throw new ArgumentNullException(nameof(reason));
+                ThrowHelper.ThrowArgumentNull(nameof(reason));
             }
 
             // Capture the first exception to call Abort.
@@ -604,7 +599,7 @@ namespace Tmds.Ssh
         {
             if (_abortReason == null)
             {
-                ThrowInvalidOperationException("Connection not closed");
+                ThrowHelper.ThrowInvalidOperation("Connection not closed");
             }
             if (_abortReason == ClosedByPeer)
             {
