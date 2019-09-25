@@ -49,7 +49,7 @@ namespace Tmds.Ssh
             internal void SetNext(Segment segment)
             {
                 Next = segment;
-                Next.RunningIndex = RunningIndex + End;
+                Next.RunningIndex = RunningIndex + End - Start;
 
                 // We're no longer the last sequence, ReadOnlySequence no longer
                 // delimits our length by End, so we must do it.
@@ -59,6 +59,25 @@ namespace Tmds.Ssh
             internal void Advance(int count)
             {
                 End += count;
+            }
+
+            internal void Remove(int count)
+            {
+                Start += count;
+            }
+
+            internal void UpdateRunningIndices()
+            {
+                RunningIndex = 0;
+                long runningIndex = End - Start; // length of this segment.
+
+                Segment? next = Next;
+                while (next != null)
+                {
+                    next.RunningIndex = runningIndex;
+                    runningIndex += next.End; // Only the first segment can have a non zero Start.
+                    next = next.Next;
+                }
             }
         }
     }

@@ -14,10 +14,10 @@ namespace Tmds.Ssh
     // Binary packet protocol: https://tools.ietf.org/html/rfc4253#section-6.
     abstract class SshConnection : IDisposable
     {
-        public abstract ValueTask ReceiveLineAsync(StringBuilder sb, int maxLength, CancellationToken ct);
+        public abstract ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct);
         public abstract ValueTask WriteLineAsync(string line, CancellationToken ct);
 
-        public abstract ValueTask<Sequence> ReceivePacketAsync(CancellationToken ct);
+        public abstract ValueTask<Sequence?> ReceivePacketAsync(CancellationToken ct, int maxLength = 0);
         public abstract ValueTask SendPacketAsync(ReadOnlySequence<byte> data, CancellationToken ct);
         public abstract void Dispose();
     }
