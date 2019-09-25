@@ -12,7 +12,7 @@ namespace Tmds.Ssh
     {
         public static async Task ConnectAsync(this Socket socket, string host, int port, CancellationToken cancellationToken)
         {
-            var tcs = new TaskCompletionSource<object>();
+            var tcs = new TaskCompletionSource<bool>();
 
             using SocketAsyncEventArgs connectSea = new SocketAsyncEventArgs
             {
@@ -33,7 +33,7 @@ namespace Tmds.Ssh
             else
             {
                 // async completion
-                using (cancellationToken.UnsafeRegister(a => Socket.CancelConnectAsync((SocketAsyncEventArgs)a), connectSea))
+                using (cancellationToken.UnsafeRegister(a => Socket.CancelConnectAsync((SocketAsyncEventArgs)a!), connectSea))
                 {
                     try
                     {
@@ -47,12 +47,12 @@ namespace Tmds.Ssh
                 }
             }
 
-            static void HandleCompletion(object sender, SocketAsyncEventArgs args)
+            static void HandleCompletion(object? sender, SocketAsyncEventArgs args)
             {
-                var argsTcs = (TaskCompletionSource<object>)args.UserToken;
+                var argsTcs = (TaskCompletionSource<bool>)args.UserToken;
                 if (args.SocketError == SocketError.Success)
                 {
-                    argsTcs.SetResult(null);
+                    argsTcs.SetResult(true);
                 }
                 else
                 {

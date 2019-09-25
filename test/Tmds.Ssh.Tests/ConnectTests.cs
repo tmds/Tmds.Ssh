@@ -11,33 +11,31 @@ namespace Tmds.Ssh.Tests
         [Fact]
         public async Task ClientCanConnectToServerSocket()
         {
-            using (Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+            using Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listenSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            listenSocket.Listen(1);
+
+            IPEndPoint localEndPoint = listenSocket.LocalEndPoint as IPEndPoint;
+
+            var clientSettings = new SshClientSettings
             {
-                listenSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-                listenSocket.Listen(1);
+                Host = localEndPoint.Address.ToString(),
+                Port = localEndPoint.Port,
+                NoKeyExchange = true,
+                NoProtocolVersionExchange = true,
+                NoUserAuthentication = true
+            };
 
-                IPEndPoint localEndPoint = listenSocket.LocalEndPoint as IPEndPoint;
+            await using var sshClient = new SshClient(clientSettings);
+            await sshClient.ConnectAsync();
 
-                var clientSettings = new SshClientSettings
-                {
-                    Host = localEndPoint.Address.ToString(),
-                    Port = localEndPoint.Port,
-                    NoKeyExchange = true,
-                    NoProtocolVersionExchange = true,
-                    NoUserAuthentication = true
-                };
+            listenSocket.Blocking = false;
+            Socket acceptedSocket = listenSocket.Accept();
 
-                await using var sshClient = new SshClient(clientSettings);
-                await sshClient.ConnectAsync();
+            await sshClient.DisposeAsync();
 
-                listenSocket.Blocking = false;
-                Socket acceptedSocket = listenSocket.Accept();
-
-                await sshClient.DisposeAsync();
-
-                int bytesReceived = acceptedSocket.Receive(new byte[1]);
-                Assert.Equal(0, bytesReceived);
-            }
+            int bytesReceived = acceptedSocket.Receive(new byte[1]);
+            Assert.Equal(0, bytesReceived);
         }
     }
 }
