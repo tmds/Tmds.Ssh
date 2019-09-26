@@ -22,9 +22,27 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolUnexpectedEndOfPacket()
+        {
+            throw new ProtocolException("Unexpected end of packet.");
+        }
+
+        [DoesNotReturn]
         public static void ThrowArgumentNull(string paramName)
         {
             throw new ArgumentNullException(paramName);
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolInvalidUtf8()
+        {
+            throw new ProtocolException("Data contains an invalid UTF-8 sequence.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolInvalidAscii()
+        {
+            throw new ProtocolException("Data contains an invalid ASCII characters.");
         }
     }
 }
