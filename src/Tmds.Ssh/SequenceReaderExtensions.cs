@@ -141,11 +141,17 @@ namespace Tmds.Ssh
         public static BigInteger ReadMPInt(ref this SequenceReader<byte> reader)
         {
             long length = reader.ReadUInt32();
+            if (length == 0)
+            {
+                return BigInteger.Zero;
+            }
             try
             {
                 ReadOnlySpan<byte> span = reader.UnreadSpan.Length >= length ?
                         reader.UnreadSpan.Slice(0, (int)length) :
                         reader.Sequence.Slice(reader.Position, length).ToArray(); // TODO: maybe stackalloc if length is small
+
+                reader.Advance(length);
 
                 return new BigInteger(span, isUnsigned: false, isBigEndian: true);
             }

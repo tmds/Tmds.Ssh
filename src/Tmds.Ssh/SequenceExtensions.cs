@@ -31,9 +31,9 @@ namespace Tmds.Ssh
         }
 
         public static void WriteUInt32(this Sequence sequence, int value)
-            => WriteUInt32(sequence, (int)value);
+            => WriteUInt32(sequence, (uint)value);
 
-        public static void WriteUInt64(this Sequence sequence, uint value)
+        public static void WriteUInt64(this Sequence sequence, ulong value)
         {
             Debug.Assert(8 <= Constants.GuaranteedSizeHint);
 

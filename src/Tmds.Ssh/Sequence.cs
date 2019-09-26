@@ -150,6 +150,9 @@ namespace Tmds.Ssh
             }
         }
 
+        public SequenceReader<byte> CreateReader()
+            => new SequenceReader<byte>(AsReadOnlySequence());
+
         void IBufferWriter<byte>.Advance(int count)
             => AppendAlloced(count);
 
