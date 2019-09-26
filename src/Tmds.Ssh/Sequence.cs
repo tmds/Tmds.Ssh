@@ -51,13 +51,9 @@ namespace Tmds.Ssh
 
         public Memory<byte> AllocGetMemory(int sizeHint = 0)
         {
-            if (sizeHint < 0)
+            if (sizeHint <= 0 || sizeHint > Constants.GuaranteedSizeHint)
             {
-                ThrowHelper.ThrowArgumentOutOfRange(nameof(sizeHint));
-            }
-            else if (sizeHint == 0 || sizeHint > 1024)
-            {
-                sizeHint = 1024;
+                sizeHint = Constants.GuaranteedSizeHint;
             }
 
             int bytesAvailable = _endSegment?.BytesUnused ?? 0;
@@ -85,7 +81,16 @@ namespace Tmds.Ssh
         }
 
         public Span<byte> AllocGetSpan(int sizeHint = 0)
-            => AllocGetMemory(sizeHint).Span;
+        {
+            // Quick check if there is sufficient space.
+            int bytesAvailable = _endSegment?.BytesUnused ?? 0;
+            if (bytesAvailable <= sizeHint)
+            {
+                AllocGetMemory(sizeHint);
+            }
+
+            return _endSegment!.UnusedSpan;
+        }
 
         public void AppendAlloced(int length)
         {

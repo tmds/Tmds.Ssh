@@ -14,8 +14,6 @@ namespace Tmds.Ssh
             internal int Start { get; private set; }
             internal int End { get; private set; }
 
-            internal byte[]? AllocatedBuffer { get => _allocatedBuffer; }
-
             internal void SetBuffer(byte[] buffer)
             {
                 _allocatedBuffer = buffer;
@@ -24,8 +22,13 @@ namespace Tmds.Ssh
                 Memory = buffer;
             }
 
+            internal byte[]? AllocatedBuffer { get => _allocatedBuffer; }
             internal Memory<byte> AllocatedMemory => AllocatedBuffer;
             internal Memory<byte> Unused => AllocatedMemory.Slice(End);
+            internal Span<byte> UnusedSpan
+            {
+                get => new Span<byte>(_allocatedBuffer, End, BytesUnused);
+            }
 
             internal int BytesUnused
                 => AllocatedBuffer!.Length - End;
