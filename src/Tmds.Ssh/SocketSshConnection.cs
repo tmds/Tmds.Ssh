@@ -18,6 +18,7 @@ namespace Tmds.Ssh
         private readonly Socket _socket;
         private Sequence _receiveBuffer;
         private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
+        private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
         public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket)
         {
@@ -46,7 +47,8 @@ namespace Tmds.Ssh
 
         private async ValueTask<int> ReceiveAsync(CancellationToken ct)
         {
-            int received = await _socket.ReceiveAsync(_receiveBuffer.AllocGetMemory(), SocketFlags.None, ct);
+            var memory = _receiveBuffer.AllocGetMemory();
+            int received = await _socket.ReceiveAsync(memory, SocketFlags.None, ct);
             _receiveBuffer.AppendAlloced(received);
             return received;
         }
@@ -60,14 +62,21 @@ namespace Tmds.Ssh
             if (lineExpected)
             {
                 // Don't look at more than maxLength data.
-                data = data.Slice(maxLength);
+                data = data.Slice(0, maxLength);
             }
 
             var reader = new SequenceReader<byte>(data);
             if (reader.TryReadTo(out ReadOnlySequence<byte> lineSequence, NewLine))
             {
-                // TODO convert UTF8 Exception into ProtocolException.
-                line = Encoding.UTF8.GetString(lineSequence.ToArray());
+                try
+                {
+                    line = s_utf8Encoding.GetString(lineSequence.ToArray());
+                }
+                catch (DecoderFallbackException)
+                {
+                    ThrowHelper.ThrowProtocolInvalidUtf8();
+                    throw;
+                }
                 _receiveBuffer.Remove(reader.Consumed);
                 return true;
             }

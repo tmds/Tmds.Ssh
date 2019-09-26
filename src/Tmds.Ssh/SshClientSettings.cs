@@ -13,7 +13,7 @@ namespace Tmds.Ssh
     {
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
         public string? Host { get; set; }
-        public int Port { get; set; }
+        public int Port { get; set; } = 22;
 
         // For testing:
         internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);

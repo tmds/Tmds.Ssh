@@ -44,5 +44,17 @@ namespace Tmds.Ssh
         {
             throw new ProtocolException("Data contains an invalid ASCII characters.");
         }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolUnsupportedVersion(string identificationString)
+        {
+            throw new ProtocolException($"Unsupported protocol version: {identificationString}.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolNoVersionIdentificationString()
+        {
+            throw new ProtocolException("No protocol version string received.");
+        }
     }
 }

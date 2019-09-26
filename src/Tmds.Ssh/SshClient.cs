@@ -89,7 +89,9 @@ namespace Tmds.Ssh
             {
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 // Connect to the remote host
+                logger.Connecting(settings.Host!, settings.Port);
                 await socket.ConnectAsync(settings.Host!, settings.Port, ct);
+                logger.ConnectionEstablished();
                 socket.NoDelay = true;
                 return new SocketSshConnection(logger, sequencePool, socket);
             }
@@ -113,12 +115,13 @@ namespace Tmds.Ssh
                 connectCts.CancelAfter(_settings.ConnectTimeout);
 
                 // Connect to the remote host
+                var sshConnectionInfo = new SshConnectionInfo();
                 sshConnection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
 
                 // Setup ssh connection
                 if (!_settings.NoProtocolVersionExchange)
                 {
-                    await _settings.ExchangeProtocolVersionAsync(sshConnection, _logger, _settings, connectCts.Token);
+                    await _settings.ExchangeProtocolVersionAsync(sshConnection, sshConnectionInfo, _logger, _settings, connectCts.Token);
                 }
                 if (!_settings.NoKeyExchange)
                 {
