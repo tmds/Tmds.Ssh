@@ -54,7 +54,7 @@ namespace Tmds.Ssh
 
         internal byte[] RentByteBuffer(int sizeHint /* ignored */)
         {
-            return ArrayPool<byte>.Shared.Rent(minimumLength: 4096);
+            return ArrayPool<byte>.Shared.Rent(minimumLength: Constants.BufferSize);
         }
     }
 }

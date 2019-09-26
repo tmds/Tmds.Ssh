@@ -12,7 +12,7 @@ namespace Tmds.Ssh
     // https://tools.ietf.org/html/rfc4251#section-5
     static class SequenceReaderExtensions
     {
-        public static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
         public static byte ReadByte(ref this SequenceReader<byte> reader)
         {
