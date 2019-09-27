@@ -13,12 +13,17 @@ namespace Tmds.Ssh
 {
     sealed class SocketSshConnection : SshConnection
     {
+
+        private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
+        private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
         private readonly ILogger _logger;
         private readonly SequencePool _sequencePool;
         private readonly Socket _socket;
-        private Sequence _receiveBuffer;
-        private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
-        private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        private readonly Sequence _receiveBuffer;
+        private readonly Sequence _sendBuffer;
+        private PacketDecoder _decoder;
+        private PacketEncoder _encoder;
 
         public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket)
         {
@@ -26,6 +31,9 @@ namespace Tmds.Ssh
             _sequencePool = sequencePool;
             _socket = socket;
             _receiveBuffer = sequencePool.RentSequence();
+            _sendBuffer = sequencePool.RentSequence();
+            _decoder = new PacketDecoder();
+            _encoder = new PacketEncoder();
         }
 
         public override async ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct)
@@ -101,7 +109,7 @@ namespace Tmds.Ssh
 
             while (true)
             {
-                if (TryParsePacket(maxLength, out Sequence? packet))
+                if (_decoder.TryDecodePacket(_receiveBuffer, _sequencePool, maxLength, out Sequence? packet))
                 {
                     return packet!;
                 }
@@ -121,28 +129,24 @@ namespace Tmds.Ssh
             }
         }
 
-        private bool TryParsePacket(int maxLength, out Sequence? packet)
-        {
-            // TODO: implement binary packet parsing.
-
-            // For now: just return the whole _receiveBuffer.
-            if (!_receiveBuffer.AsReadOnlySequence().IsEmpty)
-            {
-                packet = _receiveBuffer;
-                _receiveBuffer = _sequencePool.RentSequence();
-                return true;
-            }
-
-            packet = null;
-            return false;
-        }
-
         public override async ValueTask SendPacketAsync(ReadOnlySequence<byte> data, CancellationToken ct)
         {
-            foreach (var memory in data)
+            _encoder.Encode(data, _sendBuffer);
+            var encodedData = _sendBuffer.AsReadOnlySequence();
+
+            if (encodedData.IsSingleSegment)
             {
-                await _socket.SendAsync(memory, SocketFlags.None, ct);
+                await _socket.SendAsync(encodedData.First, SocketFlags.None, ct);
             }
+            else
+            {
+                foreach (var memory in encodedData)
+                {
+                    await _socket.SendAsync(memory, SocketFlags.None, ct);
+                }
+            }
+
+            _sendBuffer.Clear();
         }
 
         public override async ValueTask WriteLineAsync(string line, CancellationToken ct)
@@ -154,6 +158,9 @@ namespace Tmds.Ssh
         public override void Dispose()
         {
             _receiveBuffer.Dispose();
+            _sendBuffer.Dispose();
+            _encoder.Dispose();
+            _decoder.Dispose();
             _socket.Dispose();
         }
     }
