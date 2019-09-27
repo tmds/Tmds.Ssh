@@ -6,7 +6,7 @@ using System.Buffers;
 
 namespace Tmds.Ssh
 {
-    sealed partial class Sequence : IDisposable, IBufferWriter<byte>
+    sealed partial class Sequence : IDisposable
     {
         private Segment? _startSegment;
         private Segment? _endSegment;
@@ -17,7 +17,7 @@ namespace Tmds.Ssh
             _pool = pool;
         }
 
-        public void Dispose()
+        public void Clear()
         {
             var segment = _startSegment;
             while (segment != null)
@@ -32,6 +32,12 @@ namespace Tmds.Ssh
             // Return Sequence
             _startSegment = null;
             _endSegment = null;
+        }
+
+        public void Dispose()
+        {
+            Clear();
+
             _pool.ReturnSequence(this);
         }
 
@@ -152,14 +158,5 @@ namespace Tmds.Ssh
 
         public SequenceReader<byte> CreateReader()
             => new SequenceReader<byte>(AsReadOnlySequence());
-
-        void IBufferWriter<byte>.Advance(int count)
-            => AppendAlloced(count);
-
-        Memory<byte> IBufferWriter<byte>.GetMemory(int sizeHint)
-            => AllocGetMemory(sizeHint);
-
-        Span<byte> IBufferWriter<byte>.GetSpan(int sizeHint)
-            => AllocGetSpan(sizeHint);
     }
 }

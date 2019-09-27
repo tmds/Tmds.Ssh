@@ -1,0 +1,282 @@
+// This file is part of Tmds.Ssh which is released under LGPL-3.0.
+// See file LICENSE for full license details.
+
+using System;
+using System.Buffers;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Numerics;
+using System.Text;
+
+namespace Tmds.Ssh
+{
+    ref struct SequenceWriter
+    {
+        private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+        private readonly SequencePool? _sequencePool;
+        private Sequence? _sequence;
+        private Span<byte> _unused;
+
+        // Used for building a Sequence.
+        public SequenceWriter(SequencePool sequencePool)
+        {
+            _sequencePool = sequencePool;
+            _sequence = null;
+            _unused = default;
+        }
+
+        // Used for writing to a Sequence.
+        public SequenceWriter(Sequence sequence)
+        {
+            if (sequence == null)
+            {
+                ThrowHelper.ThrowArgumentNull(nameof(sequence));
+            }
+
+            _sequencePool = null;
+            _sequence = sequence;
+            _unused = default;
+        }
+
+        public Sequence BuildSequence()
+        {
+            if (_sequence == null)
+            {
+                ThrowHelper.ThrowInvalidOperation("No data written.");
+            }
+
+            var sequence = _sequence;
+            _sequence = null;
+            return sequence;
+        }
+
+        public void Dispose()
+        {
+            if (_sequencePool != null && _sequence != null)
+            {
+                _sequence.Dispose();
+            }
+        }
+
+        private Span<byte> AllocGetSpan(int sizeHint = 0)
+        {
+            if (_unused.Length <= sizeHint)
+            {
+                EnlargeUnused(sizeHint);
+            }
+
+            return _unused;
+        }
+
+        private void EnlargeUnused(int sizeHint)
+        {
+            if (_sequence == null)
+            {
+                _sequence = _sequencePool!.RentSequence();
+            }
+
+            _unused = _sequence.AllocGetSpan(sizeHint);
+        }
+
+        private void AppendAlloced(int length)
+        {
+            _unused = _unused.Slice(length);
+            _sequence!.AppendAlloced(length);
+        }
+
+        public void WriteByte(byte value)
+        {
+            var span = AllocGetSpan(1);
+            span[0] = value;
+            AppendAlloced(1);
+        }
+
+        public void WriteUInt32(uint value)
+        {
+            var span = AllocGetSpan(4);
+            BinaryPrimitives.WriteUInt32BigEndian(span, value);
+            AppendAlloced(4);
+        }
+
+        public void WriteUInt32(int value)
+            => WriteUInt32((uint)value);
+
+        public void WriteUInt64(ulong value)
+        {
+            Debug.Assert(8 <= Constants.GuaranteedSizeHint);
+
+            var span = AllocGetSpan(8);
+            BinaryPrimitives.WriteUInt64BigEndian(span, value);
+            AppendAlloced(8);
+        }
+
+        public void WriteBoolean(bool value)
+        {
+            WriteByte(value ? (byte)1 : (byte)0);
+        }
+
+        public void WriteString(ReadOnlySpan<byte> value)
+        {
+            WriteUInt32(value.Length);
+            Write(value);
+        }
+
+        public void WriteString(string value)
+        {
+            Write(value.AsSpan(), writeLength: true);
+        }
+
+        public void WriteNameList(List<string> names)
+        {
+            var lengthSpan = AllocGetSpan(4);
+            AppendAlloced(4);
+
+            int bytesWritten = 0;
+
+            for (int i = 0; i < names.Count; i++)
+            {
+                bytesWritten += Write(names[i].AsSpan(), writeLength: false);
+                if (i != names.Count - 1)
+                {
+                    WriteByte((byte)',');
+                    bytesWritten++;
+                }
+            }
+
+            BinaryPrimitives.WriteUInt32BigEndian(lengthSpan, (uint)bytesWritten);
+        }
+
+        public void WriteMPInt(BigInteger value)
+        {
+            if(value == BigInteger.Zero)
+            {
+                WriteUInt32(0);
+            }
+            else
+            {
+                int length = value.GetByteCount(isUnsigned: false);
+                WriteUInt32(length);
+
+                var span = AllocGetSpan(length);
+                if (span.Length <= length)
+                {
+                    value.TryWriteBytes(span, out int bytesWritten, isUnsigned: false, isBigEndian: true);
+                    Debug.Assert(bytesWritten == length);
+                    AppendAlloced(bytesWritten);
+                }
+                else
+                {
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
+
+                    value.TryWriteBytes(buffer, out int bytesWritten, isUnsigned: false, isBigEndian: true);
+                    Write(buffer.AsSpan().Slice(0, length));
+                    Debug.Assert(bytesWritten == length);
+
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+            }
+        }
+
+        public void Write(in ReadOnlySequence<byte> value)
+        {
+            if (value.IsSingleSegment)
+            {
+                Write(value.FirstSpan);
+            }
+            else
+            {
+                foreach (var segment in value)
+                {
+                    Write(segment.Span);
+                }
+            }
+        }
+
+        public void Write(ReadOnlySpan<byte> value)
+        {
+            Span<byte> span = AllocGetSpan();
+
+            // Fast path, try copying to the available memory directly
+            if (value.Length <= span.Length)
+            {
+                value.CopyTo(span);
+                AppendAlloced(value.Length);
+            }
+            else
+            {
+                WriteMultiple(value, span);
+            }
+        }
+
+        public void WriteRandomBytes(int count)
+        {
+            Span<byte> span = AllocGetSpan(count);
+
+            if (span.Length <= count)
+            {
+                span = span.Slice(0, count);
+                RandomBytes.Fill(span);
+                AppendAlloced(count);
+            }
+            else
+            {
+                // TODO: maybe stackalloc for small counts
+
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(count);
+
+                span = buffer.AsSpan().Slice(0, count);
+                RandomBytes.Fill(span);
+                Write(span);
+
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        private void WriteMultiple(ReadOnlySpan<byte> input, Span<byte> destination)
+        {
+            while (true)
+            {
+                int writeSize = Math.Min(destination.Length, input.Length);
+                input.Slice(0, writeSize).CopyTo(destination);
+                AppendAlloced(writeSize);
+                input = input.Slice(writeSize);
+                if (input.Length == 0)
+                {
+                    break;
+                }
+                destination = AllocGetSpan();
+            }
+        }
+
+        private unsafe int Write(ReadOnlySpan<char> value, bool writeLength)
+        {
+            byte[]? poolBuffer = null;
+
+            int maxLength = s_utf8Encoding.GetMaxByteCount(value.Length);
+
+            // The compiler doesn't like it when we stackalloc into a Span
+            // and pass that to Write. It wants to avoid us storing the Span in this instance.
+            byte* stackBuffer = stackalloc byte[maxLength <= Constants.StackallocThreshold ? maxLength : 0];
+            Span<byte> byteSpan = stackBuffer != null ?
+                new Span<byte>(stackBuffer, maxLength) :
+                (poolBuffer = ArrayPool<byte>.Shared.Rent(maxLength));
+
+            int bytesWritten = s_utf8Encoding.GetBytes(value, byteSpan);
+
+            if (writeLength)
+            {
+                WriteUInt32(bytesWritten);
+            }
+            Write(byteSpan.Slice(0, bytesWritten));
+
+            if (poolBuffer != null)
+            {
+                ArrayPool<byte>.Shared.Return(poolBuffer);
+            }
+
+            return bytesWritten;
+        }
+    }
+}

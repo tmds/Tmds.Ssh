@@ -131,7 +131,11 @@ namespace Tmds.Ssh
                     }
                     {
                         using Sequence? remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
-                        await _settings.ExchangeKeysAsync(sshConnection, remoteExchangeInitMsg, _logger, _settings, connectCts.Token);
+                        if (remoteExchangeInitMsg == null)
+                        {
+                            Abort(ClosedByPeer);
+                        }
+                        await _settings.ExchangeKeysAsync(sshConnection, remoteExchangeInitMsg!, _logger, _settings, connectCts.Token);
                     }
                 }
                 if (!_settings.NoUserAuthentication)
@@ -484,7 +488,7 @@ namespace Tmds.Ssh
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
-                var packet = await sshConnection.ReceivePacketAsync(abortToken, maxLength: -1 /* don't limit */);
+                var packet = await sshConnection.ReceivePacketAsync(abortToken, maxLength: int.MaxValue);
                 if (packet == null)
                 {
                     Abort(ClosedByPeer);

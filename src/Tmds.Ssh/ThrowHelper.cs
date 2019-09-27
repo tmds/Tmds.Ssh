@@ -39,6 +39,11 @@ namespace Tmds.Ssh
             throw new ProtocolException("Data contains an invalid UTF-8 sequence.");
         }
 
+        internal static void ThrowProtocolPacketTooLong()
+        {
+            throw new ProtocolException("Packet is too long.");
+        }
+
         [DoesNotReturn]
         public static void ThrowProtocolInvalidAscii()
         {
@@ -55,6 +60,18 @@ namespace Tmds.Ssh
         public static void ThrowProtocolNoVersionIdentificationString()
         {
             throw new ProtocolException("No protocol version string received.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolPacketLongerThanExpected()
+        {
+            throw new ProtocolException("The packet contains more data than expected.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolUnexpectedValue()
+        {
+            throw new ProtocolException("The packet contains an unexpected value.");
         }
     }
 }
