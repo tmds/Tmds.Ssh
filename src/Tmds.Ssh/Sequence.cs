@@ -34,6 +34,13 @@ namespace Tmds.Ssh
             _endSegment = null;
         }
 
+        public Sequence Clone()
+        {
+            var writer = new SequenceWriter(_pool);
+            writer.Write(AsReadOnlySequence());
+            return writer.BuildSequence();
+        }
+
         public void Dispose()
         {
             Clear();

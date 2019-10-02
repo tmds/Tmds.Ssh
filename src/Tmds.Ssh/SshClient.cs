@@ -105,6 +105,7 @@ namespace Tmds.Ssh
         private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
         {
             SshConnection? sshConnection = null;
+            var sshConnectionInfo = new SshConnectionInfo();
             try
             {
                 // Cancel when:
@@ -115,7 +116,6 @@ namespace Tmds.Ssh
                 connectCts.CancelAfter(_settings.ConnectTimeout);
 
                 // Connect to the remote host
-                var sshConnectionInfo = new SshConnectionInfo();
                 sshConnection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
 
                 // Setup ssh connection
@@ -125,17 +125,15 @@ namespace Tmds.Ssh
                 }
                 if (!_settings.NoKeyExchange)
                 {
-                    {
-                        using Sequence localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
-                        await sshConnection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
-                    }
+                    using Sequence localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                    await sshConnection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
                     {
                         using Sequence? remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
                         if (remoteExchangeInitMsg == null)
                         {
-                            Abort(ClosedByPeer);
+                            ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                         }
-                        await _settings.ExchangeKeysAsync(sshConnection, remoteExchangeInitMsg!, _logger, _settings, connectCts.Token);
+                        await _settings.ExchangeKeysAsync(sshConnection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, sshConnectionInfo, connectCts.Token);
                     }
                 }
                 if (!_settings.NoUserAuthentication)
@@ -183,7 +181,7 @@ namespace Tmds.Ssh
                 return;
             }
 
-            await HandleConnectionAsync(sshConnection);
+            await HandleConnectionAsync(sshConnection, sshConnectionInfo);
         }
 
         internal static async Task SetupConnectionAsync(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token)
@@ -191,7 +189,7 @@ namespace Tmds.Ssh
             await Task.Delay(0);
         }
 
-        private async Task HandleConnectionAsync(SshConnection sshConnection)
+        private async Task HandleConnectionAsync(SshConnection sshConnection, SshConnectionInfo connectionInfo)
         {
             try
             {
@@ -199,7 +197,7 @@ namespace Tmds.Ssh
                 {
                     Task sendTask = SendLoopAsync(sshConnection);
                     AddConnectionUser(sendTask);
-                    AddConnectionUser(ReceiveLoopAsync(sshConnection));
+                    AddConnectionUser(ReceiveLoopAsync(sshConnection, connectionInfo));
 
                     // Wait for a task that runs as long as the connection.
                     await sendTask.ContinueWith(_ => { /* Ignore Failed/Canceled */ });
@@ -483,7 +481,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private async Task ReceiveLoopAsync(SshConnection sshConnection)
+        private async Task ReceiveLoopAsync(SshConnection sshConnection, SshConnectionInfo connectionInfo)
         {
             CancellationToken abortToken = _abortCts.Token;
             while (true)
@@ -523,11 +521,12 @@ namespace Tmds.Ssh
                             // This is implemented using _keyReExchangeSemaphore.
                             var keyExchangeSemaphore = new SemaphoreSlim(0, 1);
                             _keyReExchangeSemaphore = keyExchangeSemaphore;
+                            // this will await _keyReExchangeSemaphore and set it to null.
+                            using Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             try
                             {
-                                // this will await _keyReExchangeSemaphore and set it to null.
-                                Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
-                                await SendPacketAsync(keyExchangeInitMsg, abortToken);
+                                var clone = keyExchangeInitMsg.Clone(); // SendPacketAsync will Dispose the packet.
+                                await SendPacketAsync(clone, abortToken);
                             }
                             catch
                             {
@@ -535,7 +534,7 @@ namespace Tmds.Ssh
                                 _keyReExchangeSemaphore = null;
                                 throw;
                             }
-                            await _settings.ExchangeKeysAsync(sshConnection, packet, _logger, _settings, abortToken);
+                            await _settings.ExchangeKeysAsync(sshConnection, keyExchangeInitMsg, packet, _logger, _settings, connectionInfo, abortToken);
                             keyExchangeSemaphore.Release();
                         }
                         finally

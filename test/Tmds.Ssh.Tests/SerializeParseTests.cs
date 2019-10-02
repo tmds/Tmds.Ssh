@@ -100,28 +100,25 @@ namespace Tmds.Ssh.Tests
         }
 
         [Fact]
-        public void StringAscii()
+        public void StringName()
         {
             SequenceWriter writer = CreateSequenceWriter();
-            writer.WriteString("hello");
-            writer.WriteString("");
-            writer.WriteString("world");
-            var longString = GenerateRandomString(1_000_000);
-            writer.WriteString(longString);
+            writer.WriteString(new Name("hello"));
+            writer.WriteString(new Name(""));
+            writer.WriteString(new Name("world"));
 
             SequenceReader reader = new SequenceReader(writer.BuildSequence());
-            Assert.Equal("hello", reader.ReadAsciiString());
-            Assert.Equal("", reader.ReadAsciiString());
-            Assert.Equal("world", reader.ReadAsciiString());
-            Assert.Equal(longString, reader.ReadAsciiString());
+            Assert.Equal(new Name("hello"), reader.ReadName());
+            Assert.Equal(new Name(""), reader.ReadName());
+            Assert.Equal(new Name("world"), reader.ReadName());
         }
 
         [Fact]
         public void NameList()
         {
-            var single = new List<string> { "foo"};
-            var empty = new List<string> { };
-            var double_ = new List<string> { "bar", "baz" };
+            var single = new List<Name> { new Name("foo") };
+            var empty = new List<Name> { };
+            var double_ = new List<Name> { new Name("bar"), new Name("baz") };
 
             SequenceWriter writer = CreateSequenceWriter();
             writer.WriteNameList(single);
