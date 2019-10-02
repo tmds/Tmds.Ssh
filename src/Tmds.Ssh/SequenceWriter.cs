@@ -5,6 +5,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Numerics;
 using System.Text;
@@ -123,12 +124,23 @@ namespace Tmds.Ssh
             Write(value);
         }
 
+        public void WriteString(ReadOnlySequence<byte> value)
+        {
+            WriteUInt32((uint)value.Length);
+            Write(value);
+        }
+
         public void WriteString(string value)
         {
             Write(value.AsSpan(), writeLength: true);
         }
 
-        public void WriteNameList(List<string> names)
+        public void WriteString(Name value)
+        {
+            WriteString(value.AsSpan());
+        }
+
+        public void WriteNameList(List<Name> names)
         {
             var lengthSpan = AllocGetSpan(4);
             AppendAlloced(4);
@@ -137,7 +149,9 @@ namespace Tmds.Ssh
 
             for (int i = 0; i < names.Count; i++)
             {
-                bytesWritten += Write(names[i].AsSpan(), writeLength: false);
+                ReadOnlySpan<byte> span = names[i].AsSpan();
+                Write(span);
+                bytesWritten += span.Length;
                 if (i != names.Count - 1)
                 {
                     WriteByte((byte)',');
@@ -232,6 +246,14 @@ namespace Tmds.Ssh
 
                 ArrayPool<byte>.Shared.Return(buffer);
             }
+        }
+
+        public void WriteECPoint(ECPoint point)
+        {
+            WriteUInt32(1 + point.X.Length * 2);
+            WriteByte(0x04); // No compression.
+            Write(point.X);
+            Write(point.Y);
         }
 
         private void WriteMultiple(ReadOnlySpan<byte> input, Span<byte> destination)

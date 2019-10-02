@@ -15,16 +15,18 @@ namespace Tmds.Ssh
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
         public string? Host { get; set; }
         public int Port { get; set; } = 22;
-        internal List<string> KeyAlgorithms { get; } = new List<string>();
-        internal List<string> ServerHostKeyAlgorithms { get; } = new List<string>();
-        internal List<string> EncryptionAlgorithmsClientToServer { get; } = new List<string>();
-        internal List<string> EncryptionAlgorithmsServerToClient { get; } = new List<string>();
-        internal List<string> MacAlgorithmsClientToServer { get; } = new List<string>();
-        internal List<string> MacAlgorithmsServerToClient { get; } = new List<string>();
-        internal List<string> CompressionAlgorithmsClientToServer { get; } = new List<string>();
-        internal List<string> CompressionAlgorithmsServerToClient { get; } = new List<string>();
-        internal List<string> LanguagesClientToServer { get; } = new List<string>();
-        internal List<string> LanguagesServerToClient { get; } = new List<string>();
+
+        // Internal.
+        internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };
+        internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.SshRsa };
+        internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Cbc };
+        internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Cbc };
+        internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
+        internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
+        internal List<Name> CompressionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.None };
+        internal List<Name> CompressionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.None };
+        internal List<Name> LanguagesClientToServer { get; } = new List<Name>();
+        internal List<Name> LanguagesServerToClient { get; } = new List<Name>();
 
         // For testing:
         internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);

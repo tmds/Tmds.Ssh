@@ -7,6 +7,8 @@ namespace Tmds.Ssh
     {
         public const int StackallocThreshold = 256;
         public const int GuaranteedSizeHint = 1024;
-        public const int BufferSize = 4096; // Needs to be >= GuaranteedSizeHint.
+        public const int BufferSize = 4096;          // Needs to be >= GuaranteedSizeHint.
+        public const int MaxNameLength = 128;        // Arbitrary limit, may be increased.
+        public const int MaxECPointLength = 128 + 1; // Arbitrary limit, may be increased.
     }
 }

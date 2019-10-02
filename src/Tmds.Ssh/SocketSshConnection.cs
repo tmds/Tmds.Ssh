@@ -18,17 +18,16 @@ namespace Tmds.Ssh
         private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
         private readonly ILogger _logger;
-        private readonly SequencePool _sequencePool;
         private readonly Socket _socket;
         private readonly Sequence _receiveBuffer;
         private readonly Sequence _sendBuffer;
         private PacketDecoder _decoder;
         private PacketEncoder _encoder;
 
-        public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket)
+        public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket) :
+            base(sequencePool)
         {
             _logger = logger;
-            _sequencePool = sequencePool;
             _socket = socket;
             _receiveBuffer = sequencePool.RentSequence();
             _sendBuffer = sequencePool.RentSequence();
@@ -109,7 +108,7 @@ namespace Tmds.Ssh
 
             while (true)
             {
-                if (_decoder.TryDecodePacket(_receiveBuffer, _sequencePool, maxLength, out Sequence? packet))
+                if (_decoder.TryDecodePacket(_receiveBuffer, SequencePool, maxLength, out Sequence? packet))
                 {
                     return packet!;
                 }
@@ -153,6 +152,14 @@ namespace Tmds.Ssh
         {
             line += "\r\n";
             await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct);
+        }
+
+        public override void SetEncoderDecoder(PacketEncoder packetEncoder, PacketDecoder packetDecoder)
+        {
+            _encoder?.Dispose();
+            _decoder?.Dispose();
+            _encoder = packetEncoder;
+            _decoder = packetDecoder;
         }
 
         public override void Dispose()

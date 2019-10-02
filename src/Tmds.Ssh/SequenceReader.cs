@@ -3,10 +3,9 @@
 
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Tmds.Ssh
@@ -102,9 +101,39 @@ namespace Tmds.Ssh
             return ReadString(isUtf8: true);
         }
 
-        public string ReadAsciiString()
+        public Name ReadName()
         {
-            return ReadString(isUtf8: false);
+            long length = ReadUInt32();
+            return ReadName(length);
+        }
+
+        private Name ReadName(long length)
+        {
+            if (length > Constants.MaxNameLength)
+            {
+                ThrowHelper.ThrowProtocolNameTooLong();
+            }
+
+            try
+            {
+                byte[] bytes = _reader.UnreadSpan.Length >= length ?
+                                 _reader.UnreadSpan.Slice(0, (int)length).ToArray() :
+                                 _reader.Sequence.Slice(_reader.Position, length).ToArray();
+
+                _reader.Advance(length);
+
+                if (!Name.TryCreate(bytes, out Name name))
+                {
+                    ThrowHelper.ThrowProtocolInvalidName();
+                }
+
+                return name;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+                throw;
+            }
         }
 
         private string ReadString(bool isUtf8)
@@ -145,15 +174,15 @@ namespace Tmds.Ssh
             }
         }
 
-        public string[] ReadNameList()
+        public Name[] ReadNameList()
         {
             long length = ReadUInt32();
             if (length == 0)
             {
-                return Array.Empty<string>();
+                return Array.Empty<Name>();
             }
 
-            List<string> names = new List<string>();
+            List<Name> names = new List<Name>();
 
             if (TryRead(length, out ReadOnlySequence<byte> namesSequence))
             {
@@ -161,11 +190,11 @@ namespace Tmds.Ssh
 
                 while (namesReader.TryReadTo(out ReadOnlySequence<byte> nameSequence, (byte)','))
                 {
-                    string name = GetAsciiString(nameSequence);
+                    Name name = ReadName(nameSequence);
                     names.Add(name);
                 }
 
-                names.Add(GetAsciiString(namesReader.Sequence.Slice(namesReader.Position)));
+                names.Add(ReadName(namesReader.Sequence.Slice(namesReader.Position)));
             }
             else
             {
@@ -173,6 +202,22 @@ namespace Tmds.Ssh
             }
 
             return names.ToArray();
+
+            static Name ReadName(ReadOnlySequence<byte> nameSequence)
+            {
+                if (nameSequence.Length > Constants.MaxNameLength)
+                {
+                    ThrowHelper.ThrowProtocolNameTooLong();
+                }
+
+                byte[] bytes = nameSequence.ToArray();
+                if (!Name.TryCreate(bytes, out Name name))
+                {
+                    ThrowHelper.ThrowProtocolInvalidName();
+                }
+
+                return name;
+            }
         }
 
         public BigInteger ReadMPInt()
@@ -197,6 +242,37 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
                 throw;
             }
+        }
+
+        public ECPoint ReadECPoint()
+        {
+            long length = ReadUInt32();
+            if (length == 0)
+            {
+                ThrowHelper.ThrowProtocolECPointInvalidLength();
+            }
+            if (length > Constants.MaxECPointLength)
+            {
+                ThrowHelper.ThrowProtocolECPointTooLong();
+            }
+
+            byte firstByte = ReadByte();
+            if (firstByte != 0x04) // Check uncompressed.
+            {
+                ThrowHelper.ThrowNotSupportedException("Reading compressed ECPoints is not supported.");
+            }
+            length--;
+
+            if (length % 2 != 0)
+            {
+                ThrowHelper.ThrowProtocolECPointInvalidLength();
+            }
+
+            return new ECPoint
+            {
+                X = ReadBytes(length / 2),
+                Y = ReadBytes(length / 2)
+            };
         }
 
         public void Skip(long count)
@@ -261,10 +337,23 @@ namespace Tmds.Ssh
             return true;
         }
 
-        private ReadOnlySequence<byte> GetUnusedSequence()
+        private byte[] ReadBytes(long length)
         {
-            return _reader.Sequence.Slice(_reader.Position);
-        }
+            try
+            {
+                byte[] bytes = _reader.UnreadSpan.Length >= length ?
+                        _reader.UnreadSpan.Slice(0, (int)length).ToArray() :
+                        _reader.Sequence.Slice(_reader.Position, length).ToArray();
 
+                _reader.Advance(length);
+
+                return bytes;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+                throw;
+            }
+        }
     }
 }

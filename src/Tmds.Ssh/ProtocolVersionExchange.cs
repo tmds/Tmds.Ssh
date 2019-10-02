@@ -27,6 +27,7 @@ namespace Tmds.Ssh
             string version = versionAttribute?.InformationalVersion ?? "0.0";
             version = version.Replace('-', '_');
             string identificationString = $"SSH-2.0-TmdsSsh_{version}";
+            connectionInfo.ClientIdentificationString = identificationString;
 
             // Send our identification string.
             logger.LogInformation("Local version string {identificationString}", identificationString);
@@ -38,10 +39,10 @@ namespace Tmds.Ssh
                 string line = await sshConnection.ReceiveLineAsync(MaxLineLength, ct);
                 if (line.StartsWith("SSH-", StringComparison.Ordinal))
                 {
-                    connectionInfo.IdentificationString = line;
+                    connectionInfo.ServerIdentificationString = line;
                     if (line.StartsWith("SSH-2.0-", StringComparison.Ordinal))
                     {
-                        logger.LogInformation("Remote version string {identificationString}", connectionInfo.IdentificationString);
+                        logger.LogInformation("Remote version string {identificationString}", connectionInfo.ServerIdentificationString);
                         return;
                     }
                     ThrowHelper.ThrowProtocolUnsupportedVersion(line);

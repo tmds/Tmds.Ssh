@@ -63,6 +63,18 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolUnexpectedPeerClose()
+        {
+            throw new ProtocolException("Peer unexpectedly closed connection.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowKeyExchangeFailed(string message)
+        {
+            throw new KeyExchangeFailedException(message);
+        }
+
+        [DoesNotReturn]
         public static void ThrowProtocolPacketLongerThanExpected()
         {
             throw new ProtocolException("The packet contains more data than expected.");
@@ -72,6 +84,36 @@ namespace Tmds.Ssh
         public static void ThrowProtocolUnexpectedValue()
         {
             throw new ProtocolException("The packet contains an unexpected value.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolNameTooLong()
+        {
+            throw new ProtocolException("The identifier name is too long.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolInvalidName()
+        {
+            throw new ProtocolException("The identifier name is invalid.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolECPointInvalidLength()
+        {
+            throw new ProtocolException("The ECPoint has an invalid length.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolECPointTooLong()
+        {
+            throw new ProtocolException("The ECPoint is too long.");
+        }
+
+        [DoesNotReturn]
+        public static void ThrowNotSupportedException(string message)
+        {
+            throw new NotSupportedException(message);
         }
     }
 }
