@@ -32,26 +32,26 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task<KeyExchangeOutput> TryExchangeAsync(IReadOnlyList<Name> hostKeyAlgorithms, Sequence? initialMessage, Sequence clientInit, Sequence serverInit, SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+        public async Task<KeyExchangeOutput> TryExchangeAsync(IReadOnlyList<Name> hostKeyAlgorithms, Sequence? exchangeInitMsg, Sequence clientKexInitMsg, Sequence serverKexInitMsg, SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
             // TODO: use hostKeyAlgorithms?
             using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
             ECPoint q_c = myPublicKey.ExportParameters().Q;
-            using var initMessage = CreateEcdhInitMessage(connection.SequencePool, q_c);
-            await connection.SendPacketAsync(initMessage.AsReadOnlySequence(), ct);
+            using var ecdhInitMsg = CreateEcdhInitMessage(connection.SequencePool, q_c);
+            await connection.SendPacketAsync(ecdhInitMsg.AsReadOnlySequence(), ct);
 
             // Receive ECDH_REPLY.
-            if (initialMessage == null)
+            if (exchangeInitMsg == null)
             {
-                initialMessage = await connection.ReceivePacketAsync(ct);
+                exchangeInitMsg = await connection.ReceivePacketAsync(ct);
             }
-            if (initialMessage == null)
+            if (exchangeInitMsg == null)
             {
                 ThrowHelper.ThrowProtocolUnexpectedPeerClose();
             }
-            var ecdhReply = ParceEcdhReply(initialMessage);
+            var ecdhReply = ParceEcdhReply(exchangeInitMsg);
 
             // TODO: Verify received key is valid.
             // TODO: Verify host key belongs to server.
@@ -68,7 +68,7 @@ namespace Tmds.Ssh
             BigInteger sharedSecret = DeriveSharedSecret(ecdh, peerPublicKey);
 
             // Generate exchange hash.
-            byte[] exchangeHash = CalculateExchangeHash(connection.SequencePool, connectionInfo, clientInit, serverInit, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
+            byte[] exchangeHash = CalculateExchangeHash(connection.SequencePool, connectionInfo, clientKexInitMsg, serverKexInitMsg, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
 
             // TODO: verify the server's signature.
 
@@ -80,7 +80,7 @@ namespace Tmds.Ssh
             return new KeyExchangeOutput(exchangeHash, initialIV, encryptionKey, integrityKey);
         }
 
-        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Sequence clientInit, Sequence serverInit, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
+        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Sequence clientKexInitMsg, Sequence serverKexInitMsg, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
         {
             /*
                 string   V_C, client's identification string (CR and LF excluded)
@@ -96,11 +96,11 @@ namespace Tmds.Ssh
             var writer = new SequenceWriter(sequence);
             writer.WriteString(connectionInfo.ClientIdentificationString!);
             writer.WriteString(connectionInfo.ServerIdentificationString!);
-            writer.WriteString(clientInit.AsReadOnlySequence());
-            writer.WriteString(serverInit.AsReadOnlySequence());
+            writer.WriteString(clientKexInitMsg.AsReadOnlySequence());
+            writer.WriteString(serverKexInitMsg.AsReadOnlySequence());
             writer.WriteString(public_host_key);
-            writer.WriteECPoint(q_c);
-            writer.WriteECPoint(q_s);
+            writer.WriteString(q_c);
+            writer.WriteString(q_s);
             writer.WriteMPInt(sharedSecret);
 
             using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
@@ -151,24 +151,24 @@ namespace Tmds.Ssh
             if (method != null)
             {
                 object? rv = method.Invoke(ecdh, new[] { peerPublicKey, null });
-                if (rv is byte[] privateKey)
+                if (rv is byte[] sharedSecretArray)
                 {
-                    var bigInt = new BigInteger(privateKey, isUnsigned: false, isBigEndian: true);
-                    privateKey.AsSpan().Clear();
-                    return bigInt;
+                    var sharedSecret = sharedSecretArray.ToBigInteger();
+                    sharedSecretArray.AsSpan().Clear();
+                    return sharedSecret;
                 }
             }
 
             throw new NotSupportedException("Cannot determine private key.");
         }
         public void Dispose()
-        {}
+        { }
 
         private static Sequence CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)
         {
             using var writer = new SequenceWriter(sequencePool);
             writer.WriteByte(MessageNumber.SSH_MSG_KEX_ECDH_INIT);
-            writer.WriteECPoint(q_c);
+            writer.WriteString(q_c);
             return writer.BuildSequence();
         }
 
@@ -181,7 +181,7 @@ namespace Tmds.Ssh
             var reader = new SequenceReader(packet);
             reader.ReadByte(MessageNumber.SSH_MSG_KEX_ECDH_REPLY);
             ReadOnlySequence<byte> public_host_key = reader.ReadStringAsBytes();
-            ECPoint q_s = reader.ReadECPoint();
+            ECPoint q_s = reader.ReadStringAsECPoint();
             ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
             reader.ReadEnd();
             return (

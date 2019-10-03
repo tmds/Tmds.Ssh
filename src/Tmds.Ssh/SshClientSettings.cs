@@ -31,7 +31,7 @@ namespace Tmds.Ssh
         // For testing:
         internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);
         internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshClient.EstablishConnectionAsync;
-        internal delegate Task SetupConnectionAsyncDelegate(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token);
+        internal delegate Task SetupConnectionAsyncDelegate(SshConnection connection, ILogger logger, SshClientSettings settings, CancellationToken token);
         internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
         internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
         internal AuthenticateUserAsyncDelegate AuthenticateUserAsync = UserAuthentication.Default;

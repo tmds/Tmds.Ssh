@@ -98,7 +98,28 @@ namespace Tmds.Ssh
 
         public string ReadUtf8String()
         {
-            return ReadString(isUtf8: true);
+            long length = ReadUInt32();
+            try
+            {
+                ReadOnlySpan<byte> span = _reader.UnreadSpan.Length >= length ?
+                    _reader.UnreadSpan.Slice(0, (int)length) :
+                    _reader.Sequence.Slice(_reader.Position, length).ToArray(); // TODO: maybe stackalloc if length is small
+                _reader.Advance(length);
+                try
+                {
+                    return s_utf8Encoding.GetString(span);
+                }
+                catch (DecoderFallbackException)
+                {
+                    ThrowHelper.ThrowProtocolInvalidUtf8();
+                    throw;
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+                throw;
+            }
         }
 
         public Name ReadName()
@@ -132,44 +153,6 @@ namespace Tmds.Ssh
             catch (ArgumentOutOfRangeException)
             {
                 ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
-                throw;
-            }
-        }
-
-        private string ReadString(bool isUtf8)
-        {
-            long length = ReadUInt32();
-            try
-            {
-                ReadOnlySpan<byte> span = _reader.UnreadSpan.Length >= length ?
-                    _reader.UnreadSpan.Slice(0, (int)length) :
-                    _reader.Sequence.Slice(_reader.Position, length).ToArray(); // TODO: maybe stackalloc if length is small
-                _reader.Advance(length);
-                if (isUtf8)
-                {
-                    return GetUtf8String(span);
-                }
-                else
-                {
-                    return GetAsciiString(span);
-                }
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
-                throw;
-            }
-        }
-
-        private string GetUtf8String(ReadOnlySpan<byte> span)
-        {
-            try
-            {
-                return s_utf8Encoding.GetString(span);
-            }
-            catch (DecoderFallbackException)
-            {
-                ThrowHelper.ThrowProtocolInvalidUtf8();
                 throw;
             }
         }
@@ -244,7 +227,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public ECPoint ReadECPoint()
+        public ECPoint ReadStringAsECPoint()
         {
             long length = ReadUInt32();
             if (length == 0)

@@ -11,6 +11,7 @@ namespace Tmds.Ssh
     // never displayed to users, and must be in US-ASCII.
     readonly struct Name : IEquatable<Name>
     {
+        // By design, we treat _name == null the same as _name == byte[0] {}.
         private readonly byte[] _name;
 
         private Name(byte[] name)
@@ -29,6 +30,7 @@ namespace Tmds.Ssh
             {
                 ThrowHelper.ThrowArgumentNull(nameof(name));
             }
+
             // TODO: validate name is US_ASCII.
             name = new Name(bytes);
             return true;
@@ -41,12 +43,8 @@ namespace Tmds.Ssh
 
         public override int GetHashCode()
         {
-            if (_name == null)
-            {
-                return 0;
-            }
             var span = _name.AsSpan();
-            int hashCode = 0x38723781;
+            int hashCode = span.Length == 0 ? 0 : 0x38723781;
             for (int i = 0; i < span.Length; i++)
             {
                 hashCode = (hashCode << 8) ^ span[i];
@@ -64,12 +62,12 @@ namespace Tmds.Ssh
             return obj is Name name && Equals(name);
         }
 
-        public static bool operator==(Name left, Name right)
+        public static bool operator ==(Name left, Name right)
         {
             return left.Equals(right);
         }
 
-        public static bool operator!=(Name left, Name right)
+        public static bool operator !=(Name left, Name right)
         {
             return !(left == right);
         }

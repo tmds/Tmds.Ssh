@@ -23,7 +23,7 @@ namespace Tmds.Ssh
         private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
         private bool _disposed;
         private Channel<PendingSend>? _sendQueue;              // Multiple senders push into the queue
-        private Task ?_runningConnectionTask;                  // Task that encompasses all operations
+        private Task? _runningConnectionTask;                  // Task that encompasses all operations
         private Exception? _abortReason;                       // Reason why the client stopped
         private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
         private List<Task>? _connectionUsers;                  // Tasks that use the connection (like Channels)
@@ -104,8 +104,8 @@ namespace Tmds.Ssh
 
         private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
         {
-            SshConnection? sshConnection = null;
-            var sshConnectionInfo = new SshConnectionInfo();
+            SshConnection? connection = null;
+            var connectionInfo = new SshConnectionInfo();
             try
             {
                 // Cancel when:
@@ -116,29 +116,29 @@ namespace Tmds.Ssh
                 connectCts.CancelAfter(_settings.ConnectTimeout);
 
                 // Connect to the remote host
-                sshConnection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
+                connection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
 
                 // Setup ssh connection
                 if (!_settings.NoProtocolVersionExchange)
                 {
-                    await _settings.ExchangeProtocolVersionAsync(sshConnection, sshConnectionInfo, _logger, _settings, connectCts.Token);
+                    await _settings.ExchangeProtocolVersionAsync(connection, connectionInfo, _logger, _settings, connectCts.Token);
                 }
                 if (!_settings.NoKeyExchange)
                 {
                     using Sequence localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
-                    await sshConnection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
+                    await connection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
                     {
-                        using Sequence? remoteExchangeInitMsg = await sshConnection.ReceivePacketAsync(connectCts.Token);
+                        using Sequence? remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token);
                         if (remoteExchangeInitMsg == null)
                         {
                             ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                         }
-                        await _settings.ExchangeKeysAsync(sshConnection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, sshConnectionInfo, connectCts.Token);
+                        await _settings.ExchangeKeysAsync(connection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, connectionInfo, connectCts.Token);
                     }
                 }
                 if (!_settings.NoUserAuthentication)
                 {
-                    await _settings.AuthenticateUserAsync(sshConnection, _logger, _settings, connectCts.Token);
+                    await _settings.AuthenticateUserAsync(connection, _logger, _settings, connectCts.Token);
                 }
 
                 // Allow sending.
@@ -155,7 +155,7 @@ namespace Tmds.Ssh
             }
             catch (Exception e)
             {
-                sshConnection?.Dispose();
+                connection?.Dispose();
 
                 // In case the operation was canceled, change the exception based on the
                 // token that triggered the cancellation.
@@ -181,23 +181,23 @@ namespace Tmds.Ssh
                 return;
             }
 
-            await HandleConnectionAsync(sshConnection, sshConnectionInfo);
+            await HandleConnectionAsync(connection, connectionInfo);
         }
 
-        internal static async Task SetupConnectionAsync(SshConnection sshConnection, ILogger logger, SshClientSettings settings, CancellationToken token)
+        internal static async Task SetupConnectionAsync(SshConnection connection, ILogger logger, SshClientSettings settings, CancellationToken token)
         {
             await Task.Delay(0);
         }
 
-        private async Task HandleConnectionAsync(SshConnection sshConnection, SshConnectionInfo connectionInfo)
+        private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo connectionInfo)
         {
             try
             {
                 try
                 {
-                    Task sendTask = SendLoopAsync(sshConnection);
+                    Task sendTask = SendLoopAsync(connection);
                     AddConnectionUser(sendTask);
-                    AddConnectionUser(ReceiveLoopAsync(sshConnection, connectionInfo));
+                    AddConnectionUser(ReceiveLoopAsync(connection, connectionInfo));
 
                     // Wait for a task that runs as long as the connection.
                     await sendTask.ContinueWith(_ => { /* Ignore Failed/Canceled */ });
@@ -225,7 +225,7 @@ namespace Tmds.Ssh
             }
             finally
             {
-                sshConnection.Dispose();
+                connection.Dispose();
             }
 
             async void AddConnectionUser(Task task)
@@ -404,7 +404,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private async Task SendLoopAsync(SshConnection sshConnection)
+        private async Task SendLoopAsync(SshConnection connection)
         {
             CancellationToken abortToken = _abortCts.Token;
             try
@@ -423,7 +423,7 @@ namespace Tmds.Ssh
                             // We use abortToken instead of send.CancellationToken because
                             // we can't allow partial sends unless we're aborting the connection.
                             ReadOnlySequence<byte> data = packet.AsReadOnlySequence();
-                            await sshConnection.SendPacketAsync(data, abortToken);
+                            await connection.SendPacketAsync(data, abortToken);
 
                             SemaphoreSlim? keyExchangeSemaphore = null;
                             if (data.FirstSpan[0] == MessageNumber.SSH_MSG_KEXINIT)
@@ -481,12 +481,12 @@ namespace Tmds.Ssh
             }
         }
 
-        private async Task ReceiveLoopAsync(SshConnection sshConnection, SshConnectionInfo connectionInfo)
+        private async Task ReceiveLoopAsync(SshConnection connection, SshConnectionInfo connectionInfo)
         {
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
-                var packet = await sshConnection.ReceivePacketAsync(abortToken, maxLength: int.MaxValue);
+                var packet = await connection.ReceivePacketAsync(abortToken, maxLength: int.MaxValue);
                 if (packet == null)
                 {
                     Abort(ClosedByPeer);
@@ -522,10 +522,10 @@ namespace Tmds.Ssh
                             var keyExchangeSemaphore = new SemaphoreSlim(0, 1);
                             _keyReExchangeSemaphore = keyExchangeSemaphore;
                             // this will await _keyReExchangeSemaphore and set it to null.
-                            using Sequence keyExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                            using Sequence clientKexInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             try
                             {
-                                var clone = keyExchangeInitMsg.Clone(); // SendPacketAsync will Dispose the packet.
+                                var clone = clientKexInitMsg.Clone(); // SendPacketAsync will Dispose the packet.
                                 await SendPacketAsync(clone, abortToken);
                             }
                             catch
@@ -534,14 +534,14 @@ namespace Tmds.Ssh
                                 _keyReExchangeSemaphore = null;
                                 throw;
                             }
-                            await _settings.ExchangeKeysAsync(sshConnection, keyExchangeInitMsg, packet, _logger, _settings, connectionInfo, abortToken);
+                            await _settings.ExchangeKeysAsync(connection, clientKexInitMsg, serverKexInitMsg: packet, _logger, _settings, connectionInfo, abortToken);
                             keyExchangeSemaphore.Release();
                         }
                         finally
                         {
                             packet.Dispose();
                         }
-                    break;
+                        break;
                 }
             }
         }
