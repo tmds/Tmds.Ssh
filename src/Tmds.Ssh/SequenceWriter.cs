@@ -164,7 +164,7 @@ namespace Tmds.Ssh
 
         public void WriteMPInt(BigInteger value)
         {
-            if(value == BigInteger.Zero)
+            if (value == BigInteger.Zero)
             {
                 WriteUInt32(0);
             }
@@ -248,7 +248,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public void WriteECPoint(ECPoint point)
+        public void WriteString(ECPoint point)
         {
             WriteUInt32(1 + point.X.Length * 2);
             WriteByte(0x04); // No compression.

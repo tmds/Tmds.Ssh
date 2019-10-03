@@ -101,13 +101,13 @@ namespace Tmds.Ssh
         [DoesNotReturn]
         public static void ThrowProtocolECPointInvalidLength()
         {
-            throw new ProtocolException("The ECPoint has an invalid length.");
+            throw new ProtocolException("The elliptic curve point has an invalid length.");
         }
 
         [DoesNotReturn]
         public static void ThrowProtocolECPointTooLong()
         {
-            throw new ProtocolException("The ECPoint is too long.");
+            throw new ProtocolException("The elliptic curve point is too long.");
         }
 
         [DoesNotReturn]

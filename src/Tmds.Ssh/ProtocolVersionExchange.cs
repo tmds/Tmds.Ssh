@@ -9,12 +9,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
 {
-    internal delegate Task ExchangeProtocolVersionAsyncDelegate(SshConnection sshConnection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken token);
+    internal delegate Task ExchangeProtocolVersionAsyncDelegate(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken token);
     sealed class ProtocolVersionExchange
     {
         public static readonly ExchangeProtocolVersionAsyncDelegate Default = PerformDefaultExchange;
 
-        private static async Task PerformDefaultExchange(SshConnection sshConnection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken ct)
+        private static async Task PerformDefaultExchange(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken ct)
         {
             // Protocol Version Exchange: https://tools.ietf.org/html/rfc4253#section-4.2.
 
@@ -31,12 +31,12 @@ namespace Tmds.Ssh
 
             // Send our identification string.
             logger.LogInformation("Local version string {identificationString}", identificationString);
-            await sshConnection.WriteLineAsync(identificationString, ct);
+            await connection.WriteLineAsync(identificationString, ct);
 
             // Receive peer identification string.
             for (int i = 0; i < MaxLineReads; i++)
             {
-                string line = await sshConnection.ReceiveLineAsync(MaxLineLength, ct);
+                string line = await connection.ReceiveLineAsync(MaxLineLength, ct);
                 if (line.StartsWith("SSH-", StringComparison.Ordinal))
                 {
                     connectionInfo.ServerIdentificationString = line;
