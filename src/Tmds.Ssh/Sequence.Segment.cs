@@ -13,6 +13,7 @@ namespace Tmds.Ssh
             private byte[]? _allocatedBuffer;
             internal int Start { get; private set; }
             internal int End { get; private set; }
+            public Segment? Previous { get; private set; }
 
             internal void SetBuffer(byte[] buffer)
             {
@@ -39,6 +40,11 @@ namespace Tmds.Ssh
                 private set => base.Next = value;
             }
 
+            public ArraySegment<byte> UnusedArraySegment
+            {
+                get => new ArraySegment<byte>(_allocatedBuffer!, End, BytesUnused);
+            }
+
             internal void Reset()
             {
                 Memory = default;
@@ -47,16 +53,26 @@ namespace Tmds.Ssh
                 _allocatedBuffer = null;
                 Start = 0;
                 End = 0;
+                Previous = null;
             }
 
-            internal void SetNext(Segment segment)
+            internal void SetNext(Segment? segment)
             {
                 Next = segment;
-                Next.RunningIndex = RunningIndex + End - Start;
 
-                // We're no longer the last sequence, ReadOnlySequence no longer
-                // delimits our length by End, so we must do it.
-                Memory = AllocatedMemory.Slice(0, End);
+                if (segment != null)
+                {
+                    segment.RunningIndex = RunningIndex + End - Start;
+                    segment.Previous = this;
+
+                    // We're no longer the last sequence, ReadOnlySequence no longer
+                    // delimits our length by End, so we must do it.
+                    Memory = AllocatedMemory.Slice(0, End);
+                }
+                else
+                {
+                    Memory = AllocatedMemory;
+                }
             }
 
             internal void Advance(int count)
@@ -69,18 +85,9 @@ namespace Tmds.Ssh
                 Start += count;
             }
 
-            internal void UpdateRunningIndices()
+            internal void RemoveBack(int count)
             {
-                RunningIndex = 0;
-                long runningIndex = End - Start; // length of this segment.
-
-                Segment? next = Next;
-                while (next != null)
-                {
-                    next.RunningIndex = runningIndex;
-                    runningIndex += next.End; // Only the first segment can have a non zero Start.
-                    next = next.Next;
-                }
+                End -= count;
             }
         }
     }

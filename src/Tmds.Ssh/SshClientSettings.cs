@@ -15,6 +15,7 @@ namespace Tmds.Ssh
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
         public string? Host { get; set; }
         public int Port { get; set; } = 22;
+        public List<Credential> Credentials { get; } = new List<Credential>();
 
         // Internal.
         internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };

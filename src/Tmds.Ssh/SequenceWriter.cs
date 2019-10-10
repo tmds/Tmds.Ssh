@@ -210,6 +210,11 @@ namespace Tmds.Ssh
 
         public void Write(ReadOnlySpan<byte> value)
         {
+            if (value.Length == 0)
+            {
+                return;
+            }
+
             Span<byte> span = AllocGetSpan();
 
             // Fast path, try copying to the available memory directly

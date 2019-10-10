@@ -24,7 +24,7 @@ namespace Tmds.Ssh
         public abstract ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct);
         public abstract ValueTask WriteLineAsync(string line, CancellationToken ct);
 
-        public abstract ValueTask<Sequence?> ReceivePacketAsync(CancellationToken ct, int maxLength = 0);
+        public abstract ValueTask<Sequence?> ReceivePacketAsync(CancellationToken ct, int maxLength = Constants.PreAuthMaxPacketLength);
         public abstract ValueTask SendPacketAsync(ReadOnlySequence<byte> data, CancellationToken ct);
         public abstract void Dispose();
         public abstract void SetEncoderDecoder(PacketEncoder packetEncoder, PacketDecoder packetDecoder);

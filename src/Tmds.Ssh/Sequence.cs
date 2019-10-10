@@ -17,6 +17,21 @@ namespace Tmds.Ssh
             _pool = pool;
         }
 
+        public long Length
+        {
+            get
+            {
+                if (_endSegment == null)
+                {
+                    return 0;
+                }
+                return (_endSegment.RunningIndex + _endSegment.End) - (_startSegment!.RunningIndex + _startSegment.Start);
+            }
+        }
+
+        public bool IsEmpty
+            => Length == 0;
+
         public void Clear()
         {
             var segment = _startSegment;
@@ -39,6 +54,18 @@ namespace Tmds.Ssh
             var writer = new SequenceWriter(_pool);
             writer.Write(AsReadOnlySequence());
             return writer.BuildSequence();
+        }
+
+        internal ArraySegment<byte> AllocGetArraySegment(int sizeHint = 0)
+        {
+            // Quick check if there is sufficient space.
+            int bytesAvailable = _endSegment?.BytesUnused ?? 0;
+            if (bytesAvailable <= sizeHint)
+            {
+                AllocGetMemory(sizeHint);
+            }
+
+            return _endSegment!.UnusedArraySegment;
         }
 
         public void Dispose()
@@ -141,13 +168,42 @@ namespace Tmds.Ssh
                 }
             }
 
-            if (_startSegment != null)
-            {
-                _startSegment.UpdateRunningIndices();
-            }
-            else
+            if (_startSegment == null)
             {
                 _endSegment = null;
+            }
+        }
+
+        public void RemoveBack(long consumed)
+        {
+            while (consumed > 0)
+            {
+                Segment? endSegment = _endSegment;
+                if (endSegment == null)
+                {
+                    ThrowHelper.ThrowArgumentOutOfRange(nameof(consumed));
+                }
+
+                int length = endSegment.End - endSegment.Start;
+                if (length > consumed)
+                {
+                    endSegment.RemoveBack((int)consumed);
+                    consumed = 0;
+                }
+                else
+                {
+                    _endSegment = endSegment.Previous;
+                    _endSegment?.SetNext(null);
+
+                    ReturnSegment(endSegment);
+
+                    consumed -= length;
+                }
+            }
+
+            if (_endSegment == null)
+            {
+                _startSegment = null;
             }
         }
 
@@ -165,5 +221,8 @@ namespace Tmds.Ssh
 
         public SequenceReader<byte> CreateReader()
             => new SequenceReader<byte>(AsReadOnlySequence());
+
+        public override string ToString()
+            => PrettyBytePrinter.ToString(this);
     }
 }
