@@ -11,6 +11,6 @@ namespace Tmds.Ssh
 {
     interface IKeyExchangeAlgorithm : IDisposable
     {
-        Task<KeyExchangeOutput> TryExchangeAsync(IReadOnlyList<Name> hostKeyAlgorithms, Sequence? exchangeInitMsg, Sequence clientKexInitMsg, Sequence serverKexInitMsg, SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct);
+        Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, KeyExchangeInput input, ILogger logger, CancellationToken ct);
     }
 }

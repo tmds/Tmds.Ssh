@@ -32,16 +32,20 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task<KeyExchangeOutput> TryExchangeAsync(IReadOnlyList<Name> hostKeyAlgorithms, Sequence? exchangeInitMsg, Sequence clientKexInitMsg, Sequence serverKexInitMsg, SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+        public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, KeyExchangeInput input, ILogger logger, CancellationToken ct)
         {
-            // TODO: use hostKeyAlgorithms?
+            var sequencePool = connection.SequencePool;
+
+            // TODO: use input.HostKeyAlgorithms?
+
             using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
             ECPoint q_c = myPublicKey.ExportParameters().Q;
-            using var ecdhInitMsg = CreateEcdhInitMessage(connection.SequencePool, q_c);
+            using var ecdhInitMsg = CreateEcdhInitMessage(sequencePool, q_c);
             await connection.SendPacketAsync(ecdhInitMsg.AsReadOnlySequence(), ct);
 
+            Sequence? exchangeInitMsg = input.ExchangeInitMsg;
             // Receive ECDH_REPLY.
             if (exchangeInitMsg == null)
             {
@@ -68,16 +72,21 @@ namespace Tmds.Ssh
             BigInteger sharedSecret = DeriveSharedSecret(ecdh, peerPublicKey);
 
             // Generate exchange hash.
-            byte[] exchangeHash = CalculateExchangeHash(connection.SequencePool, connectionInfo, clientKexInitMsg, serverKexInitMsg, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
+            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
 
             // TODO: verify the server's signature.
 
-            byte[] sessionId = connectionInfo.SessionId ?? exchangeHash;
-            byte[] initialIV = Hash(sharedSecret, exchangeHash, (byte)'A', sessionId);
-            byte[] encryptionKey = Hash(sharedSecret, exchangeHash, (byte)'C', sessionId);
-            byte[] integrityKey = Hash(sharedSecret, exchangeHash, (byte)'E', sessionId);
+            byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
+            byte[] initialIVC2S = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength);
+            byte[] initialIVS2C = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'B', sessionId, input.InitialIVS2CLength);
+            byte[] encryptionKeyC2S = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'C', sessionId, input.EncryptionKeyC2SLength);
+            byte[] encryptionKeyS2C = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'D', sessionId, input.EncryptionKeyS2CLength);
+            byte[] integrityKeyC2S = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'E', sessionId, input.IntegrityKeyC2SLength);
+            byte[] integrityKeyS2C = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'F', sessionId, input.IntegrityKeyS2CLength);
 
-            return new KeyExchangeOutput(exchangeHash, initialIV, encryptionKey, integrityKey);
+            return new KeyExchangeOutput(exchangeHash,
+                initialIVS2C, encryptionKeyS2C, integrityKeyS2C,
+                initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
         }
 
         private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Sequence clientKexInitMsg, Sequence serverKexInitMsg, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
@@ -111,35 +120,45 @@ namespace Tmds.Ssh
             return hash.GetHashAndReset();
         }
 
-        private byte[] Hash(BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId)
+        private byte[] Hash(SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int hashLength)
         {
             // https://tools.ietf.org/html/rfc4253#section-7.2
+
+            byte[] hashRv = new byte[hashLength];
+            int hashOffset = 0;
+
             // TODO: handle 'If the key length needed is longer than the output of the HASH'
+            // HASH(K || H || c || session_id)
+            using Sequence sequence = sequencePool.RentSequence();
+            var writer = new SequenceWriter(sequence);
+            writer.WriteMPInt(sharedSecret);
+            writer.Write(exchangeHash);
+            writer.WriteByte(c);
+            writer.Write(sessionId);
 
-            int sharedSecretLength = sharedSecret.GetByteCount(isUnsigned: false);
-            int spanLength = Math.Max(sharedSecretLength, 4);
-            Span<byte> span = spanLength <= Constants.StackallocThreshold ? stackalloc byte[spanLength] : new byte[spanLength];
-
-            // HASH(K || H || "?" || session_id)
             using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
+            foreach (var segment in sequence.AsReadOnlySequence())
+            {
+                hash.AppendData(segment.Span);
+            }
+            byte[] K1 = hash.GetHashAndReset();
+            Append(hashRv, K1, ref hashOffset);
 
-            // K is encoded as mpint
-            BinaryPrimitives.WriteUInt32BigEndian(span, (uint)sharedSecretLength);
-            hash.AppendData(span.Slice(0, 4));
-            sharedSecret.TryWriteBytes(span, out int bytesWritten, isUnsigned: false, isBigEndian: true);
-            hash.AppendData(span.Slice(0, bytesWritten));
+            while (hashOffset != hashRv.Length)
+            {
+                // TODO: handle 'If the key length needed is longer than the output of the HASH'
+                // K3 = HASH(K || H || K1 || K2)
+                throw new NotSupportedException();
+            }
 
-            // H
-            hash.AppendData(exchangeHash);
+            return hashRv;
 
-            // "?"
-            span[0] = c;
-            hash.AppendData(span.Slice(0, 1));
-
-            // session_id
-            hash.AppendData(sessionId);
-
-            return hash.GetHashAndReset();
+            static void Append(byte[] key, byte[] append, ref int offset)
+            {
+                int available = Math.Min(append.Length, key.Length - offset);
+                append.AsSpan().Slice(0, available).CopyTo(key.AsSpan(offset));
+                offset += available;
+            }
         }
 
         private BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, ECDiffieHellmanPublicKey peerPublicKey)
@@ -161,6 +180,7 @@ namespace Tmds.Ssh
 
             throw new NotSupportedException("Cannot determine private key.");
         }
+
         public void Dispose()
         { }
 

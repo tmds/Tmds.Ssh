@@ -9,7 +9,23 @@ namespace Tmds.Ssh
 {
     sealed class PacketDecoder : IDisposable
     {
-        public bool TryDecodePacket(Sequence receiveBuffer, SequencePool sequencePool, int maxLength, out Sequence? packet)
+        private readonly IDisposableCryptoTransform _decode;
+        private readonly IHMac _mac;
+        private readonly SequencePool _sequencePool;
+        private Sequence? _decodedPacket;
+
+        public PacketDecoder(SequencePool sequencePool, IDisposableCryptoTransform decode, IHMac mac)
+        {
+            _decode = decode;
+            _mac = mac;
+            _sequencePool = sequencePool;
+        }
+
+        public PacketDecoder(SequencePool sequencePool) :
+            this(sequencePool, EncryptionCryptoTransform.None, HMac.None)
+        { }
+
+        public bool TryDecodePacket(Sequence receiveBuffer, int maxLength, out Sequence? packet)
         {
             // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
             /*
@@ -19,35 +35,64 @@ namespace Tmds.Ssh
                 byte[n2]  random padding; n2 = padding_length
                 byte[m]   mac (Message Authentication Code - MAC); m = mac_length
             */
-            var reader = new SequenceReader(receiveBuffer);
-            if (reader.Length >= 4)
+
+            if (_decodedPacket == null)
             {
-                uint packet_length = reader.ReadUInt32();
+                _decodedPacket = _sequencePool.RentSequence();
+            }
+
+            // We can't decode past the packet, because the mac is not encrypted.
+            // We need to know the packet length to know how much we can decrypt.
+            while (_decodedPacket.Length < 4 && receiveBuffer.Length >= _decode.BlockSize)
+            {
+                _decode.Transform(receiveBuffer.AsReadOnlySequence().Slice(0, _decode.BlockSize), _decodedPacket);
+                receiveBuffer.Remove(_decode.BlockSize);
+            }
+
+            var decodedReader = new SequenceReader(_decodedPacket);
+            if (decodedReader.Length >= 4)
+            {
+                // Read the packet length.
+                uint packet_length = decodedReader.ReadUInt32();
                 if (packet_length > maxLength)
                 {
                     ThrowHelper.ThrowProtocolPacketTooLong();
                 }
 
-                if (reader.Remaining >= packet_length)
+                // Decode the entire packet.
+                uint concatenated_length = 4 + packet_length;
+                // TODO: verify contatenated_length is a multiple of the cipher block size or 8, whichever is larger.
+                long remaining = concatenated_length - decodedReader.Length;
+                if (remaining > 0 && receiveBuffer.Length >= remaining)
                 {
-                    byte padding_length = reader.ReadByte();
-                    uint n1 = packet_length - padding_length - 1;
+                    _decode.Transform(receiveBuffer.AsReadOnlySequence().Slice(0, remaining), _decodedPacket);
+                    receiveBuffer.Remove(remaining);
+                    remaining = 0;
+                }
 
-                    // payload
-                    bool read = reader.TryRead(n1, out ReadOnlySequence<byte> value);
-                    Debug.Assert(read);
-                    using var writer = new SequenceWriter(sequencePool);
-                    writer.Write(value);
+                if (remaining == 0)
+                {
+                    if (_decodedPacket.Length != concatenated_length)
+                    {
+                        ThrowHelper.ThrowInvalidOperation("Complete packet expected.");
+                    }
 
-                    // padding
-                    reader.Skip(padding_length);
+                    // TODO: verify mac
+                    receiveBuffer.Remove(_mac.HashSize);
 
-                    // initially there is no mac.
+                    // Reset the decodedReader.
+                    decodedReader = new SequenceReader(_decodedPacket);
+                    decodedReader.Skip(4); // skip the packet_length.
+                    byte padding_length = decodedReader.ReadByte();
 
-                    // Remove from receiveBuffer.
-                    receiveBuffer.Remove(reader.Consumed);
+                    // Strip packet_length, padding_length.
+                    _decodedPacket.Remove(5);
 
-                    packet = writer.BuildSequence();
+                    // Strip padding.
+                    _decodedPacket.RemoveBack(padding_length);
+
+                    packet = _decodedPacket;
+                    _decodedPacket = null;
                     return true;
                 }
             }
@@ -57,6 +102,10 @@ namespace Tmds.Ssh
         }
 
         public void Dispose()
-        { }
+        {
+            _decode?.Dispose();
+            _mac.Dispose();
+            _decodedPacket?.Dispose();
+        }
     }
 }

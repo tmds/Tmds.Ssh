@@ -486,7 +486,7 @@ namespace Tmds.Ssh
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
-                var packet = await connection.ReceivePacketAsync(abortToken, maxLength: int.MaxValue);
+                var packet = await connection.ReceivePacketAsync(abortToken, maxLength: Constants.MaxPacketLength);
                 if (packet == null)
                 {
                     Abort(ClosedByPeer);

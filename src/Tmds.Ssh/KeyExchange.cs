@@ -52,6 +52,7 @@ namespace Tmds.Ssh
                     remoteInit.kex_algorithms.Length == 0 ||
                     settings.KeyExchangeAlgorithms[0] != remoteInit.kex_algorithms[0] ? default(Name) : settings.KeyExchangeAlgorithms[0];
 
+            KeyExchangeOutput? keyExchangeOutput = null;
             Sequence? exchangeInitMsg = null;
             try
             {
@@ -78,18 +79,27 @@ namespace Tmds.Ssh
                     }
                 }
 
-                KeyExchangeOutput? keyExchangeOutput = null;
+                EncryptionFactory.Default.GetKeyAndIVLength(encC2S, out int encryptionKeyC2SLength, out int initialIVC2SLength);
+                EncryptionFactory.Default.GetKeyAndIVLength(encS2C, out int encryptionKeyS2CLength, out int initialIVS2CLength);
+                int integrityKeyC2SLength = HMacFactory.Default.GetKeyLength(macC2S);
+                int integrityKeyS2CLength = HMacFactory.Default.GetKeyLength(macS2C);
+
+                var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
+                    initialIVC2SLength, initialIVS2CLength, encryptionKeyC2SLength, encryptionKeyS2CLength, integrityKeyC2SLength, integrityKeyS2CLength);
+
                 foreach (var keyAlgorithm in settings.KeyExchangeAlgorithms)
                 {
                     if (remoteInit.kex_algorithms.Contains(keyAlgorithm))
                     {
+                        logger.KeyExchangeAlgorithm(keyAlgorithm);
+
                         using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                         {
-                            keyExchangeOutput = await algorithm.TryExchangeAsync(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connection, connectionInfo, logger, ct);
+                            keyExchangeOutput = await algorithm.TryExchangeAsync(connection, keyExchangeInput, logger, ct);
                         }
                         if (keyExchangeOutput != null)
                         {
-                            connectionInfo.SessionId = keyExchangeOutput.ExchangeHash;
+                            connectionInfo.SessionId ??= keyExchangeOutput.ExchangeHash;
                             break;
                         }
 
@@ -113,6 +123,9 @@ namespace Tmds.Ssh
                 exchangeInitMsg?.Dispose();
             }
 
+            logger.AlgorithmsServerToClient(encS2C, macS2C, comS2C);
+            logger.AlgorithmsClientToServer(encC2S, macC2S, comC2S);
+
             // Send SSH_MSG_NEWKEYS.
             using Sequence newKeysMsg = CreateNewKeysMessage(sequencePool);
             await connection.SendPacketAsync(newKeysMsg.AsReadOnlySequence(), ct);
@@ -125,8 +138,12 @@ namespace Tmds.Ssh
             }
             ParseNewKeysMessage(newKeysReceivedMsg);
 
-            // TODO:connection.SetEncoderDecoder(.., ..);
-            throw new NotImplementedException();
+            var encrypt = EncryptionFactory.Default.CreateEncryptor(encC2S, keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S);
+            var macForEncoder = HMacFactory.Default.Create(macC2S, keyExchangeOutput.IntegrityKeyC2S);
+            var decrypt = EncryptionFactory.Default.CreateDecryptor(encS2C, keyExchangeOutput.EncryptionKeyS2C, keyExchangeOutput.InitialIVS2C);
+            var macForDecoder = HMacFactory.Default.Create(macS2C, keyExchangeOutput.IntegrityKeyS2C);
+
+            connection.SetEncoderDecoder(new PacketEncoder(encrypt, macForEncoder), new PacketDecoder(sequencePool, decrypt, macForDecoder));
 
             static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
             {

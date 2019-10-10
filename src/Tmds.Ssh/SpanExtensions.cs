@@ -10,9 +10,7 @@ namespace Tmds.Ssh
     {
         public static BigInteger ToBigInteger(this ReadOnlySpan<byte> span)
         {
-            // isUnsigned: false -> don't prepend with zero.
-            // isBigEndian: true -> keep the order.
-            return new BigInteger(span, isUnsigned: false, isBigEndian: true);
+            return new BigInteger(span, isUnsigned: true, isBigEndian: true);
         }
 
         public static BigInteger ToBigInteger(this byte[] value)

@@ -23,6 +23,7 @@ namespace Tmds.Ssh
         private readonly Sequence _sendBuffer;
         private PacketDecoder _decoder;
         private PacketEncoder _encoder;
+        private uint _sendSequenceNumber;
 
         public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket) :
             base(sequencePool)
@@ -31,7 +32,7 @@ namespace Tmds.Ssh
             _socket = socket;
             _receiveBuffer = sequencePool.RentSequence();
             _sendBuffer = sequencePool.RentSequence();
-            _decoder = new PacketDecoder();
+            _decoder = new PacketDecoder(SequencePool);
             _encoder = new PacketEncoder();
         }
 
@@ -99,16 +100,9 @@ namespace Tmds.Ssh
 
         public async override ValueTask<Sequence?> ReceivePacketAsync(CancellationToken ct, int maxLength)
         {
-            if (maxLength == 0)
-            {
-                // https://tools.ietf.org/html/rfc4253#section-6.1
-                // Default to the expected supported max length.
-                maxLength = 35000;
-            }
-
             while (true)
             {
-                if (_decoder.TryDecodePacket(_receiveBuffer, SequencePool, maxLength, out Sequence? packet))
+                if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Sequence? packet))
                 {
                     return packet!;
                 }
@@ -130,7 +124,7 @@ namespace Tmds.Ssh
 
         public override async ValueTask SendPacketAsync(ReadOnlySequence<byte> data, CancellationToken ct)
         {
-            _encoder.Encode(data, _sendBuffer);
+            _encoder.Encode(_sendSequenceNumber, data, _sendBuffer);
             var encodedData = _sendBuffer.AsReadOnlySequence();
 
             if (encodedData.IsSingleSegment)
@@ -145,6 +139,7 @@ namespace Tmds.Ssh
                 }
             }
 
+            _sendSequenceNumber = unchecked(_sendSequenceNumber + 1);
             _sendBuffer.Clear();
         }
 
