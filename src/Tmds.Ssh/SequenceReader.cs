@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Linq;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
@@ -28,6 +29,11 @@ namespace Tmds.Ssh
             }
 
             _reader = new SequenceReader<byte>(sequence.AsReadOnlySequence());
+        }
+
+        public SequenceReader(ReadOnlySequence<byte> data)
+        {
+            _reader = new SequenceReader<byte>(data);
         }
 
         public byte ReadByte()
@@ -126,6 +132,14 @@ namespace Tmds.Ssh
         {
             long length = ReadUInt32();
             return ReadName(length);
+        }
+
+        public void ReadName(Name expected)
+        {
+            if (ReadName() != expected)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
         }
 
         private Name ReadName(long length)
@@ -267,6 +281,31 @@ namespace Tmds.Ssh
             catch (ArgumentOutOfRangeException)
             {
                 ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            }
+        }
+
+        public PublicKey ReadPublicKey(IReadOnlyList<Name> allowedFormats)
+        {
+            var name = ReadName();
+            if (!allowedFormats.Contains(name))
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+                return null;
+            }
+
+            if (name == AlgorithmNames.SshRsa)
+            {
+                // string    "ssh-rsa"
+                // mpint     e
+                // mpint     n
+                BigInteger e = ReadMPInt();
+                BigInteger n = ReadMPInt();
+                return new RsaPublicKey(e, n);
+            }
+            else
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+                return null;
             }
         }
 

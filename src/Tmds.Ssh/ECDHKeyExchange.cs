@@ -35,9 +35,6 @@ namespace Tmds.Ssh
         public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, KeyExchangeInput input, ILogger logger, CancellationToken ct)
         {
             var sequencePool = connection.SequencePool;
-
-            // TODO: use input.HostKeyAlgorithms?
-
             using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
@@ -71,10 +68,16 @@ namespace Tmds.Ssh
             using ECDiffieHellmanPublicKey peerPublicKey = peerEcdh.PublicKey;
             BigInteger sharedSecret = DeriveSharedSecret(ecdh, peerPublicKey);
 
+            var publicHostKey = PublicKey.Read(ecdhReply.public_host_key, input.HostKeyAlgorithms);
+
             // Generate exchange hash.
             byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
 
-            // TODO: verify the server's signature.
+            // Verify the server's signature.
+            if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
+            {
+                throw new KeyExchangeFailedException("Signature does not match host key.");
+            }
 
             byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
             byte[] initialIVC2S = Hash(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength);
