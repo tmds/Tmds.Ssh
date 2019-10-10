@@ -66,7 +66,7 @@ namespace Tmds.Ssh
         {
             var reader = new SequenceReader(packet);
             reader.ReadByte(MessageNumber.SSH_MSG_SERVICE_ACCEPT);
-            var reply = Encoding.UTF8.GetString(reader.ReadStringAsBytes().FirstSpan);
+            var reply = Encoding.UTF8.GetString(reader.ReadStringAsBytes().FirstSpan); // TODO
             reader.ReadEnd();
         }
 
