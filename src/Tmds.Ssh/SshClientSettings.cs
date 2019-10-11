@@ -13,6 +13,7 @@ namespace Tmds.Ssh
     public sealed class SshClientSettings
     {
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
+        public string? UserName { get; set; }
         public string? Host { get; set; }
         public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
@@ -32,7 +33,6 @@ namespace Tmds.Ssh
         // For testing:
         internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);
         internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshClient.EstablishConnectionAsync;
-        internal delegate Task SetupConnectionAsyncDelegate(SshConnection connection, ILogger logger, SshClientSettings settings, CancellationToken token);
         internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
         internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
         internal AuthenticateUserAsyncDelegate AuthenticateUserAsync = UserAuthentication.Default;

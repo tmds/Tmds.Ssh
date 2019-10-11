@@ -7,13 +7,11 @@ namespace Tmds.Ssh
 {
     sealed public class PasswordCredential : Credential
     {
-        public PasswordCredential(string username, string password)
+        public PasswordCredential(string password)
         {
-            UserName = username ?? throw new ArgumentNullException(nameof(username));
             Password = password ?? throw new ArgumentNullException(nameof(password));
         }
 
-        internal string UserName { get; }
         internal string Password { get; }
     }
 }

@@ -102,6 +102,22 @@ namespace Tmds.Ssh
             return default;
         }
 
+        public ReadOnlySequence<byte> ReadStringAsBytes(int maxLength)
+        {
+            ReadOnlySequence<byte> data = ReadStringAsBytes();
+            if (data.Length > maxLength)
+            {
+                ThrowHelper.ThrowProtocolStringTooLong();
+            }
+            return data;
+        }
+
+        public void SkipString()
+        {
+            long length = ReadUInt32();
+            Skip(length);
+        }
+
         public string ReadUtf8String()
         {
             long length = ReadUInt32();
@@ -295,7 +311,6 @@ namespace Tmds.Ssh
 
             if (name == AlgorithmNames.SshRsa)
             {
-                // string    "ssh-rsa"
                 // mpint     e
                 // mpint     n
                 BigInteger e = ReadMPInt();

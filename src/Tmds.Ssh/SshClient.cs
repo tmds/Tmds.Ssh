@@ -51,6 +51,7 @@ namespace Tmds.Ssh
 
         private static void ValidateSettings(SshClientSettings settings)
         {
+            // TODO: extend this...
             if (settings.Host == null)
             {
                 throw new ArgumentNullException(nameof(settings.Host));
@@ -138,7 +139,7 @@ namespace Tmds.Ssh
                 }
                 if (!_settings.NoUserAuthentication)
                 {
-                    await _settings.AuthenticateUserAsync(connection, _logger, _settings, connectCts.Token);
+                    await _settings.AuthenticateUserAsync(connection, _logger, _settings, connectionInfo, connectCts.Token);
                 }
 
                 // Allow sending.
@@ -182,11 +183,6 @@ namespace Tmds.Ssh
             }
 
             await HandleConnectionAsync(connection, connectionInfo);
-        }
-
-        internal static async Task SetupConnectionAsync(SshConnection connection, ILogger logger, SshClientSettings settings, CancellationToken token)
-        {
-            await Task.Delay(0);
         }
 
         private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo connectionInfo)

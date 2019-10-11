@@ -5,6 +5,8 @@ namespace Tmds.Ssh
 {
     static class AlgorithmNames
     {
+        // TODO: put these names in byte[] arrays.
+
         public static Name None => new Name("none");
 
         // Key exchange algorithms

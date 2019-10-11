@@ -17,6 +17,7 @@ namespace Tmds.Ssh
         private static readonly Action<ILogger, Name, Name, Name, Exception?> _algS2C;
         private static readonly Action<ILogger, Name, Name, Name, Exception?> _algC2S;
         private static readonly Action<ILogger, string, Exception?> _authMethod;
+        private static readonly Action<ILogger, string, Exception?> _authMethodPk;
         private static readonly Action<ILogger, Exception?> _authSuccess;
 
         static LoggingExtensions()
@@ -69,8 +70,14 @@ namespace Tmds.Ssh
                 formatString: "Authentication method: {method}"
             );
 
-            _authSuccess = LoggerMessage.Define(
+            _authMethodPk = LoggerMessage.Define<string>(
                 eventId: 9,
+                logLevel: LogLevel.Information,
+                formatString: "Authentication method: publickey source: {source}"
+            );
+
+            _authSuccess = LoggerMessage.Define(
+                eventId: 10,
                 logLevel: LogLevel.Information,
                 formatString: "Authentication succeeded"
             );
@@ -114,6 +121,11 @@ namespace Tmds.Ssh
         public static void AuthenticationMethod(this ILogger logger, string method)
         {
             _authMethod(logger, method, null);
+        }
+
+        public static void AuthenticationMethodPublicKey(this ILogger logger, string source)
+        {
+            _authMethodPk(logger, source, null);
         }
 
         public static void AuthenticationSucceeded(this ILogger logger)
