@@ -87,6 +87,12 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolStringTooLong()
+        {
+            throw new ProtocolException("The string is too long.");
+        }
+
+        [DoesNotReturn]
         public static void ThrowProtocolNameTooLong()
         {
             throw new ProtocolException("The identifier name is too long.");

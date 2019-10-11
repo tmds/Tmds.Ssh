@@ -20,6 +20,9 @@ namespace Tmds.Ssh
         private Sequence? _sequence;
         private Span<byte> _unused;
 
+        public SequencePool SequencePool
+            => _sequencePool ?? _sequence?.SequencePool!;
+
         // Used for building a Sequence.
         public SequenceWriter(SequencePool sequencePool)
         {
@@ -36,7 +39,7 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowArgumentNull(nameof(sequence));
             }
 
-            _sequencePool = null;
+            _sequencePool = null; // don't assign to not return the Sequence on Dispose.
             _sequence = sequence;
             _unused = default;
         }
@@ -191,6 +194,13 @@ namespace Tmds.Ssh
                     ArrayPool<byte>.Shared.Return(buffer);
                 }
             }
+        }
+
+        public void WriteMPInt(ReadOnlySpan<byte> value)
+        {
+            // TODO: avoid allocations.
+            BigInteger bi = new BigInteger(value, isUnsigned: true, isBigEndian: true);
+            WriteMPInt(bi);
         }
 
         public void Write(in ReadOnlySequence<byte> value)

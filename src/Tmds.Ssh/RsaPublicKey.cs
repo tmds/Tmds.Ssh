@@ -24,11 +24,13 @@ namespace Tmds.Ssh
         {
             var reader = new SequenceReader(signature);
             reader.ReadName(Format);
-            ReadOnlySequence<byte> signatureData = reader.ReadStringAsBytes();
-            reader.ReadEnd();
 
-            // TODO signatureData.Length check + stackalloc
             using var rsa = RSA.Create(new RSAParameters { Exponent = _e, Modulus = _n });
+            int signatureLength = rsa.KeySize / 8;
+
+            ReadOnlySequence<byte> signatureData = reader.ReadStringAsBytes(maxLength: signatureLength);
+            reader.ReadEnd();
+            
             return rsa.VerifyData(data, signatureData.ToArray(), HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
         }
     }

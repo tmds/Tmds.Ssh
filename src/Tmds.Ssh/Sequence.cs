@@ -10,11 +10,12 @@ namespace Tmds.Ssh
     {
         private Segment? _startSegment;
         private Segment? _endSegment;
-        private readonly SequencePool _pool;
+
+        public SequencePool SequencePool { get; }
 
         internal Sequence(SequencePool pool)
         {
-            _pool = pool;
+            SequencePool = pool;
         }
 
         public long Length
@@ -51,7 +52,7 @@ namespace Tmds.Ssh
 
         public Sequence Clone()
         {
-            var writer = new SequenceWriter(_pool);
+            var writer = new SequenceWriter(SequencePool);
             writer.Write(AsReadOnlySequence());
             return writer.BuildSequence();
         }
@@ -72,7 +73,7 @@ namespace Tmds.Ssh
         {
             Clear();
 
-            _pool.ReturnSequence(this);
+            SequencePool.ReturnSequence(this);
         }
 
         private void ReturnSegment(Segment segment)
@@ -81,12 +82,12 @@ namespace Tmds.Ssh
             byte[]? buffer = segment.AllocatedBuffer;
             if (buffer != null)
             {
-                _pool.ReturnByteBuffer(buffer);
+                SequencePool.ReturnByteBuffer(buffer);
             }
 
             // Return Segment
             segment.Reset();
-            _pool.ReturnSegment(segment);
+            SequencePool.ReturnSegment(segment);
         }
 
         public Memory<byte> AllocGetMemory(int sizeHint = 0)
@@ -108,8 +109,8 @@ namespace Tmds.Ssh
         private void AddSegment(int sizeHint)
         {
             Segment? previousEnd = _endSegment;
-            _endSegment = _pool.RentSegment();
-            _endSegment.SetBuffer(_pool.RentByteBuffer(sizeHint));
+            _endSegment = SequencePool.RentSegment();
+            _endSegment.SetBuffer(SequencePool.RentByteBuffer(sizeHint));
             if (_startSegment == null)
             {
                 _startSegment = _endSegment;

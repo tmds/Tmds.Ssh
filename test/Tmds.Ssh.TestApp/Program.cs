@@ -16,13 +16,15 @@ namespace Tmds.Ssh.TestApp
             }
 
             ParseUserHostAndPort(args, out string username, out string host, out int port);
-            string password = ReadPassword();
+            // string password = ReadPassword();
 
             var settings = new SshClientSettings
             {
                 Host = host,
                 Port = port,
-                Credentials = { new PasswordCredential(username, password) }
+                UserName = username,
+                Credentials = { new IdentityFileCredential() }
+                // Credentials = { new PasswordCredential(username, password) }
             };
 
             await using var client = new SshClient(settings, CreateLogger());
