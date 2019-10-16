@@ -10,8 +10,8 @@ namespace Tmds.Ssh
     {
         public int ChannelNumber { get; protected set; }
         public abstract CancellationToken ChannelStopped { get; }
-        public abstract ValueTask<Sequence> ReadPacketAsync();
-        public abstract ValueTask SendPacketAsync(Sequence packet);
-        public abstract Sequence RentSequence();
+        public abstract ValueTask<Packet> ReadPacketAsync();
+        public abstract ValueTask SendPacketAsync(Packet packet);
+        public abstract Packet RentPacket();
     }
 }

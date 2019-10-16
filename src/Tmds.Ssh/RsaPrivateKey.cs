@@ -25,21 +25,20 @@ namespace Tmds.Ssh
         public override void AppendPublicKey(ref SequenceWriter writer)
         {
             RSAParameters parameters = _rsa.ExportParameters(includePrivateParameters: false);
-            using var innerWriter = new SequenceWriter(writer.SequencePool);
+            using var innerData = writer.SequencePool.RentSequence();
+            var innerWriter = new SequenceWriter(innerData);
             innerWriter.WriteString(AlgorithmNames.SshRsa);
             innerWriter.WriteMPInt(parameters.Exponent);
             innerWriter.WriteMPInt(parameters.Modulus);
-            using var innerData = innerWriter.BuildSequence();
 
             writer.WriteString(innerData.AsReadOnlySequence());
         }
 
         public override void AppendSignature(ref SequenceWriter writer, ReadOnlySequence<byte> data)
         {
-            using var innerWriter = new SequenceWriter(writer.SequencePool);
-
+            using var innerData = writer.SequencePool.RentSequence();
+            var innerWriter = new SequenceWriter(innerData);
             innerWriter.WriteString(AlgorithmNames.SshRsa);
-
             int signatureLength = _rsa.KeySize / 8;
             byte[] signature = new byte[signatureLength];
             if (!_rsa.TrySignData(data.ToArray(), signature, HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1, out int bytesWritten) ||
@@ -49,7 +48,6 @@ namespace Tmds.Ssh
             }
             innerWriter.WriteString(signature);
 
-            using var innerData = innerWriter.BuildSequence();
             writer.WriteString(innerData.AsReadOnlySequence());
         }
     }

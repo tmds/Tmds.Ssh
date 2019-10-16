@@ -23,14 +23,6 @@ namespace Tmds.Ssh
         public SequencePool SequencePool
             => _sequencePool ?? _sequence?.SequencePool!;
 
-        // Used for building a Sequence.
-        public SequenceWriter(SequencePool sequencePool)
-        {
-            _sequencePool = sequencePool;
-            _sequence = null;
-            _unused = default;
-        }
-
         // Used for writing to a Sequence.
         public SequenceWriter(Sequence sequence)
         {
@@ -54,14 +46,6 @@ namespace Tmds.Ssh
             var sequence = _sequence;
             _sequence = null;
             return sequence;
-        }
-
-        public void Dispose()
-        {
-            if (_sequencePool != null && _sequence != null)
-            {
-                _sequence.Dispose();
-            }
         }
 
         private Span<byte> AllocGetSpan(int sizeHint = 0)

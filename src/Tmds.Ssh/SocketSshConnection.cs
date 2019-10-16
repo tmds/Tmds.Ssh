@@ -98,13 +98,13 @@ namespace Tmds.Ssh
             return false;
         }
 
-        public async override ValueTask<Sequence?> ReceivePacketAsync(CancellationToken ct, int maxLength)
+        public async override ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, int maxLength)
         {
             while (true)
             {
-                if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Sequence? packet))
+                if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Packet packet))
                 {
-                    return packet!;
+                    return packet;
                 }
 
                 int received = await ReceiveAsync(ct);
@@ -112,7 +112,7 @@ namespace Tmds.Ssh
                 {
                     if (_receiveBuffer.AsReadOnlySequence().IsEmpty)
                     {
-                        return null;
+                        return new Packet(null);
                     }
                     else
                     {
@@ -122,9 +122,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public override async ValueTask SendPacketAsync(ReadOnlySequence<byte> data, CancellationToken ct)
+        public override async ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         {
-            _encoder.Encode(_sendSequenceNumber, data, _sendBuffer);
+            _encoder.Encode(_sendSequenceNumber, packet, _sendBuffer);
             var encodedData = _sendBuffer.AsReadOnlySequence();
 
             if (encodedData.IsSingleSegment)
