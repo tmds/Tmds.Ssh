@@ -25,7 +25,7 @@ namespace Tmds.Ssh
             this(sequencePool, EncryptionCryptoTransform.None, HMac.None)
         { }
 
-        public bool TryDecodePacket(Sequence receiveBuffer, int maxLength, out Sequence? packet)
+        public bool TryDecodePacket(Sequence receiveBuffer, int maxLength, out Packet packet)
         {
             // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
             /*
@@ -80,24 +80,13 @@ namespace Tmds.Ssh
                     // TODO: verify mac
                     receiveBuffer.Remove(_mac.HashSize);
 
-                    // Reset the decodedReader.
-                    decodedReader = new SequenceReader(_decodedPacket);
-                    decodedReader.Skip(4); // skip the packet_length.
-                    byte padding_length = decodedReader.ReadByte();
-
-                    // Strip packet_length, padding_length.
-                    _decodedPacket.Remove(5);
-
-                    // Strip padding.
-                    _decodedPacket.RemoveBack(padding_length);
-
-                    packet = _decodedPacket;
+                    packet = new Packet(_decodedPacket);
                     _decodedPacket = null;
                     return true;
                 }
             }
 
-            packet = null;
+            packet = new Packet(null);
             return false;
         }
 

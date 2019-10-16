@@ -15,6 +15,8 @@ namespace Tmds.Ssh
 
         public Sequence RentSequence()
         {
+            // TODO: add some debug infrastructure.
+
             if (_sequenceBag.TryTake(out Sequence? sequence))
             {
                 return sequence!;

@@ -134,7 +134,7 @@ namespace Tmds.Ssh
 
             public void Transform(Span<byte> prefix, ReadOnlySequence<byte> data, Span<byte> suffix, Sequence output)
             {
-                using var writer = new SequenceWriter(output);
+                var writer = new SequenceWriter(output);
                 writer.Write(prefix);
                 writer.Write(data);
                 writer.Write(suffix);

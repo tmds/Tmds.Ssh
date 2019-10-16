@@ -45,6 +45,9 @@ namespace Tmds.Ssh
                 get => new ArraySegment<byte>(_allocatedBuffer!, End, BytesUnused);
             }
 
+            public Span<byte> Span
+                => _allocatedBuffer.AsSpan(Start, End - Start);
+
             internal void Reset()
             {
                 Memory = default;

@@ -22,7 +22,7 @@ namespace Tmds.Ssh
             this(EncryptionCryptoTransform.None, HMac.None)
         { }
 
-        public void Encode(uint sequenceNumber, ReadOnlySequence<byte> payload, Sequence buffer)
+        public void Encode(uint sequenceNumber, Packet packet, Sequence buffer)
         {
             // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
             /*
@@ -41,7 +41,7 @@ namespace Tmds.Ssh
             // whichever is larger)
             uint minSize = (uint)Math.Max(16U, _encode.BlockSize);
 
-            uint payload_length = (uint)payload.Length;
+            uint payload_length = (uint)packet.PayloadLength;
             byte padding_length = DeterminePaddingLength(payload_length, multipleOf);
             uint packet_length = payload_length + 1 + padding_length;
             while (packet_length < minSize)
@@ -50,21 +50,17 @@ namespace Tmds.Ssh
                 packet_length += multipleOf;
             }
 
-            Span<byte> prefix = stackalloc byte[4 + 4 + 1]; // sizeof(sequenceNumber) + sizeof(packet_length) + sizeof(padding_length).
-            BinaryPrimitives.WriteUInt32BigEndian(prefix, sequenceNumber);
-            BinaryPrimitives.WriteUInt32BigEndian(prefix.Slice(4), packet_length);
-            prefix[8] = padding_length;
-
-            Span<byte> suffix = stackalloc byte[padding_length];
-            RandomBytes.Fill(suffix);
+            // Write header and padding.
+            packet.WriteHeaderAndPadding(padding_length);
 
             // Encode
-            _encode.Transform(prefix.Slice(4), // strip the sequenceNumber.
-                payload, suffix, buffer);
+            _encode.Transform(packet.AsReadOnlySequence(), buffer);
 
             // Mac
             // mac = MAC(key, sequence_number || unencrypted_packet)
-            _mac.Transform(prefix, payload, suffix, buffer);
+            Span<byte> prefix = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(prefix, sequenceNumber);
+            _mac.Transform(prefix, packet.AsReadOnlySequence(), default, buffer);
         }
 
         private static byte DeterminePaddingLength(uint payload_length, uint multipleOf)

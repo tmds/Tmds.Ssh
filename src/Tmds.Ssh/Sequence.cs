@@ -33,6 +33,9 @@ namespace Tmds.Ssh
         public bool IsEmpty
             => Length == 0;
 
+        public Span<byte> FirstSpan
+            => _startSegment == null ? default(Span<byte>) : _startSegment.Span;
+
         public void Clear()
         {
             var segment = _startSegment;
@@ -48,13 +51,6 @@ namespace Tmds.Ssh
             // Return Sequence
             _startSegment = null;
             _endSegment = null;
-        }
-
-        public Sequence Clone()
-        {
-            var writer = new SequenceWriter(SequencePool);
-            writer.Write(AsReadOnlySequence());
-            return writer.BuildSequence();
         }
 
         internal ArraySegment<byte> AllocGetArraySegment(int sizeHint = 0)

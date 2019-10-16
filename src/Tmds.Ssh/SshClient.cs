@@ -35,7 +35,7 @@ namespace Tmds.Ssh
         // TODO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
         struct PendingSend
         {
-            public Sequence Packet;
+            public Packet Packet;
             public TaskCompletionSource<bool> TaskCompletion;
             public CancellationToken CancellationToken;
             public CancellationTokenRegistration CancellationTokenRegistration;
@@ -126,11 +126,11 @@ namespace Tmds.Ssh
                 }
                 if (!_settings.NoKeyExchange)
                 {
-                    using Sequence localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
-                    await connection.SendPacketAsync(localExchangeInitMsg.AsReadOnlySequence(), connectCts.Token);
+                    using Packet localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                    await connection.SendPacketAsync(localExchangeInitMsg, connectCts.Token);
                     {
-                        using Sequence? remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token);
-                        if (remoteExchangeInitMsg == null)
+                        using Packet remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token);
+                        if (remoteExchangeInitMsg.IsEmpty)
                         {
                             ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                         }
@@ -354,7 +354,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private ValueTask SendPacketAsync(Sequence packet, CancellationToken ct)
+        private ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         {
             Channel<PendingSend>? sendQueue = _sendQueue;
 
@@ -408,7 +408,6 @@ namespace Tmds.Ssh
                 while (true)
                 {
                     PendingSend send = await _sendQueue!.Reader.ReadAsync(abortToken); // TODO: maybe use ReadAllAsync
-                    Sequence packet = send.Packet;
                     try
                     {
                         // Disable send.CancellationToken.
@@ -418,11 +417,10 @@ namespace Tmds.Ssh
                             // If we weren't canceled by send.CancellationToken, do the send.
                             // We use abortToken instead of send.CancellationToken because
                             // we can't allow partial sends unless we're aborting the connection.
-                            ReadOnlySequence<byte> data = packet.AsReadOnlySequence();
-                            await connection.SendPacketAsync(data, abortToken);
+                            await connection.SendPacketAsync(send.Packet, abortToken);
 
                             SemaphoreSlim? keyExchangeSemaphore = null;
-                            if (data.FirstSpan[0] == MessageNumber.SSH_MSG_KEXINIT)
+                            if (send.Packet.MessageType == MessageNumber.SSH_MSG_KEXINIT)
                             {
                                 keyExchangeSemaphore = _keyReExchangeSemaphore;
                                 _keyReExchangeSemaphore = null;
@@ -446,10 +444,6 @@ namespace Tmds.Ssh
                         // report this as canceled.
                         send.TaskCompletion.SetCanceled();
                     }
-                    finally
-                    {
-                        packet.Dispose();
-                    }
                 }
             }
             catch (Exception e) // Happens on Abort.
@@ -471,7 +465,6 @@ namespace Tmds.Ssh
                         {
                             send.TaskCompletion.SetCanceled();
                         }
-                        send.Packet.Dispose();
                     }
                 }
             }
@@ -483,7 +476,7 @@ namespace Tmds.Ssh
             while (true)
             {
                 var packet = await connection.ReceivePacketAsync(abortToken, maxLength: Constants.MaxPacketLength);
-                if (packet == null)
+                if (packet.IsEmpty)
                 {
                     Abort(ClosedByPeer);
                     break;
@@ -493,8 +486,7 @@ namespace Tmds.Ssh
                     // for now, eat everything.
                     packet.Dispose();
                 }
-                var data = packet.AsReadOnlySequence();
-                byte msgType = data.FirstSpan[0];
+                int msgType = packet.MessageType;
 
                 // Connection Protocol: https://tools.ietf.org/html/rfc4254.
 
@@ -518,11 +510,10 @@ namespace Tmds.Ssh
                             var keyExchangeSemaphore = new SemaphoreSlim(0, 1);
                             _keyReExchangeSemaphore = keyExchangeSemaphore;
                             // this will await _keyReExchangeSemaphore and set it to null.
-                            using Sequence clientKexInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
+                            using Packet clientKexInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             try
                             {
-                                var clone = clientKexInitMsg.Clone(); // SendPacketAsync will Dispose the packet.
-                                await SendPacketAsync(clone, abortToken);
+                                await SendPacketAsync(clientKexInitMsg, abortToken);
                             }
                             catch
                             {
@@ -594,8 +585,8 @@ namespace Tmds.Ssh
             }
         }
 
-        private Sequence RentSequence()
-            => _sequencePool.RentSequence();
+        private Packet RentPacket()
+            => _sequencePool.RentPacket();
 
         private void ThrowNewConnectionClosedException()
         {

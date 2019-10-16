@@ -28,6 +28,12 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolInvalidPacketLength()
+        {
+            throw new ProtocolException("The packet length is not valid.");
+        }
+
+        [DoesNotReturn]
         public static void ThrowArgumentNull(string paramName)
         {
             throw new ArgumentNullException(paramName);

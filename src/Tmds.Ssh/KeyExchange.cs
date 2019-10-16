@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
 {
-    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, Sequence clientKexInitMsg, Sequence serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
+    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, Packet clientKexInitMsg, Packet serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
     sealed class KeyExchange
     {
         public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-        private async static Task PerformDefaultExchange(SshConnection connection, Sequence clientKexInitMsg, Sequence serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+        private async static Task PerformDefaultExchange(SshConnection connection, Packet clientKexInitMsg, Packet serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
         {
             // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
             SequencePool sequencePool = connection.SequencePool;
@@ -53,7 +53,7 @@ namespace Tmds.Ssh
                     settings.KeyExchangeAlgorithms[0] != remoteInit.kex_algorithms[0] ? default(Name) : settings.KeyExchangeAlgorithms[0];
 
             KeyExchangeOutput? keyExchangeOutput = null;
-            Sequence? exchangeInitMsg = null;
+            Packet exchangeInitMsg = default;
             try
             {
                 if (remoteInit.first_kex_packet_follows)
@@ -66,8 +66,8 @@ namespace Tmds.Ssh
                         settings.ServerHostKeyAlgorithms[0] != remoteInit.server_host_key_algorithms[0])
                     {
                         // Silently ignore if guessed wrong.
-                        exchangeInitMsg?.Dispose();
-                        exchangeInitMsg = null;
+                        exchangeInitMsg.Dispose();
+                        exchangeInitMsg = default;
                     }
                     else
                     {
@@ -120,22 +120,20 @@ namespace Tmds.Ssh
             }
             finally
             {
-                exchangeInitMsg?.Dispose();
+                exchangeInitMsg.Dispose();
             }
 
             logger.AlgorithmsServerToClient(encS2C, macS2C, comS2C);
             logger.AlgorithmsClientToServer(encC2S, macC2S, comC2S);
 
             // Send SSH_MSG_NEWKEYS.
-            using Sequence newKeysMsg = CreateNewKeysMessage(sequencePool);
-            await connection.SendPacketAsync(newKeysMsg.AsReadOnlySequence(), ct);
+            {
+                using Packet newKeysMsg = CreateNewKeysMessage(sequencePool);
+                await connection.SendPacketAsync(newKeysMsg, ct);
+            }
 
             // Receive SSH_MSG_NEWKEYS.
-            using Sequence? newKeysReceivedMsg = await connection.ReceivePacketAsync(ct);
-            if (newKeysReceivedMsg == null)
-            {
-                ThrowHelper.ThrowProtocolUnexpectedPeerClose();
-            }
+            using Packet newKeysReceivedMsg = await connection.ReceivePacketAsync(ct);
             ParseNewKeysMessage(newKeysReceivedMsg);
 
             var encrypt = EncryptionFactory.Default.CreateEncryptor(encC2S, keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S);
@@ -187,9 +185,9 @@ namespace Tmds.Ssh
             Name[] languages_client_to_server,
             Name[] languages_server_to_client,
             bool first_kex_packet_follows)
-            ParseKeyExchangeInitMessage(Sequence packet)
+            ParseKeyExchangeInitMessage(Packet packet)
         {
-            var reader = new SequenceReader(packet);
+            var reader = packet.GetReader();
             reader.ReadByte(MessageNumber.SSH_MSG_KEXINIT);
             reader.Skip(16);
             Name[] kex_algorithms = reader.ReadNameList();
@@ -219,9 +217,10 @@ namespace Tmds.Ssh
                 first_kex_packet_follows);
         }
 
-        public static Sequence CreateKeyExchangeInitMessage(SequencePool sequencePool, ILogger logger, SshClientSettings settings)
+        public static Packet CreateKeyExchangeInitMessage(SequencePool sequencePool, ILogger logger, SshClientSettings settings)
         {
-            using var writer = new SequenceWriter(sequencePool);
+            using var packet = sequencePool.RentPacket();
+            var writer = packet.GetWriter();
             writer.WriteByte(MessageNumber.SSH_MSG_KEXINIT);
             writer.WriteRandomBytes(16);
             writer.WriteNameList(settings.KeyExchangeAlgorithms);
@@ -236,19 +235,20 @@ namespace Tmds.Ssh
             writer.WriteNameList(settings.LanguagesServerToClient);
             writer.WriteBoolean(false);
             writer.WriteUInt32(0);
-            return writer.BuildSequence();
+            return packet.Move();
         }
 
-        private static Sequence CreateNewKeysMessage(SequencePool sequencePool)
+        private static Packet CreateNewKeysMessage(SequencePool sequencePool)
         {
-            using var writer = new SequenceWriter(sequencePool);
+            using var packet = sequencePool.RentPacket();
+            var writer = packet.GetWriter();
             writer.WriteByte(MessageNumber.SSH_MSG_NEWKEYS);
-            return writer.BuildSequence();
+            return packet.Move();
         }
 
-        private static void ParseNewKeysMessage(Sequence packet)
+        private static void ParseNewKeysMessage(Packet packet)
         {
-            var reader = new SequenceReader(packet);
+            var reader = packet.GetReader();
             reader.ReadByte(MessageNumber.SSH_MSG_NEWKEYS);
             reader.ReadEnd();
         }

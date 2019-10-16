@@ -36,22 +36,19 @@ namespace Tmds.Ssh
         {
             var sequencePool = connection.SequencePool;
             using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
+
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
             ECPoint q_c = myPublicKey.ExportParameters().Q;
-            using var ecdhInitMsg = CreateEcdhInitMessage(sequencePool, q_c);
-            await connection.SendPacketAsync(ecdhInitMsg.AsReadOnlySequence(), ct);
+            {
+                using var ecdhInitMsg = CreateEcdhInitMessage(sequencePool, q_c);
+                await connection.SendPacketAsync(ecdhInitMsg, ct);
+            }
 
-            Sequence? exchangeInitMsg = input.ExchangeInitMsg;
             // Receive ECDH_REPLY.
-            if (exchangeInitMsg == null)
-            {
-                exchangeInitMsg = await connection.ReceivePacketAsync(ct);
-            }
-            if (exchangeInitMsg == null)
-            {
-                ThrowHelper.ThrowProtocolUnexpectedPeerClose();
-            }
+            Packet exchangeInitMsg = input.ExchangeInitMsg;
+            using Packet exchangeInitMsgDispose =
+                exchangeInitMsg.IsEmpty ? (exchangeInitMsg = await connection.ReceivePacketAsync(ct)) : default(Packet);
             var ecdhReply = ParceEcdhReply(exchangeInitMsg);
 
             // TODO: Verify received key is valid.
@@ -92,7 +89,7 @@ namespace Tmds.Ssh
                 initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
         }
 
-        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Sequence clientKexInitMsg, Sequence serverKexInitMsg, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
+        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Packet clientKexInitMsg, Packet serverKexInitMsg, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
         {
             /*
                 string   V_C, client's identification string (CR and LF excluded)
@@ -108,8 +105,8 @@ namespace Tmds.Ssh
             var writer = new SequenceWriter(sequence);
             writer.WriteString(connectionInfo.ClientIdentificationString!);
             writer.WriteString(connectionInfo.ServerIdentificationString!);
-            writer.WriteString(clientKexInitMsg.AsReadOnlySequence());
-            writer.WriteString(serverKexInitMsg.AsReadOnlySequence());
+            writer.WriteString(clientKexInitMsg.Payload);
+            writer.WriteString(serverKexInitMsg.Payload);
             writer.WriteString(public_host_key);
             writer.WriteString(q_c);
             writer.WriteString(q_s);
@@ -187,21 +184,22 @@ namespace Tmds.Ssh
         public void Dispose()
         { }
 
-        private static Sequence CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)
+        private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)
         {
-            using var writer = new SequenceWriter(sequencePool);
+            using var packet = sequencePool.RentPacket();
+            var writer = packet.GetWriter();
             writer.WriteByte(MessageNumber.SSH_MSG_KEX_ECDH_INIT);
             writer.WriteString(q_c);
-            return writer.BuildSequence();
+            return packet.Move();
         }
 
         private static (
             ReadOnlySequence<byte> public_host_key,
             ECPoint q_s,
             ReadOnlySequence<byte> exchange_hash_signature)
-            ParceEcdhReply(Sequence packet)
+            ParceEcdhReply(Packet packet)
         {
-            var reader = new SequenceReader(packet);
+            var reader = packet.GetReader();
             reader.ReadByte(MessageNumber.SSH_MSG_KEX_ECDH_REPLY);
             ReadOnlySequence<byte> public_host_key = reader.ReadStringAsBytes();
             ECPoint q_s = reader.ReadStringAsECPoint();
