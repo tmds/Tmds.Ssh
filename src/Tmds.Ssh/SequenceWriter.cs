@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Numerics;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Tmds.Ssh
 {
@@ -16,12 +17,24 @@ namespace Tmds.Ssh
     {
         private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-        private readonly SequencePool? _sequencePool;
         private Sequence? _sequence;
         private Span<byte> _unused;
 
         public SequencePool SequencePool
-            => _sequencePool ?? _sequence?.SequencePool!;
+            => Sequence.SequencePool;
+
+        public Sequence Sequence
+        {
+            get
+            {
+                if (_sequence == null)
+                {
+                    ThrowHelper.ThrowArgumentNull(nameof(_sequence));
+                }
+
+                return _sequence!;
+            }
+        }
 
         // Used for writing to a Sequence.
         public SequenceWriter(Sequence sequence)
@@ -31,21 +44,8 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowArgumentNull(nameof(sequence));
             }
 
-            _sequencePool = null; // don't assign to not return the Sequence on Dispose.
             _sequence = sequence;
             _unused = default;
-        }
-
-        public Sequence BuildSequence()
-        {
-            if (_sequence == null)
-            {
-                ThrowHelper.ThrowInvalidOperation("No data written.");
-            }
-
-            var sequence = _sequence;
-            _sequence = null;
-            return sequence;
         }
 
         private Span<byte> AllocGetSpan(int sizeHint = 0)
@@ -60,18 +60,13 @@ namespace Tmds.Ssh
 
         private void EnlargeUnused(int sizeHint)
         {
-            if (_sequence == null)
-            {
-                _sequence = _sequencePool!.RentSequence();
-            }
-
-            _unused = _sequence.AllocGetSpan(sizeHint);
+            _unused = Sequence.AllocGetSpan(sizeHint);
         }
 
         private void AppendAlloced(int length)
         {
             _unused = _unused.Slice(length);
-            _sequence!.AppendAlloced(length);
+            Sequence.AppendAlloced(length);
         }
 
         public void WriteByte(byte value)

@@ -15,7 +15,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteByte(100);
             writer.WriteByte(200);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(100, reader.ReadByte());
             Assert.Equal(200, reader.ReadByte());
         }
@@ -28,7 +28,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteUInt32(100U);
             writer.WriteUInt32(uint.MaxValue);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(100U, reader.ReadUInt32());
             Assert.Equal(100U, reader.ReadUInt32());
             Assert.Equal(uint.MaxValue, reader.ReadUInt32());
@@ -42,7 +42,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteUInt64(100U);
             writer.WriteUInt64(ulong.MaxValue);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(100U, reader.ReadUInt64());
             Assert.Equal(100U, reader.ReadUInt64());
             Assert.Equal(ulong.MaxValue, reader.ReadUInt64());
@@ -55,7 +55,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteBoolean(true);
             writer.WriteBoolean(false);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.True(reader.ReadBoolean());
             Assert.False(reader.ReadBoolean());
         }
@@ -75,7 +75,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteString(world);
             writer.WriteString(longData);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(hello, reader.ReadStringAsBytes().ToArray());
             Assert.Equal(empty, reader.ReadStringAsBytes().ToArray());
             Assert.Equal(world, reader.ReadStringAsBytes().ToArray());
@@ -92,7 +92,7 @@ namespace Tmds.Ssh.Tests
             var longString = GenerateRandomString(1_000_000);
             writer.WriteString(longString);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal("hello", reader.ReadUtf8String());
             Assert.Equal("", reader.ReadUtf8String());
             Assert.Equal("world", reader.ReadUtf8String());
@@ -107,7 +107,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteString(new Name(""));
             writer.WriteString(new Name("world"));
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(new Name("hello"), reader.ReadName());
             Assert.Equal(new Name(""), reader.ReadName());
             Assert.Equal(new Name("world"), reader.ReadName());
@@ -125,7 +125,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteNameList(empty);
             writer.WriteNameList(double_);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(single, reader.ReadNameList());
             Assert.Equal(empty, reader.ReadNameList());
             Assert.Equal(double_, reader.ReadNameList());
@@ -141,7 +141,7 @@ namespace Tmds.Ssh.Tests
             writer.WriteMPInt(ulong.MaxValue);
             writer.WriteMPInt(long.MinValue);
 
-            SequenceReader reader = new SequenceReader(writer.BuildSequence());
+            SequenceReader reader = new SequenceReader(writer.Sequence);
             Assert.Equal(1, reader.ReadMPInt());
             Assert.Equal(0, reader.ReadMPInt());
             Assert.Equal(-1, reader.ReadMPInt());
@@ -162,6 +162,6 @@ namespace Tmds.Ssh.Tests
         }
 
         private static SequenceWriter CreateSequenceWriter()
-            => new SequenceWriter(new SequencePool());
+            => new SequenceWriter(new SequencePool().RentSequence());
     }
 }
