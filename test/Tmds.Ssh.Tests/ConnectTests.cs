@@ -12,7 +12,7 @@ namespace Tmds.Ssh.Tests
         [Fact]
         public async Task ClientCanConnectToServerSocket()
         {
-            TaskCompletionSource<Sequence> serverReceivedTcs = new TaskCompletionSource<Sequence>();
+            TaskCompletionSource<Packet> serverReceivedTcs = new TaskCompletionSource<Packet>();
 
             await using var server = new TestServer(
                 async conn =>
@@ -33,7 +33,7 @@ namespace Tmds.Ssh.Tests
 
             // Check the server received an EOF.
             var serverReceivedPacket = await serverReceivedTcs.Task;
-            Assert.Null(serverReceivedPacket);
+            Assert.True(serverReceivedPacket.IsEmpty);
         }
     }
 }
