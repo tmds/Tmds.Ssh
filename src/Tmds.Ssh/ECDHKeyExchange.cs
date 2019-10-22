@@ -188,7 +188,7 @@ namespace Tmds.Ssh
         {
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_KEX_ECDH_INIT);
+            writer.WriteMessageId(MessageId.SSH_MSG_KEX_ECDH_INIT);
             writer.WriteString(q_c);
             return packet.Move();
         }
@@ -200,7 +200,7 @@ namespace Tmds.Ssh
             ParceEcdhReply(Packet packet)
         {
             var reader = packet.GetReader();
-            reader.ReadByte(MessageNumber.SSH_MSG_KEX_ECDH_REPLY);
+            reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
             ReadOnlySequence<byte> public_host_key = reader.ReadStringAsBytes();
             ECPoint q_s = reader.ReadStringAsECPoint();
             ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();

@@ -9,7 +9,6 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Numerics;
 using System.Text;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Tmds.Ssh
 {
@@ -17,7 +16,7 @@ namespace Tmds.Ssh
     {
         private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-        private Sequence? _sequence;
+        private readonly Sequence? _sequence;
         private Span<byte> _unused;
 
         public SequencePool SequencePool
@@ -32,11 +31,10 @@ namespace Tmds.Ssh
                     ThrowHelper.ThrowArgumentNull(nameof(_sequence));
                 }
 
-                return _sequence!;
+                return _sequence;
             }
         }
 
-        // Used for writing to a Sequence.
         public SequenceWriter(Sequence sequence)
         {
             if (sequence == null)
@@ -73,6 +71,13 @@ namespace Tmds.Ssh
         {
             var span = AllocGetSpan(1);
             span[0] = value;
+            AppendAlloced(1);
+        }
+
+        public void WriteMessageId(MessageId value)
+        {
+            var span = AllocGetSpan(1);
+            span[0] = (byte)value;
             AppendAlloced(1);
         }
 

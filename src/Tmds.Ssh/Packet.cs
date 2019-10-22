@@ -106,22 +106,22 @@ namespace Tmds.Ssh
             }
         }
 
-        public int MessageType
+        public MessageId? MessageId
         {
             get
             {
                 if (_sequence == null)
                 {
-                    return -1;
+                    return null;
                 }
 
                 long sequenceLength = _sequence.Length;
                 if (sequenceLength < MinMsgLength)
                 {
-                    return -1;
+                    return null;
                 }
 
-                return _sequence.FirstSpan[MsgTypeOffset];
+                return (MessageId)_sequence.FirstSpan[MsgTypeOffset];
             }
         }
 

@@ -420,7 +420,7 @@ namespace Tmds.Ssh
                             await connection.SendPacketAsync(send.Packet, abortToken);
 
                             SemaphoreSlim? keyExchangeSemaphore = null;
-                            if (send.Packet.MessageType == MessageNumber.SSH_MSG_KEXINIT)
+                            if (send.Packet.MessageId == MessageId.SSH_MSG_KEXINIT)
                             {
                                 keyExchangeSemaphore = _keyReExchangeSemaphore;
                                 _keyReExchangeSemaphore = null;
@@ -475,18 +475,14 @@ namespace Tmds.Ssh
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
-                var packet = await connection.ReceivePacketAsync(abortToken, maxLength: Constants.MaxPacketLength);
+                using var packet = await connection.ReceivePacketAsync(abortToken, maxLength: Constants.MaxPacketLength);
                 if (packet.IsEmpty)
                 {
                     Abort(ClosedByPeer);
                     break;
                 }
-                else
-                {
-                    // for now, eat everything.
-                    packet.Dispose();
-                }
-                int msgType = packet.MessageType;
+
+                MessageId msgId = packet.MessageId!.Value;
 
                 // Connection Protocol: https://tools.ietf.org/html/rfc4254.
 
@@ -499,9 +495,9 @@ namespace Tmds.Ssh
                 // Handle global requests
                 // ...
 
-                switch (msgType)
+                switch (msgId)
                 {
-                    case MessageNumber.SSH_MSG_KEXINIT:
+                    case MessageId.SSH_MSG_KEXINIT:
                         // Key Re-Exchange: https://tools.ietf.org/html/rfc4253#section-9.
                         try
                         {
