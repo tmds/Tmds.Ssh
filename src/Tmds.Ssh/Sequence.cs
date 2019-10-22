@@ -13,6 +13,8 @@ namespace Tmds.Ssh
 
         public SequencePool SequencePool { get; }
 
+        public SequenceReader GetReader() => new SequenceReader(this);
+
         internal Sequence(SequencePool pool)
         {
             SequencePool = pool;
@@ -220,6 +222,6 @@ namespace Tmds.Ssh
             => new SequenceReader<byte>(AsReadOnlySequence());
 
         public override string ToString()
-            => PrettyBytePrinter.ToString(this);
+            => PrettyBytePrinter.ToHexString(this);
     }
 }

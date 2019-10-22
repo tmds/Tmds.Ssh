@@ -91,7 +91,7 @@ namespace Tmds.Ssh
              */
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_USERAUTH_REQUEST);
+            writer.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
             writer.WriteString(userName);
             writer.WriteString("ssh-connection");
             writer.WriteString("publickey");
@@ -112,7 +112,7 @@ namespace Tmds.Ssh
                 using var signatureData = sequencePool.RentSequence();
                 var signatureWriter = new SequenceWriter(signatureData);
                 signatureWriter.WriteString(sessionId);
-                signatureWriter.WriteByte(MessageNumber.SSH_MSG_USERAUTH_REQUEST);
+                signatureWriter.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
                 signatureWriter.WriteString(userName);
                 signatureWriter.WriteString("ssh-connection");
                 signatureWriter.WriteString("publickey");
@@ -129,7 +129,7 @@ namespace Tmds.Ssh
         {
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_SERVICE_REQUEST);
+            writer.WriteMessageId(MessageId.SSH_MSG_SERVICE_REQUEST);
             writer.WriteString("ssh-userauth");
             return packet.Move();
         }
@@ -137,7 +137,7 @@ namespace Tmds.Ssh
         private static void ParseServiceAccept(Packet packet)
         {
             var reader = packet.GetReader();
-            reader.ReadByte(MessageNumber.SSH_MSG_SERVICE_ACCEPT);
+            reader.ReadMessageId(MessageId.SSH_MSG_SERVICE_ACCEPT);
             reader.SkipString();
             reader.ReadEnd();
         }
@@ -146,7 +146,7 @@ namespace Tmds.Ssh
         {
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_USERAUTH_REQUEST);
+            writer.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
             writer.WriteString(userName);
             writer.WriteString("ssh-connection");
             writer.WriteString("password");
@@ -158,12 +158,12 @@ namespace Tmds.Ssh
         private static bool IsAuthSuccesfull(Packet packet)
         {
             var reader = packet.GetReader();
-            byte b = reader.ReadByte();
+            MessageId b = reader.ReadMessageId();
             switch (b)
             {
-                case MessageNumber.SSH_MSG_USERAUTH_SUCCESS:
+                case MessageId.SSH_MSG_USERAUTH_SUCCESS:
                     return true;
-                case MessageNumber.SSH_MSG_USERAUTH_FAILURE:
+                case MessageId.SSH_MSG_USERAUTH_FAILURE:
                     return false;
                 default:
                     ThrowHelper.ThrowProtocolUnexpectedValue();

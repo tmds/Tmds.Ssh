@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Buffers;
 using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
@@ -19,6 +20,8 @@ namespace Tmds.Ssh
         private static readonly Action<ILogger, string, Exception?> _authMethod;
         private static readonly Action<ILogger, string, Exception?> _authMethodPk;
         private static readonly Action<ILogger, Exception?> _authSuccess;
+        private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _received;
+        private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _send;
 
         static LoggingExtensions()
         {
@@ -81,6 +84,18 @@ namespace Tmds.Ssh
                 logLevel: LogLevel.Information,
                 formatString: "Authentication succeeded"
             );
+
+            _received = LoggerMessage.Define<MessageId?, PacketPayload>(
+                eventId: 11,
+                logLevel: LogLevel.Trace,
+                formatString: "Received {messageId} {payload}"
+            );
+
+            _send = LoggerMessage.Define<MessageId?, PacketPayload>(
+                eventId: 12,
+                logLevel: LogLevel.Trace,
+                formatString: "Sending {messageId} {payload}"
+            );
         }
 
         public static void Connecting(this ILogger logger, string host, int port)
@@ -131,6 +146,30 @@ namespace Tmds.Ssh
         public static void AuthenticationSucceeded(this ILogger logger)
         {
             _authSuccess(logger, null);
+        }
+
+        public static void Received(this ILogger logger, Packet packet)
+        {
+            _received(logger, packet.MessageId, new PacketPayload(packet), null);
+        }
+
+        public static void Send(this ILogger logger, Packet packet)
+        {
+            _send(logger, packet.MessageId, new PacketPayload(packet), null);
+        }
+
+        struct PacketPayload
+        {
+            private Packet _packet;
+            public PacketPayload(Packet packet)
+            {
+                _packet = packet;
+            }
+
+            public override string ToString()
+            {
+                return PrettyBytePrinter.ToMultiLineString(_packet.Payload);
+            }
         }
     }
 }

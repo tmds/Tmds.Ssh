@@ -46,14 +46,27 @@ namespace Tmds.Ssh
             return 0;
         }
 
-        public byte ReadByte(byte expectedValue)
+        public void ReadByte(byte expectedValue)
         {
             byte value = ReadByte();
             if (value != expectedValue)
             {
                 ThrowHelper.ThrowProtocolUnexpectedValue();
             }
-            return value;
+        }
+
+        public MessageId ReadMessageId()
+        {
+            return (MessageId)ReadByte();
+        }
+
+        public void ReadMessageId(MessageId expectedValue)
+        {
+            MessageId value = ReadMessageId();
+            if (value != expectedValue)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
         }
 
         public uint ReadUInt32()

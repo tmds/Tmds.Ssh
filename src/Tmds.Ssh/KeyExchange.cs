@@ -188,7 +188,7 @@ namespace Tmds.Ssh
             ParseKeyExchangeInitMessage(Packet packet)
         {
             var reader = packet.GetReader();
-            reader.ReadByte(MessageNumber.SSH_MSG_KEXINIT);
+            reader.ReadMessageId(MessageId.SSH_MSG_KEXINIT);
             reader.Skip(16);
             Name[] kex_algorithms = reader.ReadNameList();
             Name[] server_host_key_algorithms = reader.ReadNameList();
@@ -221,7 +221,7 @@ namespace Tmds.Ssh
         {
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_KEXINIT);
+            writer.WriteMessageId(MessageId.SSH_MSG_KEXINIT);
             writer.WriteRandomBytes(16);
             writer.WriteNameList(settings.KeyExchangeAlgorithms);
             writer.WriteNameList(settings.ServerHostKeyAlgorithms);
@@ -242,14 +242,14 @@ namespace Tmds.Ssh
         {
             using var packet = sequencePool.RentPacket();
             var writer = packet.GetWriter();
-            writer.WriteByte(MessageNumber.SSH_MSG_NEWKEYS);
+            writer.WriteMessageId(MessageId.SSH_MSG_NEWKEYS);
             return packet.Move();
         }
 
         private static void ParseNewKeysMessage(Packet packet)
         {
             var reader = packet.GetReader();
-            reader.ReadByte(MessageNumber.SSH_MSG_NEWKEYS);
+            reader.ReadMessageId(MessageId.SSH_MSG_NEWKEYS);
             reader.ReadEnd();
         }
     }

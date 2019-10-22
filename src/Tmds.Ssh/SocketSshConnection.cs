@@ -104,6 +104,7 @@ namespace Tmds.Ssh
             {
                 if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Packet packet))
                 {
+                    _logger.Received(packet);
                     return packet;
                 }
 
@@ -124,6 +125,8 @@ namespace Tmds.Ssh
 
         public override async ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         {
+            _logger.Send(packet);
+
             _encoder.Encode(_sendSequenceNumber, packet, _sendBuffer);
             var encodedData = _sendBuffer.AsReadOnlySequence();
 
