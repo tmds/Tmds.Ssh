@@ -28,6 +28,12 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolUnexpectedMessageId(MessageId messageId)
+        {
+            throw new ProtocolException($"Unexpected message id: {messageId}.");
+        }
+
+        [DoesNotReturn]
         public static void ThrowProtocolInvalidPacketLength()
         {
             throw new ProtocolException("The packet length is not valid.");

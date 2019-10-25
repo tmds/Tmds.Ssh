@@ -13,8 +13,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh
 {
-    delegate Task ChannelHandler(ChannelContext context);
-
     public sealed partial class SshClient : IAsyncDisposable
     {
         private readonly SshClientSettings _settings;
@@ -26,9 +24,8 @@ namespace Tmds.Ssh
         private Task? _runningConnectionTask;                  // Task that encompasses all operations
         private Exception? _abortReason;                       // Reason why the client stopped
         private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
-        private List<Task>? _connectionUsers;                  // Tasks that use the connection (like Channels)
-        private int _nextChannelNumber;
-        private readonly Dictionary<int, ChannelExecution> _channels = new Dictionary<int, ChannelExecution>();
+        private uint _nextChannelNumber;
+        private readonly Dictionary<uint, SshClientChannelContext> _channels = new Dictionary<uint, SshClientChannelContext>();
         private readonly SequencePool _sequencePool = new SequencePool();
         private SemaphoreSlim? _keyReExchangeSemaphore;
 
@@ -55,6 +52,15 @@ namespace Tmds.Ssh
             if (settings.Host == null)
             {
                 throw new ArgumentNullException(nameof(settings.Host));
+            }
+        }
+
+        public CancellationToken ConnectionClosed
+        {
+            get
+            {
+                // TODO: Throw if connectasync was never completed succesfully
+                return _abortCts.Token;
             }
         }
 
@@ -149,8 +155,6 @@ namespace Tmds.Ssh
                     SingleReader = true,
                     AllowSynchronousContinuations = true
                 });
-                // Allow connection users.
-                _connectionUsers = new List<Task>();
                 // ConnectAsync completed successfully.
                 connectTcs.SetResult(true);
             }
@@ -189,168 +193,31 @@ namespace Tmds.Ssh
         {
             try
             {
-                try
-                {
-                    Task sendTask = SendLoopAsync(connection);
-                    AddConnectionUser(sendTask);
-                    AddConnectionUser(ReceiveLoopAsync(connection, connectionInfo));
-
-                    // Wait for a task that runs as long as the connection.
-                    await sendTask.ContinueWith(_ => { /* Ignore Failed/Canceled */ });
-                }
-                catch (Exception e) // Unexpected: the continuation doesn't throw.
-                {
-                    Abort(e);
-                }
-                finally
-                {
-                    Task[] connectionUsers;
-                    lock (_gate)
-                    {
-                        connectionUsers = _connectionUsers!.ToArray();
-                        // Accept no new users.
-                        _connectionUsers = null;
-                    }
-                    // Wait for all connection users.
-                    await Task.WhenAll(connectionUsers);
-                }
+                Task sendTask = SendLoopAsync(connection);
+                Task receiveTask = ReceiveLoopAsync(connection, connectionInfo);
+                await Task.WhenAll(sendTask, receiveTask);
             }
-            catch (Exception e)
+            catch (Exception e) // Unexpected: the continuation doesn't throw.
             {
-                Abort(e); // Unlikely, Abort will be called already.
+                Abort(e);
             }
             finally
             {
                 connection.Dispose();
             }
-
-            async void AddConnectionUser(Task task)
-            {
-                lock (_gate)
-                {
-                    _connectionUsers!.Add(task);
-                }
-
-                try
-                {
-                    await task;
-                    RemoveConnectionUser(task);
-                }
-                catch (Exception e)
-                {
-                    RemoveConnectionUser(task);
-                    Abort(e);
-                }
-
-                void RemoveConnectionUser(Task task)
-                {
-                    lock (_gate)
-                    {
-                        List<Task> connectionUsers = _connectionUsers!;
-
-                        if (connectionUsers != null)
-                        {
-                            connectionUsers.Remove(task);
-                        }
-                    }
-                }
-            }
         }
 
-        internal async Task HandleChannelAsync(ChannelHandler handler, CancellationToken ct)
+        internal ChannelContext CreateChannel(CancellationToken ct = default)
         {
-            async Task runChannel()
-            {
-                // Yield to avoid holding _gate lock.
-                await Task.Yield();
-
-                int channelNumber;
-                lock (_gate)
-                {
-                    channelNumber = _nextChannelNumber++; // TODO: handle numbering
-                }
-                try
-                {
-                    using var channelContext = new ChannelExecution(this, channelNumber, _abortCts.Token, ct, handler);
-                    lock (_channels)
-                    {
-                        _channels[channelNumber] = channelContext;
-                    }
-                    try
-                    {
-                        await channelContext.ExecuteAsync();
-                    }
-                    catch (OperationCanceledException) when (_abortReason != null)
-                    {
-                        ThrowNewConnectionClosedException();
-                    }
-                    finally
-                    {
-                        // No more messages will be queued to this channel.
-                        lock (_channels)
-                        {
-                            _channels.Remove(channelNumber);
-                        }
-                    }
-                }
-                finally
-                {
-                    lock (_gate)
-                    {
-                        // TODO: return channel number
-                    }
-                }
-            }
-
-            Task task;
             lock (_gate)
             {
-                ThrowIfDisposed();
+                ThrowIfNotConnected();
 
-                List<Task>? connectionUsers = _connectionUsers;
-                if (connectionUsers == null)
-                {
-                    if (_abortReason != null)
-                    {
-                        ThrowNewConnectionClosedException();
-                    }
-                    else
-                    {
-                        // Trying to add a channel before ConnectAsync completed.
-                        ThrowHelper.ThrowInvalidOperation("Not connected");
-                    }
-                }
+                uint channelNumber = unchecked(_nextChannelNumber++); // TODO: handle numbering, including OnChannelClosed.
+                var channelContext = new SshClientChannelContext(this, channelNumber, ct);
+                _channels[channelNumber] = channelContext;
 
-                task = runChannel();
-                connectionUsers!.Add(task);
-            }
-
-            try
-            {
-                await task;
-                RemoveConnectionUser(task);
-            }
-            catch (Exception e)
-            {
-                RemoveConnectionUser(task);
-                bool isOce = e is OperationCanceledException;
-                if (!isOce)
-                {
-                    Abort(e);
-                }
-                throw;
-            }
-
-            void RemoveConnectionUser(Task t)
-            {
-                lock (_gate)
-                {
-                    List<Task>? connectionUsers = _connectionUsers;
-                    if (connectionUsers != null)
-                    {
-                        connectionUsers.Remove(t);
-                    }
-                }
+                return channelContext;
             }
         }
 
@@ -360,7 +227,7 @@ namespace Tmds.Ssh
 
             if (sendQueue == null)
             {
-                // Trying to send before SendLoopAsync completed.
+                // Trying to send before ConnectAsync completed.
                 ThrowHelper.ThrowInvalidOperation("Not connected");
             }
 
@@ -485,16 +352,6 @@ namespace Tmds.Ssh
                 MessageId msgId = packet.MessageId!.Value;
 
                 // Connection Protocol: https://tools.ietf.org/html/rfc4254.
-
-                // Dispatch to channels:
-                // lock (_channels)
-                // {
-                //     var channelExecution = _channels[channelNumber];
-                //     channelExecution.QueueReceivedPacket(packet);
-                // }
-                // Handle global requests
-                // ...
-
                 switch (msgId)
                 {
                     case MessageId.SSH_MSG_KEXINIT:
@@ -525,8 +382,87 @@ namespace Tmds.Ssh
                             packet.Dispose();
                         }
                         break;
+                    case MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
+                    case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
+                    case MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST:
+                    case MessageId.SSH_MSG_CHANNEL_DATA:
+                    case MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA:
+                    case MessageId.SSH_MSG_CHANNEL_EOF:
+                    case MessageId.SSH_MSG_CHANNEL_CLOSE:
+                    case MessageId.SSH_MSG_CHANNEL_REQUEST:
+                    case MessageId.SSH_MSG_CHANNEL_SUCCESS:
+                    case MessageId.SSH_MSG_CHANNEL_FAILURE:
+                        uint channelNumber = GetChannelNumber(packet);
+                        lock (_channels)
+                        {
+                            var channelExecution = _channels[channelNumber];
+                            channelExecution.QueueReceivedPacket(packet.Move());
+                        }
+                        break;
+                    case MessageId.SSH_MSG_GLOBAL_REQUEST:
+                        await HandleGlobalRequestAsync(packet);
+                        break;
+                    case MessageId.SSH_MSG_DEBUG:
+                        HandleDebugMessage(packet);
+                        break;
+                    case MessageId.SSH_MSG_DISCONNECT:
+                        HandleDisconnectMessage(packet);
+                        break;
+                    default:
+                        ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
+                        break;
                 }
             }
+
+            static uint GetChannelNumber(Packet packet)
+            {
+                var reader = packet.GetReader();
+                reader.ReadMessageId();
+                return reader.ReadUInt32();
+            }
+        }
+
+        private void HandleDisconnectMessage(Packet packet)
+        {
+            /*
+                byte      SSH_MSG_DISCONNECT
+                uint32    reason code
+                string    description in ISO-10646 UTF-8 encoding [RFC3629]
+                string    language tag [RFC3066]
+             */
+            var reader = packet.GetReader();
+            reader.ReadMessageId(MessageId.SSH_MSG_DISCONNECT);
+            uint reason_code = reader.ReadUInt32();
+            string description = reader.ReadUtf8String();
+            reader.SkipString();
+            reader.ReadEnd();
+
+            throw new DisconnectException(description); // TODO: pass more fields.
+        }
+
+        private void HandleDebugMessage(Packet packet)
+        {
+            /*
+                byte      SSH_MSG_DEBUG
+                boolean   always_display
+                string    message in ISO-10646 UTF-8 encoding [RFC3629]
+                string    language tag [RFC3066]
+             */
+            var reader = packet.GetReader();
+            reader.ReadMessageId(MessageId.SSH_MSG_DEBUG);
+            bool always_display = reader.ReadBoolean();
+            string message = reader.ReadUtf8String(); // TODO: pass this to the user, maybe.
+            reader.SkipString();
+            reader.ReadEnd();
+        }
+
+        private async ValueTask HandleGlobalRequestAsync(Packet packet)
+        {
+            // If the recipient does not recognize or support the request, it simply
+            // responds with SSH_MSG_REQUEST_FAILURE.
+            using var response = RentPacket();
+            response.GetWriter().WriteMessageId(MessageId.SSH_MSG_REQUEST_FAILURE);
+            await SendPacketAsync(response, _abortCts.Token);
         }
 
         // This method is for doing a clean shutdown which may involve sending some messages over the wire.
@@ -597,6 +533,29 @@ namespace Tmds.Ssh
             else
             {
                 throw new ConnectionClosedException($"Connection closed: {_abortReason!.Message}", _abortReason);
+            }
+        }
+
+        private void OnChannelClosed(SshClientChannelContext context)
+        {
+            lock (_channels)
+            {
+                _channels.Remove(context.LocalChannel);
+            }
+        }
+
+        public void ThrowIfNotConnected()
+        {
+            ThrowIfDisposed();
+
+            if (_abortReason != null)
+            {
+                ThrowNewConnectionClosedException();
+            }
+
+            if (_sendQueue == null)
+            {
+                ThrowHelper.ThrowInvalidOperation("Not connected.");
             }
         }
     }

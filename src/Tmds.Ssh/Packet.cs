@@ -177,5 +177,23 @@ namespace Tmds.Ssh
         {
             throw new InvalidOperationException("The packet is readonly.");
         }
+
+        public Sequence MovePayload()
+        {
+            if (_sequence == null)
+            {
+                ThrowSequenceEmpty();
+            }
+
+            var sequence = _sequence;
+            _sequence = null;
+
+            // Remove padding.
+            sequence.RemoveBack(sequence.FirstSpan[PaddingOffset]);
+            // Remove header.
+            sequence.Remove(HeaderLength);
+
+            return sequence;
+        }
     }
 }

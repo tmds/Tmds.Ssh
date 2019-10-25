@@ -70,7 +70,7 @@ namespace Tmds.Ssh
                     remaining = 0;
                 }
 
-                if (remaining == 0)
+                if (remaining == 0 && receiveBuffer.Length >= _mac.HashSize)
                 {
                     if (_decodedPacket.Length != concatenated_length)
                     {

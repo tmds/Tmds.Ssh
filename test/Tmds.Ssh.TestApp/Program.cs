@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -31,7 +33,27 @@ namespace Tmds.Ssh.TestApp
 
             await client.ConnectAsync();
 
+            await MakeHttpRequestAsync(client, "www.redhat.com");
+
             return 0;
+        }
+
+        private static async Task MakeHttpRequestAsync(SshClient client, string host)
+        {
+            // Connect to web server.
+            await using var stream = await client.CreateTcpConnectionAsStreamAsync(host, 80);
+
+            // Write an http request.
+            using var writer = new StreamWriter(stream, bufferSize: 1, leaveOpen: true) { AutoFlush = true };
+            string request = $"GET / HTTP/1.0\r\nHost: {host}\r\nConnection: close\r\n\r\n";
+            await writer.WriteAsync(request);
+
+            // Receive the response.
+            using var reader = new StreamReader(stream, leaveOpen: true);
+            string reply = await reader.ReadToEndAsync();
+
+            // Print it out.
+            System.Console.WriteLine(reply);
         }
 
         private static string ReadPassword()
