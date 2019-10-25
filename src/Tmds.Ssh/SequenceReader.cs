@@ -79,6 +79,11 @@ namespace Tmds.Ssh
             return 0;
         }
 
+        public void SkipUInt32()
+        {
+            Skip(4);
+        }
+
         public uint ReadUInt32(uint expectedValue)
         {
             uint value = ReadUInt32();

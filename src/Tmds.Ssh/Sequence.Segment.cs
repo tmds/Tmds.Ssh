@@ -65,7 +65,7 @@ namespace Tmds.Ssh
 
                 if (segment != null)
                 {
-                    segment.RunningIndex = RunningIndex + End - Start;
+                    segment.RunningIndex = RunningIndex + End;
                     segment.Previous = this;
 
                     // We're no longer the last sequence, ReadOnlySequence no longer

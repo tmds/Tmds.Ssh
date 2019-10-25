@@ -168,7 +168,19 @@ namespace Tmds.Ssh
 
             public override string ToString()
             {
-                return PrettyBytePrinter.ToMultiLineString(_packet.Payload);
+                const int maxDataLength = 2 * PrettyBytePrinter.BytesPerLine;
+
+                ReadOnlySequence<byte> payload = _packet.Payload;
+                bool trimmed = false;
+                if ((_packet.MessageId == MessageId.SSH_MSG_CHANNEL_DATA ||
+                    _packet.MessageId == MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA
+                    ) && (payload.Length > maxDataLength))
+                {
+                    payload = payload.Slice(0, maxDataLength);
+                    trimmed = true;
+                }
+                return PrettyBytePrinter.ToMultiLineString(payload) +
+                    (trimmed ? $"{Environment.NewLine}..." : "" );
             }
         }
     }

@@ -1,10 +1,9 @@
 // This file is part of Tmds.Ssh which is released under LGPL-3.0.
 // See file LICENSE for full license details.
 
-using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Tmds.Ssh
 {
@@ -15,10 +14,12 @@ namespace Tmds.Ssh
 
         public Sequence RentSequence()
         {
-            // TODO: add some debug infrastructure.
-
             if (_sequenceBag.TryTake(out Sequence? sequence))
             {
+#if DEBUG
+                Debug.Assert(sequence.InPool);
+                sequence.InPool = false;
+#endif
                 return sequence!;
             }
             else
@@ -29,6 +30,10 @@ namespace Tmds.Ssh
 
         internal void ReturnSequence(Sequence sequence)
         {
+#if DEBUG
+            Debug.Assert(!sequence!.InPool);
+            sequence.InPool = true;
+#endif
             _sequenceBag.Add(sequence);
         }
 

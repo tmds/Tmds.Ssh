@@ -10,7 +10,7 @@ namespace Tmds.Ssh
 {
     static class PrettyBytePrinter
     {
-        const int LineLength = 32;
+        internal const int BytesPerLine = 32;
 
         public static string ToHexString(ReadOnlySpan<byte> span)
         {
@@ -51,24 +51,25 @@ namespace Tmds.Ssh
 
             do
             {
+                ReadOnlySpan<byte> firstSpan = sequence.FirstSpan;
                 if (sequence.IsSingleSegment)
                 {
-                    AppendLines(sb, sequence.FirstSpan, true);
+                    AppendLines(sb, firstSpan, true);
                     return sb.ToString();
                 }
 
-                int useLength = sequence.FirstSpan.Length;
-                if (useLength < LineLength)
+                int useLength = firstSpan.Length;
+                if (useLength < BytesPerLine)
                 {
-                    useLength = (int)Math.Min(LineLength, sequence.Length);
+                    useLength = (int)Math.Min(BytesPerLine, useLength);
                     Span<byte> lineBuffer = stackalloc byte[useLength];
-                    sequence.CopyTo(lineBuffer);
+                    firstSpan.CopyTo(lineBuffer);
                     AppendLine(sb, lineBuffer, useLength == sequence.Length);
                 }
                 else
                 {
-                    useLength -= (useLength % LineLength);
-                    AppendLines(sb, sequence.FirstSpan.Slice(0, useLength), useLength == sequence.Length);
+                    useLength -= (useLength % BytesPerLine);
+                    AppendLines(sb, firstSpan.Slice(0, useLength), useLength == sequence.Length);
                 }
                 sequence = sequence.Slice(useLength);
             } while (true);
@@ -90,9 +91,9 @@ namespace Tmds.Ssh
             while (!span.IsEmpty)
             {
                 ReadOnlySpan<byte> line = span;
-                if (line.Length > LineLength)
+                if (line.Length > BytesPerLine)
                 {
-                    line = line.Slice(0, LineLength);
+                    line = line.Slice(0, BytesPerLine);
                 }
                 AppendLine(sb, line, final && line.Length == span.Length);
 
@@ -107,7 +108,7 @@ namespace Tmds.Ssh
                 sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
             }
 
-            for (int i = line.Length; i < LineLength; i++)
+            for (int i = line.Length; i < BytesPerLine; i++)
             {
                 sb.Append("  ");
             }

@@ -104,8 +104,9 @@ namespace Tmds.Ssh
             {
                 if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Packet packet))
                 {
+                    using Packet p = packet;
                     _logger.Received(packet);
-                    return packet;
+                    return p.Move();
                 }
 
                 int received = await ReceiveAsync(ct);

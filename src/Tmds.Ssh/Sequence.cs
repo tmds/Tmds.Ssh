@@ -8,6 +8,9 @@ namespace Tmds.Ssh
 {
     sealed partial class Sequence : IDisposable
     {
+#if DEBUG
+        internal bool InPool;
+#endif
         private Segment? _startSegment;
         private Segment? _endSegment;
 

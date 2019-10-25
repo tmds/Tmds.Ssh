@@ -44,8 +44,15 @@ namespace Tmds.Ssh
                     // Reserve output space.
                     ArraySegment<byte> outputSegment = output.AllocGetArraySegment(_transform.OutputBlockSize);
 
+                    // Trim input in case the output buffer is too small.
+                    int maxInput = (outputSegment.Count / _transform.OutputBlockSize) * _transform.InputBlockSize;
+                    if (maxInput > inputSegment.Count)
+                    {
+                        maxInput = inputSegment.Count;
+                    }
+
                     // Transform.
-                    int transformedOutput = Transform(inputSegment, outputSegment);
+                    int transformedOutput = Transform(inputSegment.Slice(0, maxInput), outputSegment);
 
                     // Append to output.
                     output.AppendAlloced(transformedOutput);
