@@ -536,11 +536,30 @@ namespace Tmds.Ssh
             }
         }
 
-        private void OnChannelClosed(SshClientChannelContext context)
+        private async void OnChannelDisposed(SshClientChannelContext context)
         {
-            lock (_channels)
+            try
             {
-                _channels.Remove(context.LocalChannel);
+                if (!ConnectionClosed.IsCancellationRequested)
+                {
+                    await context.CloseAsync(ConnectionClosed);
+                }
+            }
+            catch (OperationCanceledException)
+            { }
+            catch (Exception e)
+            {
+                Abort(e);
+            }
+            finally
+            {
+                // No more messages will be queued for the channel.
+                lock (_channels)
+                {
+                    _channels.Remove(context.LocalChannel);
+                }
+
+                context.DoDispose();
             }
         }
 

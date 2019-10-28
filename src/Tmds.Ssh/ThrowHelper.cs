@@ -133,5 +133,11 @@ namespace Tmds.Ssh
         {
             throw new NotSupportedException(message);
         }
+
+        [DoesNotReturn]
+        public static void ThrowProtocolDataWindowExceeded()
+        {
+            throw new ProtocolException("The peer sent more data than the window allowed.");
+        }
     }
 }

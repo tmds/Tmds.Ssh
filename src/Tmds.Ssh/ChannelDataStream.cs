@@ -4,6 +4,7 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Tmds.Ssh
@@ -11,20 +12,71 @@ namespace Tmds.Ssh
     class ChannelDataStream : Stream
     {
         private readonly ChannelContext _context;
-        private Sequence? _receiveBuffer;
+        private readonly Task _receiveLoopTask;
+        private readonly Channel<Packet> _readQueue;
+        private Sequence? _readBuffer;
         private bool _receivedEof;
+        private bool _disposed;
 
         public ChannelDataStream(ChannelContext context)
         {
             _context = context;
+            _readQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
+            {
+                AllowSynchronousContinuations = true,
+                SingleWriter = true,
+                SingleReader = true
+            });
+
+            _receiveLoopTask = ReceiveLoopAsync();
+        }
+
+        private async Task ReceiveLoopAsync()
+        {
+            try
+            {
+                MessageId messageId;
+                do
+                {
+                    using var packet = await _context.ReceivePacketAsync();
+                    messageId = packet.MessageId!.Value;
+
+                    if (messageId == MessageId.SSH_MSG_CHANNEL_REQUEST)
+                    {
+                        await HandleMsgChannelRequestAsync(packet);
+                    }
+                    else
+                    {
+                        _readQueue.Writer.TryWrite(packet.Move());
+                    }
+
+                } while (messageId != MessageId.SSH_MSG_CHANNEL_CLOSE);
+            }
+            catch (OperationCanceledException)
+            { }
         }
 
         public override async ValueTask DisposeAsync()
         {
-            await _context.DisposeAsync();
+            if (_disposed)
+            {
+                return;
+            }
 
-            _receiveBuffer?.Dispose();
-            _receiveBuffer = null;
+            _disposed = true;
+
+            _context.Cancel();
+
+            await _receiveLoopTask;
+
+            while (_readQueue.Reader.TryRead(out Packet packet))
+            {
+                packet.Dispose();
+            }
+            _readBuffer?.Dispose();
+            _readBuffer = null;
+
+            await _context.DisposeAsync();
         }
 
         public override bool CanRead => true;
@@ -38,7 +90,9 @@ namespace Tmds.Ssh
         public override long Position { get => throw new System.NotSupportedException(); set => throw new System.NotSupportedException(); }
 
         public override void Flush()
-        { }
+        {
+            ThrowIfDisposed();
+        }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
@@ -67,11 +121,15 @@ namespace Tmds.Ssh
 
         public override System.Threading.Tasks.Task FlushAsync(System.Threading.CancellationToken cancellationToken)
         {
+            ThrowIfDisposed();
+
             return Task.CompletedTask;
         }
 
         public override async System.Threading.Tasks.ValueTask<int> ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
+            ThrowIfDisposed();
+
             if (cancellationToken.CanBeCanceled)
             {
                 ThrowCancellationTokenNotSupported();
@@ -85,7 +143,7 @@ namespace Tmds.Ssh
             int length;
             do
             {
-                if (_receiveBuffer == null)
+                if (_readBuffer == null)
                 {
                     using Packet packet = await ReceiveUntilChannelDataAsync();
                     if (packet.IsEmpty)
@@ -94,35 +152,36 @@ namespace Tmds.Ssh
                         return 0;
                     }
 
-                    _receiveBuffer = packet.MovePayload();
+                    _readBuffer = packet.MovePayload();
                     /*
                         byte      SSH_MSG_CHANNEL_DATA
                         uint32    recipient channel
                         string    data
                      */
                     // remove SSH_MSG_CHANNEL_DATA (1), recipient channel (4), and data length (4).
-                    _receiveBuffer.Remove(9);
+                    _readBuffer.Remove(9);
                 }
 
-                length = (int)Math.Min(buffer.Length, _receiveBuffer.Length);
-                _receiveBuffer.AsReadOnlySequence().Slice(0, length).CopyTo(buffer.Span);
-                _receiveBuffer.Remove(length);
-                if (_receiveBuffer.IsEmpty)
+                length = (int)Math.Min(buffer.Length, _readBuffer.Length);
+                _readBuffer.AsReadOnlySequence().Slice(0, length).CopyTo(buffer.Span);
+                _readBuffer.Remove(length);
+                if (_readBuffer.IsEmpty)
                 {
-                    _receiveBuffer.Dispose();
-                    _receiveBuffer = null;
+                    _readBuffer.Dispose();
+                    _readBuffer = null;
                 }
             } while (length == 0);
+
+            await _context.AdjustChannelWindowAsync(length);
 
             return length;
         }
 
         private async ValueTask<Packet> ReceiveUntilChannelDataAsync()
         {
-            // TODO: move this to a receive loop.
             while (true)
             {
-                using var packet = await _context.ReceivePacketAsync(); // TODO SSH_MSG_CHANNEL_WINDOW_ADJUST
+                using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelStopped);
 
                 switch (packet.MessageId)
                 {
@@ -131,9 +190,6 @@ namespace Tmds.Ssh
                     case MessageId.SSH_MSG_CHANNEL_EOF:
                     case MessageId.SSH_MSG_CHANNEL_CLOSE:
                         return default;
-                    case MessageId.SSH_MSG_CHANNEL_REQUEST:
-                        await HandleMsgChannelRequestAsync(packet);
-                        break;
                     default:
                         ThrowHelper.ThrowProtocolUnexpectedMessageId(packet.MessageId!.Value);
                         break;
@@ -171,6 +227,8 @@ namespace Tmds.Ssh
 
         public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
+            ThrowIfDisposed();
+
             if (cancellationToken.CanBeCanceled)
             {
                 ThrowCancellationTokenNotSupported();
@@ -181,6 +239,14 @@ namespace Tmds.Ssh
         private void ThrowCancellationTokenNotSupported()
         {
             throw new NotSupportedException("A cancelable token is not supported on this operation.");
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(GetType().FullName);
+            }
         }
     }
 }
