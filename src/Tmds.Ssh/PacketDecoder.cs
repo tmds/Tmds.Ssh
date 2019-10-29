@@ -61,7 +61,12 @@ namespace Tmds.Ssh
 
                 // Decode the entire packet.
                 uint concatenated_length = 4 + packet_length;
-                // TODO: verify contatenated_length is a multiple of the cipher block size or 8, whichever is larger.
+                // verify contatenated_length is a multiple of the cipher block size or 8, whichever is larger.
+                uint multipleOf = (uint)Math.Max(_decode.BlockSize, 8);
+                if ((concatenated_length % multipleOf) != 0)
+                {
+                    ThrowHelper.ThrowProtocolInvalidPacketLength();
+                }
                 long remaining = concatenated_length - decodedReader.Length;
                 if (remaining > 0 && receiveBuffer.Length >= remaining)
                 {

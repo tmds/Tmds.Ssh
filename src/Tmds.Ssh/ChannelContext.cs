@@ -12,8 +12,8 @@ namespace Tmds.Ssh
         public uint LocalChannel { get; protected set; }
         public uint RemoteChannel { get; protected set; }
         public int LocalWindowSize { get; protected set; } = 2 * 1024 * 1024;
-        public int LocalMaxPacketSize { get; protected set; } = int.MaxValue; // TODO...
-        public int RemoteMaxPacketSize { get; protected set; } // TODO
+        public int LocalMaxPacketSize { get { return Constants.MaxDataPacketSize; } }
+        public int RemoteMaxPacketSize { get; protected set; }
         public abstract CancellationToken ChannelStopped { get; }
         public abstract ValueTask<Packet> ReceivePacketAsync();
         public abstract ValueTask SendPacketAsync(Packet packet);

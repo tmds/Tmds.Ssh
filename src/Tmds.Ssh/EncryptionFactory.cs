@@ -35,14 +35,28 @@ namespace Tmds.Ssh
 
         public IDisposableCryptoTransform CreateDecryptor(Name name, byte[] key, byte[] iv)
         {
-            // TODO check key.Length and iv.Length.
-            return _algorithms[name].Create(name, key, iv, false);
+            EncryptionInfo info = _algorithms[name];
+            CheckLengths(info, key, iv);
+            return info.Create(name, key, iv, false);
         }
 
         public IDisposableCryptoTransform CreateEncryptor(Name name, byte[] key, byte[] iv)
         {
-            // TODO check key.Length and iv.Length.
-            return _algorithms[name].Create(name, key, iv, true);
+            EncryptionInfo info = _algorithms[name];
+            CheckLengths(info, key, iv);
+            return info.Create(name, key, iv, true);
+        }
+
+        private void CheckLengths(EncryptionInfo info, byte[] key, byte[] iv)
+        {
+            if (info.IVLength != iv.Length)
+            {
+                throw new ArgumentException(nameof(iv));
+            }
+            if (info.KeyLength != key.Length)
+            {
+                throw new ArgumentException(nameof(key));
+            }
         }
 
         public void GetKeyAndIVLength(Name name, out int keyLength, out int ivLength)
@@ -54,16 +68,21 @@ namespace Tmds.Ssh
 
         private static IDisposableCryptoTransform CreateAes(Name name, byte[] key, byte[] iv, bool encryptorNotDecryptor)
         {
-            // TODO: switch (name)
-            // case Aes256Cbc:
-            var aes = Aes.Create();
-            aes.KeySize = 256;
-            aes.Mode = CipherMode.CBC;
-            aes.Padding = PaddingMode.None;
-            aes.Key = key;
-            aes.IV = iv;
-            ICryptoTransform transform = encryptorNotDecryptor ? aes.CreateEncryptor() : aes.CreateDecryptor();
-            return new EncryptionCryptoTransform(aes, transform, encryptorNotDecryptor);
+            if (name == AlgorithmNames.Aes256Cbc)
+            {
+                var aes = Aes.Create();
+                aes.KeySize = 256;
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.None;
+                aes.Key = key;
+                aes.IV = iv;
+                ICryptoTransform transform = encryptorNotDecryptor ? aes.CreateEncryptor() : aes.CreateDecryptor();
+                return new EncryptionCryptoTransform(aes, transform, encryptorNotDecryptor);
+            }
+            else
+            {
+                throw new ArgumentException(nameof(name));
+            }
         }
     }
 }

@@ -31,7 +31,14 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowArgumentNull(nameof(name));
             }
 
-            // TODO: validate name is US_ASCII.
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                byte b = bytes[i];
+                if (b < 32 || b > 126)
+                {
+                    ThrowHelper.ThrowProtocolInvalidAscii();
+                }
+            }
             name = new Name(bytes);
             return true;
         }

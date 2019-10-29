@@ -35,7 +35,12 @@ namespace Tmds.Ssh
 
         public IHMac Create(Name name, byte[] key)
         {
-            return _algorithms[name].Create(name, key);
+            HashInfo info = _algorithms[name];
+            if (info.KeyLength != key.Length)
+            {
+                throw new ArgumentException(nameof(key));
+            }
+            return info.Create(name, key);
         }
 
         public int GetKeyLength(Name name)

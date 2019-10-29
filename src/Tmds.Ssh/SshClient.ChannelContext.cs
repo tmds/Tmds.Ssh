@@ -224,6 +224,7 @@ namespace Tmds.Ssh
                     if (sendWindow > 0)
                     {
                         int toSend = Math.Min(sendWindow, memory.Length);
+                        toSend = Math.Min(toSend, RemoteMaxPacketSize);
                         if (Interlocked.CompareExchange(ref _sendWindow, sendWindow - toSend, sendWindow) == sendWindow)
                         {
                             await SendPacketAsync(CreateChannelDataMessage(this, memory.Slice(0, toSend)));

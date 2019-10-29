@@ -45,7 +45,7 @@ namespace Tmds.Ssh
                     {
                         ThrowHelper.ThrowProtocolInvalidPacketLength();
                     }
-                    // TODO: remove padding.
+                    // MAYDO: remove padding.
                 }
             }
             _sequence = sequence;

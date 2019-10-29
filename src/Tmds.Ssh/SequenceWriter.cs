@@ -182,7 +182,7 @@ namespace Tmds.Ssh
 
         public void WriteMPInt(ReadOnlySpan<byte> value)
         {
-            // TODO: avoid allocations.
+            // MAYDO: avoid allocations.
             BigInteger bi = new BigInteger(value, isUnsigned: true, isBigEndian: true);
             WriteMPInt(bi);
         }
@@ -235,7 +235,7 @@ namespace Tmds.Ssh
             }
             else
             {
-                // TODO: maybe stackalloc for small counts
+                // MAYDO: maybe stackalloc for small counts
 
                 byte[] buffer = ArrayPool<byte>.Shared.Rent(count);
 
