@@ -39,27 +39,5 @@ namespace Tmds.Ssh
                 reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION); // TODO SSH_MSG_CHANNEL_OPEN_FAILURE
             }
         }
-
-        public static ValueTask SendChannelDataAsync(this ChannelContext context, ReadOnlyMemory<byte> memory)
-        {
-            // TODO: RemoteWindowSize, RemoteMaxPacketSize
-            return context.SendPacketAsync(CreateChannelDataMessage(context, memory));
-
-            static Packet CreateChannelDataMessage(ChannelContext context, ReadOnlyMemory<byte> memory)
-            {
-                /*
-                    byte      SSH_MSG_CHANNEL_DATA
-                    uint32    recipient channel
-                    string    data
-                 */
-
-                using var packet = context.RentPacket();
-                var writer = packet.GetWriter();
-                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
-                writer.WriteUInt32(context.RemoteChannel);
-                writer.WriteString(memory.Span);
-                return packet.Move();
-            }
-        }
     }
 }
