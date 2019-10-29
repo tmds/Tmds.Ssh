@@ -12,11 +12,34 @@ namespace Tmds.Ssh
     // This class gathers settings for SshClient in a separate object.
     public sealed class SshClientSettings
     {
+        public SshClientSettings(string userName, string host, Credential? credential = null)
+        {
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new ArgumentNullException(nameof(userName));
+            }
+            if (string.IsNullOrEmpty(host))
+            {
+                throw new ArgumentNullException(nameof(host));
+            }
+
+            UserName = userName;
+            Host = host;
+
+            if (credential != null)
+            {
+                Credentials.Add(credential);
+            }
+        }
+
+
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-        public string? UserName { get; set; }
-        public string? Host { get; set; }
+        public string UserName { get; }
+        public string Host { get; }
         public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
+        
+        // TODO: add property for default window size.
 
         // Internal.
         internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };
