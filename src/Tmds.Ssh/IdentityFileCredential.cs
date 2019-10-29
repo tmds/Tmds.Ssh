@@ -33,7 +33,7 @@ namespace Tmds.Ssh
             StringBuilder sb;
             try
             {
-                // TODO verify file doesn't have permissions for group/other.
+                // MAYDO verify file doesn't have permissions for group/other.
                 if (!File.Exists(filename))
                 {
                     return false;

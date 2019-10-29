@@ -23,12 +23,13 @@ namespace Tmds.Ssh
         private Task? _runningConnectionTask;                  // Task that encompasses all operations
         private Exception? _abortReason;                       // Reason why the client stopped
         private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
-        private uint _nextChannelNumber;
         private readonly Dictionary<uint, SshClientChannelContext> _channels = new Dictionary<uint, SshClientChannelContext>();
         private readonly SequencePool _sequencePool = new SequencePool();
         private SemaphoreSlim? _keyReExchangeSemaphore;
+        private const int BitsPerAllocatedItem = sizeof(int) * 8;
+        private readonly List<int> _allocatedChannels = new List<int>();
 
-        // TODO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
+        // MAYDO: maybe implement this using IValueTaskSource/ManualResetValueTaskSource
         struct PendingSend
         {
             public Packet Packet;
@@ -81,7 +82,9 @@ namespace Tmds.Ssh
         {
             get
             {
-                // TODO: Throw if connectasync was never completed succesfully
+                ThrowIfDisposed();
+                ThrowIfNeverConnected();
+
                 return _abortCts.Token;
             }
         }
@@ -235,7 +238,7 @@ namespace Tmds.Ssh
             {
                 ThrowIfNotConnected();
 
-                uint channelNumber = unchecked(_nextChannelNumber++); // TODO: handle numbering, including OnChannelClosed.
+                uint channelNumber = AllocateChannel();
                 var channelContext = new SshClientChannelContext(this, channelNumber, ct);
                 _channels[channelNumber] = channelContext;
 
@@ -296,7 +299,8 @@ namespace Tmds.Ssh
             {
                 while (true)
                 {
-                    PendingSend send = await _sendQueue!.Reader.ReadAsync(abortToken); // TODO: maybe use ReadAllAsync
+                    // MAYDO: maybe use ReadAllAsync and move this into the SshConnection.
+                    PendingSend send = await _sendQueue!.Reader.ReadAsync(abortToken);
                     try
                     {
                         // Disable send.CancellationToken.
@@ -473,7 +477,7 @@ namespace Tmds.Ssh
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_DEBUG);
             bool always_display = reader.ReadBoolean();
-            string message = reader.ReadUtf8String(); // TODO: pass this to the user, maybe.
+            string message = reader.ReadUtf8String(); // MAYDO: pass this to the user, maybe.
             reader.SkipString();
             reader.ReadEnd();
         }
@@ -490,7 +494,7 @@ namespace Tmds.Ssh
         // This method is for doing a clean shutdown which may involve sending some messages over the wire.
         // public async Task DisconnectAsync(CancellationToken cancellationToken)
         // {
-        //     // TODO: SshClientSettings needs an upper bound time for this method (e.g. SshClientSettings.DisconnectTimeout)
+        //     // SshClientSettings needs an upper bound time for this method (e.g. SshClientSettings.DisconnectTimeout)
 
         //     // In a finally block, this method calls Dispose.
         // }
@@ -578,7 +582,7 @@ namespace Tmds.Ssh
                 // No more messages will be queued for the channel.
                 lock (_channels)
                 {
-                    _channels.Remove(context.LocalChannel);
+                    FreeChannel(context.LocalChannel);
                 }
 
                 context.DoDispose();
@@ -594,10 +598,49 @@ namespace Tmds.Ssh
                 ThrowNewConnectionClosedException();
             }
 
-            if (_sendQueue == null)
+            ThrowIfNeverConnected();
+        }
+
+        private void ThrowIfNeverConnected()
+        {
+            if (!HasConnected)
             {
                 ThrowHelper.ThrowInvalidOperation("Not connected.");
             }
         }
+
+        private uint AllocateChannel()
+        {
+            for (int i = 0; i < _allocatedChannels.Count; i++)
+            {
+                int v = _allocatedChannels[i];
+                if (v != -1)
+                {
+                    for (int j = 0 ; j < BitsPerAllocatedItem; j++)
+                    {
+                        if ((v & 1) == 0)
+                        {
+                            int mask = 1 << j;
+                            _allocatedChannels[i] = _allocatedChannels[i] | mask;
+                            return unchecked((uint)(i * BitsPerAllocatedItem + j));
+                        }
+                        v >>= 1;
+                    }
+                }
+            }
+            _allocatedChannels.Add(1);
+            return unchecked((uint)((_allocatedChannels.Count - 1) * BitsPerAllocatedItem));
+        }
+
+        private void FreeChannel(uint nr)
+        {
+            int nri = unchecked((int)nr);
+            int i = nri / BitsPerAllocatedItem;
+            int mask = 1 << (nri % BitsPerAllocatedItem);
+            _allocatedChannels[i] = _allocatedChannels[i] & ~mask;
+        }
+
+        private bool HasConnected =>
+            _sendQueue != null;
     }
 }

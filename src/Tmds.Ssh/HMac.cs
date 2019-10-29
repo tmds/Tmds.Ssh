@@ -20,7 +20,6 @@ namespace Tmds.Ssh
 
         public HMac(HashAlgorithmName algorithmName, int nativeHashSize, int hashSize, byte[] key)
         {
-            key = key.AsSpan().Slice(0, 256 / 8).ToArray(); // TODO
             _incrementalHash = IncrementalHash.CreateHMAC(algorithmName, key);
             HashSize = hashSize;
             _hash = new byte[nativeHashSize];

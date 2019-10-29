@@ -39,7 +39,7 @@ namespace Tmds.Ssh
         public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
         
-        // TODO: add property for default window size.
+        // MAYDO: add property for default window size.
 
         // Internal.
         internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };

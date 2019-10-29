@@ -14,7 +14,7 @@ namespace Tmds.Ssh
 
         public static string ToHexString(ReadOnlySpan<byte> span)
         {
-            StringBuilder sb = new StringBuilder(); // TODO: is there a public pool for these?
+            StringBuilder sb = new StringBuilder();
             Append(sb, span, offset: 0);
             return sb.ToString();
         }
@@ -33,7 +33,7 @@ namespace Tmds.Ssh
             }
             else
             {
-                StringBuilder sb = new StringBuilder(); // TODO: is there a public pool for these?
+                StringBuilder sb = new StringBuilder();
                 long offset = 0;
                 foreach (var segment in sequence)
                 {
@@ -46,7 +46,7 @@ namespace Tmds.Ssh
 
         public static string ToMultiLineString(ReadOnlySequence<byte> sequence)
         {
-            StringBuilder sb = new StringBuilder(); // TODO: is there a public pool for these?
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine();
 
             do

@@ -143,7 +143,7 @@ namespace Tmds.Ssh
             {
                 ReadOnlySpan<byte> span = _reader.UnreadSpan.Length >= length ?
                     _reader.UnreadSpan.Slice(0, (int)length) :
-                    _reader.Sequence.Slice(_reader.Position, length).ToArray(); // TODO: maybe stackalloc if length is small
+                    _reader.Sequence.Slice(_reader.Position, length).ToArray(); // MAYDO: maybe stackalloc if length is small
                 _reader.Advance(length);
                 try
                 {
@@ -262,7 +262,7 @@ namespace Tmds.Ssh
             {
                 ReadOnlySpan<byte> span = _reader.UnreadSpan.Length >= length ?
                         _reader.UnreadSpan.Slice(0, (int)length) :
-                        _reader.Sequence.Slice(_reader.Position, length).ToArray(); // TODO: maybe stackalloc if length is small
+                        _reader.Sequence.Slice(_reader.Position, length).ToArray(); // MAYDO: maybe stackalloc if length is small
 
                 _reader.Advance(length);
 
@@ -347,30 +347,6 @@ namespace Tmds.Ssh
             if (Remaining != 0)
             {
                 ThrowHelper.ThrowProtocolPacketLongerThanExpected();
-            }
-        }
-
-        private string GetAsciiString(ReadOnlySequence<byte> sequence)
-        {
-            ReadOnlySpan<byte> span = sequence.IsSingleSegment ?
-                sequence.FirstSpan :
-                sequence.ToArray(); // TODO: maybe stackalloc if length is small
-            string name = GetAsciiString(span);
-            return name;
-        }
-
-        private string GetAsciiString(ReadOnlySpan<byte> span)
-        {
-            // The ASCIIEncoding class does not provide error detection. For security reasons, you should use the UTF8Encoding, UnicodeEncoding, or UTF32Encoding class and enable error detection.
-            try
-            {
-                // TODO: check if all characters are ASCII (that is: < 128)
-                return s_utf8Encoding.GetString(span);
-            }
-            catch (DecoderFallbackException)
-            {
-                ThrowHelper.ThrowProtocolInvalidAscii();
-                throw;
             }
         }
 

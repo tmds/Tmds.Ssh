@@ -3,22 +3,21 @@
 
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
     public partial class SshClient
     {
-        // TODO: add CancellationToken argument.
-        // TODO: maybe add arg to control window size?
-        public Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port)
-            => CreateTcpConnectionAsStreamAsync(host, port, IPAddress.Any, 0);
+        // MAYDO: maybe add arg to control window size?
+        public Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default)
+            => CreateTcpConnectionAsStreamAsync(host, port, IPAddress.Any, 0, cancellationToken);
 
-        // TODO: add CancellationToken argument.
-        // TODO: maybe add arg to control window size?
-        public async Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort)
+        // MAYDO: maybe add arg to control window size?
+        public async Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default)
         {
-            ChannelContext context = CreateChannel();
+            ChannelContext context = CreateChannel(cancellationToken);
             ChannelDataStream? stream = null;
             try
             {
