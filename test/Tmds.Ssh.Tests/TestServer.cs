@@ -25,10 +25,11 @@ namespace Tmds.Ssh.Tests
 
         public async Task<SshClient> CreateClientAsync(Action<SshClientSettings> configure = null)
         {
-            var settings = new SshClientSettings();
             IPEndPoint ipEndPoint = _serverSocket.LocalEndPoint as IPEndPoint;
-            settings.Host = ipEndPoint.Address.ToString();
-            settings.Port = ipEndPoint.Port;
+            var settings = new SshClientSettings("user", ipEndPoint.Address.ToString())
+            {
+                Port = ipEndPoint.Port
+            };
             configure?.Invoke(settings);
 
             var client = new SshClient(settings);

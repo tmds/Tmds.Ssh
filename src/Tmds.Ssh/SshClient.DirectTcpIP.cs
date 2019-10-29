@@ -7,18 +7,22 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
-    public static partial class TcpForwardSshClientExtensions
+    public partial class SshClient
     {
-        public static Task<Stream> CreateTcpConnectionAsStreamAsync(this SshClient client, string host, int port)
-            => CreateTcpConnectionAsStreamAsync(client, host, port, IPAddress.Any, 0);
+        // TODO: add CancellationToken argument.
+        // TODO: maybe add arg to control window size?
+        public Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port)
+            => CreateTcpConnectionAsStreamAsync(host, port, IPAddress.Any, 0);
 
-        public static async Task<Stream> CreateTcpConnectionAsStreamAsync(this SshClient client, string host, int port, IPAddress originatorIP, int originatorPort)
+        // TODO: add CancellationToken argument.
+        // TODO: maybe add arg to control window size?
+        public async Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort)
         {
-            ChannelContext context = client.CreateChannel();
+            ChannelContext context = CreateChannel();
             ChannelDataStream? stream = null;
             try
             {
-                await context.SendChannelOpenMessageAsync(host, (uint)port, originatorIP, (uint)originatorPort);
+                await SendChannelOpenMessageAsync(context, host, (uint)port, originatorIP, (uint)originatorPort);
                 await context.ReceiveChannelOpenConfirmationAsync();
                 stream = new ChannelDataStream(context);;
                 return stream;
@@ -37,7 +41,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private static ValueTask SendChannelOpenMessageAsync(this ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
+        private static ValueTask SendChannelOpenMessageAsync(ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
         {
             return context.SendPacketAsync(CreateChannelOpenMessage(context, host, port, originatorIP, originatorPort));
 

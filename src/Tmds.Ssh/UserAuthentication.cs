@@ -38,7 +38,7 @@ namespace Tmds.Ssh
                     logger.AuthenticationMethod("password");
 
                     using var userAuthMsg = CreatePasswordRequestMessage(connection.SequencePool,
-                                                settings.UserName!, passwordCredential.Password);
+                                                settings.UserName, passwordCredential.Password);
                     await connection.SendPacketAsync(userAuthMsg, ct);
                 }
                 else if (credential is IdentityFileCredential ifCredential)
@@ -51,7 +51,7 @@ namespace Tmds.Ssh
                             logger.AuthenticationMethodPublicKey(ifCredential.Filename);
 
                             using var userAuthMsg = CreatePublicKeyRequestMessage(connection.SequencePool,
-                                                        settings.UserName!, connectionInfo.SessionId!, pk!);
+                                                        settings.UserName, connectionInfo.SessionId!, pk!);
                             await connection.SendPacketAsync(userAuthMsg, ct);
                         }
                     }

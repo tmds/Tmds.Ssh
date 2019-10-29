@@ -20,11 +20,9 @@ namespace Tmds.Ssh.TestApp
             ParseUserHostAndPort(args, out string username, out string host, out int port);
             // string password = ReadPassword();
 
-            var settings = new SshClientSettings
+            var settings = new SshClientSettings(username, host)
             {
-                Host = host,
                 Port = port,
-                UserName = username,
                 Credentials = { new IdentityFileCredential() }
                 // Credentials = { new PasswordCredential(username, password) }
             };

@@ -2,7 +2,6 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Threading;
@@ -38,7 +37,34 @@ namespace Tmds.Ssh
             public CancellationTokenRegistration CancellationTokenRegistration;
         }
 
-        public SshClient(SshClientSettings settings, ILogger? logger = null)
+        public SshClient(string destination, Credential? credential = null, Action<SshClientSettings>? configure = null) :
+            this(CreateSettingsForDetination(destination, credential ?? new IdentityFileCredential()), null)
+        {
+            configure?.Invoke(_settings);
+        }
+
+        private static SshClientSettings CreateSettingsForDetination(string destination, Credential credential)
+        {
+            if (destination == null)
+            {
+                ThrowHelper.ThrowArgumentNull(nameof(destination));
+            }
+            int atPos = destination.IndexOf('@');
+            if (atPos == -1)
+            {
+                throw new FormatException($"{nameof(destination)} must have format 'user@host'.");
+            }
+            string username = destination.Substring(0, atPos);
+            string host = destination.Substring(atPos + 1);
+            return new SshClientSettings(username, host, credential);
+        }
+
+        public SshClient(SshClientSettings settings) :
+            this(settings, null)
+        { }
+
+        // TODO: decide how to expose the logger publically.
+        internal SshClient(SshClientSettings settings, ILogger? logger = null)
         {
             ValidateSettings(settings);
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -49,10 +75,6 @@ namespace Tmds.Ssh
         private static void ValidateSettings(SshClientSettings settings)
         {
             // TODO: extend this...
-            if (settings.Host == null)
-            {
-                throw new ArgumentNullException(nameof(settings.Host));
-            }
         }
 
         public CancellationToken ConnectionClosed
@@ -96,8 +118,8 @@ namespace Tmds.Ssh
             {
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
                 // Connect to the remote host
-                logger.Connecting(settings.Host!, settings.Port);
-                await socket.ConnectAsync(settings.Host!, settings.Port, ct);
+                logger.Connecting(settings.Host, settings.Port);
+                await socket.ConnectAsync(settings.Host, settings.Port, ct);
                 logger.ConnectionEstablished();
                 socket.NoDelay = true;
                 return new SocketSshConnection(logger, sequencePool, socket);
@@ -563,7 +585,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public void ThrowIfNotConnected()
+        internal void ThrowIfNotConnected()
         {
             ThrowIfDisposed();
 
