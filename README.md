@@ -1,37 +1,45 @@
-# Public API
+# API
 
 ```cs
 class SshClient : IAsyncDisposable
 {
-    public SshClient(string destination, Credential? credential = new IdentityFileCredential(), Action<SshClientSettings>? configure = null);
-    public SshClient(SshClientSettings settings);
+    SshClient(string destination, Credential? credential = new IdentityFileCredential(), Action<SshClientSettings>? configure = null);
+    SshClient(SshClientSettings settings);
 
     CancellationToken ConnectionClosed { get; }
 
     Task ConnectAsync(CancellationToken cancellationToken = default);
 
-    Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port);
-    Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default);
 }
 
-public class SshClientSettings
+class ChannelDataStream : Stream
 {
-    public SshClientSettings(string userName, string host, Credential? credential = null);
-    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-    public string UserName { get; }
-    public string Host { get; }
-    public int Port { get; set; } = 22;
-    public List<Credential> Credentials { get; }
+    ValueTask WriteAsync(ReadOnlyMemory<byte> buffer);
+    ValueTask<int> ReadAsync(Memory<byte> buffer);
+    void Abort();   // Stops the channel immediately, on-going operations are cancelled.
+    void Dispose(); // Calls Abort and frees channel resources.
 }
 
-public class IdentityFileCredential : Credential
+class SshClientSettings
 {
-    public IdentityFileCredential();
-    public IdentityFileCredential(string filename);
+    SshClientSettings(string userName, string host, Credential? credential = null);
+    TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
+    string UserName { get; }
+    string Host { get; }
+    int Port { get; set; } = 22;
+    List<Credential> Credentials { get; }
 }
 
-public class PasswordCredential : Credential
+class IdentityFileCredential : Credential
 {
-    public PasswordCredential(string password);
+    IdentityFileCredential(); // use ~/.ssh/id_rsa
+    IdentityFileCredential(string filename);
+}
+
+class PasswordCredential : Credential
+{
+    PasswordCredential(string password);
 }
 ```

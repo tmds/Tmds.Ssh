@@ -56,13 +56,20 @@ namespace Tmds.Ssh
             { }
         }
 
+        public void Abort()
+            => _context.Cancel();
+
+        protected override void Dispose(bool disposing)
+        {
+            DisposeAsync().GetAwaiter().GetResult();
+        }
+
         public override async ValueTask DisposeAsync()
         {
             if (_disposed)
             {
                 return;
             }
-
             _disposed = true;
 
             _context.Cancel();
