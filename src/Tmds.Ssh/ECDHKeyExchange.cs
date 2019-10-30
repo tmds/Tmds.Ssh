@@ -3,14 +3,16 @@
 
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Reflection;
-using System.Buffers.Binary;
 using System.Numerics;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Nist;
+using Org.BouncyCastle.Asn1.X9;
+using Org.BouncyCastle.Crypto.Agreement;
+using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Tmds.Ssh
 {
@@ -55,15 +57,15 @@ namespace Tmds.Ssh
             // TODO: Verify host key belongs to server.
 
             // Compute shared secret.
-            // TODO: what types of exceptions can we get when creating the public key?
-            ECParameters parameters = new ECParameters
+            BigInteger sharedSecret;
+            try
             {
-                Curve = _ecCurve,
-                Q = ecdhReply.q_s
-            };
-            using ECDiffieHellman peerEcdh = ECDiffieHellman.Create(parameters);
-            using ECDiffieHellmanPublicKey peerPublicKey = peerEcdh.PublicKey;
-            BigInteger sharedSecret = DeriveSharedSecret(ecdh, peerPublicKey);
+                sharedSecret = DeriveSharedSecret(ecdh, ecdhReply.q_s.X, ecdhReply.q_s.Y);
+            }
+            catch (Exception ex)
+            {
+                throw new KeyExchangeFailedException("Cannot determine shared secret.", ex);
+            }
 
             var publicHostKey = PublicKey.Read(ecdhReply.public_host_key, input.HostKeyAlgorithms);
 
@@ -161,24 +163,29 @@ namespace Tmds.Ssh
             }
         }
 
-        private BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, ECDiffieHellmanPublicKey peerPublicKey)
+        private BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, byte[] q_x, byte[] q_y)
         {
-            // TODO: this uses Reflection on the OpenSSL implementation to figure out the shared key.
-            // Can we use 'ECDiffieHellman.DeriveKeyFromHash' instead?
+            var basicAgreement = new ECDHCBasicAgreement();
+            ECParameters privParameters = ecdh.ExportParameters(includePrivateParameters: true);
+            X9ECParameters curve = NistNamedCurves.GetByOid(new DerObjectIdentifier(privParameters.Curve.Oid.Value));
+            ECDomainParameters ecParams = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H, curve.GetSeed());
+            Org.BouncyCastle.Math.EC.ECPoint peer_q = ecParams.Curve.CreatePoint(ToBCBigInteger(q_x), ToBCBigInteger(q_y));
+            var bcPrivateParams = new ECPrivateKeyParameters(
+                algorithm: "ECDHC",
+                d: ToBCBigInteger(privParameters.D),
+                parameters: ecParams);
+            basicAgreement.Init(bcPrivateParams);
+            var bcPeerParameters = new ECPublicKeyParameters(
+                algorithm: "ECDHC",
+                q: peer_q,
+                parameters: ecParams);
+            var secret = basicAgreement.CalculateAgreement(bcPeerParameters);
+            return secret.ToByteArrayUnsigned().ToBigInteger();
 
-            var method = ecdh.GetType().GetMethod("DeriveSecretAgreement", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(ECDiffieHellmanPublicKey), typeof(IncrementalHash) }, null);
-            if (method != null)
+            static Org.BouncyCastle.Math.BigInteger ToBCBigInteger(byte[] span)
             {
-                object? rv = method.Invoke(ecdh, new[] { peerPublicKey, null });
-                if (rv is byte[] sharedSecretArray)
-                {
-                    var sharedSecret = sharedSecretArray.ToBigInteger();
-                    sharedSecretArray.AsSpan().Clear();
-                    return sharedSecret;
-                }
+                return new Org.BouncyCastle.Math.BigInteger(1, span);
             }
-
-            throw new NotSupportedException("Cannot determine private key.");
         }
 
         public void Dispose()

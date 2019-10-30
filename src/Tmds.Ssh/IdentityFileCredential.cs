@@ -17,7 +17,7 @@ namespace Tmds.Ssh
 
         private static string GetDefaultFile()
         {
-            return Path.Combine(Environment.GetFolderPath(SpecialFolder.MyDocuments, SpecialFolderOption.DoNotVerify), ".ssh", "id_rsa");
+            return Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "id_rsa");
         }
 
         public IdentityFileCredential(string filename)

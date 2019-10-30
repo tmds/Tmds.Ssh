@@ -6,10 +6,13 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <VersionPrefix>0.1.0</VersionPrefix>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Suppress warning about BouncyCastle not having a matching tfm. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="BouncyCastle" Version="1.8.5" />
   </ItemGroup>
 
 </Project>
