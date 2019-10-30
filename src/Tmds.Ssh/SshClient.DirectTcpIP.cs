@@ -17,12 +17,12 @@ namespace Tmds.Ssh
         // MAYDO: maybe add arg to control window size?
         public async Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default)
         {
-            ChannelContext context = CreateChannel(cancellationToken);
+            ChannelContext context = CreateChannel();
             ChannelDataStream? stream = null;
             try
             {
-                await SendChannelOpenMessageAsync(context, host, (uint)port, originatorIP, (uint)originatorPort);
-                await context.ReceiveChannelOpenConfirmationAsync();
+                await SendChannelOpenMessageAsync(context, host, (uint)port, originatorIP, (uint)originatorPort).WithCancellation(cancellationToken);
+                await context.ReceiveChannelOpenConfirmationAsync().WithCancellation(cancellationToken);
                 stream = new ChannelDataStream(context);;
                 return stream;
             }
