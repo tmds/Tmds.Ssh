@@ -3,6 +3,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -34,9 +35,10 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+        public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, SshClientSettings settings, KeyExchangeInput input, ILogger logger, CancellationToken ct)
         {
             var sequencePool = connection.SequencePool;
+            var connectionInfo = input.ConnectionInfo;
             using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
 
             // Send ECDH_INIT.
@@ -51,11 +53,17 @@ namespace Tmds.Ssh
             Packet exchangeInitMsg = input.ExchangeInitMsg;
             using Packet exchangeInitMsgDispose =
                 exchangeInitMsg.IsEmpty ? (exchangeInitMsg = await connection.ReceivePacketAsync(ct)) : default(Packet);
-            var ecdhReply = ParceEcdhReply(exchangeInitMsg);
+            var ecdhReply = ParceEcdhReply(exchangeInitMsg, input.HostKeyAlgorithms);
 
-            // TODO: Verify received key is valid.
-            // TODO: Verify host key belongs to server.
+            // Verify received key is valid.
+            connectionInfo.SshKey = ecdhReply.public_host_key;
+            var verificationResult = await settings.HostKeyVerification.VerifyAsync(connectionInfo, ct);
+            if (verificationResult != HostKeyVerificationResult.Trusted)
+            {
+                throw new KeyExchangeFailedException("The host key is not trusted.");
+            }
 
+            var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
             // Compute shared secret.
             BigInteger sharedSecret;
             try
@@ -67,10 +75,8 @@ namespace Tmds.Ssh
                 throw new KeyExchangeFailedException("Cannot determine shared secret.", ex);
             }
 
-            var publicHostKey = PublicKey.Read(ecdhReply.public_host_key, input.HostKeyAlgorithms);
-
             // Generate exchange hash.
-            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key, q_c, ecdhReply.q_s, sharedSecret);
+            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Key, q_c, ecdhReply.q_s, sharedSecret);
 
             // Verify the server's signature.
             if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
@@ -91,7 +97,7 @@ namespace Tmds.Ssh
                 initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
         }
 
-        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Packet clientKexInitMsg, Packet serverKexInitMsg, ReadOnlySequence<byte> public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
+        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Packet clientKexInitMsg, Packet serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
         {
             /*
                 string   V_C, client's identification string (CR and LF excluded)
@@ -201,14 +207,14 @@ namespace Tmds.Ssh
         }
 
         private static (
-            ReadOnlySequence<byte> public_host_key,
+            SshKey public_host_key,
             ECPoint q_s,
             ReadOnlySequence<byte> exchange_hash_signature)
-            ParceEcdhReply(Packet packet)
+            ParceEcdhReply(Packet packet, IReadOnlyList<Name> allowedKeyTypes)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-            ReadOnlySequence<byte> public_host_key = reader.ReadStringAsBytes();
+            SshKey public_host_key = reader.ReadSshKey(allowedKeyTypes);
             ECPoint q_s = reader.ReadStringAsECPoint();
             ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
             reader.ReadEnd();

@@ -4,10 +4,14 @@
 namespace Tmds.Ssh
 {
     // Holds information about connection.
-    sealed class SshConnectionInfo
+    public sealed class SshConnectionInfo
     {
-        public string? ServerIdentificationString { get; internal set; }
-        public string? ClientIdentificationString { get; internal set; }
-        public byte[]? SessionId { get; internal set; }
+        internal string? ServerIdentificationString { get; set; }
+        internal string? ClientIdentificationString { get; set; }
+        internal byte[]? SessionId { get; set; }
+
+        public string Host { get; internal set; } = string.Empty;
+        public int Port { get; internal set; }
+        public SshKey? SshKey { get; internal set; }
     }
 }

@@ -7,23 +7,21 @@ using System.Collections.Generic;
 
 namespace Tmds.Ssh
 {
-    public abstract class PublicKey
+    abstract class PublicKey
     {
-        private protected PublicKey(Name format)
+        public static PublicKey CreateFromSshKey(SshKey key)
         {
-            Format = format;
-        }
-
-        internal static PublicKey Read(ReadOnlySequence<byte> data, IReadOnlyList<Name> allowedFormats)
-        {
-            var reader = new SequenceReader(data);
-            var key = reader.ReadPublicKey(allowedFormats);
-            reader.ReadEnd();
-            return key;
+            if (new Name(key.Type) == AlgorithmNames.SshRsa) // TODO...
+            {
+                return RsaPublicKey.CreateFromSshKey(key.Key);
+            }
+            else
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+                return null;
+            }
         }
 
         internal abstract bool VerifySignature(Span<byte> data, ReadOnlySequence<byte> signature);
-
-        internal Name Format { get; }
     }
 }

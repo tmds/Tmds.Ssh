@@ -95,7 +95,7 @@ namespace Tmds.Ssh
 
                         using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                         {
-                            keyExchangeOutput = await algorithm.TryExchangeAsync(connection, keyExchangeInput, logger, ct);
+                            keyExchangeOutput = await algorithm.TryExchangeAsync(connection, settings, keyExchangeInput, logger, ct);
                         }
                         if (keyExchangeOutput != null)
                         {

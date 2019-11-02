@@ -13,5 +13,6 @@ namespace Tmds.Ssh
         public const int BufferSize = 4096;          // Needs to be >= GuaranteedSizeHint.
         public const int MaxNameLength = 128;        // Arbitrary limit, may be increased.
         public const int MaxECPointLength = 128 + 1; // Arbitrary limit, may be increased.
+        public const int MaxKeyLength = 1024;        // Arbitrary limit, may be increased.
     }
 }
