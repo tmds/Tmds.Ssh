@@ -21,6 +21,8 @@ namespace Tmds.Ssh
             ChannelDataStream? stream = null;
             try
             {
+                // TODO: revisit cancellationToken implementation to ensure channel gets closed when opened
+                //       and no close is performed when not yet opened...
                 await SendChannelOpenMessageAsync(context, host, (uint)port, originatorIP, (uint)originatorPort).WithCancellation(cancellationToken);
                 await context.ReceiveChannelOpenConfirmationAsync().WithCancellation(cancellationToken);
                 stream = new ChannelDataStream(context);;

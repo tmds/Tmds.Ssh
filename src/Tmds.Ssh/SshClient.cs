@@ -137,7 +137,11 @@ namespace Tmds.Ssh
         private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
         {
             SshConnection? connection = null;
-            var connectionInfo = new SshConnectionInfo();
+            var connectionInfo = new SshConnectionInfo()
+            {
+                Port = _settings.Port,
+                Host = _settings.Host
+            };
             try
             {
                 // Cancel when:

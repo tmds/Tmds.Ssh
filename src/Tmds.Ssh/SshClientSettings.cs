@@ -32,13 +32,13 @@ namespace Tmds.Ssh
             }
         }
 
-
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
         public string UserName { get; }
         public string Host { get; }
         public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
-        
+        public HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
+
         // MAYDO: add property for default window size.
 
         // Internal.

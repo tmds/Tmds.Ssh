@@ -31,6 +31,16 @@ namespace Tmds.Ssh
             _reader = new SequenceReader<byte>(sequence.AsReadOnlySequence());
         }
 
+        public SequenceReader(byte[] array)
+        {
+            if (array == null)
+            {
+                ThrowHelper.ThrowArgumentNull(nameof(array));
+            }
+
+            _reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(array));
+        }
+
         public SequenceReader(ReadOnlySequence<byte> data)
         {
             _reader = new SequenceReader<byte>(data);
@@ -130,6 +140,14 @@ namespace Tmds.Ssh
             return data;
         }
 
+        public SshKey ReadSshKey(IReadOnlyList<Name> allowedFormats)
+        {
+            ReadOnlySequence<byte> key = ReadStringAsBytes(Constants.MaxKeyLength);
+            SequenceReader keyReader = new SequenceReader(key);
+            Name type = keyReader.ReadName(allowedFormats);
+            return new SshKey(type.ToString(), key.ToArray());
+        }
+
         public void SkipString()
         {
             long length = ReadUInt32();
@@ -170,10 +188,23 @@ namespace Tmds.Ssh
 
         public void ReadName(Name expected)
         {
+            // MAYDO: implement without allocating.
             if (ReadName() != expected)
             {
                 ThrowHelper.ThrowProtocolUnexpectedValue();
             }
+        }
+
+        public Name ReadName(IReadOnlyList<Name> allowedNames)
+        {
+            var name = ReadName();
+            if (!allowedNames.Contains(name))
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+                return default;
+            }
+
+            return name;
         }
 
         private Name ReadName(long length)
@@ -315,30 +346,6 @@ namespace Tmds.Ssh
             catch (ArgumentOutOfRangeException)
             {
                 ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
-            }
-        }
-
-        public PublicKey ReadPublicKey(IReadOnlyList<Name> allowedFormats)
-        {
-            var name = ReadName();
-            if (!allowedFormats.Contains(name))
-            {
-                ThrowHelper.ThrowProtocolUnexpectedValue();
-                return null;
-            }
-
-            if (name == AlgorithmNames.SshRsa)
-            {
-                // mpint     e
-                // mpint     n
-                BigInteger e = ReadMPInt();
-                BigInteger n = ReadMPInt();
-                return new RsaPublicKey(e, n);
-            }
-            else
-            {
-                ThrowHelper.ThrowProtocolUnexpectedValue();
-                return null;
             }
         }
 

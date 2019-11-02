@@ -30,6 +30,7 @@ class SshClientSettings
     string Host { get; }
     int Port { get; set; } = 22;
     List<Credential> Credentials { get; }
+    HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
 }
 
 class IdentityFileCredential : Credential
@@ -41,5 +42,34 @@ class IdentityFileCredential : Credential
 class PasswordCredential : Credential
 {
     PasswordCredential(string password);
+}
+
+class SshKey
+{
+    SshKey(string type, byte[] key);
+
+    string Type { get; }
+    byte[] Key { get; }
+}
+
+abstract class HostKeyVerification
+{
+    static HostKeyVerification TrustAll { get; };
+
+    abstract ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
+}
+
+enum HostKeyVerificationResult
+{
+    Trusted,
+    Distrusted,
+    Unknown
+}
+
+class SshConnectionInfo
+{
+    public string Host { get; }
+    public int Port { get; }
+    public SshKey? SshKey { get; }
 }
 ```
