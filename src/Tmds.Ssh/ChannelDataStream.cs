@@ -4,6 +4,7 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
@@ -52,12 +53,14 @@ namespace Tmds.Ssh
 
                 } while (messageId != MessageId.SSH_MSG_CHANNEL_CLOSE);
             }
-            catch (OperationCanceledException)
-            { }
+            catch
+            {
+                Abort();
+            }
         }
 
         public void Abort()
-            => _context.Cancel();
+            => _context.Abort();
 
         protected override void Dispose(bool disposing)
         {
@@ -72,7 +75,7 @@ namespace Tmds.Ssh
             }
             _disposed = true;
 
-            _context.Cancel();
+            _context.Abort();
 
             await _receiveLoopTask;
 
@@ -126,21 +129,18 @@ namespace Tmds.Ssh
             throw new System.NotSupportedException();
         }
 
-        public override System.Threading.Tasks.Task FlushAsync(System.Threading.CancellationToken cancellationToken)
+        public override Task FlushAsync(CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
 
             return Task.CompletedTask;
         }
 
-        public override async System.Threading.Tasks.ValueTask<int> ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public override async ValueTask<int> ReadAsync(System.Memory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
         {
             ThrowIfDisposed();
 
-            if (cancellationToken.CanBeCanceled)
-            {
-                ThrowCancellationTokenNotSupported();
-            }
+            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Abort(), _context);
 
             if (_receivedEof)
             {
@@ -186,21 +186,30 @@ namespace Tmds.Ssh
 
         private async ValueTask<Packet> ReceiveUntilChannelDataAsync()
         {
-            while (true)
+            try
             {
-                using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelStopped);
-
-                switch (packet.MessageId)
+                while (true)
                 {
-                    case MessageId.SSH_MSG_CHANNEL_DATA:
-                        return packet.Move();
-                    case MessageId.SSH_MSG_CHANNEL_EOF:
-                    case MessageId.SSH_MSG_CHANNEL_CLOSE:
-                        return default;
-                    default:
-                        ThrowHelper.ThrowProtocolUnexpectedMessageId(packet.MessageId!.Value);
-                        break;
+                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelStopped);
+
+                    switch (packet.MessageId)
+                    {
+                        case MessageId.SSH_MSG_CHANNEL_DATA:
+                            return packet.Move();
+                        case MessageId.SSH_MSG_CHANNEL_EOF:
+                        case MessageId.SSH_MSG_CHANNEL_CLOSE:
+                            return default;
+                        default:
+                            ThrowHelper.ThrowProtocolUnexpectedMessageId(packet.MessageId!.Value);
+                            break;
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                _context.ThrowIfChannelStopped();
+
+                throw;
             }
         }
 
@@ -232,14 +241,12 @@ namespace Tmds.Ssh
             return (request_type, want_reply);
         }
 
-        public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public override ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
         {
             ThrowIfDisposed();
 
-            if (cancellationToken.CanBeCanceled)
-            {
-                ThrowCancellationTokenNotSupported();
-            }
+            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Abort(), _context);
+
             return _context.SendChannelDataAsync(buffer);
         }
 

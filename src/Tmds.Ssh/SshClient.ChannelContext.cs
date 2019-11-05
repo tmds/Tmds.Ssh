@@ -2,7 +2,6 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -13,22 +12,31 @@ namespace Tmds.Ssh
     {
         class SshClientChannelContext : ChannelContext
         {
+            enum LocalChannelState
+            {
+                Initial,
+                OpenSent,
+                Opened,
+                Closed
+            }
+
             private readonly SshClient _client;
-            private readonly CancellationTokenSource _stopChannelOrAbortCts;
+            private readonly CancellationTokenSource _channelOrConnectionAborted;
             private readonly Channel<Packet> _receiveQueue;
             private bool _remoteClosedChannel;
-            private bool _localClosedChannel;
+            private LocalChannelState _localChannelState;
             private int _disposed;
             private readonly AsyncManualResetEvent _remoteClosedChannelEvent;
             private int _sendWindow;
             private AsyncManualResetEvent _sendWindowAvailableEvent;
             private int _receiveWindow;
+            private AsyncManualResetEvent _channelOpenDoneEvent;
 
-            public SshClientChannelContext(SshClient client, uint channelNumber, CancellationToken userToken)
+            public SshClientChannelContext(SshClient client, uint channelNumber)
             {
                 LocalChannel = channelNumber;
                 _client = client;
-                _stopChannelOrAbortCts = CancellationTokenSource.CreateLinkedTokenSource(userToken, client.ConnectionClosed);
+                _channelOrConnectionAborted = CancellationTokenSource.CreateLinkedTokenSource(client.ConnectionClosed);
                 _receiveQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
                 {
                     AllowSynchronousContinuations = false, // don't block SshClient.ReceiveLoopAsync.
@@ -38,36 +46,43 @@ namespace Tmds.Ssh
                 // ManualResetEventSlim doesn't support async wait, so use a SemaphoreSlim.
                 _remoteClosedChannelEvent = new AsyncManualResetEvent();
                 _sendWindowAvailableEvent = new AsyncManualResetEvent();
+                _channelOpenDoneEvent = new AsyncManualResetEvent();
                 _receiveWindow = LocalWindowSize;
             }
 
-            public override void Cancel()
+            public override void Abort()
             {
-                _stopChannelOrAbortCts.Cancel();
+                _channelOrConnectionAborted.Cancel();
             }
 
-            public override CancellationToken ChannelStopped => _stopChannelOrAbortCts.Token;
+            public override CancellationToken ChannelStopped => _channelOrConnectionAborted.Token;
 
-            public override ValueTask<Packet> ReceivePacketAsync()
-                => ReceivePacketAsync(ChannelStopped);
-
-            private async ValueTask<Packet> ReceivePacketAsync(CancellationToken cancellationToken)
+            public async override ValueTask<Packet> ReceivePacketAsync()
             {
                 if (_remoteClosedChannel)
                 {
                     ThrowHelper.ThrowInvalidOperation("Peer closed the channel.");
                 }
 
-                do
+                try
                 {
-                    using Packet packet = await _receiveQueue.Reader.ReadAsync(cancellationToken);
-
-                    if (InspectReceivedPacket(packet))
+                    do
                     {
-                        return packet.Move();
-                    }
+                        using Packet packet = await _receiveQueue.Reader.ReadAsync(ChannelStopped);
 
-                } while (true);
+                        if (InspectReceivedPacket(packet))
+                        {
+                            return packet.Move();
+                        }
+
+                    } while (true);
+                }
+                catch (OperationCanceledException)
+                {
+                    ThrowIfChannelStopped();
+
+                    throw;
+                }
             }
 
             private bool InspectReceivedPacket(Packet packet)
@@ -90,11 +105,19 @@ namespace Tmds.Ssh
                             RemoteChannel = reader.ReadUInt32(); // sender channel
                             _sendWindow = checked((int)reader.ReadUInt32()); // initial window size
                             RemoteMaxPacketSize = checked((int)reader.ReadUInt32()); // maximum packet size
+                            _localChannelState = LocalChannelState.Opened;
+                            _channelOpenDoneEvent.Set();
                             if (_sendWindow != 0)
                             {
                                 _sendWindowAvailableEvent.Set();
                             }
                         }
+                        break;
+                    case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
+                        _localChannelState = LocalChannelState.Closed;
+                        _remoteClosedChannel = true;
+                        _remoteClosedChannelEvent.Set();
+                        _channelOpenDoneEvent.Set();
                         break;
                     case MessageId.SSH_MSG_CHANNEL_CLOSE:
                         _remoteClosedChannel = true;
@@ -127,28 +150,39 @@ namespace Tmds.Ssh
                 return true;
             }
 
-            public override ValueTask SendPacketAsync(Packet packet)
-                => SendPacketAsync(packet, ChannelStopped);
-
-            private ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
+            public async override ValueTask SendPacketAsync(Packet packet)
             {
-                if (_localClosedChannel)
+                MessageId? msgId = packet.MessageId;
+
+                if (_localChannelState != LocalChannelState.Opened &&
+                    !(_localChannelState == LocalChannelState.Initial && msgId == MessageId.SSH_MSG_CHANNEL_OPEN))
                 {
-                    ThrowHelper.ThrowInvalidOperation("Channel closed");
+                    ThrowHelper.ThrowInvalidOperation("Channel closed.");
                 }
 
-                InspectSentPacket(packet);
-                return _client.SendPacketAsync(packet, ct);
-            }
+                ThrowIfChannelStopped();
 
-
-            private void InspectSentPacket(Packet packet)
-            {
-                switch (packet.MessageId)
+                switch (msgId)
                 {
-                    case MessageId.SSH_MSG_CHANNEL_CLOSE:
-                        _localClosedChannel = true;
+                    case MessageId.SSH_MSG_CHANNEL_OPEN:
+                        _localChannelState = LocalChannelState.OpenSent;
                         break;
+                    case MessageId.SSH_MSG_CHANNEL_CLOSE:
+                        _localChannelState = LocalChannelState.Closed;
+                        break;
+                }
+
+                try
+                {
+                    await _client.SendPacketAsync(packet, ChannelStopped);
+                }
+                catch
+                {
+                    Abort();
+
+                    ThrowIfChannelStopped();
+
+                    throw;
                 }
             }
 
@@ -162,19 +196,51 @@ namespace Tmds.Ssh
             }
 
             public override ValueTask CloseAsync()
-                => CloseAsync(ChannelStopped);
+                => CloseAsync(channelSend: true);
 
-            internal async ValueTask CloseAsync(CancellationToken ct)
+            internal async ValueTask CloseAsync(bool channelSend)
             {
-                // Send channel close.
-                if (!_localClosedChannel)
+                if (channelSend && _localChannelState != LocalChannelState.Opened)
                 {
-                    using var closeMessage = CreateChannelCloseMessage();
-                    await SendPacketAsync(closeMessage, ct);
+                    ThrowHelper.ThrowInvalidOperation("Channel closed.");
                 }
 
-                // Wait for close received.
-                await _remoteClosedChannelEvent.WaitAsync(ct);
+                CancellationToken ct = channelSend ? ChannelStopped : _client.ConnectionClosed;
+                try
+                {
+                    // Send channel close.
+                    if (_localChannelState == LocalChannelState.OpenSent)
+                    {
+                        await _channelOpenDoneEvent.WaitAsync(ct);
+                    }
+
+                    if (_localChannelState == LocalChannelState.Opened)
+                    {
+                        using var closeMessage = CreateChannelCloseMessage();
+                        if (channelSend)
+                        {
+                            await SendPacketAsync(closeMessage);
+                        }
+                        else
+                        {
+                            _localChannelState = LocalChannelState.Closed;
+                            // by-pass ChannelStopped.
+                            await _client.SendPacketAsync(closeMessage);
+                        }
+                    }
+
+                    if (_localChannelState != LocalChannelState.Initial)
+                    {
+                        // Wait for peer close.
+                        await _remoteClosedChannelEvent.WaitAsync(ct);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    ThrowIfChannelStopped();
+
+                    throw;
+                }
 
                 Packet CreateChannelCloseMessage()
                 {
@@ -201,14 +267,15 @@ namespace Tmds.Ssh
                     _client.OnChannelDisposed(this);
                 }
 
-                return new ValueTask(Task.CompletedTask);
+                return default; // Completed ValueTask.
             }
 
             internal void DoDispose()
             {
-                _stopChannelOrAbortCts.Dispose();
+                _channelOrConnectionAborted.Dispose();
                 _remoteClosedChannelEvent.Dispose();
                 _sendWindowAvailableEvent.Dispose();
+                _channelOpenDoneEvent.Dispose();
 
                 while (_receiveQueue.Reader.TryRead(out Packet packet))
                 {
@@ -291,6 +358,21 @@ namespace Tmds.Ssh
                     writer.WriteUInt32(context.RemoteChannel);
                     writer.WriteUInt32(bytesToAdd);
                     return packet.Move();
+                }
+            }
+
+            private void ThrowNewChannelAbortedException()
+            {
+                throw new ChannelAbortedException();
+            }
+
+            public override void ThrowIfChannelStopped()
+            {
+                if (ChannelStopped.IsCancellationRequested)
+                {
+                    _client.ThrowIfNotConnected();
+
+                    ThrowNewChannelAbortedException();
                 }
             }
         }
