@@ -20,8 +20,9 @@ namespace Tmds.Ssh
         public abstract ValueTask SendChannelDataAsync(ReadOnlyMemory<byte> memory);
         public abstract Packet RentPacket();
         public abstract ValueTask DisposeAsync();
-        public abstract void Cancel();
+        public abstract void Abort(); // TODO: add exception argument to track abort reason.
         public abstract ValueTask CloseAsync();
         public abstract ValueTask AdjustChannelWindowAsync(int bytesToAdd);
+        public abstract void ThrowIfChannelStopped(); // Throws ConnectionClosedException/ChannelAbortedException.
     }
 }

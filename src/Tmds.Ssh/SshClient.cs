@@ -182,7 +182,7 @@ namespace Tmds.Ssh
                 {
                     SingleWriter = false,
                     SingleReader = true,
-                    AllowSynchronousContinuations = true
+                    AllowSynchronousContinuations = true // Allow direct sending when send is queued.
                 });
                 // ConnectAsync completed successfully.
                 connectTcs.SetResult(true);
@@ -236,33 +236,38 @@ namespace Tmds.Ssh
             }
         }
 
-        internal ChannelContext CreateChannel(CancellationToken ct = default)
+        internal ChannelContext CreateChannel()
         {
             lock (_gate)
             {
                 ThrowIfNotConnected();
 
                 uint channelNumber = AllocateChannel();
-                var channelContext = new SshClientChannelContext(this, channelNumber, ct);
+                var channelContext = new SshClientChannelContext(this, channelNumber);
                 _channels[channelNumber] = channelContext;
 
                 return channelContext;
             }
         }
 
-        private ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
+        private ValueTask SendPacketAsync(Packet packet)
+        {
+            return SendPacketAsync(packet, ConnectionClosed);
+        }
+
+        private ValueTask SendPacketAsync(Packet packet, CancellationToken ct = default)
         {
             Channel<PendingSend>? sendQueue = _sendQueue;
 
             if (sendQueue == null)
             {
                 // Trying to send before ConnectAsync completed.
-                ThrowHelper.ThrowInvalidOperation("Not connected");
+                ThrowHelper.ThrowInvalidOperation("Not connected.");
             }
 
             if (_abortReason != null)
             {
-                return new ValueTask(Task.FromCanceled(_abortCts.Token));
+                return new ValueTask(Task.FromException(NewConnectionClosedException()));
             }
 
             try
@@ -275,24 +280,25 @@ namespace Tmds.Ssh
                     CancellationToken = ct,
                     CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
                 };
+
                 bool written = sendQueue!.Writer.TryWrite(send);
                 if (!written)
                 {
                     // SendLoopAsync stopped.
                     send.CancellationTokenRegistration.Dispose();
-                    if (!send.TaskCompletion.Task.IsCanceled)
+                    if (!send.TaskCompletion.Task.IsCompleted)
                     {
-                        send.TaskCompletion.SetCanceled();
+                        send.TaskCompletion.SetException(NewConnectionClosedException());
                     }
-                    packet.Dispose();
                 }
+
                 return new ValueTask(cts.Task);
             }
             catch (Exception e) // This shouldn't happen.
             {
-                packet.Dispose();
                 Abort(e);
-                throw;
+
+                return new ValueTask(Task.FromException(NewConnectionClosedException()));
             }
         }
 
@@ -309,7 +315,7 @@ namespace Tmds.Ssh
                     {
                         // Disable send.CancellationToken.
                         send.CancellationTokenRegistration.Dispose();
-                        if (!send.TaskCompletion.Task.IsCanceled)
+                        if (!send.TaskCompletion.Task.IsCompleted)
                         {
                             // If we weren't canceled by send.CancellationToken, do the send.
                             // We use abortToken instead of send.CancellationToken because
@@ -323,6 +329,7 @@ namespace Tmds.Ssh
                                 _keyReExchangeSemaphore = null;
                             }
 
+                            // Send completed succesfully.
                             send.TaskCompletion.SetResult(true);
 
                             // Don't send any more packets until Key Re-Exchange completed.
@@ -337,9 +344,8 @@ namespace Tmds.Ssh
                     {
                         Abort(e);
 
-                        // The sender isn't responsible for the fail,
-                        // report this as canceled.
-                        send.TaskCompletion.SetCanceled();
+                        // Complete send with ConnectionClosedException.
+                        send.TaskCompletion.SetException(NewConnectionClosedException());
                     }
                 }
             }
@@ -358,9 +364,9 @@ namespace Tmds.Ssh
                     while (_sendQueue.Reader.TryRead(out PendingSend send))
                     {
                         send.CancellationTokenRegistration.Dispose();
-                        if (!send.TaskCompletion.Task.IsCanceled)
+                        if (!send.TaskCompletion.Task.IsCompleted)
                         {
-                            send.TaskCompletion.SetCanceled();
+                            send.TaskCompletion.SetException(NewConnectionClosedException());
                         }
                     }
                 }
@@ -396,7 +402,7 @@ namespace Tmds.Ssh
                             using Packet clientKexInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             try
                             {
-                                await SendPacketAsync(clientKexInitMsg, abortToken);
+                                await SendPacketAsync(clientKexInitMsg);
                             }
                             catch
                             {
@@ -492,7 +498,7 @@ namespace Tmds.Ssh
             // responds with SSH_MSG_REQUEST_FAILURE.
             using var response = RentPacket();
             response.GetWriter().WriteMessageId(MessageId.SSH_MSG_REQUEST_FAILURE);
-            await SendPacketAsync(response, _abortCts.Token);
+            await SendPacketAsync(response);
         }
 
         // This method is for doing a clean shutdown which may involve sending some messages over the wire.
@@ -552,17 +558,22 @@ namespace Tmds.Ssh
 
         private void ThrowNewConnectionClosedException()
         {
+            throw NewConnectionClosedException();
+        }
+
+        private Exception NewConnectionClosedException()
+        {
             if (_abortReason == null)
             {
                 ThrowHelper.ThrowInvalidOperation("Connection not closed");
             }
             if (_abortReason == ClosedByPeer)
             {
-                throw new ConnectionClosedException("Connection closed by peer.");
+                return new ConnectionClosedException("Connection closed by peer.");
             }
             else
             {
-                throw new ConnectionClosedException($"Connection closed: {_abortReason!.Message}", _abortReason);
+                return new ConnectionClosedException($"Connection closed: {_abortReason!.Message}", _abortReason);
             }
         }
 
@@ -572,11 +583,9 @@ namespace Tmds.Ssh
             {
                 if (!ConnectionClosed.IsCancellationRequested)
                 {
-                    await context.CloseAsync(ConnectionClosed);
+                    await context.CloseAsync(channelSend: false);
                 }
             }
-            catch (OperationCanceledException)
-            { }
             catch (Exception e)
             {
                 Abort(e);
