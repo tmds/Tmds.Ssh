@@ -11,11 +11,11 @@ namespace Tmds.Ssh
     public partial class SshClient
     {
         // MAYDO: maybe add arg to control window size?
-        public Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default)
+        public Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default)
             => CreateTcpConnectionAsStreamAsync(host, port, IPAddress.Any, 0, cancellationToken);
 
         // MAYDO: maybe add arg to control window size?
-        public async Task<Stream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default)
+        public async Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default)
         {
             ChannelContext context = CreateChannel();
 

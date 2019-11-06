@@ -12,6 +12,7 @@ class SshClient : IAsyncDisposable
 
     Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default);
     Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default);
+    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken cancellationToken = default);
 }
 
 class ChannelDataStream : Stream
