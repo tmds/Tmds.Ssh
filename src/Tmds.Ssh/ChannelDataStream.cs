@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
-    class ChannelDataStream : Stream
+    public class ChannelDataStream : Stream
     {
         private readonly ChannelContext _context;
         private readonly Task _receiveLoopTask;
