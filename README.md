@@ -16,6 +16,8 @@ class SshClient : IAsyncDisposable
 
 class ChannelDataStream : Stream
 {
+    public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
+    public int MaxReadLength;  // Size hint for calling ReadAsync.
     ValueTask WriteAsync(ReadOnlyMemory<byte> buffer);
     ValueTask<int> ReadAsync(Memory<byte> buffer);
     void Abort();   // Stops the channel immediately, on-going operations are cancelled.
