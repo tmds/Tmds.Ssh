@@ -25,7 +25,7 @@ namespace Tmds.Ssh
         // Maximum length we send in a single message. May be used as a size hint when calling WriteAsync.
         public int MaxReadLength => _context.RemoteMaxPacketSize;
 
-        public ChannelDataStream(ChannelContext context)
+        internal ChannelDataStream(ChannelContext context)
         {
             _context = context;
             _readQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions

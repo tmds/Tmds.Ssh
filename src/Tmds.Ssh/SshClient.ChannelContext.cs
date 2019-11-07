@@ -294,7 +294,7 @@ namespace Tmds.Ssh
                         toSend = Math.Min(toSend, RemoteMaxPacketSize);
                         if (Interlocked.CompareExchange(ref _sendWindow, sendWindow - toSend, sendWindow) == sendWindow)
                         {
-                            await SendPacketAsync(CreateChannelDataMessage(this, memory.Slice(0, toSend)));
+                            await this.SendChannelDataMessageAsync(memory.Slice(0, toSend));
                             memory = memory.Slice(toSend);
                             if (memory.IsEmpty)
                             {
@@ -303,22 +303,6 @@ namespace Tmds.Ssh
                         }
                     }
                     await _sendWindowAvailableEvent.WaitAsync(ChannelStopped);
-                }
-
-                static Packet CreateChannelDataMessage(ChannelContext context, ReadOnlyMemory<byte> memory)
-                {
-                    /*
-                        byte      SSH_MSG_CHANNEL_DATA
-                        uint32    recipient channel
-                        string    data
-                    */
-
-                    using var packet = context.RentPacket();
-                    var writer = packet.GetWriter();
-                    writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
-                    writer.WriteUInt32(context.RemoteChannel);
-                    writer.WriteString(memory.Span);
-                    return packet.Move();
                 }
             }
 
@@ -340,24 +324,8 @@ namespace Tmds.Ssh
                     ((newWindow + bytesToAdd) >= halfWindowSize))
                 {
                     int adjust = LocalWindowSize - newWindow;
-                    using var packet = CreateChannelWindowAdjustMessage(this, (uint)adjust);
-                    Interlocked.Add(ref _receiveWindow, (int)adjust);
-                    await SendPacketAsync(packet);
-                }
-
-                static Packet CreateChannelWindowAdjustMessage(ChannelContext context, uint bytesToAdd)
-                {
-                    /*
-                        byte      SSH_MSG_CHANNEL_WINDOW_ADJUST
-                        uint32    recipient channel
-                        uint32    bytes to add
-                    */
-                    using var packet = context.RentPacket();
-                    var writer = packet.GetWriter();
-                    writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST);
-                    writer.WriteUInt32(context.RemoteChannel);
-                    writer.WriteUInt32(bytesToAdd);
-                    return packet.Move();
+                    Interlocked.Add(ref _receiveWindow, adjust);
+                    await this.SendChannelWindowAdjustMessageAsync((uint)adjust);
                 }
             }
 

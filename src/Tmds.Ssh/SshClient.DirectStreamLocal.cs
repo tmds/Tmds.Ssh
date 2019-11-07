@@ -19,7 +19,7 @@ namespace Tmds.Ssh
             ChannelDataStream? stream = null;
             try
             {
-                await SendChannelOpenMessageAsync(context, socketPath);
+                await context.SendChannelOpenDirectStreamLocalMessageAsync(socketPath);
                 await context.ReceiveChannelOpenConfirmationAsync();
                 stream = new ChannelDataStream(context);
                 return stream;
@@ -36,37 +36,6 @@ namespace Tmds.Ssh
                 }
 
                 throw;
-            }
-        }
-
-        private static ValueTask SendChannelOpenMessageAsync(ChannelContext context, string socketPath)
-        {
-            return context.SendPacketAsync(CreateChannelOpenMessage(context, socketPath));
-
-            static Packet CreateChannelOpenMessage(ChannelContext context, string socketPath)
-            {
-                /*
-                    byte		SSH_MSG_CHANNEL_OPEN
-                    string		"direct-streamlocal@openssh.com"
-                    uint32		sender channel
-                    uint32		initial window size
-                    uint32		maximum packet size
-                    string		socket path
-                    string		reserved
-                    uint32		reserved
-                 */
-
-                using var packet = context.RentPacket();
-                var writer = packet.GetWriter();
-                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_OPEN);
-                writer.WriteString("direct-streamlocal@openssh.com");
-                writer.WriteUInt32(context.LocalChannel);
-                writer.WriteUInt32(context.LocalWindowSize);
-                writer.WriteUInt32(context.LocalMaxPacketSize);
-                writer.WriteString(socketPath);
-                writer.WriteString("");
-                writer.WriteUInt32(0);
-                return packet.Move();
             }
         }
     }
