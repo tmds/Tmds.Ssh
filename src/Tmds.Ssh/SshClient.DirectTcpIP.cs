@@ -24,7 +24,7 @@ namespace Tmds.Ssh
             ChannelDataStream? stream = null;
             try
             {
-                await SendChannelOpenMessageAsync(context, host, (uint)port, originatorIP, (uint)originatorPort);
+                await context.SendChannelOpenDirectTcpIpMessageAsync(host, (uint)port, originatorIP, (uint)originatorPort);
                 await context.ReceiveChannelOpenConfirmationAsync();
                 stream = new ChannelDataStream(context);
                 return stream;
@@ -41,39 +41,6 @@ namespace Tmds.Ssh
                 }
 
                 throw;
-            }
-        }
-
-        private static ValueTask SendChannelOpenMessageAsync(ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
-        {
-            return context.SendPacketAsync(CreateChannelOpenMessage(context, host, port, originatorIP, originatorPort));
-
-            static Packet CreateChannelOpenMessage(ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
-            {
-                /*
-                    byte      SSH_MSG_CHANNEL_OPEN
-                    string    "direct-tcpip"
-                    uint32    sender channel
-                    uint32    initial window size
-                    uint32    maximum packet size
-                    string    host to connect
-                    uint32    port to connect
-                    string    originator IP address
-                    uint32    originator port
-                 */
-
-                using var packet = context.RentPacket();
-                var writer = packet.GetWriter();
-                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_OPEN);
-                writer.WriteString("direct-tcpip");
-                writer.WriteUInt32(context.LocalChannel);
-                writer.WriteUInt32(context.LocalWindowSize);
-                writer.WriteUInt32(context.LocalMaxPacketSize);
-                writer.WriteString(host);
-                writer.WriteUInt32(port);
-                writer.WriteString(originatorIP.ToString());
-                writer.WriteUInt32(originatorPort);
-                return packet.Move();
             }
         }
     }
