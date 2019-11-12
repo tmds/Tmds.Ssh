@@ -9,9 +9,9 @@ namespace Tmds.Ssh
     sealed class KeyExchangeInput
     {
         public KeyExchangeInput(IReadOnlyList<Name> hostKeyAlgorithms,
-            Packet exchangeInitMsg,
-            Packet clientKexInitMsg,
-            Packet serverKexInitMsg,
+            ReadOnlyPacket exchangeInitMsg,
+            ReadOnlyPacket clientKexInitMsg,
+            ReadOnlyPacket serverKexInitMsg,
             SshConnectionInfo connectionInfo,
             int initialIVC2SLength,
             int initialIVS2CLength,
@@ -34,9 +34,9 @@ namespace Tmds.Ssh
         }
 
         public IReadOnlyList<Name> HostKeyAlgorithms { get; set; }
-        public Packet ExchangeInitMsg { get; set; }
-        public Packet ClientKexInitMsg { get; set; }
-        public Packet ServerKexInitMsg { get; set; }
+        public ReadOnlyPacket ExchangeInitMsg { get; set; }
+        public ReadOnlyPacket ClientKexInitMsg { get; set; }
+        public ReadOnlyPacket ServerKexInitMsg { get; set; }
         public SshConnectionInfo ConnectionInfo { get; set; }
         public int InitialIVC2SLength { get; set; }
         public int InitialIVS2CLength { get; set; }

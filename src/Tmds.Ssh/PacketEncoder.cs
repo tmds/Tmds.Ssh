@@ -24,6 +24,8 @@ namespace Tmds.Ssh
 
         public void Encode(uint sequenceNumber, Packet packet, Sequence buffer)
         {
+            using var pkt = packet.Move(); // Dispose the packet.
+
             // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
             /*
                 uint32    packet_length
@@ -41,7 +43,7 @@ namespace Tmds.Ssh
             // whichever is larger)
             uint minSize = (uint)Math.Max(16U, _encode.BlockSize);
 
-            uint payload_length = (uint)packet.PayloadLength;
+            uint payload_length = (uint)pkt.PayloadLength;
             byte padding_length = DeterminePaddingLength(payload_length, multipleOf);
             uint packet_length = payload_length + 1 + padding_length;
             while (packet_length < minSize)
@@ -51,16 +53,16 @@ namespace Tmds.Ssh
             }
 
             // Write header and padding.
-            packet.WriteHeaderAndPadding(padding_length);
+            pkt.WriteHeaderAndPadding(padding_length);
 
             // Encode
-            _encode.Transform(packet.AsReadOnlySequence(), buffer);
+            _encode.Transform(pkt.AsReadOnlySequence(), buffer);
 
             // Mac
             // mac = MAC(key, sequence_number || unencrypted_packet)
             Span<byte> prefix = stackalloc byte[4];
             BinaryPrimitives.WriteUInt32BigEndian(prefix, sequenceNumber);
-            _mac.Transform(prefix, packet.AsReadOnlySequence(), default, buffer);
+            _mac.Transform(prefix, pkt.AsReadOnlySequence(), default, buffer);
         }
 
         private static byte DeterminePaddingLength(uint payload_length, uint multipleOf)

@@ -15,10 +15,23 @@ namespace Tmds.Ssh
 
             ParseChannelOpenConfirmation(packet);
 
-            static void ParseChannelOpenConfirmation(Packet packet)
+            static void ParseChannelOpenConfirmation(ReadOnlyPacket packet)
             {
                 var reader = packet.GetReader();
                 reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION); // TODO SSH_MSG_CHANNEL_OPEN_FAILURE
+            }
+        }
+
+        public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context)
+        {
+            using var packet = await context.ReceivePacketAsync();
+
+            ParseChannelOpenConfirmation(packet);
+
+            static void ParseChannelOpenConfirmation(ReadOnlyPacket packet)
+            {
+                var reader = packet.GetReader();
+                reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_SUCCESS); // TODO SSH_MSG_CHANNEL_FAILURE
             }
         }
     }

@@ -11,7 +11,7 @@ namespace Tmds.Ssh
     {
         public static ValueTask SendChannelFailureMessageAsync(this ChannelContext context)
         {
-            return context.SendPacketAndDisposeAsync(CreatePacket(context));
+            return context.SendPacketAsync(CreatePacket(context));
 
             static Packet CreatePacket(ChannelContext context)
             {
@@ -29,7 +29,7 @@ namespace Tmds.Ssh
 
         public static ValueTask SendChannelDataMessageAsync(this ChannelContext context,  ReadOnlyMemory<byte> memory)
         {
-            return context.SendPacketAndDisposeAsync(CreatePacket(context, memory));
+            return context.SendPacketAsync(CreatePacket(context, memory));
 
             static Packet CreatePacket(ChannelContext context, ReadOnlyMemory<byte> memory)
             {
@@ -50,7 +50,7 @@ namespace Tmds.Ssh
 
         public static ValueTask SendChannelOpenDirectStreamLocalMessageAsync(this ChannelContext context, string socketPath)
         {
-            return context.SendPacketAndDisposeAsync(CreatePacket(context, socketPath));
+            return context.SendPacketAsync(CreatePacket(context, socketPath));
 
             static Packet CreatePacket(ChannelContext context, string socketPath)
             {
@@ -81,7 +81,7 @@ namespace Tmds.Ssh
 
         public static ValueTask SendChannelOpenDirectTcpIpMessageAsync(this ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
         {
-            return context.SendPacketAndDisposeAsync(CreatePacket(context, host, port, originatorIP, originatorPort));
+            return context.SendPacketAsync(CreatePacket(context, host, port, originatorIP, originatorPort));
 
             static Packet CreatePacket(ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
             {
@@ -114,7 +114,7 @@ namespace Tmds.Ssh
 
         public static ValueTask SendChannelWindowAdjustMessageAsync(this ChannelContext context, uint bytesToAdd)
         {
-            return context.SendPacketAndDisposeAsync(CreatePacket(context, bytesToAdd));
+            return context.SendPacketAsync(CreatePacket(context, bytesToAdd));
 
             static Packet CreatePacket(ChannelContext context, uint bytesToAdd)
             {
@@ -130,15 +130,6 @@ namespace Tmds.Ssh
                 writer.WriteUInt32(bytesToAdd);
                 return packet.Move();
             }
-        }
-
-        // Helper method to make the above methods less verbose.
-        private static async ValueTask SendPacketAndDisposeAsync(this ChannelContext context, Packet packet)
-        {
-                using (packet)
-                {
-                    await context.SendPacketAsync(packet);
-                }
         }
     }
 }

@@ -58,15 +58,17 @@ namespace Tmds.Ssh
                     }
 
                 } while (messageId != MessageId.SSH_MSG_CHANNEL_CLOSE);
+
+                _readQueue.Writer.Complete();
             }
-            catch
+            catch (Exception e)
             {
-                Abort();
+                _readQueue.Writer.Complete(e);
             }
         }
 
-        public void Abort()
-            => _context.Abort();
+        public void Cancel()
+            => _context.Cancel();
 
         protected override void Dispose(bool disposing)
         {
@@ -81,7 +83,7 @@ namespace Tmds.Ssh
             }
             _disposed = true;
 
-            _context.Abort();
+            _context.Cancel();
 
             await _receiveLoopTask;
 
@@ -146,7 +148,7 @@ namespace Tmds.Ssh
         {
             ThrowIfDisposed();
 
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Abort(), _context);
+            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), _context);
 
             if (_receivedEof)
             {
@@ -196,7 +198,7 @@ namespace Tmds.Ssh
             {
                 while (true)
                 {
-                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelStopped);
+                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelCancelled);
 
                     switch (packet.MessageId)
                     {
@@ -213,13 +215,13 @@ namespace Tmds.Ssh
             }
             catch (OperationCanceledException)
             {
-                _context.ThrowIfChannelStopped();
+                _context.ThrowIfChannelCancelled();
 
                 throw;
             }
         }
 
-        private async ValueTask HandleMsgChannelRequestAsync(Packet packet)
+        private async ValueTask HandleMsgChannelRequestAsync(ReadOnlyPacket packet)
         {
             var channelRequest = ParseChannelRequest(packet);
             if (channelRequest.want_reply)
@@ -230,7 +232,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private static (string request_type, bool want_reply) ParseChannelRequest(Packet packet)
+        private static (string request_type, bool want_reply) ParseChannelRequest(ReadOnlyPacket packet)
         {
             /*
                 byte      SSH_MSG_CHANNEL_REQUEST
@@ -251,7 +253,7 @@ namespace Tmds.Ssh
         {
             ThrowIfDisposed();
 
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Abort(), _context);
+            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), _context);
 
             return _context.SendChannelDataAsync(buffer);
         }

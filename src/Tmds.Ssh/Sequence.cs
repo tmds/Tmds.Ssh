@@ -221,6 +221,14 @@ namespace Tmds.Ssh
             }
         }
 
+        public Sequence Clone()
+        {
+            Sequence sequence = SequencePool.RentSequence();
+            var writer = new SequenceWriter(sequence);
+            writer.Write(AsReadOnlySequence());
+            return sequence;
+        }
+
         public SequenceReader<byte> CreateReader()
             => new SequenceReader<byte>(AsReadOnlySequence());
 

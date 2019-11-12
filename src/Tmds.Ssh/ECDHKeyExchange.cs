@@ -44,15 +44,15 @@ namespace Tmds.Ssh
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
             ECPoint q_c = myPublicKey.ExportParameters().Q;
-            {
-                using var ecdhInitMsg = CreateEcdhInitMessage(sequencePool, q_c);
-                await connection.SendPacketAsync(ecdhInitMsg, ct);
-            }
+            await connection.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct);
 
             // Receive ECDH_REPLY.
-            Packet exchangeInitMsg = input.ExchangeInitMsg;
-            using Packet exchangeInitMsgDispose =
-                exchangeInitMsg.IsEmpty ? (exchangeInitMsg = await connection.ReceivePacketAsync(ct)) : default(Packet);
+            ReadOnlyPacket exchangeInitMsg = input.ExchangeInitMsg;
+            using Packet exchangeInitMsgDispose = exchangeInitMsg.IsEmpty ? await connection.ReceivePacketAsync(ct) : default(Packet);
+            if (!exchangeInitMsgDispose.IsEmpty)
+            {
+                exchangeInitMsg = exchangeInitMsgDispose;
+            }
             var ecdhReply = ParceEcdhReply(exchangeInitMsg, input.HostKeyAlgorithms);
 
             // Verify received key is valid.
@@ -97,7 +97,7 @@ namespace Tmds.Ssh
                 initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
         }
 
-        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, Packet clientKexInitMsg, Packet serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
+        private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
         {
             /*
                 string   V_C, client's identification string (CR and LF excluded)
@@ -210,7 +210,7 @@ namespace Tmds.Ssh
             SshKey public_host_key,
             ECPoint q_s,
             ReadOnlySequence<byte> exchange_hash_signature)
-            ParceEcdhReply(Packet packet, IReadOnlyList<Name> allowedKeyTypes)
+            ParceEcdhReply(ReadOnlyPacket packet, IReadOnlyList<Name> allowedKeyTypes)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);

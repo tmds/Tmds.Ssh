@@ -10,6 +10,11 @@ using System.Threading;
 namespace Tmds.Ssh
 {
     // Wraps a sequence that is an SSH binary packet (https://tools.ietf.org/html/rfc4253#section-6).
+    // Functions that accept this type are responsible for Disposing it.
+    // A packet can be passed to another function:
+    // - as a ReadOnlyPacket, that function is not responsible for disposing the packet.
+    // - by calling Clone(), the caller receives a copy of the Packet, which it should Dispose.
+    // - by calling Move(), the caller receives the Packet, it can no longer be used by the current function.
     struct Packet : IDisposable
     {
         private const int HeaderLength = 5;
@@ -67,6 +72,10 @@ namespace Tmds.Ssh
             return new Packet(sequence, checkHeader: false);
         }
 
+        public Packet Clone()
+        {
+            return new Packet(_sequence?.Clone(), checkHeader: false);
+        }
 
         public ReadOnlySequence<byte> Payload
         {

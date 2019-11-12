@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh
 {
-    public sealed partial class SshClient : IAsyncDisposable
+    public sealed partial class SshClient : IAsyncDisposable // TODO: make this an IDisposable
     {
         private readonly SshClientSettings _settings;
         private readonly ILogger _logger;
@@ -34,7 +34,6 @@ namespace Tmds.Ssh
         {
             public Packet Packet;
             public TaskCompletionSource<bool> TaskCompletion;
-            public CancellationToken CancellationToken;
             public CancellationTokenRegistration CancellationTokenRegistration;
         }
 
@@ -162,7 +161,7 @@ namespace Tmds.Ssh
                 if (!_settings.NoKeyExchange)
                 {
                     using Packet localExchangeInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
-                    await connection.SendPacketAsync(localExchangeInitMsg, connectCts.Token);
+                    await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCts.Token);
                     {
                         using Packet remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token);
                         if (remoteExchangeInitMsg.IsEmpty)
@@ -257,6 +256,7 @@ namespace Tmds.Ssh
 
         private ValueTask SendPacketAsync(Packet packet, CancellationToken ct = default)
         {
+            using var pkt = packet.Move();
             Channel<PendingSend>? sendQueue = _sendQueue;
 
             if (sendQueue == null)
@@ -275,9 +275,8 @@ namespace Tmds.Ssh
                 var cts = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var send = new PendingSend
                 {
-                    Packet = packet,
+                    Packet = pkt.Move(),
                     TaskCompletion = cts,
-                    CancellationToken = ct,
                     CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
                 };
 
@@ -285,6 +284,7 @@ namespace Tmds.Ssh
                 if (!written)
                 {
                     // SendLoopAsync stopped.
+                    send.Packet.Dispose();
                     send.CancellationTokenRegistration.Dispose();
                     if (!send.TaskCompletion.Task.IsCompleted)
                     {
@@ -311,41 +311,37 @@ namespace Tmds.Ssh
                 {
                     // MAYDO: maybe use ReadAllAsync and move this into the SshConnection.
                     PendingSend send = await _sendQueue!.Reader.ReadAsync(abortToken);
-                    try
+                    using var pkt = send.Packet.Move();
+
+                    // Disable send.CancellationToken.
+                    send.CancellationTokenRegistration.Dispose();
+
+                    // Send if not cancelled.
+                    if (!send.TaskCompletion.Task.IsCompleted)
                     {
-                        // Disable send.CancellationToken.
-                        send.CancellationTokenRegistration.Dispose();
-                        if (!send.TaskCompletion.Task.IsCompleted)
+                        bool isKexInit = pkt.MessageId == MessageId.SSH_MSG_KEXINIT;
+
+                        // If we weren't canceled by send.CancellationToken, do the send.
+                        // We use abortToken instead of send.CancellationToken because
+                        // we can't allow partial sends unless we're aborting the connection.
+                        await connection.SendPacketAsync(pkt.Move(), abortToken);
+
+                        SemaphoreSlim? keyExchangeSemaphore = null;
+                        if (isKexInit)
                         {
-                            // If we weren't canceled by send.CancellationToken, do the send.
-                            // We use abortToken instead of send.CancellationToken because
-                            // we can't allow partial sends unless we're aborting the connection.
-                            await connection.SendPacketAsync(send.Packet, abortToken);
-
-                            SemaphoreSlim? keyExchangeSemaphore = null;
-                            if (send.Packet.MessageId == MessageId.SSH_MSG_KEXINIT)
-                            {
-                                keyExchangeSemaphore = _keyReExchangeSemaphore;
-                                _keyReExchangeSemaphore = null;
-                            }
-
-                            // Send completed succesfully.
-                            send.TaskCompletion.SetResult(true);
-
-                            // Don't send any more packets until Key Re-Exchange completed.
-                            if (keyExchangeSemaphore != null)
-                            {
-                                await keyExchangeSemaphore.WaitAsync(abortToken);
-                                keyExchangeSemaphore.Dispose();
-                            }
+                            keyExchangeSemaphore = _keyReExchangeSemaphore;
+                            _keyReExchangeSemaphore = null;
                         }
-                    }
-                    catch (Exception e) // SendPacket failed or connection aborted.
-                    {
-                        Abort(e);
 
-                        // Complete send with ConnectionClosedException.
-                        send.TaskCompletion.SetException(NewConnectionClosedException());
+                        // Send completed succesfully.
+                        send.TaskCompletion.SetResult(true);
+
+                        // Don't send any more packets until Key Re-Exchange completed.
+                        if (keyExchangeSemaphore != null)
+                        {
+                            await keyExchangeSemaphore.WaitAsync(abortToken);
+                            keyExchangeSemaphore.Dispose();
+                        }
                     }
                 }
             }
@@ -363,6 +359,7 @@ namespace Tmds.Ssh
 
                     while (_sendQueue.Reader.TryRead(out PendingSend send))
                     {
+                        send.Packet.Dispose();
                         send.CancellationTokenRegistration.Dispose();
                         if (!send.TaskCompletion.Task.IsCompleted)
                         {
@@ -402,7 +399,7 @@ namespace Tmds.Ssh
                             using Packet clientKexInitMsg = KeyExchange.CreateKeyExchangeInitMessage(_sequencePool, _logger, _settings);
                             try
                             {
-                                await SendPacketAsync(clientKexInitMsg);
+                                await SendPacketAsync(clientKexInitMsg.Clone());
                             }
                             catch
                             {
@@ -450,7 +447,7 @@ namespace Tmds.Ssh
                 }
             }
 
-            static uint GetChannelNumber(Packet packet)
+            static uint GetChannelNumber(ReadOnlyPacket packet)
             {
                 var reader = packet.GetReader();
                 reader.ReadMessageId();
@@ -458,7 +455,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private void HandleDisconnectMessage(Packet packet)
+        private void HandleDisconnectMessage(ReadOnlyPacket packet)
         {
             /*
                 byte      SSH_MSG_DISCONNECT
@@ -476,7 +473,7 @@ namespace Tmds.Ssh
             throw new DisconnectException(description); // TODO: pass more fields.
         }
 
-        private void HandleDebugMessage(Packet packet)
+        private void HandleDebugMessage(ReadOnlyPacket packet)
         {
             /*
                 byte      SSH_MSG_DEBUG
@@ -492,13 +489,13 @@ namespace Tmds.Ssh
             reader.ReadEnd();
         }
 
-        private async ValueTask HandleGlobalRequestAsync(Packet packet)
+        private async ValueTask HandleGlobalRequestAsync(ReadOnlyPacket packet)
         {
             // If the recipient does not recognize or support the request, it simply
             // responds with SSH_MSG_REQUEST_FAILURE.
             using var response = RentPacket();
             response.GetWriter().WriteMessageId(MessageId.SSH_MSG_REQUEST_FAILURE);
-            await SendPacketAsync(response);
+            await SendPacketAsync(response.Move());
         }
 
         // This method is for doing a clean shutdown which may involve sending some messages over the wire.
