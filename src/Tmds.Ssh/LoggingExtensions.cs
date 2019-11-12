@@ -148,20 +148,20 @@ namespace Tmds.Ssh
             _authSuccess(logger, null);
         }
 
-        public static void Received(this ILogger logger, Packet packet)
+        public static void Received(this ILogger logger, ReadOnlyPacket packet)
         {
             _received(logger, packet.MessageId, new PacketPayload(packet), null);
         }
 
-        public static void Send(this ILogger logger, Packet packet)
+        public static void Send(this ILogger logger, ReadOnlyPacket packet)
         {
             _send(logger, packet.MessageId, new PacketPayload(packet), null);
         }
 
         struct PacketPayload
         {
-            private Packet _packet;
-            public PacketPayload(Packet packet)
+            private ReadOnlyPacket _packet;
+            public PacketPayload(ReadOnlyPacket packet)
             {
                 _packet = packet;
             }

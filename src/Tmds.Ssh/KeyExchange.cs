@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh
 {
-    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, Packet clientKexInitMsg, Packet serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
+    internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
     sealed class KeyExchange
     {
         public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-        private async static Task PerformDefaultExchange(SshConnection connection, Packet clientKexInitMsg, Packet serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+        private async static Task PerformDefaultExchange(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
         {
             // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
             SequencePool sequencePool = connection.SequencePool;
@@ -127,10 +127,7 @@ namespace Tmds.Ssh
             logger.AlgorithmsClientToServer(encC2S, macC2S, comC2S);
 
             // Send SSH_MSG_NEWKEYS.
-            {
-                using Packet newKeysMsg = CreateNewKeysMessage(sequencePool);
-                await connection.SendPacketAsync(newKeysMsg, ct);
-            }
+            await connection.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct);
 
             // Receive SSH_MSG_NEWKEYS.
             using Packet newKeysReceivedMsg = await connection.ReceivePacketAsync(ct);
@@ -185,7 +182,7 @@ namespace Tmds.Ssh
             Name[] languages_client_to_server,
             Name[] languages_server_to_client,
             bool first_kex_packet_follows)
-            ParseKeyExchangeInitMessage(Packet packet)
+            ParseKeyExchangeInitMessage(ReadOnlyPacket packet)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_KEXINIT);
@@ -246,7 +243,7 @@ namespace Tmds.Ssh
             return packet.Move();
         }
 
-        private static void ParseNewKeysMessage(Packet packet)
+        private static void ParseNewKeysMessage(ReadOnlyPacket packet)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_NEWKEYS);

@@ -14,7 +14,7 @@ namespace Tmds.Ssh
         {
             ChannelContext context = CreateChannel();
 
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Abort(), context);
+            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), context);
 
             ChannelDataStream? stream = null;
             try

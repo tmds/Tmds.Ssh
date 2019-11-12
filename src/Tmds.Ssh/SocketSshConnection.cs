@@ -128,7 +128,7 @@ namespace Tmds.Ssh
         {
             _logger.Send(packet);
 
-            _encoder.Encode(_sendSequenceNumber, packet, _sendBuffer);
+            _encoder.Encode(_sendSequenceNumber, packet.Move(), _sendBuffer);
             var encodedData = _sendBuffer.AsReadOnlySequence();
 
             if (encodedData.IsSingleSegment)

@@ -23,7 +23,7 @@ namespace Tmds.Ssh
             // Request ssh-userauth service
             {
                 using var serviceRequestMsg = CreateServiceRequestMessage(connection.SequencePool);
-                await connection.SendPacketAsync(serviceRequestMsg, ct);
+                await connection.SendPacketAsync(serviceRequestMsg.Move(), ct);
             }
             {
                 using Packet serviceAcceptMsg = await connection.ReceivePacketAsync(ct);
@@ -39,7 +39,7 @@ namespace Tmds.Ssh
 
                     using var userAuthMsg = CreatePasswordRequestMessage(connection.SequencePool,
                                                 settings.UserName, passwordCredential.Password);
-                    await connection.SendPacketAsync(userAuthMsg, ct);
+                    await connection.SendPacketAsync(userAuthMsg.Move(), ct);
                 }
                 else if (credential is IdentityFileCredential ifCredential)
                 {
@@ -52,7 +52,7 @@ namespace Tmds.Ssh
 
                             using var userAuthMsg = CreatePublicKeyRequestMessage(connection.SequencePool,
                                                         settings.UserName, connectionInfo.SessionId!, pk!);
-                            await connection.SendPacketAsync(userAuthMsg, ct);
+                            await connection.SendPacketAsync(userAuthMsg.Move(), ct);
                         }
                     }
                     else
@@ -134,7 +134,7 @@ namespace Tmds.Ssh
             return packet.Move();
         }
 
-        private static void ParseServiceAccept(Packet packet)
+        private static void ParseServiceAccept(ReadOnlyPacket packet)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_SERVICE_ACCEPT);
@@ -155,7 +155,7 @@ namespace Tmds.Ssh
             return packet.Move();
         }
 
-        private static bool IsAuthSuccesfull(Packet packet)
+        private static bool IsAuthSuccesfull(ReadOnlyPacket packet)
         {
             var reader = packet.GetReader();
             MessageId b = reader.ReadMessageId();
