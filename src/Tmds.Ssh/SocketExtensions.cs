@@ -33,7 +33,7 @@ namespace Tmds.Ssh
             else
             {
                 // async completion
-                using (cancellationToken.UnsafeRegister(a => Socket.CancelConnectAsync((SocketAsyncEventArgs)a!), connectSea))
+                using (cancellationToken.Register(a => Socket.CancelConnectAsync((SocketAsyncEventArgs)a!), connectSea))
                 {
                     try
                     {

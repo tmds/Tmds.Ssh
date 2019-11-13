@@ -272,7 +272,7 @@ namespace Tmds.Ssh
                 {
                     Packet = pkt.Move(),
                     TaskCompletion = cts,
-                    CancellationTokenRegistration = ct.UnsafeRegister(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
+                    CancellationTokenRegistration = ct.Register(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
                 };
 
                 bool written = sendQueue!.Writer.TryWrite(send);
