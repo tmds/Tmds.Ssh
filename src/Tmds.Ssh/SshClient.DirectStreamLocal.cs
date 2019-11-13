@@ -32,7 +32,7 @@ namespace Tmds.Ssh
                 }
                 else
                 {
-                    await context.DisposeAsync();
+                    context.Dispose();
                 }
 
                 throw;

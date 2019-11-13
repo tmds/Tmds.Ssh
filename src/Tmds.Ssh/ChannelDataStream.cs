@@ -94,7 +94,7 @@ namespace Tmds.Ssh
             _readBuffer?.Dispose();
             _readBuffer = null;
 
-            await _context.DisposeAsync();
+            _context.Dispose();
         }
 
         public override bool CanRead => true;

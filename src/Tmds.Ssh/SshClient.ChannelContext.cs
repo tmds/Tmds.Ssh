@@ -319,18 +319,18 @@ namespace Tmds.Ssh
                 }
             }
 
-            public override ValueTask DisposeAsync()
+            public override void Dispose()
             {
                 if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 0)
                 {
+                    Cancel();
+
                     // We don't wait for the channel close to complete
                     // The SshClient calls DoDispose when that has happened.
                     // If the user wants to wait, he must call 'CloseAsync'
                     // explicitly.
                     _client.OnChannelDisposed(this);
                 }
-
-                return default; // Completed ValueTask.
             }
 
             internal void DoDispose()

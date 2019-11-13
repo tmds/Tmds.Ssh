@@ -79,6 +79,56 @@ namespace Tmds.Ssh
             }
         }
 
+        public static ValueTask SendChannelOpenSessionMessageAsync(this ChannelContext context)
+        {
+            return context.SendPacketAsync(CreatePacket(context));
+
+            static Packet CreatePacket(ChannelContext context)
+            {
+                /*
+                    byte      SSH_MSG_CHANNEL_OPEN
+                    string    "session"
+                    uint32    sender channel
+                    uint32    initial window size
+                    uint32    maximum packet size
+                 */
+
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_OPEN);
+                writer.WriteString("session");
+                writer.WriteUInt32(context.LocalChannel);
+                writer.WriteUInt32(context.LocalWindowSize);
+                writer.WriteUInt32(context.LocalMaxPacketSize);
+                return packet.Move();
+            }
+        }
+
+        public static ValueTask SendExecCommandMessageAsync(this ChannelContext context, string command)
+        {
+            return context.SendPacketAsync(CreatePacket(context, command));
+
+            static Packet CreatePacket(ChannelContext context, string command)
+            {
+                /*
+                    byte      SSH_MSG_CHANNEL_REQUEST
+                    uint32    recipient channel
+                    string    "exec"
+                    boolean   want reply
+                    string    command
+                 */
+
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+                writer.WriteUInt32(context.RemoteChannel);
+                writer.WriteString("exec");
+                writer.WriteBoolean(true);
+                writer.WriteString(command);
+                return packet.Move();
+            }
+        }
+
         public static ValueTask SendChannelOpenDirectTcpIpMessageAsync(this ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
         {
             return context.SendPacketAsync(CreatePacket(context, host, port, originatorIP, originatorPort));

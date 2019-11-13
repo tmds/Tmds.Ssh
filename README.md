@@ -1,7 +1,7 @@
 # API
 
 ```cs
-class SshClient : IAsyncDisposable
+class SshClient : IDisposable
 {
     SshClient(string destination, Credential? credential = new IdentityFileCredential(), Action<SshClientSettings>? configure = null);
     SshClient(SshClientSettings settings);
@@ -13,6 +13,27 @@ class SshClient : IAsyncDisposable
     Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default);
     Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default);
     Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken cancellationToken = default);
+
+    Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken cancellationToken = default);
+}
+
+class RemoteProcess : IDisposable
+{
+    int? ExitCode { get; }
+    string? ExitSignal { get; }
+
+    void Cancel();
+
+    ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer);
+    ValueTask<(ProcessReadType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer);
+}
+
+enum ProcessReadType
+{
+    StandardOutput,
+    StandardError,
+    StandardOutputEof,
+    ProcessExit
 }
 
 class ChannelDataStream : Stream
@@ -21,8 +42,8 @@ class ChannelDataStream : Stream
     public int MaxReadLength;  // Size hint for calling ReadAsync.
     ValueTask WriteAsync(ReadOnlyMemory<byte> buffer);
     ValueTask<int> ReadAsync(Memory<byte> buffer);
-    void Abort();   // Stops the channel immediately, on-going operations are cancelled.
-    void Dispose(); // Calls Abort and frees channel resources.
+    void Cancel();  // Stops the channel immediately, on-going operations are cancelled.
+    void Dispose(); // Calls Cancel and frees channel resources.
 }
 
 class SshClientSettings
