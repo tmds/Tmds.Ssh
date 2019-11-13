@@ -13,12 +13,36 @@ namespace Tmds.Ssh
         {
             using var packet = await context.ReceivePacketAsync();
 
-            ParseChannelOpenConfirmation(packet);
-
-            static void ParseChannelOpenConfirmation(ReadOnlyPacket packet)
+            switch (packet.MessageId)
             {
+                case MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
+                    return;
+                case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
+                    (ChannelOpenFailureReason reason, string description) = ParseChannelOpenFailure(packet);
+                    throw new ChannelOpenFailureException(reason, description);
+                default:
+                    ThrowHelper.ThrowProtocolUnexpectedMessageId(packet.MessageId!.Value);
+                    break;
+            }
+
+            static (ChannelOpenFailureReason reason, string description) ParseChannelOpenFailure(ReadOnlyPacket packet)
+            {
+                /*
+                    byte      SSH_MSG_CHANNEL_OPEN_FAILURE
+                    uint32    recipient channel
+                    uint32    reason code
+                    string    description in ISO-10646 UTF-8 encoding [RFC3629]
+                    string    language tag [RFC3066]
+                 */
                 var reader = packet.GetReader();
-                reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION); // TODO SSH_MSG_CHANNEL_OPEN_FAILURE
+                reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE);
+                reader.SkipUInt32();
+                ChannelOpenFailureReason reason = (ChannelOpenFailureReason)reader.ReadUInt32();
+                string description = reader.ReadUtf8String();
+                reader.SkipString();
+                reader.ReadEnd();
+
+                return (reason, description);
             }
         }
 

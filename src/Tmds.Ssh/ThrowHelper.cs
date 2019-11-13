@@ -81,9 +81,9 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
-        public static void ThrowKeyExchangeFailed(string message)
+        public static void ThrowKeyExchangeFailed(string message, SshConnectionInfo connectionInfo)
         {
-            throw new KeyExchangeFailedException(message);
+            throw new KeyExchangeFailedException(message, connectionInfo);
         }
 
         [DoesNotReturn]
