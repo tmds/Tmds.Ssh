@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using System.Net;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -11,14 +11,16 @@ namespace Tmds.Ssh.TestApp
     {
         static async Task<int> Main(string[] args)
         {
-            if (args.Length == 0)
+            if (args.Length < 2)
             {
-                System.Console.WriteLine("Specify a host to connect to");
+                System.Console.WriteLine("Specify a host to connect to, and a command ('http'/'exec')");
                 return 1;
             }
 
             ParseUserHostAndPort(args, out string username, out string host, out int port);
             // string password = ReadPassword();
+
+            string command = args[1];
 
             var settings = new SshClientSettings(username, host)
             {
@@ -31,7 +33,39 @@ namespace Tmds.Ssh.TestApp
 
             await client.ConnectAsync();
 
-            await MakeHttpRequestAsync(client, "www.redhat.com");
+            if (command == "http")
+            {
+                string url = args.Length > 2 ? args[2] : "www.redhat.com";
+                await MakeHttpRequestAsync(client, url);
+            }
+            else if (command == "exec")
+            {
+                string commandline = args.Length > 2 ? string.Join(' ', args.Skip(2)) : "echo 'hello world'";
+                           var remoteProcess = await client.ExecuteCommandAsync(commandline);
+                var utf8Decoder = new UTF8Encoding().GetDecoder();
+                byte[] buffer = new byte[1024];
+                char[] decodedBuffer = new char[Encoding.UTF8.GetMaxCharCount(buffer.Length)];
+                do
+                {
+                    (ProcessReadType readType, int bytesReceived) = await remoteProcess.ReadOutputAsync(buffer);
+                    if (readType == ProcessReadType.StandardOutput)
+                    {
+                            int charsDecoded = utf8Decoder.GetChars(buffer, 0, bytesReceived, decodedBuffer, 0, flush: false);
+                            Console.Write(decodedBuffer, 0, charsDecoded);
+                            Console.Out.Flush();
+                    }
+                    else if (readType == ProcessReadType.ProcessExit)
+                    {
+                        break;
+                    }
+                } while (true);
+
+                Console.WriteLine("Process exited with exit code " + remoteProcess.ExitCode);
+            }
+            else
+            {
+                throw new ArgumentException(nameof(command));
+            }
 
             return 0;
         }

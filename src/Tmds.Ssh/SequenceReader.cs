@@ -109,6 +109,11 @@ namespace Tmds.Ssh
             return ReadByte() != 0;
         }
 
+        public void SkipBoolean()
+        {
+            Skip(1);
+        }
+
         public ulong ReadUInt64()
         {
             if (_reader.TryReadBigEndian(out long i))
