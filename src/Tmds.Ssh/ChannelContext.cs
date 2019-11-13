@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
-    abstract class ChannelContext : IAsyncDisposable // TODO: make this an IDisposable
+    abstract class ChannelContext : IAsyncDisposable
     {
         public uint LocalChannel { get; protected set; }
         public uint RemoteChannel { get; protected set; }

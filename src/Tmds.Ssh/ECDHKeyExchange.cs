@@ -14,6 +14,7 @@ using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
+using System.Text;
 
 namespace Tmds.Ssh
 {
@@ -57,10 +58,10 @@ namespace Tmds.Ssh
 
             // Verify received key is valid.
             connectionInfo.SshKey = ecdhReply.public_host_key;
-            var verificationResult = await settings.HostKeyVerification.VerifyAsync(connectionInfo, ct);
-            if (verificationResult != HostKeyVerificationResult.Trusted)
+            connectionInfo.KeyVerificationResult = await settings.HostKeyVerification.VerifyAsync(connectionInfo, ct);
+            if (connectionInfo.KeyVerificationResult != HostKeyVerificationResult.Trusted)
             {
-                throw new KeyExchangeFailedException("The host key is not trusted.");
+                throw new HostKeyVerificationFailedException(connectionInfo);
             }
 
             var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
@@ -72,7 +73,7 @@ namespace Tmds.Ssh
             }
             catch (Exception ex)
             {
-                throw new KeyExchangeFailedException("Cannot determine shared secret.", ex);
+                throw new KeyExchangeFailedException("Cannot determine shared secret.", connectionInfo, ex);
             }
 
             // Generate exchange hash.
@@ -81,7 +82,7 @@ namespace Tmds.Ssh
             // Verify the server's signature.
             if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
             {
-                throw new KeyExchangeFailedException("Signature does not match host key.");
+                throw new KeyExchangeFailedException("Signature does not match host key.", connectionInfo);
             }
 
             byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;

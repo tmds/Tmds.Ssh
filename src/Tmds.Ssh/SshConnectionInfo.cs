@@ -13,5 +13,6 @@ namespace Tmds.Ssh
         public string Host { get; internal set; } = string.Empty;
         public int Port { get; internal set; }
         public SshKey? SshKey { get; internal set; }
+        public HostKeyVerificationResult? KeyVerificationResult { get; internal set; }
     }
 }

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh
 {
-    public sealed partial class SshClient : IAsyncDisposable // TODO: make this an IDisposable
+    public sealed partial class SshClient : IDisposable
     {
         private readonly SshClientSettings _settings;
         private readonly ILogger _logger;
@@ -247,11 +247,6 @@ namespace Tmds.Ssh
 
                 return channelContext;
             }
-        }
-
-        private ValueTask SendPacketAsync(Packet packet)
-        {
-            return SendPacketAsync(packet, ConnectionClosed);
         }
 
         private ValueTask SendPacketAsync(Packet packet, CancellationToken ct = default)
@@ -507,7 +502,7 @@ namespace Tmds.Ssh
         // }
 
         // This method will just cut the connection.
-        public async ValueTask DisposeAsync()
+        public void Dispose()
         {
             Task? runningConnectionTask = null;
             lock (_gate)
@@ -518,7 +513,7 @@ namespace Tmds.Ssh
             Abort(NewObjectDisposedException());
             if (runningConnectionTask != null)
             {
-                await runningConnectionTask;
+                runningConnectionTask.GetAwaiter().GetResult();
             }
         }
 

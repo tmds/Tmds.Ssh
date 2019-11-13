@@ -27,7 +27,7 @@ namespace Tmds.Ssh.TestApp
                 // Credentials = { new PasswordCredential(username, password) }
             };
 
-            await using var client = new SshClient(settings, CreateLogger());
+            using var client = new SshClient(settings, CreateLogger());
 
             await client.ConnectAsync();
 
