@@ -19,11 +19,10 @@ namespace Tmds.Ssh
         private bool _receivedEof;
         private bool _disposed;
 
-        // Maximum length the peer sends us in a single message. May be used as a size hint when calling ReadAsync.
         public int MaxWriteLength => _context.LocalMaxPacketSize;
-
-        // Maximum length we send in a single message. May be used as a size hint when calling WriteAsync.
         public int MaxReadLength => _context.RemoteMaxPacketSize;
+        public CancellationToken ChannelAborted => _context.ChannelAborted;
+        public CancellationToken ChannelStopped => _context.ChannelStopped;
 
         internal ChannelDataStream(ChannelContext context)
         {

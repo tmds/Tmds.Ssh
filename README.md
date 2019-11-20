@@ -21,6 +21,11 @@ class SshClient : IDisposable
 
 class RemoteProcess : IDisposable
 {
+    public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
+    public int MaxReadLength;  // Size hint for calling ReadAsync.
+    public CancellationToken ChannelAborted;
+    public CancellationToken ChannelStopped;
+
     int? ExitCode { get; }
     string? ExitSignal { get; }
 
@@ -42,6 +47,8 @@ class ChannelDataStream : Stream
 {
     public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
     public int MaxReadLength;  // Size hint for calling ReadAsync.
+    public CancellationToken ChannelAborted;
+    public CancellationToken ChannelStopped;
     ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
     ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default);
     void Abort(Exception reason);  // Stops the channel immediately, on-going operations throw ChannelAbortedException.

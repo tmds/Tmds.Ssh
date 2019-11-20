@@ -15,6 +15,11 @@ namespace Tmds.Ssh
         private Sequence? _stderrData;
         private bool _exited;
 
+        public int MaxWriteLength => _context.LocalMaxPacketSize;
+        public int MaxReadLength => _context.RemoteMaxPacketSize;
+        public CancellationToken ChannelAborted => _context.ChannelAborted;
+        public CancellationToken ChannelStopped => _context.ChannelStopped;
+
         internal RemoteProcess(ChannelContext context)
         {
             _context = context;
