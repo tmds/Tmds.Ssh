@@ -38,39 +38,49 @@ namespace Tmds.Ssh
             public CancellationTokenRegistration Ctr2;
         }
 
-        public SshClient(string destination, Credential? credential = null, Action<SshClientSettings>? configure = null) :
-            this(CreateSettingsForDetination(destination, credential ?? new IdentityFileCredential()), null)
+        public SshClient(string destination, Action<SshClientSettings>? configure = null)
         {
-            configure?.Invoke(_settings);
+            _abortCts = new CancellationTokenSource();
+
+            _settings = CreateSettingsForDetination(destination);
+            if (configure == null)
+            {
+                _settings.Credentials.Add(new IdentityFileCredential());
+            }
+            else
+            {
+                configure?.Invoke(_settings);
+            }
+            _logger = _settings.Logger ?? NullLogger.Instance;
+            ValidateSettings(_settings);
         }
 
-        private static SshClientSettings CreateSettingsForDetination(string destination, Credential credential)
+        private static SshClientSettings CreateSettingsForDetination(string destination)
         {
             if (destination == null)
             {
                 ThrowHelper.ThrowArgumentNull(nameof(destination));
             }
-            int atPos = destination.IndexOf('@');
-            if (atPos == -1)
+            string host = destination;
+            int port = 22;
+            int colonPos = host.IndexOf(":");
+            if (colonPos != -1)
             {
-                throw new FormatException($"{nameof(destination)} must have format 'user@host'.");
+                port = int.Parse(host.Substring(colonPos + 1));
+                host = host.Substring(0, colonPos);
             }
-            string username = destination.Substring(0, atPos);
-            string host = destination.Substring(atPos + 1);
-            return new SshClientSettings(username, host, credential);
-        }
-
-        public SshClient(SshClientSettings settings) :
-            this(settings, null)
-        { }
-
-        // TODO: decide how to expose the logger publically.
-        internal SshClient(SshClientSettings settings, ILogger? logger = null)
-        {
-            ValidateSettings(settings);
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _logger = logger ?? NullLogger.Instance;
-            _abortCts = new CancellationTokenSource();
+            int atPos = host.IndexOf("@");
+            string username;
+            if (atPos != -1)
+            {
+                username = host.Substring(0, atPos);
+                host = host.Substring(atPos + 1);
+            }
+            else
+            {
+                username = string.Empty;
+            }
+            return new SshClientSettings(username, host, port);
         }
 
         private static void ValidateSettings(SshClientSettings settings)

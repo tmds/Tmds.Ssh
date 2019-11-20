@@ -8,10 +8,18 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
+    // MAYDO: maybe add arg to control window size?
+    public class UnixConnectionOptions
+    {
+
+    }
+
     public partial class SshClient
     {
-        // MAYDO: maybe add arg to control window size?
-        public async Task<Stream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken ct = default)
+        public Task<Stream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken ct)
+            => CreateUnixConnectionAsStreamAsync(socketPath, configure: null, ct);
+
+        public async Task<Stream> CreateUnixConnectionAsStreamAsync(string socketPath, Action<UnixConnectionOptions>? configure = null, CancellationToken ct = default)
         {
             ChannelContext context = CreateChannel();
 

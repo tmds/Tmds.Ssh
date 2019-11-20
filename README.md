@@ -3,18 +3,20 @@
 ```cs
 class SshClient : IDisposable
 {
-    SshClient(string destination, Credential? credential = new IdentityFileCredential(), Action<SshClientSettings>? configure = null);
-    SshClient(SshClientSettings settings);
+    SshClient(string destination, Action<SshClientSettings>? configure = null);
 
     CancellationToken ConnectionClosed { get; }
 
     Task ConnectAsync(CancellationToken ct = default);
 
-    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken ct = default);
-    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken ct = default);
-    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken ct = default);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken ct);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, Action<TcpConnectionOptions>? configure = null, CancellationToken ct = default);
 
-    Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct = default);
+    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken ct);
+    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, Action<UnixConnectionOptions>? configure = null, CancellationToken ct = default);
+
+    Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct);
+    Task<RemoteProcess> ExecuteCommandAsync(string command, Action<ExecuteCommandOptions>? configure = null, CancellationToken ct = default);
 }
 
 class RemoteProcess : IDisposable
@@ -48,11 +50,7 @@ class ChannelDataStream : Stream
 
 class SshClientSettings
 {
-    SshClientSettings(string userName, string host, Credential? credential = null);
     TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-    string UserName { get; }
-    string Host { get; }
-    int Port { get; set; } = 22;
     List<Credential> Credentials { get; }
     HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
 }

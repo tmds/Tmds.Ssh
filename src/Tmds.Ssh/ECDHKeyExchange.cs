@@ -58,7 +58,7 @@ namespace Tmds.Ssh
 
             // Verify received key is valid.
             connectionInfo.SshKey = ecdhReply.public_host_key;
-            connectionInfo.KeyVerificationResult = await settings.HostKeyVerification.VerifyAsync(connectionInfo, ct);
+            connectionInfo.KeyVerificationResult = await settings.HostKeyVerification!.VerifyAsync(connectionInfo, ct);
             if (connectionInfo.KeyVerificationResult != HostKeyVerificationResult.Trusted)
             {
                 throw new HostKeyVerificationFailedException(connectionInfo);
