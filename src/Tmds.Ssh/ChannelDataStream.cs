@@ -45,7 +45,7 @@ namespace Tmds.Ssh
                 MessageId messageId;
                 do
                 {
-                    using var packet = await _context.ReceivePacketAsync();
+                    using var packet = await _context.ReceivePacketAsync(ct: default);
                     messageId = packet.MessageId!.Value;
 
                     if (messageId == MessageId.SSH_MSG_CHANNEL_REQUEST)
@@ -67,8 +67,8 @@ namespace Tmds.Ssh
             }
         }
 
-        public void Cancel()
-            => _context.Cancel();
+        public void Abort(Exception reason)
+            => _context.Abort(reason);
 
         protected override void Dispose(bool disposing)
         {
@@ -83,10 +83,12 @@ namespace Tmds.Ssh
             }
             _disposed = true;
 
-            _context.Cancel();
-
+            // Make the ReceiveLoop stop.
+            if (!_context.IsAborted)
+            {
+                _context.Abort(new ObjectDisposedException(GetType().FullName));
+            }
             await _receiveLoopTask;
-
             while (_readQueue.Reader.TryRead(out Packet packet))
             {
                 packet.Dispose();
@@ -94,6 +96,7 @@ namespace Tmds.Ssh
             _readBuffer?.Dispose();
             _readBuffer = null;
 
+            // Close the channel.
             _context.Dispose();
         }
 
@@ -108,9 +111,7 @@ namespace Tmds.Ssh
         public override long Position { get => throw new System.NotSupportedException(); set => throw new System.NotSupportedException(); }
 
         public override void Flush()
-        {
-            ThrowIfDisposed();
-        }
+        { }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
@@ -139,17 +140,11 @@ namespace Tmds.Ssh
 
         public override Task FlushAsync(CancellationToken cancellationToken)
         {
-            ThrowIfDisposed();
-
             return Task.CompletedTask;
         }
 
         public override async ValueTask<int> ReadAsync(System.Memory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
         {
-            ThrowIfDisposed();
-
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), _context);
-
             if (_receivedEof)
             {
                 return 0;
@@ -160,7 +155,7 @@ namespace Tmds.Ssh
             {
                 if (_readBuffer == null)
                 {
-                    using Packet packet = await ReceiveUntilChannelDataAsync();
+                    using Packet packet = await ReceiveUntilChannelDataAsync(cancellationToken);
                     if (packet.IsEmpty)
                     {
                         _receivedEof = true;
@@ -187,18 +182,19 @@ namespace Tmds.Ssh
                 }
             } while (length == 0);
 
-            await _context.AdjustChannelWindowAsync(length);
+            _context.AdjustChannelWindow(length);
 
             return length;
         }
 
-        private async ValueTask<Packet> ReceiveUntilChannelDataAsync()
+        private async ValueTask<Packet> ReceiveUntilChannelDataAsync(CancellationToken ct)
         {
+            CancellationTokenSource? cts = null;
             try
             {
                 while (true)
                 {
-                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelCancelled);
+                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelAborted, ct, ref cts);
 
                     switch (packet.MessageId)
                     {
@@ -215,9 +211,14 @@ namespace Tmds.Ssh
             }
             catch (OperationCanceledException)
             {
-                _context.ThrowIfChannelCancelled();
+                ct.ThrowIfCancellationRequested();
+                _context.ThrowIfChannelAborted();
 
                 throw;
+            }
+            finally
+            {
+                cts?.Dispose();
             }
         }
 
@@ -228,7 +229,7 @@ namespace Tmds.Ssh
             {
                 // If the request is not recognized or is not
                 // supported for the channel, SSH_MSG_CHANNEL_FAILURE is returned.
-                await _context.SendChannelFailureMessageAsync();
+                await _context.SendChannelFailureMessageAsync(ct: default);
             }
         }
 
@@ -251,24 +252,12 @@ namespace Tmds.Ssh
 
         public override ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
         {
-            ThrowIfDisposed();
-
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), _context);
-
-            return _context.SendChannelDataAsync(buffer);
+            return _context.SendChannelDataAsync(buffer, cancellationToken);
         }
 
         private void ThrowCancellationTokenNotSupported()
         {
             throw new NotSupportedException("A cancelable token is not supported on this operation.");
-        }
-
-        private void ThrowIfDisposed()
-        {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(GetType().FullName);
-            }
         }
     }
 }

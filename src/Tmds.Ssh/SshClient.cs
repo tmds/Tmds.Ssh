@@ -34,7 +34,8 @@ namespace Tmds.Ssh
         {
             public Packet Packet;
             public TaskCompletionSource<bool> TaskCompletion;
-            public CancellationTokenRegistration CancellationTokenRegistration;
+            public CancellationTokenRegistration Ctr1;
+            public CancellationTokenRegistration Ctr2;
         }
 
         public SshClient(string destination, Credential? credential = null, Action<SshClientSettings>? configure = null) :
@@ -88,7 +89,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task ConnectAsync(CancellationToken cancellationToken = default)
+        public async Task ConnectAsync(CancellationToken ct = default)
         {
             Task task;
             // ConnectAsync can be cancelled by calling DisposeAsync.
@@ -107,7 +108,7 @@ namespace Tmds.Ssh
                 task = connectionCompletedTcs.Task;
 
                 // DisposeAsync waits for this Task to complete.
-                _runningConnectionTask = RunConnectionAsync(cancellationToken, connectionCompletedTcs);
+                _runningConnectionTask = RunConnectionAsync(ct, connectionCompletedTcs);
             }
 
             await task;
@@ -249,7 +250,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private ValueTask SendPacketAsync(Packet packet, CancellationToken ct = default)
+        private ValueTask SendPacketAsync(Packet packet, CancellationToken ct1 = default, CancellationToken ct2 = default)
         {
             using var pkt = packet.Move();
             Channel<PendingSend>? sendQueue = _sendQueue;
@@ -272,7 +273,8 @@ namespace Tmds.Ssh
                 {
                     Packet = pkt.Move(),
                     TaskCompletion = cts,
-                    CancellationTokenRegistration = ct.Register(s => ((TaskCompletionSource<bool>)s!).SetCanceled(), cts)
+                    Ctr1 = ct1.Register(s => ((TaskCompletionSource<bool>)s!).TrySetCanceled(), cts),
+                    Ctr2 = ct2.Register(s => ((TaskCompletionSource<bool>)s!).TrySetCanceled(), cts)
                 };
 
                 bool written = sendQueue!.Writer.TryWrite(send);
@@ -280,7 +282,8 @@ namespace Tmds.Ssh
                 {
                     // SendLoopAsync stopped.
                     send.Packet.Dispose();
-                    send.CancellationTokenRegistration.Dispose();
+                    send.Ctr1.Dispose();
+                    send.Ctr2.Dispose();
                     if (!send.TaskCompletion.Task.IsCompleted)
                     {
                         send.TaskCompletion.SetException(NewConnectionClosedException());
@@ -309,7 +312,8 @@ namespace Tmds.Ssh
                     using var pkt = send.Packet.Move();
 
                     // Disable send.CancellationToken.
-                    send.CancellationTokenRegistration.Dispose();
+                    send.Ctr1.Dispose();
+                    send.Ctr2.Dispose();
 
                     // Send if not cancelled.
                     if (!send.TaskCompletion.Task.IsCompleted)
@@ -355,7 +359,8 @@ namespace Tmds.Ssh
                     while (_sendQueue.Reader.TryRead(out PendingSend send))
                     {
                         send.Packet.Dispose();
-                        send.CancellationTokenRegistration.Dispose();
+                        send.Ctr1.Dispose();
+                        send.Ctr2.Dispose();
                         if (!send.TaskCompletion.Task.IsCompleted)
                         {
                             send.TaskCompletion.SetException(NewConnectionClosedException());
@@ -510,7 +515,10 @@ namespace Tmds.Ssh
                 _disposed = true;
                 runningConnectionTask = _runningConnectionTask;
             }
-            Abort(NewObjectDisposedException());
+            if (_abortReason == null)
+            {
+                Abort(NewObjectDisposedException());
+            }
             if (runningConnectionTask != null)
             {
                 runningConnectionTask.GetAwaiter().GetResult();
@@ -575,7 +583,7 @@ namespace Tmds.Ssh
             {
                 if (!ConnectionClosed.IsCancellationRequested)
                 {
-                    await context.CloseAsync(channelSend: false);
+                    await context.CloseAsync(disposing: true);
                 }
             }
             catch (Exception e)
