@@ -14,17 +14,18 @@ namespace Tmds.Ssh
         public int LocalWindowSize { get; protected set; } = 2 * 1024 * 1024;
         public int LocalMaxPacketSize { get { return Constants.MaxDataPacketSize; } }
         public int RemoteMaxPacketSize { get; protected set; }
-        public abstract CancellationToken ChannelStopped { get; }   // When ChannelCancelled or peer closes channel.
-        public abstract CancellationToken ChannelCancelled { get; } // When ConnectionClosed or user calls Cancel.
-        public abstract ValueTask<Packet> ReceivePacketAsync(); // TODO: Add a CancellationToken??
-        public abstract ValueTask SendPacketAsync(Packet packet);
-        public abstract ValueTask SendChannelDataAsync(ReadOnlyMemory<byte> memory);
+        public abstract CancellationToken ChannelStopped { get; } // When ChannelCancelled or peer closes channel.
+        public abstract CancellationToken ChannelAborted { get; } // When ConnectionClosed or user calls Abort.
+        public abstract ValueTask<Packet> ReceivePacketAsync(CancellationToken ct);     // Implicitly uses ChannelAborted.
+        public abstract ValueTask SendPacketAsync(Packet packet, CancellationToken ct); // Implicitly uses ChannelStopped.
+        public abstract ValueTask SendChannelDataAsync(ReadOnlyMemory<byte> memory, CancellationToken ct);
         public abstract Packet RentPacket();
-        public abstract void Cancel(); // TODO: Should this be named Abort and cause ChannelAbortedException??
-        public abstract ValueTask CloseAsync();
-        public abstract ValueTask AdjustChannelWindowAsync(int bytesToAdd);
-        public abstract void ThrowIfChannelStopped();   // Throws ConnectionClosedException, OperationCanceledException, ChannelClosedException.
-        public abstract void ThrowIfChannelCancelled(); // Throws ConnectionClosedException, OperationCanceledException.
+        public abstract void Abort(Exception reason);
+        public abstract bool IsAborted { get; }
+        public abstract ValueTask CloseAsync(CancellationToken ct);
+        public abstract void AdjustChannelWindow(int bytesToAdd);
+        public abstract void ThrowIfChannelStopped(); // Throws ConnectionClosedException, ChannelAbortedException, ChannelClosedException.
+        public abstract void ThrowIfChannelAborted(); // Throws ConnectionClosedException, ChannelAbortedException.
 
         public abstract void Dispose();
     }

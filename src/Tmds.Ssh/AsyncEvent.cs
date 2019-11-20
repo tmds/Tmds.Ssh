@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
-    sealed class AsyncManualResetEvent : IDisposable
+    sealed class AsyncEvent : IDisposable
     {
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(0);
         private int _waiters;
         private const int SET = -1;
 
-        public async ValueTask WaitAsync(CancellationToken ct)
+        public async ValueTask WaitAsync(CancellationToken ct1, CancellationToken ct2 = default)
         {
             do
             {
@@ -25,7 +25,15 @@ namespace Tmds.Ssh
 
                 if (Interlocked.CompareExchange(ref _waiters, waiters + 1, waiters) == waiters)
                 {
-                    await _semaphore.WaitAsync(ct);
+                    if (ct1.CanBeCanceled && ct2.CanBeCanceled)
+                    {
+                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct1, ct2);
+                        await _semaphore.WaitAsync(cts.Token);
+                    }
+                    else if (!ct2.CanBeCanceled)
+                    {
+                        await _semaphore.WaitAsync(ct1);
+                    }
                 }
             } while (true);
         }
@@ -37,11 +45,6 @@ namespace Tmds.Ssh
             {
                 _semaphore.Release(waiters);
             }
-        }
-
-        public void Reset()
-        {
-            Interlocked.CompareExchange(ref _waiters, 0, SET);
         }
 
         public void Dispose()

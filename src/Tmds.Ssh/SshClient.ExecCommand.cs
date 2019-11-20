@@ -1,6 +1,7 @@
 ﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,25 +11,23 @@ namespace Tmds.Ssh
     {
         // MAYDO: maybe add arg to control window size?
         // TODO: support envvars.
-        public async Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken cancellationToken = default)
+        public async Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct = default)
         {
             ChannelContext context = CreateChannel();
-
-            using var abortOnCancel = cancellationToken.Register(ctx => ((ChannelContext)ctx!).Cancel(), context);
 
             RemoteProcess? remoteProcess = null;
             try
             {
                 // Open the session channel.
                 {
-                    await context.SendChannelOpenSessionMessageAsync();
-                    await context.ReceiveChannelOpenConfirmationAsync();
+                    await context.SendChannelOpenSessionMessageAsync(ct);
+                    await context.ReceiveChannelOpenConfirmationAsync(ct);
                 }
 
                 // Request command execution.
                 {
-                    await context.SendExecCommandMessageAsync(command);
-                    await context.ReceiveChannelRequestSuccessAsync();
+                    await context.SendExecCommandMessageAsync(command, ct);
+                    await context.ReceiveChannelRequestSuccessAsync(ct);
                 }
                 remoteProcess = new RemoteProcess(context);
                 return remoteProcess;

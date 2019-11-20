@@ -3,6 +3,7 @@
 
 using System;
 using System.Buffers;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Tmds.Ssh
@@ -22,13 +23,13 @@ namespace Tmds.Ssh
         public int? ExitCode { get; private set; }
         public string? ExitSignal { get; private set; }
 
-        public void Cancel()
-            => _context.Cancel();
+        public void Abort(Exception reason)
+            => _context.Abort(reason);
 
-        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer)
-            => _context.SendChannelDataAsync(buffer);
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+            => _context.SendChannelDataAsync(buffer, ct);
 
-        public async ValueTask<(ProcessReadType readType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer)
+        public async ValueTask<(ProcessReadType readType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer, CancellationToken ct = default)
         {
             if (buffer.Length == 0)
             {
@@ -42,7 +43,7 @@ namespace Tmds.Ssh
                     int length = MoveDataFromSequenceToMemory(ref _stdoutData, buffer);
                     if (length != 0)
                     {
-                        await _context.AdjustChannelWindowAsync(length);
+                        _context.AdjustChannelWindow(length);
                         return (ProcessReadType.StandardOutput, length);
                     }
                 }
@@ -52,12 +53,12 @@ namespace Tmds.Ssh
                     int length = MoveDataFromSequenceToMemory(ref _stderrData, buffer);
                     if (length != 0)
                     {
-                        await _context.AdjustChannelWindowAsync(length);
+                        _context.AdjustChannelWindow(length);
                         return (ProcessReadType.StandardError, length);
                     }
                 }
 
-                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync();
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(ct);
 
                 if (_stdoutData == null &&
                     _stderrData == null)
@@ -81,7 +82,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private async ValueTask<ProcessReadType> ReceiveUntilProcessReadResultAsync()
+        private async ValueTask<ProcessReadType> ReceiveUntilProcessReadResultAsync(CancellationToken ct)
         {
             if (_exited)
             {
@@ -90,7 +91,7 @@ namespace Tmds.Ssh
 
             do
             {
-                using var packet = await _context.ReceivePacketAsync();
+                using var packet = await _context.ReceivePacketAsync(ct);
                 switch (packet.MessageId)
                 {
                     case MessageId.SSH_MSG_CHANNEL_DATA:
@@ -107,7 +108,7 @@ namespace Tmds.Ssh
                         _exited = true;
                         return ProcessReadType.ProcessExit;
                     case MessageId.SSH_MSG_CHANNEL_REQUEST:
-                        await HandleMsgChannelRequestAsync(packet);
+                        await HandleMsgChannelRequestAsync(packet, ct);
                         break;
                     default:
                         ThrowHelper.ThrowProtocolUnexpectedMessageId(packet.MessageId!.Value);
@@ -116,14 +117,14 @@ namespace Tmds.Ssh
             } while (true);
         }
 
-        private async ValueTask HandleMsgChannelRequestAsync(ReadOnlyPacket packet)
+        private async ValueTask HandleMsgChannelRequestAsync(ReadOnlyPacket packet, CancellationToken ct)
         {
             bool want_reply = ParseAndHandleChannelRequest(packet);
             if (want_reply)
             {
                 // If the request is not recognized or is not
                 // supported for the channel, SSH_MSG_CHANNEL_FAILURE is returned.
-                await _context.SendChannelFailureMessageAsync();
+                await _context.SendChannelFailureMessageAsync(ct);
             }
         }
 

@@ -8,13 +8,13 @@ class SshClient : IDisposable
 
     CancellationToken ConnectionClosed { get; }
 
-    Task ConnectAsync(CancellationToken cancellationToken = default);
+    Task ConnectAsync(CancellationToken ct = default);
 
-    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken cancellationToken = default);
-    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken cancellationToken = default);
-    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken cancellationToken = default);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken ct = default);
+    Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken ct = default);
+    Task<ChannelDataStream> CreateUnixConnectionAsStreamAsync(string socketPath, CancellationToken ct = default);
 
-    Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken cancellationToken = default);
+    Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct = default);
 }
 
 class RemoteProcess : IDisposable
@@ -22,10 +22,10 @@ class RemoteProcess : IDisposable
     int? ExitCode { get; }
     string? ExitSignal { get; }
 
-    void Cancel();
+    void Abort(Exception reason); // Stops the channel immediately, on-going operations throw ChannelAbortedException.
 
-    ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer);
-    ValueTask<(ProcessReadType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer);
+    ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
+    ValueTask<(ProcessReadType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer, CancellationToken ct = default);
 }
 
 enum ProcessReadType
@@ -40,9 +40,9 @@ class ChannelDataStream : Stream
 {
     public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
     public int MaxReadLength;  // Size hint for calling ReadAsync.
-    ValueTask WriteAsync(ReadOnlyMemory<byte> buffer);
-    ValueTask<int> ReadAsync(Memory<byte> buffer);
-    void Cancel();  // Stops the channel immediately, on-going operations are cancelled.
+    ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
+    ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default);
+    void Abort(Exception reason);  // Stops the channel immediately, on-going operations throw ChannelAbortedException.
     void Dispose(); // Calls Cancel and frees channel resources.
 }
 

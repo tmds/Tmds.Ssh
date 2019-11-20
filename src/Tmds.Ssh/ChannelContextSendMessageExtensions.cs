@@ -3,15 +3,16 @@
 
 using System;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
     static class ChannelContextSendMessageExtensions
     {
-        public static ValueTask SendChannelFailureMessageAsync(this ChannelContext context)
+        public static ValueTask SendChannelFailureMessageAsync(this ChannelContext context, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context));
+            return context.SendPacketAsync(CreatePacket(context), ct);
 
             static Packet CreatePacket(ChannelContext context)
             {
@@ -27,9 +28,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelDataMessageAsync(this ChannelContext context,  ReadOnlyMemory<byte> memory)
+        public static ValueTask SendChannelDataMessageAsync(this ChannelContext context,  ReadOnlyMemory<byte> memory, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context, memory));
+            return context.SendPacketAsync(CreatePacket(context, memory), ct);
 
             static Packet CreatePacket(ChannelContext context, ReadOnlyMemory<byte> memory)
             {
@@ -48,9 +49,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelOpenDirectStreamLocalMessageAsync(this ChannelContext context, string socketPath)
+        public static ValueTask SendChannelOpenDirectStreamLocalMessageAsync(this ChannelContext context, string socketPath, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context, socketPath));
+            return context.SendPacketAsync(CreatePacket(context, socketPath), ct);
 
             static Packet CreatePacket(ChannelContext context, string socketPath)
             {
@@ -79,9 +80,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelOpenSessionMessageAsync(this ChannelContext context)
+        public static ValueTask SendChannelOpenSessionMessageAsync(this ChannelContext context, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context));
+            return context.SendPacketAsync(CreatePacket(context), ct);
 
             static Packet CreatePacket(ChannelContext context)
             {
@@ -104,9 +105,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendExecCommandMessageAsync(this ChannelContext context, string command)
+        public static ValueTask SendExecCommandMessageAsync(this ChannelContext context, string command, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context, command));
+            return context.SendPacketAsync(CreatePacket(context, command), ct);
 
             static Packet CreatePacket(ChannelContext context, string command)
             {
@@ -129,9 +130,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelOpenDirectTcpIpMessageAsync(this ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
+        public static ValueTask SendChannelOpenDirectTcpIpMessageAsync(this ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context, host, port, originatorIP, originatorPort));
+            return context.SendPacketAsync(CreatePacket(context, host, port, originatorIP, originatorPort), ct);
 
             static Packet CreatePacket(ChannelContext context, string host, uint port, IPAddress originatorIP, uint originatorPort)
             {
@@ -162,9 +163,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelWindowAdjustMessageAsync(this ChannelContext context, uint bytesToAdd)
+        public static ValueTask SendChannelWindowAdjustMessageAsync(this ChannelContext context, uint bytesToAdd, CancellationToken ct)
         {
-            return context.SendPacketAsync(CreatePacket(context, bytesToAdd));
+            return context.SendPacketAsync(CreatePacket(context, bytesToAdd), ct);
 
             static Packet CreatePacket(ChannelContext context, uint bytesToAdd)
             {

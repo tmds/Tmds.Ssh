@@ -1,7 +1,6 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,9 +8,9 @@ namespace Tmds.Ssh
 {
     static class ChannelContextReceiveMessageExtensions
     {
-        public static async ValueTask ReceiveChannelOpenConfirmationAsync(this ChannelContext context)
+        public static async ValueTask ReceiveChannelOpenConfirmationAsync(this ChannelContext context, CancellationToken ct)
         {
-            using var packet = await context.ReceivePacketAsync();
+            using var packet = await context.ReceivePacketAsync(ct);
 
             switch (packet.MessageId)
             {
@@ -46,9 +45,9 @@ namespace Tmds.Ssh
             }
         }
 
-        public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context)
+        public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context, CancellationToken ct)
         {
-            using var packet = await context.ReceivePacketAsync();
+            using var packet = await context.ReceivePacketAsync(ct);
 
             ParseChannelOpenConfirmation(packet);
 
