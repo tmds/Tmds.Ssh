@@ -17,19 +17,24 @@ namespace Tmds.Ssh.TestApp
                 return 1;
             }
 
-            ParseUserHostAndPort(args, out string username, out string host, out int port);
-            // string password = ReadPassword();
+            string password = null;
+            // password = ReadPassword();
 
             string command = args[1];
 
-            var settings = new SshClientSettings(username, host)
+            using var client = new SshClient(args[0],
+            settings =>
             {
-                Port = port,
-                Credentials = { new IdentityFileCredential() }
-                // Credentials = { new PasswordCredential(username, password) }
-            };
-
-            using var client = new SshClient(settings, CreateLogger());
+                if (password == null)
+                {
+                    settings.Credentials.Add(new IdentityFileCredential());
+                }
+                else
+                {
+                    settings.Credentials.Add(new PasswordCredential(password));
+                }
+                settings.Logger = CreateLogger();
+            });
 
             await client.ConnectAsync();
 
@@ -105,28 +110,6 @@ namespace Tmds.Ssh.TestApp
                 {
                     sb.Append(key.KeyChar);
                 }
-            }
-        }
-
-        private static void ParseUserHostAndPort(string[] args, out string username, out string host, out int port)
-        {
-            host = args[0];
-            port = 22;
-            int colonPos = host.IndexOf(":");
-            if (colonPos != -1)
-            {
-                port = int.Parse(host.Substring(colonPos + 1));
-                host = host.Substring(0, colonPos);
-            }
-            int atPos = host.IndexOf("@");
-            if (atPos != -1)
-            {
-                username = host.Substring(0, atPos);
-                host = host.Substring(atPos + 1);
-            }
-            else
-            {
-                username = string.Empty;
             }
         }
 

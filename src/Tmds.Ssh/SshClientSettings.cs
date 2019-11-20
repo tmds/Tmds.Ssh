@@ -12,7 +12,7 @@ namespace Tmds.Ssh
     // This class gathers settings for SshClient in a separate object.
     public sealed class SshClientSettings
     {
-        public SshClientSettings(string userName, string host, Credential? credential = null)
+        internal SshClientSettings(string userName, string host, int port)
         {
             if (string.IsNullOrEmpty(userName))
             {
@@ -25,17 +25,14 @@ namespace Tmds.Ssh
 
             UserName = userName;
             Host = host;
-
-            if (credential != null)
-            {
-                Credentials.Add(credential);
-            }
+            Port = port;
         }
 
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-        public string UserName { get; }
-        public string Host { get; }
-        public int Port { get; set; } = 22;
+        internal string UserName { get; set; }
+        internal string Host { get; set; }
+        internal int Port { get; set; } = 22;
+        internal ILogger? Logger { get; set; } = null; // TODO: decide how to expose the logger publically.
         public List<Credential> Credentials { get; } = new List<Credential>();
         public HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
 

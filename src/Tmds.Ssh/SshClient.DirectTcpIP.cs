@@ -8,16 +8,31 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
+    // MAYDO: maybe add arg to control window size?
+    public class TcpConnectionOptions
+    {
+        public IPAddress OriginatorIP { get; set; } = IPAddress.Any;
+        public int OriginatorPort { get; set; } = 0;
+    }
+
     public partial class SshClient
     {
-        // MAYDO: maybe add arg to control window size?
-        public Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken ct = default)
-            => CreateTcpConnectionAsStreamAsync(host, port, IPAddress.Any, 0, ct);
+        public Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, CancellationToken ct)
+            => CreateTcpConnectionAsStreamAsync(host, port, configure: null, ct);
 
-        // MAYDO: maybe add arg to control window size?
-        public async Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, IPAddress originatorIP, int originatorPort, CancellationToken ct = default)
+        public async Task<ChannelDataStream> CreateTcpConnectionAsStreamAsync(string host, int port, Action<TcpConnectionOptions>? configure = null, CancellationToken ct = default)
         {
             ChannelContext context = CreateChannel();
+
+            IPAddress originatorIP = IPAddress.Any;
+            int originatorPort = 0;
+            if (configure != null)
+            {
+                TcpConnectionOptions options = new TcpConnectionOptions();
+                configure(options);
+                originatorIP = options.OriginatorIP;
+                originatorPort = options.OriginatorPort;
+            }
 
             ChannelDataStream? stream = null;
             try

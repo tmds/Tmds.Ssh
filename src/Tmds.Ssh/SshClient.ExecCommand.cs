@@ -7,11 +7,19 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
+    // MAYDO: maybe add arg to control window size?
+    // TODO: support envvars.
+    public class ExecuteCommandOptions
+    {
+
+    }
+
     public partial class SshClient
     {
-        // MAYDO: maybe add arg to control window size?
-        // TODO: support envvars.
-        public async Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct = default)
+        public Task<RemoteProcess> ExecuteCommandAsync(string command, CancellationToken ct)
+            => ExecuteCommandAsync(command, configure: null, ct);
+
+        public async Task<RemoteProcess> ExecuteCommandAsync(string command, Action<ExecuteCommandOptions>? configure = null, CancellationToken ct = default)
         {
             ChannelContext context = CreateChannel();
 
