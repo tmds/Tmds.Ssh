@@ -246,8 +246,18 @@ namespace Tmds.Ssh
             MemoryStream? stdoutStream = readStdout ? new MemoryStream() : null;
             MemoryStream? stderrStream = readStderr ? new MemoryStream() : null;
             await ReadToEndAsync(stdoutStream, stderrStream, disposeStreams: false, ct);
-            string? stdout = readStdout ? new StreamReader(stdoutStream, _standardOutputEncoding).ReadToEnd() : null;
-            string? stderr = readStderr ? new StreamReader(stderrStream, _standardErrorEncoding).ReadToEnd() : null;
+            string? stdout = null;
+            if (readStdout)
+            {
+                stdoutStream!.Position = 0;
+                stdout = new StreamReader(stdoutStream, _standardOutputEncoding).ReadToEnd();
+            }
+            string? stderr = null;
+            if (readStderr)
+            {
+                stderrStream!.Position = 0;
+                stderr = new StreamReader(stderrStream, _standardErrorEncoding).ReadToEnd();
+            }
             return (stdout, stderr);
         }
 
