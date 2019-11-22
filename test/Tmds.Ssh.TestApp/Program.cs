@@ -13,7 +13,7 @@ namespace Tmds.Ssh.TestApp
         {
             if (args.Length < 2)
             {
-                System.Console.WriteLine("Specify a host to connect to, and a command ('http'/'exec')");
+                Console.WriteLine("Specify a host to connect to, and a command ('http'/'exec')");
                 return 1;
             }
 

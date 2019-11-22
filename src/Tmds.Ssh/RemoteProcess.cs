@@ -12,6 +12,8 @@ namespace Tmds.Ssh
 {
     public class RemoteProcess : IDisposable
     {
+        const int SSH_EXTENDED_DATA_STDERR = 1;
+
         private readonly ChannelContext _context;
         private Sequence? _stdoutData;
         private Sequence? _stderrData;
@@ -506,7 +508,20 @@ namespace Tmds.Ssh
                     case MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA:
                         if (readStderr)
                         {
-                            // TODO
+                            /*
+                                byte      SSH_MSG_CHANNEL_EXTENDED_DATA
+                                uint32    recipient channel
+                                uint32    data_type_code
+                                string    data
+                             */
+                            uint data_type_code = ReadDataType(packet);
+                            if (data_type_code == SSH_EXTENDED_DATA_STDERR)
+                            {
+                                _stderrData = packet.MovePayload();
+                                // remove SSH_MSG_CHANNEL_EXTENDED_DATA (1), recipient channel (4), data_type_code (4), and data length (4).
+                                _stderrData.Remove(13);
+                                return ProcessReadType.StandardError;
+                            }
                         }
                         break;
                     case MessageId.SSH_MSG_CHANNEL_EOF:
@@ -523,6 +538,21 @@ namespace Tmds.Ssh
                         break;
                 }
             } while (true);
+
+            static uint ReadDataType(ReadOnlyPacket extendedDataPayload)
+            {
+                /*
+                    byte      SSH_MSG_CHANNEL_EXTENDED_DATA
+                    uint32    recipient channel
+                    uint32    data_type_code
+                    string    data
+                */
+                var reader = extendedDataPayload.GetReader();
+                // skip SSH_MSG_CHANNEL_EXTENDED_DATA, recipient channel
+                reader.Skip(5);
+                uint data_type_code = reader.ReadUInt32();
+                return data_type_code;
+            }
         }
 
         private void HandleMsgChannelRequest(ReadOnlyPacket packet)
