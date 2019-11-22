@@ -34,10 +34,13 @@ namespace Tmds.Ssh
             private int _offset;
             private int _length;
             private bool _mayHaveNewline;
-            private bool _stripNewline;
+            private bool _skipNewline;
+            private Decoder? _decoder;
 
             public bool IsInitialized => _decoder != null;
-            private Decoder? _decoder;
+
+            private Span<char> CharsRead => _buffer.AsSpan(_offset, _length);
+
             public void Initialize(Encoding encoding)
             {
                 if (_decoder == null)
@@ -97,11 +100,7 @@ namespace Tmds.Ssh
                 {
                     if (_length > 0)
                     {
-                        Span<char> lineSpan = _buffer.AsSpan(_offset, _length);
-                        if (_stripNewline && lineSpan[0] == '\n')
-                        {
-                            lineSpan = lineSpan.Slice(1);
-                        }
+                        Span<char> lineSpan = CharsRead;
                         line = lineSpan.ToString();
                         _length = 0;
                     }
@@ -110,35 +109,47 @@ namespace Tmds.Ssh
                 return (bytesDecoded, line);
             }
 
+            private void ResizeBufferIfNeeded()
+            {
+                // Buffer is small compared to a line.
+                if (_length * 2 > _buffer!.Length)
+                {
+                    char[] newBuffer = ArrayPool<char>.Shared.Rent(_length * 2);
+                    CharsRead.CopyTo(newBuffer);
+                    ArrayPool<char>.Shared.Return(_buffer);
+                    _buffer = newBuffer;
+                    _offset = 0;
+                }
+                // Data is past half of the buffer, move it to the front.
+                if (_offset  * 2 > _buffer.Length)
+                {
+                    CharsRead.CopyTo(_buffer);
+                    _offset = 0;
+                }
+            }
+
             private bool TryDecodeAndFindNewLine(ReadOnlySpan<byte> newData, ref int bytesDecoded, out string? line)
             {
                 while (!newData.IsEmpty)
                 {
-                    // Buffer is small compared to a line.
-                    if (_length * 2 > _buffer!.Length)
-                    {
-                        char[] newBuffer = ArrayPool<char>.Shared.Rent(_length * 2);
-                        _buffer.AsSpan().Slice(_offset, _length).CopyTo(newBuffer);
-                        ArrayPool<char>.Shared.Return(_buffer);
-                        _buffer = newBuffer;
-                        _offset = 0;
-                    }
-                    // Data is past half of the buffer, move it to the front.
-                    if (_offset  * 2 > _buffer.Length)
-                    {
-                        _buffer.AsSpan().Slice(_offset, _length).CopyTo(_buffer);
-                        _offset = 0;
-                    }
+                    ResizeBufferIfNeeded();
 
-                    Span<char> remainder = _buffer.AsSpan(_offset + _length, _buffer!.Length - _offset - _length);
-                    _decoder!.Convert(newData, remainder, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
-                    bytesDecoded += bytesUsed;
+                    // Already decoded.
                     int inspected = _length;
+
+                    // Decpde from newData.
+                    Span<char> unused = _buffer.AsSpan(_offset + _length, _buffer!.Length - _offset - _length);
+                    _decoder!.Convert(newData, unused, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+                    bytesDecoded += bytesUsed;
                     _length += charsUsed;
+
+                    // Find a newline.
                     if (TryFindNewline(inspected, out line))
                     {
                         return true;
                     }
+
+                    // Strip decoded.
                     newData = newData.Slice(bytesUsed);
                 }
                 line = null;
@@ -147,19 +158,35 @@ namespace Tmds.Ssh
 
             private bool TryFindNewline(int inspected, out string? line)
             {
-                Span<char> span = _buffer.AsSpan(_offset, _length);
-                int newlineCharPos = span.Slice(inspected).IndexOfAny("\r\n");
+                // Chars separated by '\r', '\n', or '\r\n' are considered newlines.
+
+                // If our last line ended with '\r', skip '\n'.
+                if (_skipNewline && _length > 0)
+                {
+                    _skipNewline = false;
+
+                    if (_buffer![_offset] == '\n')
+                    {
+                        _offset++;
+                        _length--;
+                    }
+                }
+
+                Span<char> charSpan = CharsRead;
+                Span<char> uninspectedSpan = charSpan.Slice(inspected);
+                int newlineCharPos = uninspectedSpan.IndexOfAny("\r\n");
                 if (newlineCharPos != -1)
                 {
+                    // Reposition against charSpan.
                     newlineCharPos += inspected;
 
-                    var lineSpan = span.Slice(0, newlineCharPos);
-                    if (_stripNewline && lineSpan.Length > 0 && lineSpan[0] == '\n')
-                    {
-                        lineSpan = lineSpan.Slice(1);
-                    }
+                    // Find the line.
+                    var lineSpan = charSpan.Slice(0, newlineCharPos);
                     line = lineSpan.ToString();
-                    _stripNewline = span[newlineCharPos] == '\r';
+
+                    // If we end with a '\r', skip '\n' if it is the next char.
+                    _skipNewline = charSpan[newlineCharPos] == '\r';
+
                     int bytesUsed = newlineCharPos + 1;
                     _offset += bytesUsed;
                     _length -= bytesUsed;
@@ -170,35 +197,6 @@ namespace Tmds.Ssh
                 {
                     line = null;
                     return false;
-                }
-            }
-
-            private string? TryDecodeLine(ref int bytesConverted, ReadOnlyMemory<byte> newData)
-            {
-
-                Span<char> remainder = _buffer.AsSpan(_offset + _length, _buffer!.Length - _offset - _length);
-                _decoder!.Convert(newData.Span, remainder, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
-                bytesConverted += bytesUsed;
-                Span<char> newChars = remainder.Slice(0, charsUsed);
-                int newlineCharPos = newChars.IndexOfAny("\r\n");
-                if (newlineCharPos != -1)
-                {
-                    var lineSpan = _buffer.AsSpan(_offset, _length + newlineCharPos);
-                    if (_stripNewline && lineSpan.Length > 0 && lineSpan[0] == '\n')
-                    {
-                        lineSpan = lineSpan.Slice(1);
-                    }
-                    string line = lineSpan.ToString();
-                    _stripNewline = newChars[newlineCharPos] == '\r';
-
-                    _offset += _length + newlineCharPos + 1;
-                    _length = newChars.Length - newlineCharPos - 1;
-                    return line;
-                }
-                else
-                {
-                    _length += charsUsed;
-                    return null;
                 }
             }
         }
@@ -626,6 +624,11 @@ namespace Tmds.Ssh
 
         private void CheckReadState(bool readStdout, bool readStderr, bool decoding)
         {
+            if (HasExited)
+            {
+                ThrowHelper.ThrowInvalidOperation("Cannot read after the process has exited.");
+            }
+
             if ((_ignoreStdout && readStdout) ||
                 (_ignoreStderr && readStderr))
             {
