@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,7 +12,12 @@ namespace Tmds.Ssh
     // TODO: support envvars.
     public class ExecuteCommandOptions
     {
+        internal static readonly UTF8Encoding Utf8NoBom =
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
+        public Encoding StandardInputEncoding { get; set; } = Utf8NoBom;
+        public Encoding StandardErrorEncoding { get; set; } = Utf8NoBom;
+        public Encoding StandardOutputEncoding { get; set; } = Utf8NoBom;
     }
 
     public partial class SshClient
@@ -22,6 +28,13 @@ namespace Tmds.Ssh
         public async Task<RemoteProcess> ExecuteCommandAsync(string command, Action<ExecuteCommandOptions>? configure = null, CancellationToken ct = default)
         {
             ChannelContext context = CreateChannel();
+
+            var options = new ExecuteCommandOptions();
+            configure?.Invoke(options);
+
+            Encoding standardInputEncoding = options.StandardInputEncoding;
+            Encoding standardErrorEncoding = options.StandardErrorEncoding;
+            Encoding standardOutputEncoding = options.StandardOutputEncoding;
 
             RemoteProcess? remoteProcess = null;
             try
@@ -37,7 +50,7 @@ namespace Tmds.Ssh
                     await context.SendExecCommandMessageAsync(command, ct);
                     await context.ReceiveChannelRequestSuccessAsync(ct);
                 }
-                remoteProcess = new RemoteProcess(context);
+                remoteProcess = new RemoteProcess(context, standardInputEncoding, standardErrorEncoding, standardOutputEncoding);
                 return remoteProcess;
             }
             catch

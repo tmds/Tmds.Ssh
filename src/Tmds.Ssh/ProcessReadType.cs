@@ -5,9 +5,10 @@ namespace Tmds.Ssh
 {
     public enum ProcessReadType
     {
-        StandardOutput,
-        StandardError,
-        StandardOutputEof,
-        ProcessExit
+        // StandardOutputEof = -2
+        ProcessExit = -1,
+
+        StandardOutput = 1,
+        StandardError = 2
     }
 }

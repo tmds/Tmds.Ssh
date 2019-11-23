@@ -26,20 +26,42 @@ class RemoteProcess : IDisposable
     public CancellationToken ChannelAborted;
     public CancellationToken ChannelStopped;
 
+    // Exit information.
     int? ExitCode { get; }
     string? ExitSignal { get; }
+    bool HasExited { get; }
 
-    void Abort(Exception reason); // Stops the channel immediately, on-going operations throw ChannelAbortedException.
+    // Stops the channel immediately, on-going operations throw ChannelAbortedException.
+    void Abort(Exception reason);
 
+    // Write input.
     ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
-    ValueTask<(ProcessReadType, int bytesRead)> ReadOutputAsync(Memory<byte> buffer, CancellationToken ct = default);
+    Stream StandardInputStream { get; }
+    StreamWriter StandardInputWriter { get; }
+
+    // Read everything till exit.
+    // - into a string
+    ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default);
+    // - into a Stream
+    ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool disposeStreams = true, CancellationToken ct = default);
+    // - /dev/null
+    ValueTask WaitForExitAsync(CancellationToken ct);
+    // - custom Action.
+    ValueTask ReadToEndAsync(Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStdout, object? stdoutContext,
+                             Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
+                             CancellationToken ct = default)
+
+    // Read a single buffer.
+    ValueTask<(ProcessReadType readType, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken ct = default);
+
+    // Read a single line.
+    ValueTask<(ProcessReadType readType, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
 }
 
 enum ProcessReadType
 {
     StandardOutput,
     StandardError,
-    StandardOutputEof,
     ProcessExit
 }
 

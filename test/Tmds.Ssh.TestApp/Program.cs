@@ -13,7 +13,7 @@ namespace Tmds.Ssh.TestApp
         {
             if (args.Length < 2)
             {
-                System.Console.WriteLine("Specify a host to connect to, and a command ('http'/'exec')");
+                Console.WriteLine("Specify a host to connect to, and a command ('http'/'exec')");
                 return 1;
             }
 
@@ -46,24 +46,8 @@ namespace Tmds.Ssh.TestApp
             else if (command == "exec")
             {
                 string commandline = args.Length > 2 ? string.Join(' ', args.Skip(2)) : "echo 'hello world'";
-                           var remoteProcess = await client.ExecuteCommandAsync(commandline);
-                var utf8Decoder = new UTF8Encoding().GetDecoder();
-                byte[] buffer = new byte[1024];
-                char[] decodedBuffer = new char[Encoding.UTF8.GetMaxCharCount(buffer.Length)];
-                do
-                {
-                    (ProcessReadType readType, int bytesReceived) = await remoteProcess.ReadOutputAsync(buffer);
-                    if (readType == ProcessReadType.StandardOutput)
-                    {
-                            int charsDecoded = utf8Decoder.GetChars(buffer, 0, bytesReceived, decodedBuffer, 0, flush: false);
-                            Console.Write(decodedBuffer, 0, charsDecoded);
-                            Console.Out.Flush();
-                    }
-                    else if (readType == ProcessReadType.ProcessExit)
-                    {
-                        break;
-                    }
-                } while (true);
+                var remoteProcess = await client.ExecuteCommandAsync(commandline);
+                await remoteProcess.ReadToEndAsync(Console.OpenStandardOutput(), Console.OpenStandardError());
 
                 Console.WriteLine("Process exited with exit code " + remoteProcess.ExitCode);
             }
