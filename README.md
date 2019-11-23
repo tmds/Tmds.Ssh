@@ -46,6 +46,10 @@ class RemoteProcess : IDisposable
     ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool disposeStreams = true, CancellationToken ct = default);
     // - /dev/null
     ValueTask WaitForExitAsync(CancellationToken ct);
+    // - custom Action.
+    ValueTask ReadToEndAsync(Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStdout, object? stdoutContext,
+                             Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
+                             CancellationToken ct = default)
 
     // Read a single buffer.
     ValueTask<(ProcessReadType readType, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken ct = default);

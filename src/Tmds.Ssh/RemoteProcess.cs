@@ -237,7 +237,7 @@ namespace Tmds.Ssh
             => (_stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding));
 
         public ValueTask WaitForExitAsync(CancellationToken ct)
-            => ReadToEndAsync(null, null, disposeStreams: false, ct);
+            => ReadToEndAsync(null, null, null, null, ct);
 
         public async ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
         {
@@ -263,38 +263,9 @@ namespace Tmds.Ssh
 
         public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool disposeStreams = true, CancellationToken ct = default)
         {
-            bool readStdout = stdoutStream != null;
-            bool readStderr = stderrStream != null;
-
-            CheckReadState(readStdout, readStderr, decoding: false);
-
             try
             {
-                do
-                {
-                    if (_stdoutData != null)
-                    {
-                        await MoveDataFromSequenceToStreamAsync(_context, _stdoutData, stdoutStream, ct);
-                        _stdoutData.Dispose();
-                        _stdoutData = null;
-                    }
-
-                    if (_stderrData != null)
-                    {
-                        await MoveDataFromSequenceToStreamAsync(_context, _stderrData, stderrStream, ct);
-                        _stderrData.Dispose();
-                        _stderrData = null;
-                    }
-
-                    ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
-
-                    if (readResult == ProcessReadType.ProcessExit)
-                    {
-                        HasExited = true;
-                        return;
-                    }
-
-                } while (true);
+                await ReadToEndAsync(writeToStream, stdoutStream, writeToStream, stderrStream, ct);
             }
             finally
             {
@@ -311,26 +282,74 @@ namespace Tmds.Ssh
                 }
             }
 
-            static async ValueTask MoveDataFromSequenceToStreamAsync(ChannelContext context, Sequence sequence, Stream? stream, CancellationToken ct)
+            static async ValueTask writeToStream(ReadOnlySequence<byte> data, object? context, CancellationToken ct)
             {
-                if (stream != null)
+                Stream stream = (Stream)context!;
+                if (data.IsSingleSegment)
                 {
-                    long consumed = 0;
-                    try
+                    await stream.WriteAsync(data.First, ct);
+                }
+                else
+                {
+                    foreach (var segment in data)
                     {
-                        foreach (var segment in sequence.AsReadOnlySequence())
-                        {
-                            await stream.WriteAsync(segment, ct);
-                            consumed += segment.Length;
-                            context.AdjustChannelWindow(segment.Length);
-                        }
+                        await stream.WriteAsync(segment, ct);
                     }
-                    catch
-                    {
-                        sequence.Remove(consumed);
+                }
+            }
+        }
 
-                        throw;
+        public async ValueTask ReadToEndAsync(Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStdout, object? stdoutContext,
+                                              Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
+                                              CancellationToken ct = default)
+        {
+            bool readStdout = handleStdout != null;
+            bool readStderr = handleStderr != null;
+
+            CheckReadState(readStdout, readStderr, decoding: false);
+
+            try
+            {
+                do
+                {
+                    if (_stdoutData != null)
+                    {
+                        await MoveDataFromSequenceToStreamAsync(_context, _stdoutData, handleStdout, stdoutContext, ct);
+                        _stdoutData.Dispose();
+                        _stdoutData = null;
                     }
+
+                    if (_stderrData != null)
+                    {
+                        await MoveDataFromSequenceToStreamAsync(_context, _stderrData, handleStderr, stderrContext, ct);
+                        _stderrData.Dispose();
+                        _stderrData = null;
+                    }
+
+                    ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
+
+                    if (readResult == ProcessReadType.ProcessExit)
+                    {
+                        HasExited = true;
+                        return;
+                    }
+
+                } while (true);
+            }
+            catch (Exception e)
+            {
+                Abort(e);
+
+                throw;
+            }
+
+            static async ValueTask MoveDataFromSequenceToStreamAsync(ChannelContext context, Sequence sequence,
+                Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handler, object? handlerContext, CancellationToken ct)
+            {
+                if (handler != null)
+                {
+                    await handler(sequence.AsReadOnlySequence(), handlerContext, ct);
+                    context.AdjustChannelWindow((int)sequence.Length);
                 }
                 else
                 {
