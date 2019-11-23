@@ -14,12 +14,13 @@ namespace Tmds.Ssh
     {
         const int SSH_EXTENDED_DATA_STDERR = 1;
 
-        enum ReadMode
+        enum ReadStatus
         {
             Initial,
-            Raw,
-            StringToEnd,
-            LineReading
+            ReadRaw,
+            ReadStringToEnd,
+            ReadLine,
+            ReadThrewException
         }
 
         private readonly ChannelContext _context;
@@ -35,7 +36,7 @@ namespace Tmds.Ssh
         private LineDecoder _stderrDecoder;
         private bool _ignoreStdout;
         private bool _ignoreStderr;
-        private ReadMode _readMode;
+        private ReadStatus _readStatus;
 
         struct LineDecoder : IDisposable
         {
@@ -55,7 +56,6 @@ namespace Tmds.Ssh
                 if (_decoder == null)
                 {
                     _decoder = encoding.GetDecoder();
-                    _buffer = ArrayPool<char>.Shared.Rent(1024);
                 }
             }
 
@@ -68,9 +68,13 @@ namespace Tmds.Ssh
                 }
             }
 
-            public (int bytesRead, string? line) TryDecodeLine(ref Sequence? sequence, bool eof)
+            public (int bytesRead, string? line) TryDecodeLine(Sequence? sequence, bool eof)
             {
                 string? line;
+
+                // _mayHaveNewline will be set if this method managed to decode a line.
+                // so we inspect the remaining data on the next call.
+                // If we don't find a new line, we don't need to look for one on the next call.
                 if (_mayHaveNewline)
                 {
                     if (TryFindNewline(inspected: 0, out line))
@@ -105,6 +109,8 @@ namespace Tmds.Ssh
                     }
                 }
 
+                // At the end, return all remaining chars
+                // even when they aren't terminated with a newline.
                 if (eof)
                 {
                     if (_length > 0)
@@ -118,8 +124,15 @@ namespace Tmds.Ssh
                 return (bytesDecoded, line);
             }
 
-            private void ResizeBufferIfNeeded()
+            private void EnsureSpaceForDecode()
             {
+                // Buffer hasn't been allocated yet.
+                if (_buffer == null)
+                {
+                    _buffer = ArrayPool<char>.Shared.Rent(1024);
+                    return;
+                }
+
                 // Buffer is small compared to a line.
                 if (_length * 2 > _buffer!.Length)
                 {
@@ -130,7 +143,7 @@ namespace Tmds.Ssh
                     _offset = 0;
                 }
                 // Data is past half of the buffer, move it to the front.
-                if (_offset  * 2 > _buffer.Length)
+                if (_offset * 2 > _buffer.Length)
                 {
                     CharsRead.CopyTo(_buffer);
                     _offset = 0;
@@ -141,7 +154,7 @@ namespace Tmds.Ssh
             {
                 while (!newData.IsEmpty)
                 {
-                    ResizeBufferIfNeeded();
+                    EnsureSpaceForDecode();
 
                     // Already decoded.
                     int inspected = _length;
@@ -245,12 +258,24 @@ namespace Tmds.Ssh
         public StreamWriter StandardInputWriter
             => (_stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding));
 
-        public ValueTask WaitForExitAsync(CancellationToken ct)
-            => ReadToEndAsync(null, null, null, null, ct);
+        public async ValueTask WaitForExitAsync(CancellationToken ct)
+        {
+            do
+            {
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout: false, readStderr: false, ct);
+
+                if (readResult == ProcessReadType.ProcessExit)
+                {
+                    HasExited = true;
+                    return;
+                }
+
+            } while (true);
+        }
 
         public async ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
         {
-            CheckReadState(readStdout, readStderr, ReadMode.StringToEnd);
+            CheckReadState(readStdout, readStderr, ReadStatus.ReadStringToEnd);
 
             MemoryStream? stdoutStream = readStdout ? new MemoryStream() : null;
             MemoryStream? stderrStream = readStderr ? new MemoryStream() : null;
@@ -315,11 +340,11 @@ namespace Tmds.Ssh
             bool readStdout = handleStdout != null;
             bool readStderr = handleStderr != null;
 
-            CheckReadState(readStdout, readStderr, ReadMode.Raw);
+            CheckReadState(readStdout, readStderr, ReadStatus.ReadRaw);
 
-            try
+            do
             {
-                do
+                try
                 {
                     if (_stdoutData != null)
                     {
@@ -334,23 +359,23 @@ namespace Tmds.Ssh
                         _stderrData.Dispose();
                         _stderrData = null;
                     }
+                }
+                catch
+                {
+                    _readStatus = ReadStatus.ReadThrewException;
 
-                    ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
+                    throw;
+                }
 
-                    if (readResult == ProcessReadType.ProcessExit)
-                    {
-                        HasExited = true;
-                        return;
-                    }
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
 
-                } while (true);
-            }
-            catch (Exception e)
-            {
-                Abort(e);
+                if (readResult == ProcessReadType.ProcessExit)
+                {
+                    HasExited = true;
+                    return;
+                }
 
-                throw;
-            }
+            } while (true);
 
             static async ValueTask MoveDataFromSequenceToStreamAsync(ChannelContext context, Sequence sequence,
                 Func<ReadOnlySequence<byte>, object?, CancellationToken, ValueTask>? handler, object? handlerContext, CancellationToken ct)
@@ -358,12 +383,8 @@ namespace Tmds.Ssh
                 if (handler != null)
                 {
                     await handler(sequence.AsReadOnlySequence(), handlerContext, ct);
-                    context.AdjustChannelWindow((int)sequence.Length);
                 }
-                else
-                {
-                    context.AdjustChannelWindow((int)sequence.Length);
-                }
+                context.AdjustChannelWindow((int)sequence.Length);
             }
         }
 
@@ -382,26 +403,35 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowArgumentOutOfRange(nameof(stderrBuffer));
             }
 
-            CheckReadState(readStdout, readStderr, ReadMode.Raw);
+            CheckReadState(readStdout, readStderr, ReadStatus.ReadRaw);
 
             do
             {
-                if (_stdoutData != null)
+                try
                 {
-                    int length = MoveDataFromSequenceToMemory(_context, ref _stdoutData, stdoutBuffer);
-                    if (length != 0)
+                    if (_stdoutData != null)
                     {
-                        return (ProcessReadType.StandardOutput, length);
+                        int length = MoveDataFromSequenceToMemory(_context, ref _stdoutData, stdoutBuffer);
+                        if (length != 0)
+                        {
+                            return (ProcessReadType.StandardOutput, length);
+                        }
+                    }
+
+                    if (_stderrData != null)
+                    {
+                        int length = MoveDataFromSequenceToMemory(_context, ref _stderrData, stderrBuffer);
+                        if (length != 0)
+                        {
+                            return (ProcessReadType.StandardError, length);
+                        }
                     }
                 }
-
-                if (_stderrData != null)
+                catch
                 {
-                    int length = MoveDataFromSequenceToMemory(_context, ref _stderrData, stderrBuffer);
-                    if (length != 0)
-                    {
-                        return (ProcessReadType.StandardError, length);
-                    }
+                    _readStatus = ReadStatus.ReadThrewException;
+
+                    throw;
                 }
 
                 ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
@@ -448,7 +478,7 @@ namespace Tmds.Ssh
 
         public async ValueTask<(ProcessReadType readType, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
         {
-            CheckReadState(readStdout, readStderr, ReadMode.LineReading);
+            CheckReadState(readStdout, readStderr, ReadStatus.ReadLine);
 
             if (readStdout)
             {
@@ -461,15 +491,24 @@ namespace Tmds.Ssh
 
             do
             {
-                string? line;
-                if (TryReadLine(_context, ref _stdoutData, ref _stdoutDecoder, readStdout, (_exited != 0) || (_stdoutEof != 0), out line))
+                try
                 {
-                    return (ProcessReadType.StandardOutput, line);
-                }
+                    string? line;
+                    if (TryReadLine(_context, ref _stdoutData, ref _stdoutDecoder, readStdout, (_exited != 0) || (_stdoutEof != 0), out line))
+                    {
+                        return (ProcessReadType.StandardOutput, line);
+                    }
 
-                if (TryReadLine(_context, ref _stderrData, ref _stdoutDecoder, readStderr, (_exited != 0), out line))
+                    if (TryReadLine(_context, ref _stderrData, ref _stdoutDecoder, readStderr, (_exited != 0), out line))
+                    {
+                        return (ProcessReadType.StandardError, line);
+                    }
+                }
+                catch
                 {
-                    return (ProcessReadType.StandardError, line);
+                    _readStatus = ReadStatus.ReadThrewException;
+
+                    throw;
                 }
 
                 if (_stdoutEof == 1)
@@ -496,7 +535,7 @@ namespace Tmds.Ssh
                 if (reading)
                 {
                     int bytesRead;
-                    (bytesRead, line) = decoder.TryDecodeLine(ref sequence, eof);
+                    (bytesRead, line) = decoder.TryDecodeLine(sequence, eof);
                     if (bytesRead > 0)
                     {
                         sequence!.Remove(bytesRead);
@@ -660,7 +699,7 @@ namespace Tmds.Ssh
             _context.Dispose();
         }
 
-        private void CheckReadState(bool readStdout, bool readStderr, ReadMode readMode)
+        private void CheckReadState(bool readStdout, bool readStderr, ReadStatus readMode)
         {
             if (HasExited)
             {
@@ -673,13 +712,13 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowInvalidOperation("Cannot read stream after ignoring it.");
             }
 
-            if (_readMode == ReadMode.Initial)
+            if (_readStatus == ReadStatus.Initial)
             {
-                _readMode = readMode;
+                _readStatus = readMode;
             }
-            else if (readMode != _readMode)
+            else if (readMode != _readStatus)
             {
-                ThrowHelper.ThrowInvalidOperation("Cannot switch to other read mode.");
+                ThrowHelper.ThrowInvalidOperation($"{readMode} not allowed, because previous read was {_readStatus}.");
             }
 
             _ignoreStdout |= !readStdout;
