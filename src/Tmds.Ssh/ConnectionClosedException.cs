@@ -5,14 +5,11 @@ using System;
 
 namespace Tmds.Ssh
 {
+    // The connection was closed.
     [Serializable]
-    public class ConnectionClosedException : Exception
+    public class ConnectionClosedException : ConnectionException
     {
-        public ConnectionClosedException() { }
         public ConnectionClosedException(string message) : base(message) { }
         public ConnectionClosedException(string message, Exception inner) : base(message, inner) { }
-        protected ConnectionClosedException(
-            System.Runtime.Serialization.SerializationInfo info,
-            System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

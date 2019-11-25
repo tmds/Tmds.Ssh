@@ -432,13 +432,14 @@ namespace Tmds.Ssh
 
             public override void ThrowIfChannelStopped()
             {
+                // If the channel is aborted later, we throw that instead
+                // of the initial close. This makes it clear to our caller
+                // the channel is no longer usable.
+                ThrowIfChannelAborted();
+
                 if (_stopReason == StopByPeer)
                 {
                     throw new ChannelClosedException();
-                }
-                else if (_stopReason == StopByCancel)
-                {
-                    ThrowIfChannelAborted();
                 }
             }
 

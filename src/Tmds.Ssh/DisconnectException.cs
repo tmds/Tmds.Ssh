@@ -5,14 +5,11 @@ using System;
 
 namespace Tmds.Ssh
 {
+    // Used as inner exception of ConnectionClosedException when peer sends disconnect message.
     [Serializable]
-    public class DisconnectException : Exception
+    public class DisconnectException : ConnectionException
     {
-        public DisconnectException() { }
         public DisconnectException(string message) : base(message) { }
         public DisconnectException(string message, Exception inner) : base(message, inner) { }
-        protected DisconnectException(
-            System.Runtime.Serialization.SerializationInfo info,
-            System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

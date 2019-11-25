@@ -65,7 +65,6 @@ namespace Tmds.Ssh
                     throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
                 }
 
-                // TODO...
                 using Packet response = await connection.ReceivePacketAsync(ct);
                 if (IsAuthSuccesfull(response))
                 {
@@ -74,7 +73,7 @@ namespace Tmds.Ssh
                 }
             }
 
-            throw new AuthenticationFailedException();
+            throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", connectionInfo);
         }
 
         private static Packet CreatePublicKeyRequestMessage(SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)
