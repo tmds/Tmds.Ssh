@@ -81,12 +81,6 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
-        public static void ThrowKeyExchangeFailed(string message, SshConnectionInfo connectionInfo)
-        {
-            throw new KeyExchangeFailedException(message, connectionInfo);
-        }
-
-        [DoesNotReturn]
         public static void ThrowProtocolPacketLongerThanExpected()
         {
             throw new ProtocolException("The packet contains more data than expected.");

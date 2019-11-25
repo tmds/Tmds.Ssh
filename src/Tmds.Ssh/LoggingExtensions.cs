@@ -20,6 +20,7 @@ namespace Tmds.Ssh
         private static readonly Action<ILogger, string, Exception?> _authMethod;
         private static readonly Action<ILogger, string, Exception?> _authMethodPk;
         private static readonly Action<ILogger, Exception?> _authSuccess;
+        private static readonly Action<ILogger, Exception?> _authFailed;
         private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _received;
         private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _send;
 
@@ -96,6 +97,12 @@ namespace Tmds.Ssh
                 logLevel: LogLevel.Trace,
                 formatString: "Sending {messageId} {payload}"
             );
+
+            _authFailed = LoggerMessage.Define(
+                eventId: 10,
+                logLevel: LogLevel.Information,
+                formatString: "Authentication failed"
+            );
         }
 
         public static void Connecting(this ILogger logger, string host, int port)
@@ -146,6 +153,11 @@ namespace Tmds.Ssh
         public static void AuthenticationSucceeded(this ILogger logger)
         {
             _authSuccess(logger, null);
+        }
+
+        public static void AuthenticationFailed(this ILogger logger)
+        {
+            _authFailed(logger, null);
         }
 
         public static void Received(this ILogger logger, ReadOnlyPacket packet)

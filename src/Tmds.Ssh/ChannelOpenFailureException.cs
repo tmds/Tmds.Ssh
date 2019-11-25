@@ -5,8 +5,9 @@ using System;
 
 namespace Tmds.Ssh
 {
+    // The channel could not be opened.
     [Serializable]
-    public class ChannelOpenFailureException : Exception
+    public class ChannelOpenFailureException : ChannelException
     {
         public ChannelOpenFailureReason Reason { get; private set; }
 
@@ -14,9 +15,5 @@ namespace Tmds.Ssh
         {
             Reason = reason;
         }
-
-        protected ChannelOpenFailureException(
-            System.Runtime.Serialization.SerializationInfo info,
-            System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

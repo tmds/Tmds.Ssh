@@ -203,21 +203,29 @@ namespace Tmds.Ssh
 
                 // In case the operation was canceled, change the exception based on the
                 // token that triggered the cancellation.
+                // We want to throw ConnectFailedException, except when the user CancellationToken was cancelled.
                 if (e is OperationCanceledException)
                 {
                     if (connectCt.IsCancellationRequested)
                     {
+                        // Throw OperationCancelledException.
                         connectTcs.SetCanceled();
                         return;
                     }
                     else if (_abortCts.IsCancellationRequested)
                     {
-                        e = NewObjectDisposedException();
+                        e = new ConnectFailedException(ConnectFailedReason.ConnectionAborted, $"The connection was aborted: {e.Message}", connectionInfo, _abortReason!);
                     }
                     else
                     {
-                        e = new TimeoutException();
+                        e = new ConnectFailedException(ConnectFailedReason.Timeout, "The connect operation timed out.", connectionInfo);
                     }
+                }
+                else if (e is ConnectFailedException)
+                { }
+                else
+                {
+                    e = new ConnectFailedException(ConnectFailedReason.Unknown, $"An exception occurred: {e.Message}.", connectionInfo, e);
                 }
 
                 // ConnectAsync failed.

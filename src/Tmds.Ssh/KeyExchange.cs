@@ -33,7 +33,7 @@ namespace Tmds.Ssh
 
             if (encC2S.IsEmpty || encS2C.IsEmpty || macC2S.IsEmpty || macS2C.IsEmpty || comC2S.IsEmpty || comS2C.IsEmpty)
             {
-                ThrowHelper.ThrowKeyExchangeFailed("No common encryption/integrity/compression algorithm.", connectionInfo);
+                new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption/integrity/compression algorithm.", connectionInfo);
             }
 
             // Make an ordered list of host key algorithms. The key exchange algorithm will pick a compatible one.
@@ -106,7 +106,7 @@ namespace Tmds.Ssh
                         // Preferred algorithm must be used.
                         if (!matchingKex.IsEmpty)
                         {
-                            ThrowHelper.ThrowKeyExchangeFailed("Preferred key exchange algorithm failed.", connectionInfo);
+                            new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Preferred key exchange algorithm failed.", connectionInfo);
                         }
                     }
                 }
@@ -115,7 +115,7 @@ namespace Tmds.Ssh
                 // connection fails, and both sides MUST disconnect.
                 if (keyExchangeOutput == null)
                 {
-                    ThrowHelper.ThrowKeyExchangeFailed("Key exchange failed", connectionInfo);
+                    throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Key exchange failed.", connectionInfo);
                 }
             }
             finally

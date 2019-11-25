@@ -61,7 +61,7 @@ namespace Tmds.Ssh
             connectionInfo.KeyVerificationResult = await settings.HostKeyVerification!.VerifyAsync(connectionInfo, ct);
             if (connectionInfo.KeyVerificationResult != HostKeyVerificationResult.Trusted)
             {
-                throw new HostKeyVerificationFailedException(connectionInfo);
+                throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, CreateUntrustedPeerMessage(connectionInfo), connectionInfo);
             }
 
             var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
@@ -73,7 +73,7 @@ namespace Tmds.Ssh
             }
             catch (Exception ex)
             {
-                throw new KeyExchangeFailedException("Cannot determine shared secret.", connectionInfo, ex);
+                throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Cannot determine shared secret.", connectionInfo, ex);
             }
 
             // Generate exchange hash.
@@ -82,7 +82,7 @@ namespace Tmds.Ssh
             // Verify the server's signature.
             if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
             {
-                throw new KeyExchangeFailedException("Signature does not match host key.", connectionInfo);
+                throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Signature does not match host key.", connectionInfo);
             }
 
             byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
@@ -223,6 +223,26 @@ namespace Tmds.Ssh
                 public_host_key,
                 q_s,
                 exchange_hash_signature);
+        }
+
+        private static string CreateUntrustedPeerMessage(SshConnectionInfo connectionInfo)
+        {
+            StringBuilder message = new StringBuilder();
+            message.Append("The host '");
+            message.Append(connectionInfo.Host);
+            if (connectionInfo.Port != 22)
+            {
+                message.Append(':');
+                message.Append(connectionInfo.Port);
+            }
+            message.Append(' ');
+            message.Append(connectionInfo.SshKey!.Type);
+            message.Append(' ');
+            message.Append(Convert.ToBase64String(connectionInfo.SshKey.Key));
+            message.Append("\' is ");
+            message.Append(connectionInfo.KeyVerificationResult);
+            message.Append(".");
+            return message.ToString();
         }
     }
 }

@@ -5,14 +5,13 @@ using System;
 
 namespace Tmds.Ssh
 {
+    // Channel was closed by the peer. Data may still be pending for receive.
+    // No more data can be sent.
     [Serializable]
-    public class ChannelClosedException : Exception
+    public class ChannelClosedException : SshException
     {
         public ChannelClosedException() : base("Channel closed by peer.") { }
         public ChannelClosedException(string message) : base(message) { }
         public ChannelClosedException(string message, Exception inner) : base(message, inner) { }
-        protected ChannelClosedException(
-            System.Runtime.Serialization.SerializationInfo info,
-            System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

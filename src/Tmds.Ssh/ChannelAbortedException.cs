@@ -5,14 +5,11 @@ using System;
 
 namespace Tmds.Ssh
 {
+    // Channel is no longer usable.
     [Serializable]
-    public class ChannelAbortedException : Exception
+    public class ChannelAbortedException : ChannelException
     {
-        public ChannelAbortedException() { }
         public ChannelAbortedException(string message) : base(message) { }
         public ChannelAbortedException(string message, Exception inner) : base(message, inner) { }
-        protected ChannelAbortedException(
-            System.Runtime.Serialization.SerializationInfo info,
-            System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }
