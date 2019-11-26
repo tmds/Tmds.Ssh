@@ -1,4 +1,37 @@
-# API
+# API Overview
+
+Creating a client:
+```cs
+using var client = new SshClient("user@remotehost");
+```
+
+Connecting to the server:
+```cs
+await client.ConnectAsync();
+```
+
+SSH is a multiplexed protocol that allows different operations to be performed simultaneously (e.g. forward a TCP connection and execute a command).
+Each operation has a dedicated channel.
+The objects that represent an operation that is performed over the SSH connection implement `IDisposable`. The `Dispose` methods releases resources associated with the operation and causes the channel to be closed.
+
+The following operations are supported:
+
+Create a TCP connection on the remote server that gets forwarded to the localhost:
+```cs
+using ChannelDataStream connection = await client.CreateTcpConnectionAsStreamAsync("www.redhat.com", 80);
+```
+
+Connect to a Unix socket on the remote server and forward the connection to the localhost:
+```cs
+using ChannelDataStream connection = await client.CreateUnixConnectionAsStreamAsync("/tmp/myapp.sock");
+```
+
+Executing a command on the remote server:
+```cs
+using RemoteProcess process = await client.ExecuteCommandAsync("echo hello world");
+```
+
+# API Reference
 
 ```cs
 class SshClient : IDisposable
@@ -58,6 +91,8 @@ class RemoteProcess : IDisposable
     ValueTask<(ProcessReadType readType, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
 }
 
+// note: additional values may be added to this enum
+// a reader should ignore values it doesn't know instead of failing.
 enum ProcessReadType
 {
     StandardOutput,
