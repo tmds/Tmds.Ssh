@@ -45,16 +45,26 @@ namespace Tmds.Ssh
             }
         }
 
-        public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context, CancellationToken ct)
+        public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context, string failureMessage, CancellationToken ct)
         {
             using var packet = await context.ReceivePacketAsync(ct);
 
-            ParseChannelOpenConfirmation(packet);
+            ParseChannelOpenConfirmation(packet, failureMessage);
 
-            static void ParseChannelOpenConfirmation(ReadOnlyPacket packet)
+            static void ParseChannelOpenConfirmation(ReadOnlyPacket packet, string failureMessage)
             {
                 var reader = packet.GetReader();
-                reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_SUCCESS); // TODO SSH_MSG_CHANNEL_FAILURE
+                var msgId = reader.ReadMessageId();
+                switch (msgId)
+                {
+                    case MessageId.SSH_MSG_CHANNEL_SUCCESS:
+                        break;
+                    case MessageId.SSH_MSG_CHANNEL_FAILURE:
+                        throw new ChannelRequestFailed(failureMessage);
+                    default:
+                        ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
+                        break;
+                }
             }
         }
     }
