@@ -48,7 +48,7 @@ namespace Tmds.Ssh
                 // Request command execution.
                 {
                     await context.SendExecCommandMessageAsync(command, ct);
-                    await context.ReceiveChannelRequestSuccessAsync(ct);
+                    await context.ReceiveChannelRequestSuccessAsync("Failed to execute command.", ct);
                 }
                 remoteProcess = new RemoteProcess(context, standardInputEncoding, standardErrorEncoding, standardOutputEncoding);
                 return remoteProcess;
