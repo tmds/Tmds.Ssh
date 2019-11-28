@@ -15,5 +15,5 @@ script:
 
 after_success:
   - 'if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
-  curl -H "X-NuGet-ApiKey: $NUGET_APIKEY" -T src/Tmds.Ssh/Tmds.Ssh.*.nupkg https://www.myget.org/F/tmds/api/v2/package ;
+  curl -H "X-NuGet-ApiKey: $NUGET_APIKEY" -T Tmds.Ssh.*.nupkg https://www.myget.org/F/tmds/api/v2/package ;
      fi'
