@@ -1,0 +1,19 @@
+language: csharp
+mono: none
+dist: xenial
+dotnet: 3.0
+
+env:
+  global:
+    - DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+    - DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    - secure: "OunktiC9mWMsnkg2dREcXDX8x9R9tlNjJiE/hI+kRRomSR59DKNtP9qlWN+4jBt4MzpH4keiA8XLF1/FNVNoaOp3zNQDLRu4DbnlCuT10Y+ZOM0A1Cztx68Dnlo+5CXh+p/rYLNVM9Yl8vdlgWJT+8RamhcSvQT57wHwR+Cya19mk+JoPI7cZuOy/o/S07BLuIz0KepLq2G3siFvtgeoHiDitPUE6VlziwYf8JJLl5vsn6klWHrd/odfvOMqgI0fiX4oY+eRuJQ7bFQExqanIMAGuJQ77T0mVlGPcMrP2bSLKdKcp5s38f/RgRzPm/boZHS2O8NMdI9PfYAU9I0uVx+5OoRiZNrB9yYmZuQQkKpXTQSn8+e79RU+ynaCGbDcidMTQLk4aOnVXf/2aHjB8A69hpYNGt+o0zDbJhkOA2T0UjRzjWMpEWISzDQDrz7XV1MTfITsZum8CswNmmr2gwl2Zyxjwa6QMS3SjpiWls29+fLji/p87DW0WumLPX3YJrXI4vSaOnh3RU67QZnL7RdnfzOr0VAXXdsBsQV2yI+btuMqxdYMYBi+9B4V1XSyrfzmWZdS1mE6U1BuADBPSJImcVwgCJl/08/VfUbe6CFy4lA4bvk1BSvjQFTap8v+BN3obneGiECDSf5HzP+VJ11Fkho5V88iXs2/5zhJ62s="
+
+script:
+  - VERSION_SUFFIX="$(date +"%y%m%d")-$TRAVIS_BUILD_NUMBER"
+  - dotnet pack src/Tmds.Ssh --configuration Release --version-suffix $VERSION_SUFFIX --output .
+
+after_success:
+  - 'if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+  curl -H "X-NuGet-ApiKey: $NUGET_APIKEY" -T src/Tmds.Ssh/Tmds.Ssh.*.nupkg https://www.myget.org/F/tmds/api/v2/package ;
+     fi'
