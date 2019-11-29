@@ -6,6 +6,12 @@ The library uses .NET Core cryptographic APIs as much as possible. Functionality
 
 There is no plan to add additional functionality, but the project is open for contribution :)
 
+# Getting the package
+
+```
+$ dotnet add package Tmds.Ssh --version 0.1.0-*  --source https://www.myget.org/F/tmds/api/v3/index.json
+```
+
 # API Overview
 
 Creating a client:
