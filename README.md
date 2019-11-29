@@ -12,6 +12,13 @@ There is no plan to add additional functionality, but the project is open for co
 $ dotnet add package Tmds.Ssh --version 0.1.0-*  --source https://www.myget.org/F/tmds/api/v3/index.json
 ```
 
+# Supported algorithms
+
+- Key exchange: ecdh-sha2-nistp256
+- Host key: ssh-rsa
+- Encryption: aes256-cbc
+- Mac: hmac-sha2-256
+
 # API Overview
 
 Creating a client:
