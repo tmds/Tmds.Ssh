@@ -1,3 +1,11 @@
+# Tmds.Ssh
+
+Tmds.Ssh is a .NET SSH client library. It targets netstandard 2.1 (.NET Core 3.x+) and makes use of the new platform APIs for building high-performance network applications.
+
+The library uses .NET Core cryptographic APIs as much as possible. Functionality that is not available is used from the [Bouncy Castle crypto library](https://github.com/bcgit/bc-csharp).
+
+There is no plan to add additional functionality, but the project is open for contribution :)
+
 # API Overview
 
 Creating a client:
