@@ -59,6 +59,8 @@ class SshClient : IDisposable
 {
     SshClient(string destination, Action<SshClientSettings>? configure = null);
 
+    SshConnectionInfo ConnectionInfo { get; }
+
     CancellationToken ConnectionClosed { get; }
 
     Task ConnectAsync(CancellationToken ct = default);
@@ -183,6 +185,9 @@ class SshConnectionInfo
 {
     public string Host { get; }
     public int Port { get; }
-    public SshKey? SshKey { get; }
+
+    string? ServerIdentificationString { get; }
+    SshKey? ServerKey { get; }
+    HostKeyVerificationResult? KeyVerificationResult { get; }
 }
 ```

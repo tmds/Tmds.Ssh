@@ -61,7 +61,7 @@ namespace Tmds.Ssh
 
         public ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
         {
-            SshKey key = connectionInfo.SshKey!;
+            SshKey key = connectionInfo.ServerKey!;
 
             lock (_trustedKeys)
             {
