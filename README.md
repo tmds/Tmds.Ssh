@@ -169,7 +169,7 @@ interface IHostKeyVerification
 
 class HostKeyVerification : IHostKeyVerification
 {
-    public void AddTrustedKey(string type, byte[] key);
+    public void AddTrustedKey(SshKey key);
 }
 
 enum HostKeyVerificationResult
