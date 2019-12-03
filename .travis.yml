@@ -10,6 +10,7 @@ env:
     - secure: "BbPM7rtPikWqvTGh0yktHF5RkmGDspioOHp4OhS7l9fTPdB3AlWkPdQzwq57xvIsQwE8E6DKQ1CmySnAvui91//cwu3nGFmz2LWxjxb68U4eGEBlYEpxHQpgBRvFlpHFBW1zZ2BEwqDRwoKSr1bvoSOcYJzshFn+sMswf0618jvZ4wUitLvGrCXcPOErHY1teQHBl28Rjeb3p2LFim8NKZ4IMxv+sRnnIwqwQNfWROhnkkFIiQ9w00H1VwWhHTOAPdG6H8YPKi/BYRiW5g8ieRCxzKCF5qFafJLXGXiqYnCztmYtGRohhQ1dUUhjvLeRNLKb7Zzlzu5Br4xVseV0cPuBodnDUIdoy6cusGurv7wWXO/fzSz77U+bEqfH4ni+BYkNKC0vaFUn3SG1rvslthuf2nT0ZL3sNpauWMFWYiu/Hv1f2ne/xuS6pOmpuJX7YjVg8o61EyR4gdmN8o8W1xxTj35cz9WPiz0lYYavXMo2oi1ycU/ktdi40C6wXf62drlcDy4U7zDiZ2KLyQHXMfK7+j/yn8ThCAmNslhKGT20E0xr9WhpJjikf4yP38yl4CFmUWqgArB79Zv5hTMuUzIjvaIw//kBbGDArommSYR6jJNKMdFDdnWcs8b2HbQZ2mBJhxaVB4QWa2qn+R1GC52I/B0xFxLbJa4WxTyRJco="
 
 script:
+  - pushd test/Tmds.Ssh.Tests && dotnet restore && dotnet test && popd
   - VERSION_SUFFIX="$(date +"%y%m%d")-$TRAVIS_BUILD_NUMBER"
   - dotnet pack src/Tmds.Ssh --configuration Release --version-suffix $VERSION_SUFFIX --output .
 

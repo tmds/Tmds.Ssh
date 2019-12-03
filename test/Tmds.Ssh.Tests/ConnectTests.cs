@@ -21,7 +21,7 @@ namespace Tmds.Ssh.Tests
                     serverReceivedTcs.SetResult(packet);
                 }
             );
-            await using var client = await server.CreateClientAsync(
+            using var client = await server.CreateClientAsync(
                 s =>
                 {
                     s.NoKeyExchange = true;
@@ -29,7 +29,7 @@ namespace Tmds.Ssh.Tests
                     s.NoUserAuthentication = true;
                 }
             );
-            await client.DisposeAsync();
+            client.Dispose();
 
             // Check the server received an EOF.
             var serverReceivedPacket = await serverReceivedTcs.Task;

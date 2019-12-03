@@ -26,13 +26,8 @@ namespace Tmds.Ssh.Tests
         public async Task<SshClient> CreateClientAsync(Action<SshClientSettings> configure = null)
         {
             IPEndPoint ipEndPoint = _serverSocket.LocalEndPoint as IPEndPoint;
-            var settings = new SshClientSettings("user", ipEndPoint.Address.ToString())
-            {
-                Port = ipEndPoint.Port
-            };
-            configure?.Invoke(settings);
 
-            var client = new SshClient(settings);
+            var client = new SshClient($"user@{ipEndPoint.Address}:{ipEndPoint.Port}", configure);
 
             await client.ConnectAsync();
 
