@@ -34,7 +34,7 @@ namespace Tmds.Ssh
         internal int Port { get; set; } = 22;
         internal ILogger? Logger { get; set; } = null; // TODO: decide how to expose the logger publically.
         public List<Credential> Credentials { get; } = new List<Credential>();
-        public HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
+        public IHostKeyVerification HostKeyVerification { get; set; } = Ssh.HostKeyVerification.Default;
 
         // MAYDO: add property for default window size.
 
