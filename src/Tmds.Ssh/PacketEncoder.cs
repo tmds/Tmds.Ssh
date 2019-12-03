@@ -10,9 +10,9 @@ namespace Tmds.Ssh
     sealed class PacketEncoder : IDisposable
     {
         private readonly IDisposableCryptoTransform _encode;
-        private readonly IDisposableCryptoTransform _mac;
+        private readonly IHMac _mac;
 
-        public PacketEncoder(IDisposableCryptoTransform encode, IDisposableCryptoTransform mac)
+        public PacketEncoder(IDisposableCryptoTransform encode, IHMac mac)
         {
             _encode = encode;
             _mac = mac;
@@ -55,14 +55,18 @@ namespace Tmds.Ssh
             // Write header and padding.
             pkt.WriteHeaderAndPadding(padding_length);
 
+            var unencrypted_packet = pkt.AsReadOnlySequence();
+
             // Encode
-            _encode.Transform(pkt.AsReadOnlySequence(), buffer);
+            _encode.Transform(unencrypted_packet, buffer);
 
             // Mac
             // mac = MAC(key, sequence_number || unencrypted_packet)
-            Span<byte> prefix = stackalloc byte[4];
-            BinaryPrimitives.WriteUInt32BigEndian(prefix, sequenceNumber);
-            _mac.Transform(prefix, pkt.AsReadOnlySequence(), default, buffer);
+            Span<byte> sequence_number = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(sequence_number, sequenceNumber);
+            _mac.AppendData(sequence_number);
+            _mac.AppendData(unencrypted_packet);
+            _mac.AppendHashToSequenceAndReset(buffer);
         }
 
         private static byte DeterminePaddingLength(uint payload_length, uint multipleOf)

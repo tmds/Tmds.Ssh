@@ -25,22 +25,18 @@ namespace Tmds.Ssh
             _hash = new byte[nativeHashSize];
         }
 
-        public int BlockSize => 1;
-
         public void Dispose()
         {
             _incrementalHash.Dispose();
         }
 
-        public void Transform(Span<byte> prefix, ReadOnlySequence<byte> data, Span<byte> suffix, Sequence output)
+        public void AppendData(ReadOnlySpan<byte> data)
         {
-            _incrementalHash.AppendData(prefix);
-            foreach (var segment in data)
-            {
-                _incrementalHash.AppendData(segment.Span);
-            }
-            _incrementalHash.AppendData(suffix);
+            _incrementalHash.AppendData(data);
+        }
 
+        public void AppendHashToSequenceAndReset(Sequence output)
+        {
             bool hashed = _incrementalHash.TryGetHashAndReset(_hash.AsSpan(), out int bytesWritten);
             Debug.Assert(hashed);
             Debug.Assert(bytesWritten == _hash.Length);
@@ -50,17 +46,33 @@ namespace Tmds.Ssh
             output.AppendAlloced(HashSize);
         }
 
+        public bool CheckHashAndReset(ReadOnlySpan<byte> hash)
+        {
+            bool hashed = _incrementalHash.TryGetHashAndReset(_hash.AsSpan(), out int bytesWritten);
+            Debug.Assert(hashed);
+            Debug.Assert(bytesWritten == _hash.Length);
+
+            Span<byte> expected = _hash.AsSpan().Slice(0, HashSize);
+            return expected.SequenceEqual(hash);
+        }
+
         sealed private class HMacNone : IHMac
         {
-            public int BlockSize => 1;
-
             public int HashSize => 0;
 
             public void Dispose()
             { }
 
-            public void Transform(Span<byte> prefix, ReadOnlySequence<byte> data, Span<byte> suffix, Sequence output)
+            public void AppendData(ReadOnlySpan<byte> data)
             { }
+
+            public void AppendHashToSequenceAndReset(Sequence output)
+            { }
+
+            public bool CheckHashAndReset(ReadOnlySpan<byte> hash)
+            {
+                return hash.Length == 0;
+            }
         }
     }
 }
