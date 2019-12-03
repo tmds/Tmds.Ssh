@@ -38,6 +38,8 @@ namespace Tmds.Ssh
             public CancellationTokenRegistration Ctr2;
         }
 
+        public SshConnectionInfo ConnectionInfo { get; }
+
         public SshClient(string destination, Action<SshClientSettings>? configure = null)
         {
             _abortCts = new CancellationTokenSource();
@@ -53,6 +55,12 @@ namespace Tmds.Ssh
             }
             _logger = _settings.Logger ?? NullLogger.Instance;
             ValidateSettings(_settings);
+
+            ConnectionInfo = new SshConnectionInfo()
+            {
+                Port = _settings.Port,
+                Host = _settings.Host
+            };
         }
 
         private static SshClientSettings CreateSettingsForDetination(string destination)
@@ -147,11 +155,6 @@ namespace Tmds.Ssh
         private async Task RunConnectionAsync(CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
         {
             SshConnection? connection = null;
-            var connectionInfo = new SshConnectionInfo()
-            {
-                Port = _settings.Port,
-                Host = _settings.Host
-            };
             try
             {
                 // Cancel when:
@@ -167,7 +170,7 @@ namespace Tmds.Ssh
                 // Setup ssh connection
                 if (!_settings.NoProtocolVersionExchange)
                 {
-                    await _settings.ExchangeProtocolVersionAsync(connection, connectionInfo, _logger, _settings, connectCts.Token);
+                    await _settings.ExchangeProtocolVersionAsync(connection, ConnectionInfo, _logger, _settings, connectCts.Token);
                 }
                 if (!_settings.NoKeyExchange)
                 {
@@ -179,12 +182,12 @@ namespace Tmds.Ssh
                         {
                             ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                         }
-                        await _settings.ExchangeKeysAsync(connection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, connectionInfo, connectCts.Token);
+                        await _settings.ExchangeKeysAsync(connection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, ConnectionInfo, connectCts.Token);
                     }
                 }
                 if (!_settings.NoUserAuthentication)
                 {
-                    await _settings.AuthenticateUserAsync(connection, _logger, _settings, connectionInfo, connectCts.Token);
+                    await _settings.AuthenticateUserAsync(connection, _logger, _settings, ConnectionInfo, connectCts.Token);
                 }
 
                 // Allow sending.
@@ -214,18 +217,18 @@ namespace Tmds.Ssh
                     }
                     else if (_abortCts.IsCancellationRequested)
                     {
-                        e = new ConnectFailedException(ConnectFailedReason.ConnectionAborted, $"The connection was aborted: {e.Message}", connectionInfo, _abortReason!);
+                        e = new ConnectFailedException(ConnectFailedReason.ConnectionAborted, $"The connection was aborted: {e.Message}", ConnectionInfo, _abortReason!);
                     }
                     else
                     {
-                        e = new ConnectFailedException(ConnectFailedReason.Timeout, "The connect operation timed out.", connectionInfo);
+                        e = new ConnectFailedException(ConnectFailedReason.Timeout, "The connect operation timed out.", ConnectionInfo);
                     }
                 }
                 else if (e is ConnectFailedException)
                 { }
                 else
                 {
-                    e = new ConnectFailedException(ConnectFailedReason.Unknown, $"An exception occurred: {e.Message}.", connectionInfo, e);
+                    e = new ConnectFailedException(ConnectFailedReason.Unknown, $"An exception occurred: {e.Message}.", ConnectionInfo, e);
                 }
 
                 // ConnectAsync failed.
@@ -233,15 +236,15 @@ namespace Tmds.Ssh
                 return;
             }
 
-            await HandleConnectionAsync(connection, connectionInfo);
+            await HandleConnectionAsync(connection, ConnectionInfo);
         }
 
-        private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo connectionInfo)
+        private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
         {
             try
             {
                 Task sendTask = SendLoopAsync(connection);
-                Task receiveTask = ReceiveLoopAsync(connection, connectionInfo);
+                Task receiveTask = ReceiveLoopAsync(connection, ConnectionInfo);
                 await Task.WhenAll(sendTask, receiveTask);
             }
             catch (Exception e) // Unexpected: the continuation doesn't throw.
@@ -388,7 +391,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private async Task ReceiveLoopAsync(SshConnection connection, SshConnectionInfo connectionInfo)
+        private async Task ReceiveLoopAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
         {
             CancellationToken abortToken = _abortCts.Token;
             while (true)
@@ -425,7 +428,7 @@ namespace Tmds.Ssh
                                 _keyReExchangeSemaphore = null;
                                 throw;
                             }
-                            await _settings.ExchangeKeysAsync(connection, clientKexInitMsg, serverKexInitMsg: packet, _logger, _settings, connectionInfo, abortToken);
+                            await _settings.ExchangeKeysAsync(connection, clientKexInitMsg, serverKexInitMsg: packet, _logger, _settings, ConnectionInfo, abortToken);
                             keyExchangeSemaphore.Release();
                         }
                         finally

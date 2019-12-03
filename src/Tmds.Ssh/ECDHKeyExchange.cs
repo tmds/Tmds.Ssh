@@ -57,7 +57,7 @@ namespace Tmds.Ssh
             var ecdhReply = ParceEcdhReply(exchangeInitMsg, input.HostKeyAlgorithms);
 
             // Verify received key is valid.
-            connectionInfo.SshKey = ecdhReply.public_host_key;
+            connectionInfo.ServerKey = ecdhReply.public_host_key;
             connectionInfo.KeyVerificationResult = await settings.HostKeyVerification!.VerifyAsync(connectionInfo, ct);
             if (connectionInfo.KeyVerificationResult != HostKeyVerificationResult.Trusted)
             {
@@ -236,9 +236,9 @@ namespace Tmds.Ssh
                 message.Append(connectionInfo.Port);
             }
             message.Append(' ');
-            message.Append(connectionInfo.SshKey!.Type);
+            message.Append(connectionInfo.ServerKey!.Type);
             message.Append(' ');
-            message.Append(Convert.ToBase64String(connectionInfo.SshKey.Key));
+            message.Append(Convert.ToBase64String(connectionInfo.ServerKey.Key));
             message.Append("\' is ");
             message.Append(connectionInfo.KeyVerificationResult);
             message.Append(".");
