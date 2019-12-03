@@ -24,6 +24,7 @@ namespace Tmds.Ssh
         private PacketDecoder _decoder;
         private PacketEncoder _encoder;
         private uint _sendSequenceNumber;
+        private uint _receiveSequenceNumber;
 
         public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket) :
             base(sequencePool)
@@ -102,8 +103,10 @@ namespace Tmds.Ssh
         {
             while (true)
             {
-                if (_decoder.TryDecodePacket(_receiveBuffer, maxLength, out Packet packet))
+                if (_decoder.TryDecodePacket(_receiveBuffer, _receiveSequenceNumber, maxLength, out Packet packet))
                 {
+                    _receiveSequenceNumber++;
+
                     using Packet p = packet;
                     _logger.Received(packet);
                     return p.Move();

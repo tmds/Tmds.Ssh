@@ -51,6 +51,12 @@ namespace Tmds.Ssh
             throw new ProtocolException("Data contains an invalid UTF-8 sequence.");
         }
 
+        [DoesNotReturn]
+        public static void ThrowProtocolIncorrectMac()
+        {
+            throw new ProtocolException("The packet MAC is incorrect.");
+        }
+
         internal static void ThrowProtocolPacketTooLong()
         {
             throw new ProtocolException("Packet is too long.");

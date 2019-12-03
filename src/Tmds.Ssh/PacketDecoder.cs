@@ -3,6 +3,7 @@
 
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics;
 
 namespace Tmds.Ssh
@@ -11,6 +12,7 @@ namespace Tmds.Ssh
     {
         private readonly IDisposableCryptoTransform _decode;
         private readonly IHMac _mac;
+        private readonly byte[] _macBuffer;
         private readonly SequencePool _sequencePool;
         private Sequence? _decodedPacket;
 
@@ -18,6 +20,7 @@ namespace Tmds.Ssh
         {
             _decode = decode;
             _mac = mac;
+            _macBuffer = new byte[_mac.HashSize];
             _sequencePool = sequencePool;
         }
 
@@ -25,7 +28,7 @@ namespace Tmds.Ssh
             this(sequencePool, EncryptionCryptoTransform.None, HMac.None)
         { }
 
-        public bool TryDecodePacket(Sequence receiveBuffer, int maxLength, out Packet packet)
+        public bool TryDecodePacket(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
         {
             // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
             /*
@@ -82,8 +85,20 @@ namespace Tmds.Ssh
                         ThrowHelper.ThrowInvalidOperation("Complete packet expected.");
                     }
 
-                    // TODO: verify mac
-                    receiveBuffer.Remove(_mac.HashSize);
+                    if (_mac.HashSize > 0)
+                    {
+                        Span<byte> sequence_number = stackalloc byte[4];
+                        BinaryPrimitives.WriteUInt32BigEndian(sequence_number, sequenceNumber);
+                        _mac.AppendData(sequence_number);
+                        _mac.AppendData(_decodedPacket.AsReadOnlySequence());
+                        receiveBuffer.AsReadOnlySequence().Slice(0, _mac.HashSize).CopyTo(_macBuffer);
+                        if (!_mac.CheckHashAndReset(_macBuffer))
+                        {
+                            ThrowHelper.ThrowProtocolIncorrectMac();
+                        }
+
+                        receiveBuffer.Remove(_mac.HashSize);
+                    }
 
                     packet = new Packet(_decodedPacket);
                     _decodedPacket = null;
