@@ -18,8 +18,6 @@ namespace Tmds.Ssh
 
         private async static Task PerformDefaultAuthentication(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
         {
-            // TODO: handle SSH_MSG_USERAUTH_BANNER.
-
             // Request ssh-userauth service
             {
                 using var serviceRequestMsg = CreateServiceRequestMessage(connection.SequencePool);
@@ -65,12 +63,28 @@ namespace Tmds.Ssh
                     throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
                 }
 
-                using Packet response = await connection.ReceivePacketAsync(ct);
-                if (IsAuthSuccesfull(response))
+                /*
+                    The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
+                    time after this authentication protocol starts and before
+                    authentication is successful.
+                */
+                bool is_banner;
+                do
                 {
-                    logger.AuthenticationSucceeded();
-                    return;
-                }
+                    using Packet response = await connection.ReceivePacketAsync(ct);
+
+                    // TODO: return banner to the user.
+                    is_banner = response.MessageId == MessageId.SSH_MSG_USERAUTH_BANNER;
+
+                    if (!is_banner)
+                    {
+                        if (IsAuthSuccesfull(response))
+                        {
+                            logger.AuthenticationSucceeded();
+                            return;
+                        }
+                    }
+                } while (is_banner);
             }
 
             throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", connectionInfo);
