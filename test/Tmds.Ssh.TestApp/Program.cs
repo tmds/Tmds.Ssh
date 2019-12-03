@@ -34,6 +34,7 @@ namespace Tmds.Ssh.TestApp
                     settings.Credentials.Add(new PasswordCredential(password));
                 }
                 settings.Logger = CreateLogger();
+                settings.HostKeyVerification = HostKeyVerification.TrustAll;
             });
 
             await client.ConnectAsync();

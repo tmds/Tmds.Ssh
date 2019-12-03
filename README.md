@@ -137,7 +137,7 @@ class SshClientSettings
 {
     TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
     List<Credential> Credentials { get; }
-    HostKeyVerification HostKeyVerification { get; set; } = HostKeyVerification.TrustAll;
+    IHostKeyVerification IHostKeyVerification { get; set; } = IHostKeyVerification.Default;
 }
 
 class IdentityFileCredential : Credential
@@ -159,11 +159,17 @@ class SshKey
     byte[] Key { get; }
 }
 
-abstract class HostKeyVerification
+interface IHostKeyVerification
 {
-    static HostKeyVerification TrustAll { get; };
+    static IHostKeyVerification TrustAll { get; };
+    static HostKeyVerification Default { get; };
 
     abstract ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
+}
+
+class HostKeyVerification : IHostKeyVerification
+{
+    public void AddTrustedKey(string type, byte[] key);
 }
 
 enum HostKeyVerificationResult
