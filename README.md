@@ -158,7 +158,7 @@ class SshKey
     SshKey(string type, byte[] key);
 
     string Type { get; }
-    byte[] Key { get; }
+    byte[] Data { get; }
 }
 
 interface IHostKeyVerification
@@ -177,7 +177,8 @@ class HostKeyVerification : IHostKeyVerification
 enum HostKeyVerificationResult
 {
     Trusted,
-    Distrusted,
+    Revoked,
+    Changed,
     Unknown
 }
 

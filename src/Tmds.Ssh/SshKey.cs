@@ -12,22 +12,22 @@ namespace Tmds.Ssh
         public SshKey(string type, byte[] key)
         {
             Type = type ?? throw new ArgumentNullException(nameof(type));
-            Key = key ?? throw new ArgumentNullException(nameof(key));
+            Data = key ?? throw new ArgumentNullException(nameof(key));
         }
 
         public string Type { get; }
 
-        public byte[] Key { get; }
+        public byte[] Data { get; }
 
         public override string ToString()
         {
-            return $"{Type} {Convert.ToBase64String(Key)}";
+            return $"{Type} {Convert.ToBase64String(Data)}";
         }
 
         public override int GetHashCode()
         {
             int hashCode = Type.GetHashCode();
-            var span = Key.AsSpan();
+            var span = Data.AsSpan();
             for (int i = 0; i < span.Length; i++)
             {
                 hashCode = (hashCode << 8) ^ span[i];
@@ -44,7 +44,7 @@ namespace Tmds.Ssh
                 return false;
             }
 
-            return Key.AsSpan().SequenceEqual(rhs.Key) && Type.Equals(rhs.Type);
+            return Data.AsSpan().SequenceEqual(rhs.Data) && Type.Equals(rhs.Type);
         }
     }
 }

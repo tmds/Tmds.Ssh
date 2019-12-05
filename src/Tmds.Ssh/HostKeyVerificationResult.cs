@@ -6,7 +6,8 @@ namespace Tmds.Ssh
     public enum HostKeyVerificationResult
     {
         Trusted,
-        Distrusted,
+        Revoked,
+        Changed,
         Unknown
     }
 }

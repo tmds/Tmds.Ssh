@@ -77,7 +77,7 @@ namespace Tmds.Ssh
             }
 
             // Generate exchange hash.
-            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Key, q_c, ecdhReply.q_s, sharedSecret);
+            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret);
 
             // Verify the server's signature.
             if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
@@ -238,7 +238,7 @@ namespace Tmds.Ssh
             message.Append(' ');
             message.Append(connectionInfo.ServerKey!.Type);
             message.Append(' ');
-            message.Append(Convert.ToBase64String(connectionInfo.ServerKey.Key));
+            message.Append(Convert.ToBase64String(connectionInfo.ServerKey.Data));
             message.Append("\' is ");
             message.Append(connectionInfo.KeyVerificationResult);
             message.Append(".");
