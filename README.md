@@ -182,7 +182,7 @@ class HostKeyVerification : IHostKeyVerification
     static string UserKnownHostsFile;
     static string SystemKnownHostsFile;
 
-    void AddTrustedKey(SshKey key);
+    void AddTrustedHost(string host, int port, SshKey key);
     void AddKnownHostsFile(string filename)
 }
 
