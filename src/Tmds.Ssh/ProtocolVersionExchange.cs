@@ -31,12 +31,12 @@ namespace Tmds.Ssh
 
             // Send our identification string.
             logger.LogInformation("Local version string {identificationString}", identificationString);
-            await connection.WriteLineAsync(identificationString, ct);
+            await connection.WriteLineAsync(identificationString, ct).ConfigureAwait(false);
 
             // Receive peer identification string.
             for (int i = 0; i < MaxLineReads; i++)
             {
-                string line = await connection.ReceiveLineAsync(MaxLineLength, ct);
+                string line = await connection.ReceiveLineAsync(MaxLineLength, ct).ConfigureAwait(false);
                 if (line.StartsWith("SSH-", StringComparison.Ordinal))
                 {
                     connectionInfo.ServerIdentificationString = line;

@@ -36,7 +36,7 @@ namespace Tmds.Ssh.Tests
 
         private async Task HandleClientAsync()
         {
-            Socket clientSocket = await _serverSocket.AcceptAsync();
+            Socket clientSocket = await _serverSocket.AcceptAsync().ConfigureAwait(false);
             using SocketSshConnection socketSshConnection = new SocketSshConnection(NullLogger.Instance, new SequencePool(), clientSocket);
             await _handler(socketSshConnection);
         }

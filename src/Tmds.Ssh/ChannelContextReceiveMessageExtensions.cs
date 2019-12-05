@@ -10,7 +10,7 @@ namespace Tmds.Ssh
     {
         public static async ValueTask ReceiveChannelOpenConfirmationAsync(this ChannelContext context, CancellationToken ct)
         {
-            using var packet = await context.ReceivePacketAsync(ct);
+            using var packet = await context.ReceivePacketAsync(ct).ConfigureAwait(false);
 
             switch (packet.MessageId)
             {
@@ -47,7 +47,7 @@ namespace Tmds.Ssh
 
         public static async ValueTask ReceiveChannelRequestSuccessAsync(this ChannelContext context, string failureMessage, CancellationToken ct)
         {
-            using var packet = await context.ReceivePacketAsync(ct);
+            using var packet = await context.ReceivePacketAsync(ct).ConfigureAwait(false);
 
             ParseChannelOpenConfirmation(packet, failureMessage);
 

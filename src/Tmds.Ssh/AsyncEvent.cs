@@ -28,11 +28,11 @@ namespace Tmds.Ssh
                     if (ct1.CanBeCanceled && ct2.CanBeCanceled)
                     {
                         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct1, ct2);
-                        await _semaphore.WaitAsync(cts.Token);
+                        await _semaphore.WaitAsync(cts.Token).ConfigureAwait(false);
                     }
                     else if (!ct2.CanBeCanceled)
                     {
-                        await _semaphore.WaitAsync(ct1);
+                        await _semaphore.WaitAsync(ct1).ConfigureAwait(false);
                     }
                 }
             } while (true);
