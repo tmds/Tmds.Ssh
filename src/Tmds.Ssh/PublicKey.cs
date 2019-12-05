@@ -13,7 +13,7 @@ namespace Tmds.Ssh
         {
             if (new Name(key.Type) == AlgorithmNames.SshRsa) // TODO...
             {
-                return RsaPublicKey.CreateFromSshKey(key.Key);
+                return RsaPublicKey.CreateFromSshKey(key.Data);
             }
             else
             {
