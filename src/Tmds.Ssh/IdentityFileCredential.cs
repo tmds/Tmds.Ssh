@@ -11,14 +11,8 @@ namespace Tmds.Ssh
 {
     sealed public class IdentityFileCredential : Credential
     {
-        public IdentityFileCredential() :
-            this(GetDefaultFile())
-        { }
-
-        private static string GetDefaultFile()
-        {
-            return Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "id_rsa");
-        }
+        public static string RsaIdentityFile
+            => Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "id_rsa");
 
         public IdentityFileCredential(string filename)
         {

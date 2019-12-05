@@ -12,12 +12,19 @@ There is no plan to add additional functionality, but the project is open for co
 $ dotnet add package Tmds.Ssh --version 0.1.0-*  --source https://www.myget.org/F/tmds/api/v3/index.json
 ```
 
-# Supported algorithms
+# Features
+
+Algorithms:
 
 - Key exchange: ecdh-sha2-nistp256
 - Host key: ssh-rsa
 - Encryption: aes256-cbc
 - Mac: hmac-sha2-256
+
+Supports OpenSSH config files:
+
+- identify file from ~/.ssh/id_rsa.
+- validates hosts against /etc/ssh/known_hosts, and ~/.ssh/known_hosts
 
 # API Overview
 
@@ -59,9 +66,9 @@ class SshClient : IDisposable
 {
     SshClient(string destination, Action<SshClientSettings>? configure = null);
 
-    SshConnectionInfo ConnectionInfo { get; }
+    SshConnectionInfo ConnectionInfo;
 
-    CancellationToken ConnectionClosed { get; }
+    CancellationToken ConnectionClosed;
 
     Task ConnectAsync(CancellationToken ct = default);
 
@@ -77,23 +84,23 @@ class SshClient : IDisposable
 
 class RemoteProcess : IDisposable
 {
-    public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
-    public int MaxReadLength;  // Size hint for calling ReadAsync.
-    public CancellationToken ChannelAborted;
-    public CancellationToken ChannelStopped;
+    int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
+    int MaxReadLength;  // Size hint for calling ReadAsync.
+    CancellationToken ChannelAborted;
+    CancellationToken ChannelStopped;
 
     // Exit information.
-    int? ExitCode { get; }
-    string? ExitSignal { get; }
-    bool HasExited { get; }
+    int? ExitCode;
+    string? ExitSignal;
+    bool HasExited;
 
     // Stops the channel immediately, on-going operations throw ChannelAbortedException.
     void Abort(Exception reason);
 
     // Write input.
     ValueTask WriteInputAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
-    Stream StandardInputStream { get; }
-    StreamWriter StandardInputWriter { get; }
+    Stream StandardInputStream;
+    StreamWriter StandardInputWriter;
 
     // Read everything till exit.
     // - into a string
@@ -125,10 +132,10 @@ enum ProcessReadType
 
 class ChannelDataStream : Stream
 {
-    public int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
-    public int MaxReadLength;  // Size hint for calling ReadAsync.
-    public CancellationToken ChannelAborted;
-    public CancellationToken ChannelStopped;
+    int MaxWriteLength; // Size hint for calling WriteAsync. Larger buffers are split.
+    int MaxReadLength;  // Size hint for calling ReadAsync.
+    CancellationToken ChannelAborted;
+    CancellationToken ChannelStopped;
     ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
     ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default);
     void Abort(Exception reason);  // Stops the channel immediately, on-going operations throw ChannelAbortedException.
@@ -138,13 +145,14 @@ class ChannelDataStream : Stream
 class SshClientSettings
 {
     TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-    List<Credential> Credentials { get; }
+    List<Credential> Credentials;
     IHostKeyVerification IHostKeyVerification { get; set; } = IHostKeyVerification.Default;
 }
 
 class IdentityFileCredential : Credential
 {
-    IdentityFileCredential(); // use ~/.ssh/id_rsa
+    static string RsaIdentifyFile;
+
     IdentityFileCredential(string filename);
 }
 
@@ -157,21 +165,25 @@ class SshKey
 {
     SshKey(string type, byte[] key);
 
-    string Type { get; }
-    byte[] Data { get; }
+    string Type;
+    byte[] Data;
 }
 
 interface IHostKeyVerification
 {
-    static IHostKeyVerification TrustAll { get; };
-    static HostKeyVerification Default { get; };
+    static IHostKeyVerification TrustAll;
+    static HostKeyVerification Default;
 
     abstract ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
 }
 
 class HostKeyVerification : IHostKeyVerification
 {
-    public void AddTrustedKey(SshKey key);
+    static string UserKnownHostsFile;
+    static string SystemKnownHostsFile;
+
+    void AddTrustedKey(SshKey key);
+    void AddKnownHostsFile(string filename)
 }
 
 enum HostKeyVerificationResult
@@ -184,11 +196,11 @@ enum HostKeyVerificationResult
 
 class SshConnectionInfo
 {
-    public string Host { get; }
-    public int Port { get; }
+    string Host;
+    int Port;
 
-    string? ServerIdentificationString { get; }
-    SshKey? ServerKey { get; }
-    HostKeyVerificationResult? KeyVerificationResult { get; }
+    string? ServerIdentificationString;
+    SshKey? ServerKey;
+    HostKeyVerificationResult? KeyVerificationResult;
 }
 ```

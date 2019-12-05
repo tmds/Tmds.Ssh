@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
@@ -47,7 +48,7 @@ namespace Tmds.Ssh
             _settings = CreateSettingsForDetination(destination);
             if (configure == null)
             {
-                _settings.Credentials.Add(new IdentityFileCredential());
+                _settings.Credentials.Add(new IdentityFileCredential(IdentityFileCredential.RsaIdentityFile));
             }
             else
             {
@@ -132,7 +133,7 @@ namespace Tmds.Ssh
             await task;
         }
 
-        internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct)
+        internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
         {
             Socket? socket = null;
             try
@@ -141,6 +142,7 @@ namespace Tmds.Ssh
                 // Connect to the remote host
                 logger.Connecting(settings.Host, settings.Port);
                 await socket.ConnectAsync(settings.Host, settings.Port, ct);
+                connectionInfo.IPAddress = (socket.RemoteEndPoint as IPEndPoint)?.Address;
                 logger.ConnectionEstablished();
                 socket.NoDelay = true;
                 return new SocketSshConnection(logger, sequencePool, socket);
@@ -165,7 +167,7 @@ namespace Tmds.Ssh
                 connectCts.CancelAfter(_settings.ConnectTimeout);
 
                 // Connect to the remote host
-                connection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, connectCts.Token);
+                connection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, ConnectionInfo, connectCts.Token);
 
                 // Setup ssh connection
                 if (!_settings.NoProtocolVersionExchange)

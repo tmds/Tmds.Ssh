@@ -27,14 +27,14 @@ namespace Tmds.Ssh.TestApp
             {
                 if (password == null)
                 {
-                    settings.Credentials.Add(new IdentityFileCredential());
+                    settings.Credentials.Add(new IdentityFileCredential(IdentityFileCredential.RsaIdentityFile));
                 }
                 else
                 {
                     settings.Credentials.Add(new PasswordCredential(password));
                 }
                 settings.Logger = CreateLogger();
-                settings.HostKeyVerification = HostKeyVerification.TrustAll;
+                // settings.HostKeyVerification = HostKeyVerification.TrustAll;
             });
 
             await client.ConnectAsync();
