@@ -19,14 +19,14 @@ namespace Tmds.Ssh
         static HostKeyVerification()
         {
             Default = new HostKeyVerification();
-            // Default.AddKnownHostsFile(UserKnownHostsFile);
-            // Default.AddKnownHostsFile(SystemKnownHostsFile);
+            Default.AddKnownHostsFile(UserKnownHostsFile);
+            Default.AddKnownHostsFile(SystemKnownHostsFile);
         }
 
-        private static string UserKnownHostsFile
+        public static string UserKnownHostsFile
             => Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "known_hosts");
 
-        private static string SystemKnownHostsFile
+        public static string SystemKnownHostsFile
         {
             get
             {
@@ -42,9 +42,18 @@ namespace Tmds.Ssh
         }
 
         private readonly HashSet<SshKey> _trustedKeys = new HashSet<SshKey>();
+        private readonly List<string> _knownHostFiles = new List<string>();
 
-        // public void AddKnownHostsFile(string filename)
-        //     => throw new NotSupportedException();
+        public void AddKnownHostsFile(string filename)
+        {
+            lock (_knownHostFiles)
+            {
+                if (!_knownHostFiles.Contains(filename))
+                {
+                    _knownHostFiles.Add(filename);
+                }
+            }
+        }
 
         public void AddTrustedKey(SshKey key)
         {
@@ -71,7 +80,34 @@ namespace Tmds.Ssh
                 }
             }
 
-            return new ValueTask<HostKeyVerificationResult>(HostKeyVerificationResult.Unknown);
+            var result = HostKeyVerificationResult.Unknown;
+
+            string? ip = connectionInfo.IPAddress?.ToString();
+
+            lock (_knownHostFiles)
+            {
+                foreach (var knownHostFile in _knownHostFiles)
+                {
+                    HostKeyVerificationResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
+                    if (knownHostResult == HostKeyVerificationResult.Revoked)
+                    {
+                        result = HostKeyVerificationResult.Revoked;
+                        break;
+                    }
+                    if (knownHostResult == HostKeyVerificationResult.Unknown)
+                    {
+                        continue;
+                    }
+
+                    if (knownHostResult == HostKeyVerificationResult.Trusted ||
+                        result == HostKeyVerificationResult.Unknown)
+                    {
+                        result = knownHostResult;
+                    }
+                }
+            }
+
+            return new ValueTask<HostKeyVerificationResult>(result);
         }
 
         private sealed class TrustAllVerification : IHostKeyVerification

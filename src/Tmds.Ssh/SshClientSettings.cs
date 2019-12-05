@@ -51,7 +51,7 @@ namespace Tmds.Ssh
         internal List<Name> LanguagesServerToClient { get; } = new List<Name>();
 
         // For testing:
-        internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, CancellationToken ct);
+        internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
         internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshClient.EstablishConnectionAsync;
         internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
         internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
