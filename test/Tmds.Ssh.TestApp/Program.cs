@@ -47,7 +47,7 @@ namespace Tmds.Ssh.TestApp
             else if (command == "exec")
             {
                 string commandline = args.Length > 2 ? string.Join(' ', args.Skip(2)) : "echo 'hello world'";
-                var remoteProcess = await client.ExecuteCommandAsync(commandline);
+                using var remoteProcess = await client.ExecuteCommandAsync(commandline);
                 await remoteProcess.ReadToEndAsync(Console.OpenStandardOutput(), Console.OpenStandardError());
 
                 Console.WriteLine("Process exited with exit code " + remoteProcess.ExitCode);

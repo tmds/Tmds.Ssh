@@ -139,14 +139,13 @@ class ChannelDataStream : Stream
     ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default);
     ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default);
     void Abort(Exception reason);  // Stops the channel immediately, on-going operations throw ChannelAbortedException.
-    void Dispose(); // Calls Cancel and frees channel resources.
 }
 
 class SshClientSettings
 {
     TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
     List<Credential> Credentials;
-    IHostKeyVerification IHostKeyVerification { get; set; } = IHostKeyVerification.Default;
+    IHostKeyVerification IHostKeyVerification { get; set; } = HostKeyVerification.Default;
 }
 
 class IdentityFileCredential : Credential
@@ -171,14 +170,15 @@ class SshKey
 
 interface IHostKeyVerification
 {
-    static IHostKeyVerification TrustAll;
-    static HostKeyVerification Default;
 
-    abstract ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
+    ValueTask<HostKeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
 }
 
 class HostKeyVerification : IHostKeyVerification
 {
+    static IHostKeyVerification TrustAll;
+    static HostKeyVerification Default;
+
     static string UserKnownHostsFile;
     static string SystemKnownHostsFile;
 
@@ -202,5 +202,6 @@ class SshConnectionInfo
     string? ServerIdentificationString;
     SshKey? ServerKey;
     HostKeyVerificationResult? KeyVerificationResult;
+    IPAddress? IPAddress;
 }
 ```
