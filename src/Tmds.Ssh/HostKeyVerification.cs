@@ -41,7 +41,29 @@ namespace Tmds.Ssh
             }
         }
 
-        private readonly HashSet<SshKey> _trustedKeys = new HashSet<SshKey>();
+        private readonly struct HostPort : IEquatable<HostPort>
+        {
+            public readonly int Port;
+            public readonly string Host;
+
+            public HostPort(string host, int port)
+            {
+                Host = host;
+                Port = port;
+            }
+
+            public bool Equals(HostPort other)
+            {
+                return Port.Equals(other.Port) && Host.Equals(other.Host);
+            }
+
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(Port, Host);
+            }
+        }
+
+        private readonly Dictionary<HostPort, SshKey> _trustedHosts = new Dictionary<HostPort, SshKey>();
         private readonly List<string> _knownHostFiles = new List<string>();
 
         public void AddKnownHostsFile(string filename)
@@ -55,16 +77,16 @@ namespace Tmds.Ssh
             }
         }
 
-        public void AddTrustedKey(SshKey key)
+        public void AddTrustedHost(string host, int port, SshKey key)
         {
             if (key == null)
             {
                 ThrowHelper.ThrowArgumentNull(nameof(key));
             }
 
-            lock (_trustedKeys)
+            lock (_trustedHosts)
             {
-                _trustedKeys.Add(key);
+                _trustedHosts.Add(new HostPort(host, port), key);
             }
         }
 
@@ -72,15 +94,22 @@ namespace Tmds.Ssh
         {
             SshKey key = connectionInfo.ServerKey!;
 
-            lock (_trustedKeys)
+            var result = HostKeyVerificationResult.Unknown;
+
+            lock (_trustedHosts)
             {
-                if (_trustedKeys.Contains(key))
+                if (_trustedHosts.TryGetValue(new HostPort(connectionInfo.Host, connectionInfo.Port), out SshKey expectedKey))
                 {
-                    return new ValueTask<HostKeyVerificationResult>(HostKeyVerificationResult.Trusted);
+                    if (expectedKey.Equals(connectionInfo.ServerKey!))
+                    {
+                        return new ValueTask<HostKeyVerificationResult>(HostKeyVerificationResult.Trusted);
+                    }
+                    else
+                    {
+                        result = HostKeyVerificationResult.Changed;
+                    }
                 }
             }
-
-            var result = HostKeyVerificationResult.Unknown;
 
             string? ip = connectionInfo.IPAddress?.ToString();
 
