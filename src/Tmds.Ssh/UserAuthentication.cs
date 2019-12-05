@@ -21,10 +21,10 @@ namespace Tmds.Ssh
             // Request ssh-userauth service
             {
                 using var serviceRequestMsg = CreateServiceRequestMessage(connection.SequencePool);
-                await connection.SendPacketAsync(serviceRequestMsg.Move(), ct);
+                await connection.SendPacketAsync(serviceRequestMsg.Move(), ct).ConfigureAwait(false);
             }
             {
-                using Packet serviceAcceptMsg = await connection.ReceivePacketAsync(ct);
+                using Packet serviceAcceptMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
                 ParseServiceAccept(serviceAcceptMsg);
             }
 
@@ -37,7 +37,7 @@ namespace Tmds.Ssh
 
                     using var userAuthMsg = CreatePasswordRequestMessage(connection.SequencePool,
                                                 settings.UserName, passwordCredential.Password);
-                    await connection.SendPacketAsync(userAuthMsg.Move(), ct);
+                    await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                 }
                 else if (credential is IdentityFileCredential ifCredential)
                 {
@@ -50,7 +50,7 @@ namespace Tmds.Ssh
 
                             using var userAuthMsg = CreatePublicKeyRequestMessage(connection.SequencePool,
                                                         settings.UserName, connectionInfo.SessionId!, pk!);
-                            await connection.SendPacketAsync(userAuthMsg.Move(), ct);
+                            await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                         }
                     }
                     else
@@ -71,7 +71,7 @@ namespace Tmds.Ssh
                 bool is_banner;
                 do
                 {
-                    using Packet response = await connection.ReceivePacketAsync(ct);
+                    using Packet response = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
 
                     // TODO: return banner to the user.
                     is_banner = response.MessageId == MessageId.SSH_MSG_USERAUTH_BANNER;

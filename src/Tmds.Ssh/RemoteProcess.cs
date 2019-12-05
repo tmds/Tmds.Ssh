@@ -262,7 +262,7 @@ namespace Tmds.Ssh
         {
             do
             {
-                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout: false, readStderr: false, ct);
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout: false, readStderr: false, ct).ConfigureAwait(false);
 
                 if (readResult == ProcessReadType.ProcessExit)
                 {
@@ -279,7 +279,7 @@ namespace Tmds.Ssh
 
             MemoryStream? stdoutStream = readStdout ? new MemoryStream() : null;
             MemoryStream? stderrStream = readStderr ? new MemoryStream() : null;
-            await ReadToEndAsync(stdoutStream, stderrStream, disposeStreams: false, ct);
+            await ReadToEndAsync(stdoutStream, stderrStream, disposeStreams: false, ct).ConfigureAwait(false);
             string? stdout = null;
             if (readStdout)
             {
@@ -299,7 +299,7 @@ namespace Tmds.Ssh
         {
             try
             {
-                await ReadToEndAsync(writeToStream, stdoutStream, writeToStream, stderrStream, ct);
+                await ReadToEndAsync(writeToStream, stdoutStream, writeToStream, stderrStream, ct).ConfigureAwait(false);
             }
             finally
             {
@@ -307,11 +307,11 @@ namespace Tmds.Ssh
                 {
                     if (stdoutStream != null)
                     {
-                        await stdoutStream.DisposeAsync();
+                        await stdoutStream.DisposeAsync().ConfigureAwait(false);
                     }
                     if (stderrStream != null)
                     {
-                        await stderrStream.DisposeAsync();
+                        await stderrStream.DisposeAsync().ConfigureAwait(false);
                     }
                 }
             }
@@ -321,13 +321,13 @@ namespace Tmds.Ssh
                 Stream stream = (Stream)context!;
                 if (data.IsSingleSegment)
                 {
-                    await stream.WriteAsync(data.First, ct);
+                    await stream.WriteAsync(data.First, ct).ConfigureAwait(false);
                 }
                 else
                 {
                     foreach (var segment in data)
                     {
-                        await stream.WriteAsync(segment, ct);
+                        await stream.WriteAsync(segment, ct).ConfigureAwait(false);
                     }
                 }
             }
@@ -348,14 +348,14 @@ namespace Tmds.Ssh
                 {
                     if (_stdoutData != null)
                     {
-                        await MoveDataFromSequenceToStreamAsync(_context, _stdoutData, handleStdout, stdoutContext, ct);
+                        await MoveDataFromSequenceToStreamAsync(_context, _stdoutData, handleStdout, stdoutContext, ct).ConfigureAwait(false);
                         _stdoutData.Dispose();
                         _stdoutData = null;
                     }
 
                     if (_stderrData != null)
                     {
-                        await MoveDataFromSequenceToStreamAsync(_context, _stderrData, handleStderr, stderrContext, ct);
+                        await MoveDataFromSequenceToStreamAsync(_context, _stderrData, handleStderr, stderrContext, ct).ConfigureAwait(false);
                         _stderrData.Dispose();
                         _stderrData = null;
                     }
@@ -367,7 +367,7 @@ namespace Tmds.Ssh
                     throw;
                 }
 
-                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct).ConfigureAwait(false);
 
                 if (readResult == ProcessReadType.ProcessExit)
                 {
@@ -434,7 +434,7 @@ namespace Tmds.Ssh
                     throw;
                 }
 
-                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
+                ProcessReadType readResult = await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct).ConfigureAwait(false);
 
                 if (readResult == ProcessReadType.ProcessExit)
                 {
@@ -526,7 +526,7 @@ namespace Tmds.Ssh
                     return (ProcessReadType.ProcessExit, null);
                 }
 
-                await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct);
+                await ReceiveUntilProcessReadResultAsync(readStdout, readStderr, ct).ConfigureAwait(false);
 
             } while (true);
 
@@ -568,7 +568,7 @@ namespace Tmds.Ssh
 
             do
             {
-                using var packet = await _context.ReceivePacketAsync(ct);
+                using var packet = await _context.ReceivePacketAsync(ct).ConfigureAwait(false);
                 switch (packet.MessageId)
                 {
                     case MessageId.SSH_MSG_CHANNEL_DATA:
@@ -639,7 +639,7 @@ namespace Tmds.Ssh
                 // supported for the channel, SSH_MSG_CHANNEL_FAILURE is returned.
 
                 // Don't await or cancel this.
-                ValueTask _ = _context.SendChannelFailureMessageAsync(ct: default);
+                var _ = _context.SendChannelFailureMessageAsync(ct: default);
             }
         }
 

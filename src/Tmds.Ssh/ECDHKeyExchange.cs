@@ -45,11 +45,11 @@ namespace Tmds.Ssh
             // Send ECDH_INIT.
             using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
             ECPoint q_c = myPublicKey.ExportParameters().Q;
-            await connection.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct);
+            await connection.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
             // Receive ECDH_REPLY.
             ReadOnlyPacket exchangeInitMsg = input.ExchangeInitMsg;
-            using Packet exchangeInitMsgDispose = exchangeInitMsg.IsEmpty ? await connection.ReceivePacketAsync(ct) : default(Packet);
+            using Packet exchangeInitMsgDispose = exchangeInitMsg.IsEmpty ? await connection.ReceivePacketAsync(ct).ConfigureAwait(false) : default(Packet);
             if (!exchangeInitMsgDispose.IsEmpty)
             {
                 exchangeInitMsg = exchangeInitMsgDispose;
@@ -58,7 +58,7 @@ namespace Tmds.Ssh
 
             // Verify received key is valid.
             connectionInfo.ServerKey = ecdhReply.public_host_key;
-            connectionInfo.KeyVerificationResult = await settings.HostKeyVerification!.VerifyAsync(connectionInfo, ct);
+            connectionInfo.KeyVerificationResult = await settings.HostKeyVerification!.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
             if (connectionInfo.KeyVerificationResult != HostKeyVerificationResult.Trusted)
             {
                 throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, CreateUntrustedPeerMessage(connectionInfo), connectionInfo);

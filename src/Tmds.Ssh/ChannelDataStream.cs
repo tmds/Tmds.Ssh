@@ -44,12 +44,12 @@ namespace Tmds.Ssh
                 MessageId messageId;
                 do
                 {
-                    using var packet = await _context.ReceivePacketAsync(ct: default);
+                    using var packet = await _context.ReceivePacketAsync(ct: default).ConfigureAwait(false);
                     messageId = packet.MessageId!.Value;
 
                     if (messageId == MessageId.SSH_MSG_CHANNEL_REQUEST)
                     {
-                        await HandleMsgChannelRequestAsync(packet);
+                        await HandleMsgChannelRequestAsync(packet).ConfigureAwait(false);
                     }
                     else
                     {
@@ -154,7 +154,7 @@ namespace Tmds.Ssh
             {
                 if (_readBuffer == null)
                 {
-                    using Packet packet = await ReceiveUntilChannelDataAsync(cancellationToken);
+                    using Packet packet = await ReceiveUntilChannelDataAsync(cancellationToken).ConfigureAwait(false);
                     if (packet.IsEmpty)
                     {
                         _receivedEof = true;
@@ -193,7 +193,7 @@ namespace Tmds.Ssh
             {
                 while (true)
                 {
-                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelAborted, ct, ref cts);
+                    using var packet = await _readQueue.Reader.ReadAsync(_context.ChannelAborted, ct, ref cts).ConfigureAwait(false);
 
                     switch (packet.MessageId)
                     {
@@ -228,7 +228,7 @@ namespace Tmds.Ssh
             {
                 // If the request is not recognized or is not
                 // supported for the channel, SSH_MSG_CHANNEL_FAILURE is returned.
-                await _context.SendChannelFailureMessageAsync(ct: default);
+                await _context.SendChannelFailureMessageAsync(ct: default).ConfigureAwait(false);
             }
         }
 

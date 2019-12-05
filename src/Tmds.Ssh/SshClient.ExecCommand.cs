@@ -41,14 +41,14 @@ namespace Tmds.Ssh
             {
                 // Open the session channel.
                 {
-                    await context.SendChannelOpenSessionMessageAsync(ct);
-                    await context.ReceiveChannelOpenConfirmationAsync(ct);
+                    await context.SendChannelOpenSessionMessageAsync(ct).ConfigureAwait(false);
+                    await context.ReceiveChannelOpenConfirmationAsync(ct).ConfigureAwait(false);
                 }
 
                 // Request command execution.
                 {
-                    await context.SendExecCommandMessageAsync(command, ct);
-                    await context.ReceiveChannelRequestSuccessAsync("Failed to execute command.", ct);
+                    await context.SendExecCommandMessageAsync(command, ct).ConfigureAwait(false);
+                    await context.ReceiveChannelRequestSuccessAsync("Failed to execute command.", ct).ConfigureAwait(false);
                 }
                 remoteProcess = new RemoteProcess(context, standardInputEncoding, standardErrorEncoding, standardOutputEncoding);
                 return remoteProcess;

@@ -37,8 +37,8 @@ namespace Tmds.Ssh
             ChannelDataStream? stream = null;
             try
             {
-                await context.SendChannelOpenDirectTcpIpMessageAsync(host, (uint)port, originatorIP, (uint)originatorPort, ct);
-                await context.ReceiveChannelOpenConfirmationAsync(ct);
+                await context.SendChannelOpenDirectTcpIpMessageAsync(host, (uint)port, originatorIP, (uint)originatorPort, ct).ConfigureAwait(false);
+                await context.ReceiveChannelOpenConfirmationAsync(ct).ConfigureAwait(false);
                 stream = new ChannelDataStream(context);
                 return stream;
             }
@@ -46,7 +46,7 @@ namespace Tmds.Ssh
             {
                 if (stream != null)
                 {
-                    await stream.DisposeAsync();
+                    await stream.DisposeAsync().ConfigureAwait(false);
                 }
                 else
                 {

@@ -46,7 +46,7 @@ namespace Tmds.Ssh
                     return line!;
                 }
 
-                int received = await ReceiveAsync(ct);
+                int received = await ReceiveAsync(ct).ConfigureAwait(false);
                 if (received == 0)
                 {
                     throw new ProtocolException("Client closed connection while receiving line.");
@@ -57,7 +57,7 @@ namespace Tmds.Ssh
         private async ValueTask<int> ReceiveAsync(CancellationToken ct)
         {
             var memory = _receiveBuffer.AllocGetMemory();
-            int received = await _socket.ReceiveAsync(memory, SocketFlags.None, ct);
+            int received = await _socket.ReceiveAsync(memory, SocketFlags.None, ct).ConfigureAwait(false);
             _receiveBuffer.AppendAlloced(received);
             return received;
         }
@@ -112,7 +112,7 @@ namespace Tmds.Ssh
                     return p.Move();
                 }
 
-                int received = await ReceiveAsync(ct);
+                int received = await ReceiveAsync(ct).ConfigureAwait(false);
                 if (received == 0)
                 {
                     if (_receiveBuffer.AsReadOnlySequence().IsEmpty)
@@ -136,13 +136,13 @@ namespace Tmds.Ssh
 
             if (encodedData.IsSingleSegment)
             {
-                await _socket.SendAsync(encodedData.First, SocketFlags.None, ct);
+                await _socket.SendAsync(encodedData.First, SocketFlags.None, ct).ConfigureAwait(false);
             }
             else
             {
                 foreach (var memory in encodedData)
                 {
-                    await _socket.SendAsync(memory, SocketFlags.None, ct);
+                    await _socket.SendAsync(memory, SocketFlags.None, ct).ConfigureAwait(false);
                 }
             }
 
@@ -153,7 +153,7 @@ namespace Tmds.Ssh
         public override async ValueTask WriteLineAsync(string line, CancellationToken ct)
         {
             line += "\r\n";
-            await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct);
+            await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct).ConfigureAwait(false);
         }
 
         public override void SetEncoderDecoder(PacketEncoder packetEncoder, PacketDecoder packetDecoder)

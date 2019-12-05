@@ -58,7 +58,7 @@ namespace Tmds.Ssh
             {
                 if (remoteInit.first_kex_packet_follows)
                 {
-                    exchangeInitMsg = await connection.ReceivePacketAsync(ct);
+                    exchangeInitMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
 
                     if (matchingKex.IsEmpty ||
                         settings.ServerHostKeyAlgorithms.Count == 0 ||
@@ -95,7 +95,7 @@ namespace Tmds.Ssh
 
                         using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                         {
-                            keyExchangeOutput = await algorithm.TryExchangeAsync(connection, settings, keyExchangeInput, logger, ct);
+                            keyExchangeOutput = await algorithm.TryExchangeAsync(connection, settings, keyExchangeInput, logger, ct).ConfigureAwait(false);
                         }
                         if (keyExchangeOutput != null)
                         {
@@ -127,10 +127,10 @@ namespace Tmds.Ssh
             logger.AlgorithmsClientToServer(encC2S, macC2S, comC2S);
 
             // Send SSH_MSG_NEWKEYS.
-            await connection.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct);
+            await connection.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct).ConfigureAwait(false);
 
             // Receive SSH_MSG_NEWKEYS.
-            using Packet newKeysReceivedMsg = await connection.ReceivePacketAsync(ct);
+            using Packet newKeysReceivedMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
             ParseNewKeysMessage(newKeysReceivedMsg);
 
             var encrypt = EncryptionFactory.Default.CreateEncryptor(encC2S, keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S);

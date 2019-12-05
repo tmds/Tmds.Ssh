@@ -112,7 +112,7 @@ namespace Tmds.Ssh
                 {
                     do
                     {
-                        using Packet packet = await _receiveQueue.Reader.ReadAsync(ChannelStopped, ct, ref cts);
+                        using Packet packet = await _receiveQueue.Reader.ReadAsync(ChannelStopped, ct, ref cts).ConfigureAwait(false);
 
                         if (InspectReceivedPacket(packet))
                         {
@@ -215,7 +215,7 @@ namespace Tmds.Ssh
 
                 try
                 {
-                    await _client.SendPacketAsync(pkt.Move(), ChannelStopped, ct);
+                    await _client.SendPacketAsync(pkt.Move(), ChannelStopped, ct).ConfigureAwait(false);
 
                     if (msgId == MessageId.SSH_MSG_CHANNEL_OPEN)
                     {
@@ -259,7 +259,7 @@ namespace Tmds.Ssh
                     // Wait for the channel to be open.
                     if (_localChannelState == LocalChannelState.OpenSent)
                     {
-                        await _channelOpenDoneEvent.WaitAsync(contextToken, ct);
+                        await _channelOpenDoneEvent.WaitAsync(contextToken, ct).ConfigureAwait(false);
                     }
 
                     // Send channel close.
@@ -277,7 +277,7 @@ namespace Tmds.Ssh
                                 using var setResultOnCancel =
                                     ChannelAborted.Register(s => ((TaskCompletionSource<object?>)s!).SetCanceled(), tcs);
                                 Task sendTaskAsTask = sendTask.AsTask();
-                                if (await Task.WhenAny(tcs.Task, sendTaskAsTask) == tcs.Task)
+                                if (await Task.WhenAny(tcs.Task, sendTaskAsTask).ConfigureAwait(false) == tcs.Task)
                                 {
                                     // Cancelled.
                                     await tcs.Task;
@@ -301,7 +301,7 @@ namespace Tmds.Ssh
                     if (_localChannelState != LocalChannelState.Initial)
                     {
                         // Wait for peer close.
-                        await _remoteClosedChannelEvent.WaitAsync(contextToken, ct);
+                        await _remoteClosedChannelEvent.WaitAsync(contextToken, ct).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException)
@@ -372,7 +372,7 @@ namespace Tmds.Ssh
                         toSend = Math.Min(toSend, RemoteMaxPacketSize);
                         if (Interlocked.CompareExchange(ref _sendWindow, sendWindow - toSend, sendWindow) == sendWindow)
                         {
-                            await this.SendChannelDataMessageAsync(memory.Slice(0, toSend), ct);
+                            await this.SendChannelDataMessageAsync(memory.Slice(0, toSend), ct).ConfigureAwait(false);
                             memory = memory.Slice(toSend);
                             if (memory.IsEmpty)
                             {
@@ -382,7 +382,7 @@ namespace Tmds.Ssh
                     }
                     try
                     {
-                        await _sendWindowAvailableEvent.WaitAsync(ChannelStopped, ct);
+                        await _sendWindowAvailableEvent.WaitAsync(ChannelStopped, ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException e)
                     {
@@ -420,7 +420,7 @@ namespace Tmds.Ssh
                     try
                     {
                         // It's not needed to wait for this. The caller will end up waiting for new data.
-                        ValueTask sendTask = this.SendChannelWindowAdjustMessageAsync((uint)adjust, ct: default);
+                        var _ = this.SendChannelWindowAdjustMessageAsync((uint)adjust, ct: default);
                     }
                     catch
                     {

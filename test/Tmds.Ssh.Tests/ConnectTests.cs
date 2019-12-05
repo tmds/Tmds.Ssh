@@ -17,7 +17,7 @@ namespace Tmds.Ssh.Tests
             await using var server = new TestServer(
                 async conn =>
                 {
-                    var packet = await conn.ReceivePacketAsync(default);
+                    var packet = await conn.ReceivePacketAsync(default).ConfigureAwait(false);
                     serverReceivedTcs.SetResult(packet);
                 }
             );
