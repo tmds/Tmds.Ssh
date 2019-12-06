@@ -23,7 +23,7 @@ Algorithms:
 
 Supports OpenSSH config files:
 
-- identify file from ~/.ssh/id_rsa.
+- identity file from ~/.ssh/id_rsa.
 - validates hosts against /etc/ssh/known_hosts, and ~/.ssh/known_hosts
 
 # API Overview
@@ -150,7 +150,7 @@ class SshClientSettings
 
 class IdentityFileCredential : Credential
 {
-    static string RsaIdentifyFile;
+    static string RsaIdentityFile;
 
     IdentityFileCredential(string filename);
 }
