@@ -1,3 +1,6 @@
+[![Travis](https://api.travis-ci.org/tmds/Tmds.Ssh.svg?branch=master)](https://travis-ci.org/tmds/Tmds.Ssh)
+[![NuGet](https://img.shields.io/nuget/v/Tmds.Ssh.svg)](https://www.nuget.org/packages/Tmds.Ssh)
+
 # Tmds.Ssh
 
 Tmds.Ssh is a .NET SSH client library. It targets netstandard 2.1 (.NET Core 3.x+) and makes use of the new platform APIs for building high-performance network applications.
@@ -9,7 +12,7 @@ There is no plan to add additional functionality, but the project is open for co
 # Getting the package
 
 ```
-$ dotnet add package Tmds.Ssh --version 0.1.0-*  --source https://www.myget.org/F/tmds/api/v3/index.json
+$ dotnet add package Tmds.Ssh
 ```
 
 # Features
