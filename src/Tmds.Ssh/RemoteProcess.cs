@@ -276,6 +276,7 @@ namespace Tmds.Ssh
         public async ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken ct = default)
         {
             CheckReadState(readStdout, readStderr, ReadStatus.ReadStringToEnd);
+            _readStatus = ReadStatus.Initial;
 
             MemoryStream? stdoutStream = readStdout ? new MemoryStream() : null;
             MemoryStream? stderrStream = readStderr ? new MemoryStream() : null;
