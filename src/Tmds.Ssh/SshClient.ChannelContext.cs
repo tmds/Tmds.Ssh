@@ -28,8 +28,7 @@ namespace Tmds.Ssh
             private LocalChannelState _localChannelState;
             private bool _disposed;
             private readonly AsyncEvent _remoteClosedChannelEvent;
-            private int _sendWindow;
-            private AsyncEvent _sendWindowAvailableEvent;
+            private MultiSemaphore _sendWindow;
             private int _receiveWindow;
             private AsyncEvent _channelOpenDoneEvent;
             private const int CancelByUser = 1;
@@ -53,7 +52,7 @@ namespace Tmds.Ssh
                 });
                 // ManualResetEventSlim doesn't support async wait, so use a SemaphoreSlim.
                 _remoteClosedChannelEvent = new AsyncEvent();
-                _sendWindowAvailableEvent = new AsyncEvent();
+                _sendWindow = new MultiSemaphore();
                 _channelOpenDoneEvent = new AsyncEvent();
                 _receiveWindow = LocalWindowSize;
                 _abortedTcs = new CancellationTokenSource();
@@ -152,14 +151,11 @@ namespace Tmds.Ssh
                             reader.ReadByte();   // SSH_MSG_CHANNEL_OPEN_CONFIRMATION
                             reader.SkipUInt32(); // recipient channel
                             RemoteChannel = reader.ReadUInt32(); // sender channel
-                            _sendWindow = checked((int)reader.ReadUInt32()); // initial window size
+                            int initialSendWindow = checked((int)reader.ReadUInt32()); // initial window size
                             RemoteMaxPacketSize = checked((int)reader.ReadUInt32()); // maximum packet size
                             _localChannelState = LocalChannelState.Opened;
                             _channelOpenDoneEvent.Set();
-                            if (_sendWindow != 0)
-                            {
-                                _sendWindowAvailableEvent.Set();
-                            }
+                            _sendWindow.Release(initialSendWindow);
                         }
                         break;
                     case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
@@ -186,15 +182,7 @@ namespace Tmds.Ssh
                             reader.SkipUInt32(); // recipient channel
                             int bytesToAdd = checked((int)reader.ReadUInt32()); // bytes to add
                             reader.ReadEnd();
-                            int newSize = Interlocked.Add(ref _sendWindow, bytesToAdd);
-                            if (newSize < 0)
-                            {
-                                ThrowHelper.ThrowArgumentOutOfRange(nameof(bytesToAdd));
-                            }
-                            if (newSize == bytesToAdd) // _sendWindow was zero.
-                            {
-                                _sendWindowAvailableEvent.Set();
-                            }
+                            _sendWindow.Release(bytesToAdd);
                         }
                         return false;
                 }
@@ -352,7 +340,7 @@ namespace Tmds.Ssh
                 _abortedTcs.Dispose();
                 _stoppedCts.Dispose();
                 _remoteClosedChannelEvent.Dispose();
-                _sendWindowAvailableEvent.Dispose();
+                _sendWindow.Dispose();
                 _channelOpenDoneEvent.Dispose();
 
                 while (_receiveQueue.Reader.TryRead(out Packet packet))
@@ -365,24 +353,11 @@ namespace Tmds.Ssh
             {
                 while (memory.Length > 0)
                 {
-                    int sendWindow = Volatile.Read(ref _sendWindow);
-                    if (sendWindow > 0)
-                    {
-                        int toSend = Math.Min(sendWindow, memory.Length);
-                        toSend = Math.Min(toSend, RemoteMaxPacketSize);
-                        if (Interlocked.CompareExchange(ref _sendWindow, sendWindow - toSend, sendWindow) == sendWindow)
-                        {
-                            await this.SendChannelDataMessageAsync(memory.Slice(0, toSend), ct).ConfigureAwait(false);
-                            memory = memory.Slice(toSend);
-                            if (memory.IsEmpty)
-                            {
-                                return;
-                            }
-                        }
-                    }
                     try
                     {
-                        await _sendWindowAvailableEvent.WaitAsync(ChannelStopped, ct).ConfigureAwait(false);
+                        int toSend = await _sendWindow.AquireAsync(aquireCount: memory.Length, exactCount: false, ChannelStopped, ct).ConfigureAwait(false);
+                        await this.SendChannelDataMessageAsync(memory.Slice(0, toSend), ct).ConfigureAwait(false);
+                        memory = memory.Slice(toSend);
                     }
                     catch (OperationCanceledException e)
                     {
