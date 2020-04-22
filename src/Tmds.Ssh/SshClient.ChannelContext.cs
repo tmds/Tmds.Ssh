@@ -358,10 +358,6 @@ namespace Tmds.Ssh
                         int toSend = await _sendWindow.AquireAsync(aquireCount: memory.Length, exactCount: false, ChannelStopped, ct).ConfigureAwait(false);
                         await this.SendChannelDataMessageAsync(memory.Slice(0, toSend), ct).ConfigureAwait(false);
                         memory = memory.Slice(toSend);
-                        if (memory.IsEmpty)
-                        {
-                            return;
-                        }
                     }
                     catch (OperationCanceledException e)
                     {
