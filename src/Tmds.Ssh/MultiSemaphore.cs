@@ -14,7 +14,6 @@ namespace Tmds.Ssh
         private int _available;
         private int _waiters;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ValueTask<int> AquireAsync(int aquireCount, bool exactCount, CancellationToken ct1, CancellationToken ct2 = default)
         {
             if (TryAquire(aquireCount, exactCount, out int aquired))
@@ -30,18 +29,25 @@ namespace Tmds.Ssh
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool TryAquire(int aquireCount, bool exactCount, out int aquired)
         {
-            int available = Volatile.Read(ref _available);
-            int tryAquire = exactCount ? aquireCount : Math.Max(Math.Min(available, aquireCount), 1);
-            if (available >= tryAquire)
+            while (true)
             {
-                if (Interlocked.CompareExchange(ref _available, available - tryAquire, available) == available)
+                int available = Volatile.Read(ref _available);
+                int tryAquire = exactCount ? aquireCount : Math.Max(Math.Min(available, aquireCount), 1);
+                if (available >= tryAquire)
                 {
-                    aquired = tryAquire;
-                    return true;
+                    if (Interlocked.CompareExchange(ref _available, available - tryAquire, available) == available)
+                    {
+                        aquired = tryAquire;
+                        return true;
+                    }
+                    else
+                    {
+                        continue;
+                    }
                 }
+                aquired = 0;
+                return false;
             }
-            aquired = 0;
-            return false;
         }
 
         private async ValueTask<int> TryAquireSlow(int aquireCount, bool exactCount, CancellationToken ct1, CancellationToken ct2 = default)
