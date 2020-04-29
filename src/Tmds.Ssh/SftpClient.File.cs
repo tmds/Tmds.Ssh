@@ -6,12 +6,12 @@ using System.Buffers.Binary;
 
 namespace Tmds.Ssh
 {
-    public class SftpFile
+    public sealed class SftpFile
     {
-        private byte[] handle;
+        private byte[] _handle;
         internal SftpFile(byte[] handle)
         {
-            this.handle = handle;
+            _handle = handle;
         }
     }
 
@@ -27,7 +27,7 @@ namespace Tmds.Ssh
 
     public partial class SftpClient
     {
-        public async Task<SftpFile> OpenFileAsync(string path, SftpOpenFlags openFlags)
+        public async ValueTask<SftpFile> OpenFileAsync(string path, SftpOpenFlags openFlags)
         {
             using var packet = CreateOpenMessage(path, openFlags);
             var operation = new OpenFileOperation();
@@ -35,13 +35,6 @@ namespace Tmds.Ssh
             await SendRequestAsync(packet.Move(), operation);
 
             return await operation.Task;
-
-            // int requestId = GetNextRequestId();
-
-            // _operations.TryAdd(requestId, operation);
-
-            // await _context.SftpOpenFileMessageAsync((UInt32)requestId, path, openFlags, attributes, default);
-            // return await operation.Task;
         }
 
         private Packet CreateOpenMessage(string filename, SftpOpenFlags flags)
@@ -67,7 +60,7 @@ namespace Tmds.Ssh
         }
     }
 
-    class OpenFileOperation : SftpOperation
+    sealed class OpenFileOperation : SftpOperation
     {
         private TaskCompletionSource<SftpFile> _tcs = new TaskCompletionSource<SftpFile>();
 

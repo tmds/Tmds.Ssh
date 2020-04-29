@@ -31,7 +31,7 @@ namespace Tmds.Ssh
         const int DataHeaderLength = 13;
         const int SftpVersion = 3;
         private readonly ChannelContext _context;
-        private readonly Task _receiveLoopTask;
+        private Task? _receiveLoopTask;
         private int _requestId;
         private ConcurrentDictionary<uint, SftpOperation> _operations;
 
@@ -62,19 +62,20 @@ namespace Tmds.Ssh
         internal SftpClient(ChannelContext context)
         {
             _context = context;
-            _receiveLoopTask = ReceiveLoopAsync();
             _operations = new ConcurrentDictionary<uint, SftpOperation>();
         }
 
-        // public async Task InitAsync(CancellationToken ct)
-        // {
-        //     await _context.SftpInitMessageAsync(3, ct).ConfigureAwait(false);
-        //     // TODO add server negotiation in case server would have min. version < 3, but was able to do a version 3 aswell
-        //     int serverVersion = await _context.ReceiveServerVersionAsync("Failed to negotiate SFTP", ct).ConfigureAwait(false);
+        public async Task InitAsync(CancellationToken ct)
+        {
+            await SftpInitMessageAsync(3, ct).ConfigureAwait(false);
+            // TODO add server negotiation in case server would have min. version < 3, but was able to do a version 3 aswell
+            int serverVersion = await ReceiveServerVersionAsync("Failed to negotiate SFTP", ct);
 
-        //     if (serverVersion != SftpVersion)
-        //         ThrowHelper.ThrowNotSupportedException("Server SFTP version is not supported");
-        // }
+            if (serverVersion != SftpVersion)
+                ThrowHelper.ThrowNotSupportedException("Server SFTP version is not supported");
+
+            _receiveLoopTask = ReceiveLoopAsync();
+        }
 
         public void Dispose()
         {
@@ -152,5 +153,59 @@ namespace Tmds.Ssh
             consumed = 4 + length;
             return true;
         }
+
+        private async ValueTask<int> ReceiveServerVersionAsync(string failureMessage, CancellationToken ct)
+        {
+            using var packet = await _context.ReceivePacketAsync(ct).ConfigureAwait(false);
+
+            return ParseSftpVersion(packet, failureMessage);
+            /*
+                        byte            SSH_MSG_CHANNEL_DATA
+                        uint32          recipient channel
+                        string          data
+
+                        uint32          SftpLength
+                        byte            SftpType
+                        uint32          SftpVersion
+                        string          extension-name
+                        string          extension-data
+            */
+
+            static int ParseSftpVersion(ReadOnlyPacket packet, string failureMessage)
+            {
+                var reader = packet.GetReader();
+                reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
+                reader.Skip(12);
+                reader.ReadSftpPacketType(SftpPacketType.SSH_FXP_VERSION);
+                var version = (int)reader.ReadUInt32();
+                return version;
+            }
+        }
+
+        private ValueTask SftpInitMessageAsync(uint version, CancellationToken ct)
+        {
+            return _context.SendPacketAsync(CreatePacket(_context, version), ct); // TODO later build sftp over SendChannelDataMessageAsync()
+
+            static Packet CreatePacket(ChannelContext context, uint version)
+            {
+                /*
+                    byte        SSH_MSG_CHANNEL_DATA
+                    uint32      recipient channel
+                    uint32      length
+                    byte        SSH_FXP_INIT
+                    uint32      version
+                */
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
+                writer.WriteUInt32(context.RemoteChannel);
+                writer.WriteUInt32(9); // length
+                writer.WriteUInt32(5); // length
+                writer.WriteByte((byte)SftpPacketType.SSH_FXP_INIT);
+                writer.WriteUInt32(version); // version
+                return packet.Move();
+            }
+        }
+
     }
 }

@@ -78,6 +78,19 @@ namespace Tmds.Ssh
                 ThrowHelper.ThrowProtocolUnexpectedValue();
             }
         }
+        public SftpPacketType ReadSftpPacketType()
+        {
+            return (SftpPacketType)ReadByte();
+        }
+
+        public void ReadSftpPacketType(SftpPacketType expectedValue)
+        {
+            SftpPacketType value = ReadSftpPacketType();
+            if (value != expectedValue)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
+        }
 
         public uint ReadUInt32()
         {

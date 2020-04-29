@@ -207,30 +207,5 @@ namespace Tmds.Ssh
                 return packet.Move();
             }
         }
-
-        public static ValueTask SftpInitMessageAsync(this ChannelContext context, uint version, CancellationToken ct)
-        {
-            return context.SendPacketAsync(CreatePacket(context, version), ct); // TODO later build sftp over SendChannelDataMessageAsync()
-
-            static Packet CreatePacket(ChannelContext context, uint version)
-            {
-                /*
-                    byte        SSH_MSG_CHANNEL_DATA
-                    uint32      recipient channel
-                    uint32      length
-                    byte        SSH_FXP_INIT
-                    uint32      version
-                */
-                using var packet = context.RentPacket();
-                var writer = packet.GetWriter();
-                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
-                writer.WriteUInt32(context.RemoteChannel);
-                writer.WriteUInt32(9); // length
-                writer.WriteUInt32(5); // length
-                writer.WriteByte((byte)SftpPacketType.SSH_FXP_INIT);
-                writer.WriteUInt32(version); // version
-                return packet.Move();
-            }
-        }
     }
 }

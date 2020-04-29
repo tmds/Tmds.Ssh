@@ -693,11 +693,11 @@ namespace Tmds.Ssh
                     await context.SendChannelSubsystemMessageAsync("sftp", ct).ConfigureAwait(false);
                     await context.ReceiveChannelRequestSuccessAsync("Failed to start sftp.", ct).ConfigureAwait(false);
                 }
-                {
-                    await context.SftpInitMessageAsync(3, ct).ConfigureAwait(false);
-                    // TODO add server negotiation in case server would have min. version < 3, but was able to do a version 3 aswell
-                    int serverVersion = await context.ReceiveServerVersionAsync("Failed to negotiate SFTP", ct).ConfigureAwait(false);
-                }
+                // {
+                //     await context.SftpInitMessageAsync(3, ct).ConfigureAwait(false);
+                //     // TODO add server negotiation in case server would have min. version < 3, but was able to do a version 3 aswell
+                //     int serverVersion = await context.ReceiveServerVersionAsync("Failed to negotiate SFTP", ct).ConfigureAwait(false);
+                // }
 
                 return new SftpClient(context);
             }
