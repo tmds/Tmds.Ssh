@@ -34,6 +34,12 @@ namespace Tmds.Ssh
         }
 
         [DoesNotReturn]
+        public static void ThrowProtocolUnexpectedSftpPacketType(SftpPacketType packetType)
+        {
+            throw new ProtocolException($"Unexpected SFTP packet type: {packetType}.");
+        }
+
+        [DoesNotReturn]
         public static void ThrowProtocolInvalidPacketLength()
         {
             throw new ProtocolException("The packet length is not valid.");

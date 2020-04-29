@@ -28,7 +28,7 @@ namespace Tmds.Ssh
             private LocalChannelState _localChannelState;
             private bool _disposed;
             private readonly AsyncEvent _remoteClosedChannelEvent;
-            private MultiSemaphore _sendWindow;
+            private readonly MultiSemaphore _sendWindow;
             private int _receiveWindow;
             private AsyncEvent _channelOpenDoneEvent;
             private const int CancelByUser = 1;
@@ -346,6 +346,27 @@ namespace Tmds.Ssh
                 while (_receiveQueue.Reader.TryRead(out Packet packet))
                 {
                     packet.Dispose();
+                }
+            }
+
+            public override async ValueTask SendChannelDataAsync(Packet packet, CancellationToken ct)
+            {
+                using var pkt = packet.Move();
+                long toSend = packet.PayloadLength - 9; // TODO: verify
+                try
+                {
+                    await _sendWindow.AquireAsync(aquireCount: (int)toSend, exactCount: true, ChannelStopped, ct).ConfigureAwait(false);
+                    await SendPacketAsync(pkt.Move(), ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException e)
+                {
+                    // Cancelling a send aborts the channel.
+                    Abort(e);
+
+                    ct.ThrowIfCancellationRequested();
+                    ThrowIfChannelStopped();
+
+                    throw;
                 }
             }
 

@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh
 {
-    enum MessageId
+    enum MessageId : byte
     {
         SSH_MSG_DISCONNECT = 1,
         SSH_MSG_IGNORE = 2,

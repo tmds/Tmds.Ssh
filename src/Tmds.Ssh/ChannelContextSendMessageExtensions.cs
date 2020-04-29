@@ -28,7 +28,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public static ValueTask SendChannelDataMessageAsync(this ChannelContext context,  ReadOnlyMemory<byte> memory, CancellationToken ct)
+        public static ValueTask SendChannelDataMessageAsync(this ChannelContext context, ReadOnlyMemory<byte> memory, CancellationToken ct)
         {
             return context.SendPacketAsync(CreatePacket(context, memory), ct);
 
@@ -179,6 +179,56 @@ namespace Tmds.Ssh
                 writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST);
                 writer.WriteUInt32(context.RemoteChannel);
                 writer.WriteUInt32(bytesToAdd);
+                return packet.Move();
+            }
+        }
+
+        public static ValueTask SendChannelSubsystemMessageAsync(this ChannelContext context, string subsystem, CancellationToken ct)
+        {
+            return context.SendPacketAsync(CreatePacket(context, subsystem), ct);
+
+            static Packet CreatePacket(ChannelContext context, string subsystem)
+            {
+                /*
+                    byte      SSH_MSG_CHANNEL_REQUEST
+                    uint32    recipient channel
+                    string    "subsystem"
+                    boolean   want reply
+                    string    "name"
+                 */
+
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+                writer.WriteUInt32(context.RemoteChannel);
+                writer.WriteString("subsystem");
+                writer.WriteBoolean(true);
+                writer.WriteString(subsystem);
+                return packet.Move();
+            }
+        }
+
+        public static ValueTask SftpInitMessageAsync(this ChannelContext context, uint version, CancellationToken ct)
+        {
+            return context.SendPacketAsync(CreatePacket(context, version), ct); // TODO later build sftp over SendChannelDataMessageAsync()
+
+            static Packet CreatePacket(ChannelContext context, uint version)
+            {
+                /*
+                    byte        SSH_MSG_CHANNEL_DATA
+                    uint32      recipient channel
+                    uint32      length
+                    byte        SSH_FXP_INIT
+                    uint32      version
+                */
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
+                writer.WriteUInt32(context.RemoteChannel);
+                writer.WriteUInt32(9); // length
+                writer.WriteUInt32(5); // length
+                writer.WriteByte((byte)SftpPacketType.SSH_FXP_INIT);
+                writer.WriteUInt32(version); // version
                 return packet.Move();
             }
         }

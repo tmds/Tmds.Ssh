@@ -223,6 +223,18 @@ namespace Tmds.Ssh
             }
         }
 
+        public void Reserve(int count)
+        {
+            while (count > 0)
+            {
+                Span<byte> span = AllocGetSpan(count);
+                int spanCount = Math.Min(count, span.Length);
+                span.Slice(0, spanCount).Clear();
+                AppendAlloced(spanCount);
+                count -= spanCount;
+            }
+        }
+
         public void WriteRandomBytes(int count)
         {
             Span<byte> span = AllocGetSpan(count);

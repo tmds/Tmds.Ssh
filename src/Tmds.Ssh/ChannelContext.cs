@@ -18,6 +18,7 @@ namespace Tmds.Ssh
         public abstract CancellationToken ChannelAborted { get; } // When ConnectionClosed or user calls Abort.
         public abstract ValueTask<Packet> ReceivePacketAsync(CancellationToken ct);     // Implicitly uses ChannelAborted.
         public abstract ValueTask SendPacketAsync(Packet packet, CancellationToken ct); // Implicitly uses ChannelStopped.
+        public abstract ValueTask SendChannelDataAsync(Packet packet, CancellationToken ct);
         public abstract ValueTask SendChannelDataAsync(ReadOnlyMemory<byte> memory, CancellationToken ct);
         public abstract Packet RentPacket();
         public abstract void Abort(Exception reason);

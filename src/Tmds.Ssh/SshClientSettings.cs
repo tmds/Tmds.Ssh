@@ -32,7 +32,7 @@ namespace Tmds.Ssh
         internal string UserName { get; set; }
         internal string Host { get; set; }
         internal int Port { get; set; } = 22;
-        internal ILogger? Logger { get; set; } = null; // TODO: decide how to expose the logger publically.
+        public ILogger? Logger { get; set; } = null; // TODO: decide how to expose the logger publically.
         public List<Credential> Credentials { get; } = new List<Credential>();
         public IHostKeyVerification HostKeyVerification { get; set; } = Ssh.HostKeyVerification.Default;
 

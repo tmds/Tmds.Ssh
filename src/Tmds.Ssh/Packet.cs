@@ -96,6 +96,36 @@ namespace Tmds.Ssh
             }
         }
 
+        public Span<byte> PayloadHeader
+        {
+            get
+            {
+                if (_sequence == null)
+                {
+                    return default;
+                }
+
+                long payloadLength = PayloadLength;
+                if (payloadLength == 0)
+                {
+                    return default;
+                }
+
+                Span<byte> span = _sequence.FirstSpan;
+
+                // Check whether the header bytes have been filled in.
+                for (int i = PaddingOffset; i >= 0; i--)
+                {
+                    if (span[i] != 0)
+                    {
+                        ThrowPacketReadOnly();
+                    }
+                }
+
+                return span.Slice(MsgTypeOffset);
+            }
+        }
+
         public long PayloadLength
         {
             get
