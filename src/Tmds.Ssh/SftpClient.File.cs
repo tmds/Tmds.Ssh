@@ -13,6 +13,11 @@ namespace Tmds.Ssh
         {
             _handle = handle;
         }
+
+        ValueTask CloseAsync() // TODO
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public enum SftpOpenFlags
@@ -27,6 +32,7 @@ namespace Tmds.Ssh
 
     public partial class SftpClient
     {
+        // TODO add CancellationToken
         public async ValueTask<SftpFile> OpenFileAsync(string path, SftpOpenFlags openFlags)
         {
             using var packet = CreateOpenMessage(path, openFlags);

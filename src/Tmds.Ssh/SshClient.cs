@@ -46,7 +46,7 @@ namespace Tmds.Ssh
         {
             _abortCts = new CancellationTokenSource();
 
-            _settings = CreateSettingsForDetination(destination); // Isn't this a typo?
+            _settings = CreateSettingsForDestination(destination);
             if (configure == null)
             {
                 _settings.Credentials.Add(new IdentityFileCredential(IdentityFileCredential.RsaIdentityFile));
@@ -65,7 +65,7 @@ namespace Tmds.Ssh
             };
         }
 
-        private static SshClientSettings CreateSettingsForDetination(string destination) // Typo, TODO
+        private static SshClientSettings CreateSettingsForDestination(string destination)
         {
             if (destination == null)
             {

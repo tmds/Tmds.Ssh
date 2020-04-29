@@ -180,7 +180,7 @@ namespace Tmds.Ssh
 
             public override string ToString()
             {
-                const int maxDataLength = 20 * PrettyBytePrinter.BytesPerLine;
+                const int maxDataLength = 2 * PrettyBytePrinter.BytesPerLine;
 
                 ReadOnlySequence<byte> payload = _packet.Payload;
                 bool trimmed = false;

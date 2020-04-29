@@ -22,7 +22,7 @@ namespace Tmds.Ssh
         }
     }
 
-    public partial class SftpClient : IDisposable
+    public sealed partial class SftpClient : IDisposable
     {
         // SSH_MSG_CHANNEL_DATA          (1)
         // RemoteChannel                 (4)
@@ -33,7 +33,7 @@ namespace Tmds.Ssh
         private readonly ChannelContext _context;
         private Task? _receiveLoopTask;
         private int _requestId;
-        private ConcurrentDictionary<uint, SftpOperation> _operations;
+        private readonly ConcurrentDictionary<uint, SftpOperation> _operations;
 
         private ValueTask SendRequestAsync(Packet packet, SftpOperation operation)
         {
@@ -42,7 +42,7 @@ namespace Tmds.Ssh
                 1: RemoteChannel         (4)
                 5: DATA length           (4)
                 9: SFTP length           (4)
-                13: SFTP packet type     (1) ] // Already filled in.
+                13: SFTP packet type     (1) // Already filled in.
                 14: SFTP request id      (4)
             */
             uint requestId = unchecked((uint)Interlocked.Increment(ref _requestId));
@@ -106,6 +106,9 @@ namespace Tmds.Ssh
             }
             catch (Exception e)
             {
+                // TODO Handling
+                // The handling should avoid new operations being started, 
+                // and an exception to be thrown for all on-going requests.
                 throw e;
             }
         }
