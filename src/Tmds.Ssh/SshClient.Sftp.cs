@@ -28,8 +28,14 @@ namespace Tmds.Ssh
             catch
             {
                 if (sftpClient != null)
+                {
                     sftpClient.Dispose();
-                context.Dispose(); // closing channel
+                }
+                else
+                {
+                    context.Dispose(); // closing channel
+                }
+
                 throw;
             }
         }

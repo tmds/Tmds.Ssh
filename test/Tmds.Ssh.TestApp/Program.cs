@@ -56,6 +56,7 @@ namespace Tmds.Ssh.TestApp
             {
                 using var sftpClient = await client.OpenSftpClientAsync(default);
                 var file = await sftpClient.OpenFileAsync("/tmp/test", SftpOpenFlags.CreateNewOrOpen);
+                await file.CloseAsync();
             }
             else
             {
