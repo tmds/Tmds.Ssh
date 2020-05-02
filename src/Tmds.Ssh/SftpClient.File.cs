@@ -8,16 +8,15 @@ namespace Tmds.Ssh
 {
     public sealed class SftpFile
     {
-        private byte[] _handle;
+        private readonly byte[] _handle;
+
         internal SftpFile(byte[] handle)
         {
             _handle = handle;
         }
 
-        ValueTask CloseAsync() // TODO
-        {
-            throw new NotImplementedException();
-        }
+        // For now I am taking a client as an argument because not sure how to do this
+        public ValueTask<bool> CloseAsync(SftpClient client) => client.CloseFileAsync(_handle);
     }
 
     public enum SftpOpenFlags
@@ -43,6 +42,18 @@ namespace Tmds.Ssh
             return await operation.Task;
         }
 
+        // TODO add CancellationToken
+        // This can be used for any handle, so also for directories
+        public async ValueTask<bool> CloseFileAsync(byte[] handle)
+        {
+            using var packet = CreateCloseMessage(handle);
+            var operation = new CloseHandleOperation();
+
+            await SendRequestAsync(packet.Move(), operation);
+
+            return await operation.Task;
+        }
+
         private Packet CreateOpenMessage(string filename, SftpOpenFlags flags)
         {
             using var packet = _context.RentPacket();
@@ -57,11 +68,29 @@ namespace Tmds.Ssh
                 ATTRS         attrs
             */
 
-            writer.WriteByte((byte)SftpPacketType.SSH_FXP_OPEN);
+            writer.WriteSftpPacketType(SftpPacketType.SSH_FXP_OPEN);
             writer.WriteUInt32(0);
             writer.WriteString(filename);
             writer.WriteUInt32((int)flags);
             writer.WriteUInt32(0);
+            return packet.Move();
+        }
+
+        private Packet CreateCloseMessage(byte[] handle)
+        {
+            using var packet = _context.RentPacket();
+            var writer = packet.GetWriter();
+            writer.Reserve(DataHeaderLength);
+
+            /*
+                SSH_FXP_CLOSE
+                uint32        id
+                string        handle
+            */
+
+            writer.WriteSftpPacketType(SftpPacketType.SSH_FXP_CLOSE);
+            writer.WriteUInt32(0);
+            writer.WriteString(handle);
             return packet.Move();
         }
     }
@@ -103,5 +132,29 @@ namespace Tmds.Ssh
             byte[] handle = reader.ReadStringAsBytes().ToArray();
             return handle;
         }
+    }
+
+    // This can be used for any handle, so also for directories
+    sealed class CloseHandleOperation : SftpOperation
+    {
+        private TaskCompletionSource<bool> _tcs = new TaskCompletionSource<bool>();
+
+        // TODO can return status and on some systems even close can fail
+        public override ValueTask HandleResponse(SftpPacketType type, ReadOnlySequence<byte> fields)
+        {
+            if (type != SftpPacketType.SSH_FXP_STATUS)
+            {
+                _tcs.SetException(CreateExceptionForStatus(fields));
+            }
+            else
+            {
+                // if (SSH_FXP_STATUS == success) else.....
+                _tcs.SetResult(true); // TODO parsing of SSH_FXP_STATUS
+            }
+            return default;
+        }
+
+        public Task<bool> Task => _tcs.Task;
+
     }
 }

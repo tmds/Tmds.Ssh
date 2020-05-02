@@ -30,6 +30,7 @@ namespace Tmds.Ssh
 
         public static ValueTask SendChannelDataMessageAsync(this ChannelContext context, ReadOnlyMemory<byte> memory, CancellationToken ct)
         {
+            // TODO Use SendChannelDataAsync because of a Window?
             return context.SendPacketAsync(CreatePacket(context, memory), ct);
 
             static Packet CreatePacket(ChannelContext context, ReadOnlyMemory<byte> memory)

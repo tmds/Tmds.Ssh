@@ -74,12 +74,9 @@ namespace Tmds.Ssh
             AppendAlloced(1);
         }
 
-        public void WriteMessageId(MessageId value)
-        {
-            var span = AllocGetSpan(1);
-            span[0] = (byte)value;
-            AppendAlloced(1);
-        }
+        public void WriteMessageId(MessageId value) => WriteByte((byte)value);
+
+        public void WriteSftpPacketType(SftpPacketType value) => WriteByte((byte)value);
 
         public void WriteUInt32(uint value)
         {

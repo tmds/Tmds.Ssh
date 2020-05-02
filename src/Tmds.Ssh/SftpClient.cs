@@ -29,7 +29,7 @@ namespace Tmds.Ssh
         // SSH_MSG_CHANNEL_DATA length   (4)
         // SFTP length                   (4)
         const int DataHeaderLength = 13;
-        const int SftpVersion = 3;
+        const uint SftpVersion = 3;
         private readonly ChannelContext _context;
         private Task? _receiveLoopTask;
         private int _requestId;
@@ -65,11 +65,10 @@ namespace Tmds.Ssh
             _operations = new ConcurrentDictionary<uint, SftpOperation>();
         }
 
-        public async Task InitAsync(CancellationToken ct)
+        internal async Task InitAsync(CancellationToken ct)
         {
-            await SftpInitMessageAsync(3, ct).ConfigureAwait(false);
-            // TODO add server negotiation in case server would have min. version < 3, but was able to do a version 3 aswell
-            int serverVersion = await ReceiveServerVersionAsync("Failed to negotiate SFTP", ct);
+            await SftpInitMessageAsync(SftpVersion, ct).ConfigureAwait(false);
+            uint serverVersion = await ReceiveServerVersionAsync("Failed to negotiate SFTP", ct);
 
             if (serverVersion != SftpVersion)
                 ThrowHelper.ThrowNotSupportedException("Server SFTP version is not supported");
@@ -79,9 +78,9 @@ namespace Tmds.Ssh
 
         public void Dispose()
         {
+            // TODO? Deal with stopping ReceiveLoopAsync()
             _context?.Dispose();
         }
-
         private async Task ReceiveLoopAsync()
         {
             try
@@ -150,37 +149,37 @@ namespace Tmds.Ssh
             */
             var reader = new SequenceReader(payload);
             uint length = reader.ReadUInt32();
-            type = (SftpPacketType)reader.ReadByte();
+            type = reader.ReadSftpPacketType();
             requestId = reader.ReadUInt32();
             fields = payload.AsReadOnlySequence().Slice(9, length - 5);
             consumed = 4 + length;
             return true;
         }
 
-        private async ValueTask<int> ReceiveServerVersionAsync(string failureMessage, CancellationToken ct)
+        private async ValueTask<uint> ReceiveServerVersionAsync(string failureMessage, CancellationToken ct)
         {
             using var packet = await _context.ReceivePacketAsync(ct).ConfigureAwait(false);
 
             return ParseSftpVersion(packet, failureMessage);
-            /*
-                        byte            SSH_MSG_CHANNEL_DATA
-                        uint32          recipient channel
-                        string          data
 
-                        uint32          SftpLength
-                        byte            SftpType
-                        uint32          SftpVersion
-                        string          extension-name
-                        string          extension-data
-            */
-
-            static int ParseSftpVersion(ReadOnlyPacket packet, string failureMessage)
+            static uint ParseSftpVersion(ReadOnlyPacket packet, string failureMessage)
             {
+                /*
+                            byte            SSH_MSG_CHANNEL_DATA
+                            uint32          recipient channel
+                            string          data
+
+                            uint32          SftpLength
+                            byte            SftpType
+                            uint32          SftpVersion
+                            string          extension-name
+                            string          extension-data
+                */
                 var reader = packet.GetReader();
                 reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
                 reader.Skip(12);
                 reader.ReadSftpPacketType(SftpPacketType.SSH_FXP_VERSION);
-                var version = (int)reader.ReadUInt32();
+                var version = reader.ReadUInt32();
                 return version;
             }
         }
@@ -204,7 +203,7 @@ namespace Tmds.Ssh
                 writer.WriteUInt32(context.RemoteChannel);
                 writer.WriteUInt32(9); // length
                 writer.WriteUInt32(5); // length
-                writer.WriteByte((byte)SftpPacketType.SSH_FXP_INIT);
+                writer.WriteSftpPacketType(SftpPacketType.SSH_FXP_INIT);
                 writer.WriteUInt32(version); // version
                 return packet.Move();
             }
