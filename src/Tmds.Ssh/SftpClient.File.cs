@@ -10,13 +10,13 @@ namespace Tmds.Ssh
     {
         private readonly byte[] _handle;
         private readonly SftpClient _client;
+
         internal SftpFile(byte[] handle, SftpClient client)
         {
             _handle = handle;
             _client = client;
         }
 
-        // For now I am taking a client as an argument because not sure how to do this
         public ValueTask<bool> CloseAsync() => _client.SendCloseHandleAsync(_handle);
     }
 
