@@ -13,26 +13,34 @@ namespace Tmds.Ssh
 
         protected static Exception CreateExceptionForStatus(SftpErrorCode errorCode, string? errorMessage)
         {
-            return new SshException(errorMessage ?? "No error message specified", errorCode);
+            return new SftpException(errorMessage ?? $"Error: {errorCode}", errorCode);
         }
+
         protected static Exception CreateExceptionForStatus(ReadOnlySequence<byte> fields)
         {
-            var statusTuple = ParseStatusFields(fields);
-            return new SshException(statusTuple.errorMessage ?? "No error message specified", statusTuple.errorCode);
+            (SftpErrorCode errorCode, string? errorMessage) status = ParseStatusFields(fields);
+            return new SftpException(status.errorMessage ?? $"Error: {status.errorCode}", status.errorCode);
         }
 
         protected static Exception CreateExceptionForUnexpectedType(SftpPacketType type)
         {
             return new ProtocolException($"Unexpected response type: {type}");
         }
+
         protected static (SftpErrorCode errorCode, string? errorMessage) ParseStatusFields(ReadOnlySequence<byte> fields)
         {
+            /*
+                uint32 error/status code
+                string error message
+                string language tag (ignored)
+            */
             var reader = new SequenceReader(fields);
             var errorCode = (SftpErrorCode)reader.ReadUInt32();
             var errorMessage = reader.ReadUtf8String();
+            if (errorMessage == string.Empty)
+                errorMessage = null;
             return (errorCode, errorMessage);
         }
-
     }
 
     public sealed partial class SftpClient : IDisposable

@@ -140,25 +140,24 @@ namespace Tmds.Ssh
     {
         private TaskCompletionSource<bool> _tcs = new TaskCompletionSource<bool>();
 
-        // TODO can return status and on some systems even close can fail
         public override ValueTask HandleResponse(SftpPacketType type, ReadOnlySequence<byte> fields, SftpClient client)
         {
-            if (type != SftpPacketType.SSH_FXP_STATUS)
+            if (type == SftpPacketType.SSH_FXP_STATUS)
             {
-                _tcs.SetException(CreateExceptionForUnexpectedType(type));
-            }
-            else
-            {
-                var statusTuple = ParseStatusFields(fields);
+                (SftpErrorCode errorCode, string? errorMessage) status = ParseStatusFields(fields);
 
-                if (statusTuple.errorCode == SftpErrorCode.SSH_FX_OK)
+                if (status.errorCode == SftpErrorCode.SSH_FX_OK)
                 {
                     _tcs.SetResult(true);
                 }
                 else
                 {
-                    CreateExceptionForStatus(statusTuple.errorCode, statusTuple.errorMessage);
+                    CreateExceptionForStatus(status.errorCode, status.errorMessage);
                 }
+            }
+            else
+            {
+                _tcs.SetException(CreateExceptionForUnexpectedType(type));
             }
             return default;
         }
