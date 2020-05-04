@@ -145,12 +145,20 @@ namespace Tmds.Ssh
         {
             if (type != SftpPacketType.SSH_FXP_STATUS)
             {
-                _tcs.SetException(CreateExceptionForStatus(fields));
+                _tcs.SetException(CreateExceptionForUnexpectedType(type));
             }
             else
             {
-                // if (SSH_FXP_STATUS == success) else.....
-                _tcs.SetResult(true); // TODO parsing of SSH_FXP_STATUS
+                var statusTuple = ParseStatusFields(fields);
+
+                if (statusTuple.errorCode == SftpErrorCode.SSH_FX_OK)
+                {
+                    _tcs.SetResult(true);
+                }
+                else
+                {
+                    CreateExceptionForStatus(statusTuple.errorCode, statusTuple.errorMessage);
+                }
             }
             return default;
         }

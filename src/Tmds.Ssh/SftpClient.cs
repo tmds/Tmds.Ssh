@@ -11,15 +11,28 @@ namespace Tmds.Ssh
     {
         public abstract ValueTask HandleResponse(SftpPacketType type, ReadOnlySequence<byte> fields, SftpClient client);
 
+        protected static Exception CreateExceptionForStatus(SftpErrorCode errorCode, string? errorMessage)
+        {
+            return new SshException(errorMessage ?? "No error message specified", errorCode);
+        }
         protected static Exception CreateExceptionForStatus(ReadOnlySequence<byte> fields)
         {
-            return new SshException("TODO"); // TODO: use fields
+            var statusTuple = ParseStatusFields(fields);
+            return new SshException(statusTuple.errorMessage ?? "No error message specified", statusTuple.errorCode);
         }
 
         protected static Exception CreateExceptionForUnexpectedType(SftpPacketType type)
         {
             return new ProtocolException($"Unexpected response type: {type}");
         }
+        protected static (SftpErrorCode errorCode, string? errorMessage) ParseStatusFields(ReadOnlySequence<byte> fields)
+        {
+            var reader = new SequenceReader(fields);
+            var errorCode = (SftpErrorCode)reader.ReadUInt32();
+            var errorMessage = reader.ReadUtf8String();
+            return (errorCode, errorMessage);
+        }
+
     }
 
     public sealed partial class SftpClient : IDisposable
@@ -186,19 +199,27 @@ namespace Tmds.Ssh
 
         private ValueTask SftpInitMessageAsync(uint version, CancellationToken ct)
         {
-            /*
-                    uint32 	length
-                    byte 	type
-                    uint32 	version
-            */
+            return _context.SendChannelDataAsync(CreatePacket(_context, version), ct);
 
-            var memory = new Memory<byte>(new byte[9]);
-            var span = memory.Span;
-
-            BinaryPrimitives.WriteUInt32BigEndian(span, 5);
-            span[4] = (byte)SftpPacketType.SSH_FXP_INIT;
-            BinaryPrimitives.WriteUInt32BigEndian(span.Slice(5), version);
-            return _context.SendChannelDataMessageAsync(memory, ct);
+            static Packet CreatePacket(ChannelContext context, uint version)
+            {
+                /*
+                    byte        SSH_MSG_CHANNEL_DATA
+                    uint32      recipient channel
+                    uint32      length
+                    byte        SSH_FXP_INIT
+                    uint32      version
+                */
+                using var packet = context.RentPacket();
+                var writer = packet.GetWriter();
+                writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
+                writer.WriteUInt32(context.RemoteChannel);
+                writer.WriteUInt32(9); // length
+                writer.WriteUInt32(5); // length
+                writer.WriteSftpPacketType(SftpPacketType.SSH_FXP_INIT);
+                writer.WriteUInt32(version); // version
+                return packet.Move();
+            }
         }
 
     }

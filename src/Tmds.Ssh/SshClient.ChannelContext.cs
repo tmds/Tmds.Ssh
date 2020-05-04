@@ -352,7 +352,7 @@ namespace Tmds.Ssh
             public override async ValueTask SendChannelDataAsync(Packet packet, CancellationToken ct)
             {
                 using var pkt = packet.Move();
-                long toSend = packet.PayloadLength - 9; // TODO: verify
+                long toSend = packet.PayloadLength - 9;
                 try
                 {
                     await _sendWindow.AquireAsync(aquireCount: (int)toSend, exactCount: true, ChannelStopped, ct).ConfigureAwait(false);

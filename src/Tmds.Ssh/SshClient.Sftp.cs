@@ -6,7 +6,6 @@ namespace Tmds.Ssh
 {
     public sealed partial class SshClient : IDisposable
     {
-
         public async Task<SftpClient> OpenSftpClientAsync(CancellationToken ct)
         {
             ChannelContext context = CreateChannel();
@@ -33,7 +32,7 @@ namespace Tmds.Ssh
                 }
                 else
                 {
-                    context.Dispose(); // closing channel
+                    context.Dispose();
                 }
 
                 throw;
