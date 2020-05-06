@@ -8,13 +8,11 @@ namespace Tmds.Ssh
     [Serializable]
     public class SftpException : Exception
     {
-        public SftpErrorCode ErrorCode { get; internal set; }
-		
-        internal SftpException(string message) : base(message) { }
-        internal SftpException(string message, SftpErrorCode errorCode) : base(message)
+        public SftpErrorCode ErrorCode { get; }
+
+        internal SftpException(SftpErrorCode errorCode, string? message) : base(message ?? $"Error: {errorCode}")
         {
             ErrorCode = errorCode;
         }
-        internal SftpException(string message, Exception inner) : base(message, inner) { }
     }
 }

@@ -393,6 +393,27 @@ namespace Tmds.Ssh
                 }
             }
 
+            private ValueTask SendChannelDataMessageAsync(ReadOnlyMemory<byte> memory, CancellationToken ct)
+            {
+                return SendChannelDataAsync(CreatePacket(memory), ct);
+
+                Packet CreatePacket(ReadOnlyMemory<byte> memory)
+                {
+                    /*
+                        byte      SSH_MSG_CHANNEL_DATA
+                        uint32    recipient channel
+                        string    data
+                    */
+
+                    using var packet = RentPacket();
+                    var writer = packet.GetWriter();
+                    writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_DATA);
+                    writer.WriteUInt32(RemoteChannel);
+                    writer.WriteString(memory.Span);
+                    return packet.Move();
+                }
+            }
+
             public override void AdjustChannelWindow(int bytesToAdd)
             {
                 if (bytesToAdd <= 0)

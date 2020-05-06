@@ -13,13 +13,13 @@ namespace Tmds.Ssh
 
         protected static Exception CreateExceptionForStatus(SftpErrorCode errorCode, string? errorMessage)
         {
-            return new SftpException(errorMessage ?? $"Error: {errorCode}", errorCode);
+            return new SftpException(errorCode, errorMessage);
         }
 
         protected static Exception CreateExceptionForStatus(ReadOnlySequence<byte> fields)
         {
             (SftpErrorCode errorCode, string? errorMessage) status = ParseStatusFields(fields);
-            return new SftpException(status.errorMessage ?? $"Error: {status.errorCode}", status.errorCode);
+            return new SftpException(status.errorCode, status.errorMessage);
         }
 
         protected static Exception CreateExceptionForUnexpectedType(SftpPacketType type)
@@ -36,7 +36,7 @@ namespace Tmds.Ssh
             */
             var reader = new SequenceReader(fields);
             var errorCode = (SftpErrorCode)reader.ReadUInt32();
-            var errorMessage = reader.ReadUtf8String();
+            string? errorMessage = reader.ReadUtf8String();
             if (errorMessage == string.Empty)
                 errorMessage = null;
             return (errorCode, errorMessage);
@@ -115,10 +115,6 @@ namespace Tmds.Ssh
                     if (messageId == MessageId.SSH_MSG_CHANNEL_DATA)
                     {
                         await HandleChannelData(packet.Move()).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        // Nothing yet
                     }
 
                 } while (messageId != MessageId.SSH_MSG_CHANNEL_CLOSE);
