@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.Build.Traversal" DefaultTargets="Pack;Publish">
+  <PropertyGroup>
+    <Configuration>Release</Configuration>
+    <TraversalGlobalProperties>$(TraversalGlobalProperties);Configuration=$(Configuration)</TraversalGlobalProperties>
+    <TraversalGlobalProperties>$(TraversalGlobalProperties);ProductVersion=$(ProductVersion)</TraversalGlobalProperties>
+  </PropertyGroup>
+
+  <!-- Do nothing by default. -->
+  <ItemDefinitionGroup>
+    <ProjectReference Test="false" Pack="false" Publish="false" Build="false"/>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <!-- Src projects: explicit list of projects and whether they should Pack/Publish. -->
+    <ProjectReference Include="src\Tmds.Ssh\Tmds.Ssh.csproj" Pack="true"/>
+
+    <!-- Test projects: include all projects for running 'dotnet test'. -->
+    <ProjectReference Include="test\*\*.*proj" Test="true" />
+  </ItemGroup>
+
+  <Target Name="PushPackages" DependsOnTargets="Restore;Pack">
+    <!-- Push packages -->
+    <ItemGroup>
+      <Package Include="$(ReleasePackageOutputPath)\*.nupkg"/>
+    </ItemGroup>
+    <!-- Windows -->
+    <Error Condition="'$(OS)' != 'Unix'" Text="Push on Windows is not implemented" />
+    <!-- non-Windows -->
+    <Exec Condition="'$(OS)' == 'Unix'" Command="$(RepoTools)push-nuget-package.sh '%(Package.Identity)'"
+                                        EnvironmentVariables="NuGetPushServer=$(NuGetPushServer)"
+                                        LogStandardErrorAsError="true" StandardOutputImportance="High"/>
+  </Target>
+</Project>

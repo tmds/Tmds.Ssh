@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup Condition="'$(ProductVersion)' == ''">
+    <ProductVersionPrefix>0.2.0</ProductVersionPrefix>
+    <!--Use CI build number as suffix -->
+    <ProductVersionSuffix>local</ProductVersionSuffix>
+    <ProductVersionSuffix Condition="'$(ContinuousIntegrationBuildId)' != ''">$(ContinuousIntegrationBuildId)</ProductVersionSuffix>
+    <ProductVersion>$(ProductVersionPrefix)-$(ProductVersionSuffix)</ProductVersion>
+
+    <!-- Use SourceRevisionTag as ProductVersion -->
+    <ProductVersion Condition="'$(SourceRevisionTag)' != ''">$(SourceRevisionTag)</ProductVersion>
+  </PropertyGroup>
+
+  <!-- Derive Version{Prefix,Suffix} from ProductVersion -->
+  <PropertyGroup>
+    <VersionPrefix>$(ProductVersion.TrimStart('v'))</VersionPrefix>
+    <_hyphenPos>$(VersionPrefix.IndexOf('-'))</_hyphenPos>
+    <VersionSuffix Condition="'$(_hyphenPos)' != -1">$(VersionPrefix.SubString($([MSBuild]::Add($(_hyphenPos), 1))))</VersionSuffix>
+    <VersionPrefix Condition="'$(_hyphenPos)' != -1">$(VersionPrefix.Substring(0, $(_hyphenPos)))</VersionPrefix>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project>
+  <!-- Artifacts directories -->
+  <PropertyGroup>
+    <ArtifactsDir>$(RepoRoot)artifacts/</ArtifactsDir>
+    <!-- Locations for shipped artifacts. -->
+    <PackageOutputPath Condition="'$(IsShipped)' == 'true'">$(ArtifactsDir)packages/$(Configuration)</PackageOutputPath>
+    <PublishDir Condition="'$(IsShipped)' == 'true'">$(ArtifactsDir)apps/$(Configuration)/$(MSBuildProjectName)/$(RuntimeIdentifier)/</PublishDir>
+    <!-- Location for shipped artifacts built in Release configuration. -->
+    <ReleasePackageOutputPath>$(ArtifactsDir)packages/Release</ReleasePackageOutputPath>
+    <ReleasePublishDir>$(ArtifactsDir)apps/Release/$(MSBuildProjectName)</ReleasePublishDir>
+  </PropertyGroup>
+</Project>
