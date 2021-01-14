@@ -38,7 +38,10 @@ namespace Tmds.Ssh
         private ChannelHandle _channel;
         private TaskCompletionSource<object> _openTcs;
         private TaskCompletionSource<object> _readableTcs;
-        private TaskCompletionSource<object> _windowReadyTcs; // TODO: split for stdout and stderr.
+        private TaskCompletionSource<object> _windowReadyTcs;
+        private bool _skippingStdout;
+        private bool _skippingStderr;
+        private ChannelReadType _readNextType = ChannelReadType.StandardOutput;
 
         internal SshChannel(SshClient session, SshChannelOptions options)
         {
@@ -334,8 +337,8 @@ namespace Tmds.Ssh
             => _client.FlushAsync(cancellationToken);
 
         public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
-            (Memory<byte>/*?*/ stdoutBuffer/*, // TODO
-            Memory<byte>? stderrBuffer*/,      // TODO
+            (Memory<byte>? stdoutBuffer = default,
+             Memory<byte>? stderrBuffer = default,
             CancellationToken cancellationToken = default)
         {
             try
@@ -364,6 +367,17 @@ namespace Tmds.Ssh
                             throw new InvalidOperationException("Concurrent reads are not allowed.");
                         }
 
+                        if (stdoutBuffer.HasValue && _skippingStdout)
+                        {
+                            throw new InvalidOperationException("Standard output is being skipped.");
+                        }
+                        if (stderrBuffer.HasValue && _skippingStderr)
+                        {
+                            throw new InvalidOperationException("Standard error is being skipped.");
+                        }
+                        _skippingStdout = !stdoutBuffer.HasValue;
+                        _skippingStderr = !stderrBuffer.HasValue;
+
                         if (_state >= ChannelState.Closed)
                         {
                             ThrowNotOpen();
@@ -382,37 +396,34 @@ namespace Tmds.Ssh
                         }
                         else
                         {
-                            // note: libssh fakes an EOF when the peer closes the
-                            //       connection without sending one.
+                            if (_skippingStdout)
+                            {
+                                ReadAll(ChannelReadType.StandardOutput);
+                            }
+                            if (_skippingStderr)
+                            {
+                                ReadAll(ChannelReadType.StandardError);
+                            }
 
-                            int bytesAvailable = ssh_channel_poll(_channel, is_stderr: 0);
-                            if (bytesAvailable > 0)
+                            if (!_skippingStdout || !_skippingStderr)
                             {
-                                bytesAvailable = Math.Min(bytesAvailable, stdoutBuffer.Length);
-                                int rv = ssh_channel_read(_channel, stdoutBuffer.Span.Slice(0, bytesAvailable), is_stderr: 0);
-                                if (rv < bytesAvailable)
+                                // Alternate between reading StandardOutput and StandardError.
+                                ChannelReadType readType = _readNextType;
+                                ChannelReadType otherType = readType == ChannelReadType.StandardOutput ? ChannelReadType.StandardError : ChannelReadType.StandardOutput;
+                                (ChannelReadType type, int bytesRead) result;
+                                if (IsNotSkipped(readType) && TryRead(readType, out result))
                                 {
-                                    throw _client.GetErrorException();
+                                    _readNextType = otherType;
+                                    return result;
                                 }
-                                return (ChannelReadType.StandardOutput, rv);
+                                else if (IsNotSkipped(otherType) && TryRead(otherType, out result))
+                                {
+                                    return result;
+                                }
                             }
-                            else if (bytesAvailable == SSH_EOF
-                                    || (bytesAvailable == 0 && ssh_channel_is_eof(_channel)))
+                            else if (_state == ChannelState.Eof)
                             {
-                                _state = ChannelState.Eof;
                                 return (ChannelReadType.Eof, 0);
-                            }
-                            else if (bytesAvailable == 0 || bytesAvailable == SSH_AGAIN)
-                            {
-                                // await readable
-                            }
-                            else if (bytesAvailable == SSH_ERROR)
-                            {
-                                throw _client.GetErrorException();
-                            }
-                            else
-                            {
-                                throw new IndexOutOfRangeException($"Unexpected ssh_channel_poll return value: {bytesAvailable}");
                             }
                         }
 
@@ -420,12 +431,66 @@ namespace Tmds.Ssh
                         readable = _readableTcs.Task;
                         ctr = cancellationToken.Register(o => ((SshChannel)o).Cancel(), this);
                     }
-                }                
+                }
             }
             catch (OperationCanceledException)
             {
                 Cancel();
                 throw;
+            }
+
+            bool IsNotSkipped(ChannelReadType readType)
+                => readType == ChannelReadType.StandardOutput ? !_skippingStdout : !_skippingStderr;
+
+            void ReadAll(ChannelReadType readType)
+            {
+                Span<byte> buffer = stackalloc byte[128]; // TODO: no initlocal stuff.
+                while (TryReadBuffer(readType, buffer, out var rv) && rv.type == readType)
+                { }
+            }
+
+            bool TryRead(ChannelReadType readType, out (ChannelReadType type, int bytesRead) rv)
+            {
+                Memory<byte> memory = readType == ChannelReadType.StandardOutput ? stdoutBuffer.Value : stderrBuffer.Value;
+                return TryReadBuffer(readType, memory.Span, out rv);
+            }
+
+            bool TryReadBuffer(ChannelReadType readType, Span<byte> buffer, out (ChannelReadType type, int bytesRead) rv)
+            {
+                int is_stderr = readType == ChannelReadType.StandardError ? 1 : 0;
+                int bytesAvailable = ssh_channel_poll(_channel, is_stderr);
+                if (bytesAvailable > 0)
+                {
+                    bytesAvailable = Math.Min(bytesAvailable, buffer.Length);
+                    int bytesRead = ssh_channel_read(_channel, buffer.Slice(0, bytesAvailable), is_stderr);
+                    if (bytesRead < bytesAvailable)
+                    {
+                        throw _client.GetErrorException();
+                    }
+                    rv = (readType, bytesRead);
+                    return true;
+                }
+                else if (bytesAvailable == SSH_EOF
+                        || (bytesAvailable == 0 && ssh_channel_is_eof(_channel)))
+                {
+                    _state = ChannelState.Eof;
+                    rv = (ChannelReadType.Eof, 0);
+                    return true;
+                }
+                else if (bytesAvailable == 0 || bytesAvailable == SSH_AGAIN)
+                {
+                    // await readable
+                    rv = default;
+                    return false;
+                }
+                else if (bytesAvailable == SSH_ERROR)
+                {
+                    throw _client.GetErrorException();
+                }
+                else
+                {
+                    throw new IndexOutOfRangeException($"Unexpected ssh_channel_poll return value: {bytesAvailable}");
+                }
             }
         }
 
