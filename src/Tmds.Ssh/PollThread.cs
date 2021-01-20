@@ -21,15 +21,22 @@ namespace Tmds.Ssh
         private Socket _interruptSocket;
         private Socket _readSocket;
         private int _blocked;
-        private static PollThread s_instance;
+        private static PollThread? s_instance;
 
         private PollThread()
-        { }
+        {
+            (_interruptSocket, _readSocket) = CreateSocketPair();
+        }
+
+        private void Cleanup()
+        {
+            _interruptSocket.Dispose();
+            _readSocket.Dispose();
+        }
 
         private void Start()
         {
-            (_interruptSocket, _readSocket) = CreateSocketPair();
-            var thread = new Thread(o => ((PollThread)o).ThreadFunction());
+            var thread = new Thread(o => ((PollThread)o!).ThreadFunction());
             thread.Name = "SSH Poll";
             thread.IsBackground = true;
             thread.Start(this);
@@ -107,7 +114,7 @@ namespace Tmds.Ssh
 
                 foreach (var socket in socketsWithEvent)
                 {
-                    if (Sessions.TryGetValue(socket, out SshClient session))
+                    if (Sessions.TryGetValue(socket, out SshClient? session))
                     {
                         lock (session.Gate)
                         {
@@ -160,20 +167,22 @@ namespace Tmds.Ssh
 
         internal static void InterruptPollThread()
         {
-            s_instance.Interrupt();
+            s_instance!.Interrupt();
         }
 
-        internal static void AddSession(SshClient session)
+        internal static void AddSession(Socket pollSocket, SshClient session)
         {
-            Debug.Assert(session != null);
-            Socket pollSocket = session.CreatePollSocket();
-            PollThread pollThread = s_instance;
+            PollThread? pollThread = s_instance;
             bool isNewThread = false;
             if (pollThread == null)
             {
                 PollThread newThread = new PollThread();
                 pollThread = Interlocked.CompareExchange(ref s_instance, newThread, null) ?? newThread;
                 isNewThread = pollThread == newThread;
+                if (!isNewThread)
+                {
+                    newThread.Cleanup();
+                }
             }
             pollThread.Sessions[pollSocket] = session;
             if (isNewThread)
@@ -186,18 +195,12 @@ namespace Tmds.Ssh
             }
         }
 
-        internal static void RemoveSession(SshClient session)
+        internal static void RemoveSession(Socket pollSocket)
         {
-            Debug.Assert(session != null);
-
-            Socket pollSocket = session.PollSocket;
-
-            PollThread pollThread = s_instance;
+            PollThread pollThread = s_instance!;
             bool removed = pollThread.Sessions.TryRemove(pollSocket, out _);
             Debug.Assert(removed);
             pollThread.Interrupt();
-
-            pollSocket.Dispose();
         }
     }
 }

@@ -58,7 +58,7 @@ namespace Tmds.Ssh
 
         public static string ssh_get_error(SessionHandle session)
         {
-            return Marshal.PtrToStringAnsi(ssh_get_error_(session));
+            return Marshal.PtrToStringAnsi(ssh_get_error_(session)) ?? "Uknown error.";
         }
 
         [DllImport(Library)]
@@ -146,7 +146,7 @@ namespace Tmds.Ssh
         }
 
         [DllImport(Library)]
-        public static extern AuthResult ssh_userauth_publickey_auto(SessionHandle session, string username, string passphrase);
+        public static extern AuthResult ssh_userauth_publickey_auto(SessionHandle session, string? username, string? passphrase);
 
         [DllImport(Library)]
         public static extern KnownHostResult ssh_session_is_known_server(SessionHandle session);

@@ -6,6 +6,6 @@ namespace Tmds.Ssh
     public class SshSessionException : SshException
     {
         internal SshSessionException(string message) : base(message) { }
-        internal SshSessionException(string message, System.Exception inner) : base(message, inner) { }
+        internal SshSessionException(string message, System.Exception? inner) : base(message, inner) { }
     }
 }

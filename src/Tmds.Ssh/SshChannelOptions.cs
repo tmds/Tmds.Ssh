@@ -5,6 +5,6 @@ namespace Tmds.Ssh
 {
     public class SshChannelOptions // TODO: internal
     {
-        public string Command { get; set; }
+        public string? Command { get; set; }
     }
 }

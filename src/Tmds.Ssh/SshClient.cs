@@ -41,9 +41,10 @@ namespace Tmds.Ssh
         private readonly SshClientSettings _clientSettings;
 
         private SessionState _state = SessionState.Initial;
-        private TaskCompletionSource<object> _connectTcs;
-        private TaskCompletionSource<FlushResult> _flushedTcs;
-        private SshSessionException _closeReason;
+        private TaskCompletionSource<object?>? _connectTcs;
+        private TaskCompletionSource<FlushResult>? _flushedTcs;
+        private SshSessionException? _closeReason;
+        private Socket? _pollSocket;
 
         internal SessionHandle SshHandle => _ssh;
         internal object Gate => _gate;
@@ -73,7 +74,7 @@ namespace Tmds.Ssh
                 }
 
                 Monitor.Exit(_client.Gate);
-                _client = null;
+                _client = null!;
 
                 if (interruptPollThread)
                 {
@@ -102,7 +103,7 @@ namespace Tmds.Ssh
 
         public async Task ConnectAsync()
         {
-            TaskCompletionSource<object> tcs;
+            TaskCompletionSource<object?> tcs;
 
             lock (Gate)
             {
@@ -138,7 +139,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private void Disconnect(SshSessionException closeReason)
+        private void Disconnect(SshSessionException? closeReason)
         {
             EnableDebugLogging();
             Debug.Assert(Monitor.IsEntered(Gate));
@@ -154,10 +155,11 @@ namespace Tmds.Ssh
             _connectTcs?.SetException(GetErrorException());
             _flushedTcs?.SetResult(FlushResult.SessionDisconnected);
 
-            if (PollSocket != null)
+            if (_pollSocket != null)
             {
-                PollThread.RemoveSession(this); // this disposes the socket.
-                PollSocket = null;
+                PollThread.RemoveSession(_pollSocket);
+                _pollSocket.Dispose();
+                _pollSocket = null;
             }
 
             int countRemaining;
@@ -189,10 +191,10 @@ namespace Tmds.Ssh
                         int rv = ssh_connect(_ssh);
                         if (rv == SSH_AGAIN || rv == SSH_OK)
                         {
-                            if (PollSocket == null)
+                            if (_pollSocket == null)
                             {
-                                PollThread.AddSession(this);
-                                Debug.Assert(PollSocket != null);
+                                Socket pollSocket = CreatePollSocket();
+                                PollThread.AddSession(pollSocket, this);
                             }
                             if (rv == SSH_AGAIN)
                             {
@@ -230,9 +232,7 @@ namespace Tmds.Ssh
                         else if (authResult == AuthResult.Success)
                         {
                             _state = SessionState.Connected;
-                            var tcs = _connectTcs;
-                            _connectTcs = null;
-                            tcs.SetResult(null);
+                            CompleteConnect(null);
                         }
                         else
                         {
@@ -290,8 +290,9 @@ namespace Tmds.Ssh
             }
         }
 
-        private void CompleteConnect(SshSessionException exception)
+        private void CompleteConnect(SshSessionException? exception)
         {
+            Debug.Assert(_connectTcs != null);
             var tcs = _connectTcs;
             _connectTcs = null;
             if (exception == null)
@@ -323,33 +324,40 @@ namespace Tmds.Ssh
 
         public async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
         {
-            SshChannel channel;
-            Task openTask;
-            using (GateWithPollCheck())
+            SshChannel? channel = null;
+            try
             {
-                EnsureState(SessionState.Connected);
+                Task openTask;
+                using (GateWithPollCheck())
+                {
+                    EnsureState(SessionState.Connected);
 
-                cancellationToken.ThrowIfCancellationRequested();
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                channel = new SshChannel(this, options);
-                _channels.Add(channel);
+                    channel = new SshChannel(this, options);
+                    _channels.Add(channel);
 
-                openTask = channel.OpenAsync();
+                    openTask = channel.OpenAsync();
+                }
+
+                using var _ = cancellationToken.Register(o => ((SshChannel)o!).Cancel(), channel);
+
+                await openTask.ConfigureAwait(false);
+
+                return channel;
             }
+            catch
+            {
+                channel?.Dispose();
 
-            using var _ = cancellationToken.Register(o => ((SshChannel)o).Cancel(), channel);
-
-            await openTask.ConfigureAwait(false);
-
-            return channel;
+                throw;
+            }
         }
-
-        internal Socket PollSocket { get; private set; }
 
         internal Socket CreatePollSocket()
         {
-            Debug.Assert(PollSocket == null);
-            return PollSocket = new Socket(new SafeSocketHandle(new IntPtr(ssh_get_fd(_ssh)), ownsHandle: false));
+            Debug.Assert(_pollSocket == null);
+            return _pollSocket = new Socket(new SafeSocketHandle(new IntPtr(ssh_get_fd(_ssh)), ownsHandle: false));
         }
 
         internal PollFlags SessionPollFlags
@@ -375,7 +383,7 @@ namespace Tmds.Ssh
             {
                 EnableDebugLogging();
 
-                Task<FlushResult> flushed = null;
+                Task<FlushResult>? flushed = null;
                 using (GateWithPollCheck())
                 {
                     EnsureConnected();
