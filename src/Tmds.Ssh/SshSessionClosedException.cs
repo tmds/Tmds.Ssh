@@ -5,9 +5,9 @@ namespace Tmds.Ssh
 {
     public class SshSessionClosedException : SshSessionException
     {
-        internal SshSessionClosedException(SshSessionException closeReason = null) : base(GetMessage(closeReason), inner: null) { }
+        internal SshSessionClosedException(SshSessionException? closeReason = null) : base(GetMessage(closeReason), inner: null) { }
 
-        static string GetMessage(SshSessionException closeReason)
+        static string GetMessage(SshSessionException? closeReason)
             => closeReason == null ? "Session closed." : $"Session closed ({closeReason.Message}).";
      }
 }

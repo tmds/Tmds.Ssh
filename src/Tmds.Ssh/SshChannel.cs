@@ -35,10 +35,10 @@ namespace Tmds.Ssh
         private readonly SshChannelOptions _options;
 
         private ChannelState _state = ChannelState.Initial;
-        private ChannelHandle _channel;
-        private TaskCompletionSource<object> _openTcs;
-        private TaskCompletionSource<object> _readableTcs;
-        private TaskCompletionSource<object> _windowReadyTcs;
+        private ChannelHandle? _handle;
+        private TaskCompletionSource<object?>? _openTcs;
+        private TaskCompletionSource<object?>? _readableTcs;
+        private TaskCompletionSource<object?>? _windowReadyTcs;
         private bool _skippingStdout;
         private bool _skippingStderr;
         private ChannelReadType _readNextType = ChannelReadType.StandardOutput;
@@ -57,7 +57,7 @@ namespace Tmds.Ssh
             Debug.Assert(Monitor.IsEntered(_client.Gate));
             Debug.Assert(_state == ChannelState.Initial);
 
-            _channel = ssh_channel_new(_client.SshHandle);
+            _handle = ssh_channel_new(_client.SshHandle);
             var tcs = _openTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
             _state = ChannelState.OpenSession;
@@ -109,7 +109,7 @@ namespace Tmds.Ssh
             CompletePending(ref _readableTcs);
             CompletePending(ref _windowReadyTcs);
 
-            void CompletePending(ref TaskCompletionSource<object> tcsField)
+            void CompletePending(ref TaskCompletionSource<object?>? tcsField)
             {
                 var tcs = tcsField;
                 if (tcs != null)
@@ -121,13 +121,13 @@ namespace Tmds.Ssh
                         ChannelState.Canceled => new OperationCanceledException(),
                         ChannelState.Closed => new SshOperationException("Channel closed."),
                         ChannelState.Disposed => new SshOperationException("Channel disposed."),
-                        _ => null,
+                        _ => throw new IndexOutOfRangeException($"Unhandled state: {targetState}."),
                     };
                     tcs.SetException(ex);
                 }
             }
 
-           _channel.Dispose();
+           _handle?.Dispose();
         }
 
         internal unsafe void Process()
@@ -140,10 +140,12 @@ namespace Tmds.Ssh
                 {
                     return;
                 }
+                Debug.Assert(_handle != null);
+
                 switch (_state)
                 {
                     case ChannelState.OpenSession:
-                        int rv = ssh_channel_open_session(_channel);
+                        int rv = ssh_channel_open_session(_handle);
                         if (rv == SSH_AGAIN)
                         {
                             return;
@@ -159,7 +161,7 @@ namespace Tmds.Ssh
                         }
                         break;
                     case ChannelState.RequestExec:
-                        rv = ssh_channel_request_exec(_channel, _options.Command);
+                        rv = ssh_channel_request_exec(_handle, _options.Command!); // TODO nullable
                         if (rv == SSH_AGAIN)
                         {
                             return;
@@ -183,16 +185,16 @@ namespace Tmds.Ssh
                             {
                                 // TODO: pass result of check through TaskCompletionSource
                                 // TODO (libssh): avoid using syscalls.
-                                if (ssh_channel_poll(_channel, is_stderr: 0) != 0 ||
-                                    ssh_channel_poll(_channel, is_stderr: 1) != 0 ||
-                                    ssh_channel_is_eof(_channel))
+                                if (ssh_channel_poll(_handle, is_stderr: 0) != 0 ||
+                                    ssh_channel_poll(_handle, is_stderr: 1) != 0 ||
+                                    ssh_channel_is_eof(_handle))
                                 {
                                     CompleteReadable();
                                 }
                             }
                             else
                             {
-                                if (ssh_channel_is_closed(_channel))
+                                if (ssh_channel_is_closed(_handle))
                                 {
                                     CompleteReadable();
                                 }
@@ -200,7 +202,7 @@ namespace Tmds.Ssh
                         }
                         if (_windowReadyTcs != null)
                         {
-                            if (ssh_channel_window_size(_channel) > 0)
+                            if (ssh_channel_window_size(_handle) > 0)
                             {
                                 var tcs = _windowReadyTcs;
                                 _windowReadyTcs = null;
@@ -222,6 +224,7 @@ namespace Tmds.Ssh
 
             void CompleteOpen(bool success)
             {
+                Debug.Assert(_openTcs != null);
                 var tcs = _openTcs;
                 _openTcs = null;
                 if (success)
@@ -241,12 +244,12 @@ namespace Tmds.Ssh
         }
 
         public ValueTask WriteAsync(
-            Memory<byte> buffer,
+            ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default)
             => WriteAsync(buffer, isError: false);
 
         public ValueTask WriteErrorAsync(
-            Memory<byte> buffer,
+            ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default)
             => WriteAsync(buffer, isError: true, cancellationToken);
 
@@ -257,7 +260,7 @@ namespace Tmds.Ssh
         {
             try
             {
-                Task windowReady = null;
+                Task? windowReady = null;
                 CancellationTokenRegistration ctr = default;
                 while (true)
                 {
@@ -285,6 +288,7 @@ namespace Tmds.Ssh
                         {
                             ThrowNotOpen();
                         }
+                        Debug.Assert(_handle != null);
 
                         cancellationToken.ThrowIfCancellationRequested();
 
@@ -294,11 +298,11 @@ namespace Tmds.Ssh
                             return; // initial buffer was empty
                         }
 
-                        length = (int)Math.Min(ssh_channel_window_size(_channel), length);
+                        length = (int)Math.Min(ssh_channel_window_size(_handle), length);
                         if (length > 0)
                         {
-                            int rv = isError ? ssh_channel_write_stderr(_channel, buffer.Span.Slice(0, length)) :
-                                               ssh_channel_write(_channel, buffer.Span.Slice(0, length));
+                            int rv = isError ? ssh_channel_write_stderr(_handle, buffer.Span.Slice(0, length)) :
+                                               ssh_channel_write(_handle, buffer.Span.Slice(0, length));
 
                             if (rv < 0)
                             {
@@ -318,7 +322,7 @@ namespace Tmds.Ssh
                         {
                             _windowReadyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
                             windowReady = _windowReadyTcs.Task;
-                            ctr = cancellationToken.Register(o => ((SshChannel)o).Cancel(), this);
+                            ctr = cancellationToken.Register(o => ((SshChannel)o!).Cancel(), this);
                         }
                     }
                 } while (buffer.Length > 0);
@@ -333,7 +337,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask FlushAsync(CancellationToken cancellationToken)
+        private ValueTask FlushAsync(CancellationToken cancellationToken)
             => _client.FlushAsync(cancellationToken);
 
         public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
@@ -343,7 +347,7 @@ namespace Tmds.Ssh
         {
             try
             {
-                Task readable = null;
+                Task? readable = null;
                 CancellationTokenRegistration ctr = default;
                 while (true)
                 {
@@ -382,12 +386,13 @@ namespace Tmds.Ssh
                         {
                             ThrowNotOpen();
                         }
+                        Debug.Assert(_handle != null);
 
                         cancellationToken.ThrowIfCancellationRequested();
 
                         if (_state == ChannelState.Eof)
                         {
-                            if (ssh_channel_is_closed(_channel))
+                            if (ssh_channel_is_closed(_handle))
                             {
                                 Close(ChannelState.Closed);
                                 return (ChannelReadType.Closed, 0);
@@ -429,7 +434,7 @@ namespace Tmds.Ssh
 
                         _readableTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
                         readable = _readableTcs.Task;
-                        ctr = cancellationToken.Register(o => ((SshChannel)o).Cancel(), this);
+                        ctr = cancellationToken.Register(o => ((SshChannel)o!).Cancel(), this);
                     }
                 }
             }
@@ -451,18 +456,18 @@ namespace Tmds.Ssh
 
             bool TryRead(ChannelReadType readType, out (ChannelReadType type, int bytesRead) rv)
             {
-                Memory<byte> memory = readType == ChannelReadType.StandardOutput ? stdoutBuffer.Value : stderrBuffer.Value;
+                Memory<byte> memory = readType == ChannelReadType.StandardOutput ? stdoutBuffer!.Value : stderrBuffer!.Value;
                 return TryReadBuffer(readType, memory.Span, out rv);
             }
 
             bool TryReadBuffer(ChannelReadType readType, Span<byte> buffer, out (ChannelReadType type, int bytesRead) rv)
             {
                 int is_stderr = readType == ChannelReadType.StandardError ? 1 : 0;
-                int bytesAvailable = ssh_channel_poll(_channel, is_stderr);
+                int bytesAvailable = ssh_channel_poll(_handle, is_stderr);
                 if (bytesAvailable > 0)
                 {
                     bytesAvailable = Math.Min(bytesAvailable, buffer.Length);
-                    int bytesRead = ssh_channel_read(_channel, buffer.Slice(0, bytesAvailable), is_stderr);
+                    int bytesRead = ssh_channel_read(_handle, buffer.Slice(0, bytesAvailable), is_stderr);
                     if (bytesRead < bytesAvailable)
                     {
                         throw _client.GetErrorException();
@@ -471,7 +476,7 @@ namespace Tmds.Ssh
                     return true;
                 }
                 else if (bytesAvailable == SSH_EOF
-                        || (bytesAvailable == 0 && ssh_channel_is_eof(_channel)))
+                        || (bytesAvailable == 0 && ssh_channel_is_eof(_handle)))
                 {
                     _state = ChannelState.Eof;
                     rv = (ChannelReadType.Eof, 0);

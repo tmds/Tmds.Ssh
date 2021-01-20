@@ -4,6 +4,7 @@
     <TargetFrameworks>$(LibTargetFrameworks)</TargetFrameworks>
     <PackageDescription>SSH client based on libssh.</PackageDescription>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
 </Project>
