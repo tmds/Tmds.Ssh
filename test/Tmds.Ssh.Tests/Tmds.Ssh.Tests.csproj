@@ -4,6 +4,7 @@
     <TargetFrameworks>$(TestTargetFrameworks)</TargetFrameworks>
 
     <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +18,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)sshd_container/*" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
 </Project>
