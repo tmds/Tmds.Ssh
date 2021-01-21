@@ -26,6 +26,7 @@ namespace Tmds.Ssh.Tests
         private readonly string _host;
         private readonly int _port;
         private readonly string _knownHostsFile;
+        private bool? _useDockerInstead;
 
         public SshServer()
         {
@@ -114,6 +115,19 @@ namespace Tmds.Ssh.Tests
 
         private string[] Run(string filename, params string[] arguments)
         {
+            if (filename == "podman")
+            {
+                if (_useDockerInstead == null)
+                {
+                    _useDockerInstead = !HasContainerEngine("podman") &&
+                                         HasContainerEngine("docker");
+                }
+                if (_useDockerInstead.Value)
+                {
+                    filename = "docker";
+                }
+            }
+
             // Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
             var psi = new ProcessStartInfo()
             {
@@ -140,6 +154,28 @@ namespace Tmds.Ssh.Tests
             process.WaitForExit();
             Assert.True(process.ExitCode == 0, process.StandardError.ReadToEnd());
             return lines.ToArray();
+
+            static bool HasContainerEngine(string name)
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo()
+                    {
+                        FileName = name,
+                        ArgumentList = { "version" },
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        RedirectStandardInput = true,
+                    };
+                    using var process = Process.Start(psi)!;
+                    process.WaitForExit();
+                    return process.ExitCode == 0;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
         }
 
         private void VerifyServerWorks()
