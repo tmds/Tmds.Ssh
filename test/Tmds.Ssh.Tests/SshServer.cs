@@ -128,7 +128,7 @@ namespace Tmds.Ssh.Tests
                 }
             }
 
-            // Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
+            Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
             var psi = new ProcessStartInfo()
             {
                 FileName = filename,
@@ -149,6 +149,7 @@ namespace Tmds.Ssh.Tests
                 {
                     break;
                 }
+                System.Console.WriteLine($"> {line}");
                 lines.Add(line);
             } while (true);
             process.WaitForExit();
