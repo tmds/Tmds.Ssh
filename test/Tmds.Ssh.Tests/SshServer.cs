@@ -36,7 +36,10 @@ namespace Tmds.Ssh.Tests
                 IPAddress interfaceAddress = IPAddress.Loopback;
                 _host = interfaceAddress.ToString();
                 _port = PickFreePort(interfaceAddress);
-                _containerId = Run("podman", "run", "--rm", "-d", "-p", $"{_host}:{_port}:22", _imageId).Last();
+                _containerId = Run("podman", "run", "--rm", "-d", "-p", $"{_host}:{_port}:22", _imageId)
+                                .Last()
+                                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                .Last();
                 _knownHostsFile = WriteKnownHostsFile(_host, _port);
                 do
                 {
