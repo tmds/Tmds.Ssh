@@ -39,7 +39,7 @@ namespace Tmds.Ssh.Tests
                 IPAddress interfaceAddress = IPAddress.Loopback;
                 _host = interfaceAddress.ToString();
                 _port = PickFreePort(interfaceAddress);
-                _containerId = LastWord(Run("podman", "run", "--rm", "-d", "-p", $"{_host}:{_port}:22", _imageId));
+                _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", _imageId));
                 do
                 {
                     string[] log = Run("podman", "logs", _containerId);

@@ -12,6 +12,7 @@ RUN echo 'secret' | passwd --stdin testuser
 COPY server_key_rsa /etc/ssh/ssh_host_rsa_key
 COPY server_key_ecdsa /etc/ssh/ssh_host_ecdsa_key
 COPY server_key_ed25519 /etc/ssh/ssh_host_ed25519_key
+RUN chmod 600 /etc/ssh/ssh_host_{rsa,ecdsa,ed25519}_key
 
 # Add user authorized key.
 COPY user_key_rsa.pub /home/testuser/.ssh/authorized_keys
