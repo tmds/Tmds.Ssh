@@ -42,7 +42,7 @@ namespace Tmds.Ssh.Tests
                 _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", _imageId));
                 do
                 {
-                    string[] log = RunCore("podman", returnStderr: _useDockerInstead, "logs", _containerId);
+                    string[] log = Run("podman", "logs", _containerId);
                     if (log.Any(s => s.Contains("Server listening on :: port 22.")))
                     {
                         break;
@@ -55,7 +55,7 @@ namespace Tmds.Ssh.Tests
                     string[] containers = Run("podman", "ps", "-q", "-f", $"id={_containerId}");
                     if (containers.Length == 0)
                     {
-                        log = RunCore("podman", returnStderr: _useDockerInstead, "logs", _containerId);
+                        log = Run("podman", "logs", _containerId);
                         throw new InvalidOperationException("Failed to start ssh server" + Environment.NewLine
                                                                 + string.Join(Environment.NewLine, log));
                     }
@@ -137,16 +137,13 @@ namespace Tmds.Ssh.Tests
         }
 
         private string[] Run(string filename, params string[] arguments)
-            =>  RunCore(filename, returnStderr: false, arguments);
-
-        private string[] RunCore(string filename, bool returnStderr, params string[] arguments)
         {
             if (filename == "podman" && _useDockerInstead)
             {
                 filename = "docker";
             }
 
-            Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
+            // Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
             var psi = new ProcessStartInfo()
             {
                 FileName = filename,
@@ -160,21 +157,24 @@ namespace Tmds.Ssh.Tests
             }
             using var process = Process.Start(psi)!;
             var lines = new List<string>();
-            do
+            DataReceivedEventHandler handler = (o, e) =>
             {
-                string? line = returnStderr ? process.StandardError.ReadLine() :
-                                              process.StandardOutput.ReadLine();
-                if (line == null)
+                if (e.Data == null)
                 {
-                    break;
+                    return;
                 }
-                System.Console.WriteLine($"> {line}");
-                lines.Add(line);
-            } while (true);
+                lock (lines)
+                {
+                    // System.Console.WriteLine(e.Data);
+                    lines.Add(e.Data);
+                }
+            };
+            process.OutputDataReceived += handler;
+            process.ErrorDataReceived += handler;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
             process.WaitForExit();
-            Assert.True(process.ExitCode == 0,
-                           returnStderr ? string.Join(Environment.NewLine, lines) :
-                                          process.StandardError.ReadToEnd());
+            Assert.True(process.ExitCode == 0, string.Join(Environment.NewLine, lines));
             return lines.ToArray();
         }
 
@@ -190,7 +190,7 @@ namespace Tmds.Ssh.Tests
                                     $"echo '{HelloWorld}'"
             );
             Assert.NotEmpty(output);
-            Assert.Equal(HelloWorld, output[0]);
+            Assert.Contains(HelloWorld, output);
         }
     }
 
