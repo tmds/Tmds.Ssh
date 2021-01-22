@@ -42,7 +42,7 @@ namespace Tmds.Ssh.Tests
                 _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", _imageId));
                 do
                 {
-                    string[] log = Run("podman", "logs", _containerId);
+                    string[] log = RunCore("podman", returnStderr: _useDockerInstead, "logs", _containerId);
                     if (log.Any(s => s.Contains("Server listening on :: port 22.")))
                     {
                         break;
@@ -117,14 +117,23 @@ namespace Tmds.Ssh.Tests
 
         public void Dispose()
         {
-            if (_knownHostsFile != null)
+            try
             {
-                File.Delete(_knownHostsFile);
+                if (_knownHostsFile != null)
+                {
+                    File.Delete(_knownHostsFile);
+                }
+                if (_containerId != null)
+                {
+                    Run("podman", "rm", "-f", _containerId);
+                }
+                if (_imageId != null)
+                {
+                    Run("podman", "rmi", "-f", _imageId);
+                }
             }
-            if (_imageId != null)
-            {
-                Run("podman", "rmi", "-f", _imageId);
-            }
+            catch
+            { }
         }
 
         private string[] Run(string filename, params string[] arguments)

@@ -16,6 +16,8 @@ RUN chmod 600 /etc/ssh/ssh_host_{rsa,ecdsa,ed25519}_key
 
 # Add user authorized key.
 COPY user_key_rsa.pub /home/testuser/.ssh/authorized_keys
+RUN chown -R testuser:testuser /home/testuser/.ssh
+RUN chmod 600 /home/testuser/.ssh/authorized_keys
 
 # Needed for sshd to start.
 RUN rm /run/nologin
