@@ -26,21 +26,20 @@ namespace Tmds.Ssh.Tests
         private readonly string _host;
         private readonly int _port;
         private readonly string _knownHostsFile;
-        private bool? _useDockerInstead;
+        private bool _useDockerInstead;
 
         public SshServer()
         {
+            _useDockerInstead = !HasContainerEngine("podman") &&
+                                HasContainerEngine("docker");
+
             try
             {
-                _imageId = Run("podman", "build", ContainerBuildContext).Last();
+                _imageId = LastWord(Run("podman", "build", ContainerBuildContext));
                 IPAddress interfaceAddress = IPAddress.Loopback;
                 _host = interfaceAddress.ToString();
                 _port = PickFreePort(interfaceAddress);
-                _containerId = Run("podman", "run", "--rm", "-d", "-p", $"{_host}:{_port}:22", _imageId)
-                                .Last()
-                                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                                .Last();
-                _knownHostsFile = WriteKnownHostsFile(_host, _port);
+                _containerId = LastWord(Run("podman", "run", "--rm", "-d", "-p", $"{_host}:{_port}:22", _imageId));
                 do
                 {
                     string[] log = Run("podman", "logs", _containerId);
@@ -56,11 +55,13 @@ namespace Tmds.Ssh.Tests
                     string[] containers = Run("podman", "ps", "-q", "-f", $"id={_containerId}");
                     if (containers.Length == 0)
                     {
-                        log = Run("podman", "logs", _containerId);
+                        log = RunCore("podman", returnStderr: _useDockerInstead, "logs", _containerId);
                         throw new InvalidOperationException("Failed to start ssh server" + Environment.NewLine
                                                                 + string.Join(Environment.NewLine, log));
                     }
                 } while (true);
+
+                _knownHostsFile = WriteKnownHostsFile(_host, _port);
 
                 Run("chmod", "600", TestUserIdentityFile);
 
@@ -80,84 +81,13 @@ namespace Tmds.Ssh.Tests
                 return (s.LocalEndPoint as IPEndPoint)!.Port;
             }
 
-            static string WriteKnownHostsFile(string host, int port)
+            string WriteKnownHostsFile(string host, int port)
             {
-                List<string> knownHostLines = new();
-                foreach (var keyFile in new[]
-                            { $"{ContainerBuildContext}/server_key_rsa.pub",
-                              $"{ContainerBuildContext}/server_key_ecdsa.pub",
-                              $"{ContainerBuildContext}/server_key_ed25519.pub" })
-                {
-                    var lines = File.ReadLines(keyFile);
-                    foreach (var line in lines)
-                    {
-                        string[] split = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                        if (split.Length >= 2)
-                        {
-                            knownHostLines.Add($"[{host}]:{port} {split[0]} {split[1]}");
-                        }
-                    }
-                }
+                string[] lines = Run("ssh-keyscan", "-p", port.ToString(), host);
                 string filename = Path.GetTempFileName();
-                File.WriteAllLines(filename, knownHostLines);
+                File.WriteAllLines(filename, lines);
                 return filename;
             }
-        }
-
-        public void Dispose()
-        {
-            if (_knownHostsFile != null)
-            {
-                File.Delete(_knownHostsFile);
-            }
-            if (_imageId != null)
-            {
-                Run("podman", "rmi", "-f", _imageId);
-            }
-        }
-
-        private string[] Run(string filename, params string[] arguments)
-        {
-            if (filename == "podman")
-            {
-                if (_useDockerInstead == null)
-                {
-                    _useDockerInstead = !HasContainerEngine("podman") &&
-                                         HasContainerEngine("docker");
-                }
-                if (_useDockerInstead.Value)
-                {
-                    filename = "docker";
-                }
-            }
-
-            Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
-            var psi = new ProcessStartInfo()
-            {
-                FileName = filename,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-            };
-            foreach (var arg in arguments)
-            {
-                psi.ArgumentList.Add(arg);
-            }
-            using var process = Process.Start(psi)!;
-            var lines = new List<string>();
-            do
-            {
-                string? line = process.StandardOutput.ReadLine();
-                if (line == null)
-                {
-                    break;
-                }
-                System.Console.WriteLine($"> {line}");
-                lines.Add(line);
-            } while (true);
-            process.WaitForExit();
-            Assert.True(process.ExitCode == 0, process.StandardError.ReadToEnd());
-            return lines.ToArray();
 
             static bool HasContainerEngine(string name)
             {
@@ -180,6 +110,63 @@ namespace Tmds.Ssh.Tests
                     return false;
                 }
             }
+        }
+
+        private static string LastWord(string[] lines)
+            => lines.Last().Split(' ').Last();
+
+        public void Dispose()
+        {
+            if (_knownHostsFile != null)
+            {
+                File.Delete(_knownHostsFile);
+            }
+            if (_imageId != null)
+            {
+                Run("podman", "rmi", "-f", _imageId);
+            }
+        }
+
+        private string[] Run(string filename, params string[] arguments)
+            =>  RunCore(filename, returnStderr: false, arguments);
+
+        private string[] RunCore(string filename, bool returnStderr, params string[] arguments)
+        {
+            if (filename == "podman" && _useDockerInstead)
+            {
+                filename = "docker";
+            }
+
+            Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
+            var psi = new ProcessStartInfo()
+            {
+                FileName = filename,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+            };
+            foreach (var arg in arguments)
+            {
+                psi.ArgumentList.Add(arg);
+            }
+            using var process = Process.Start(psi)!;
+            var lines = new List<string>();
+            do
+            {
+                string? line = returnStderr ? process.StandardError.ReadLine() :
+                                              process.StandardOutput.ReadLine();
+                if (line == null)
+                {
+                    break;
+                }
+                System.Console.WriteLine($"> {line}");
+                lines.Add(line);
+            } while (true);
+            process.WaitForExit();
+            Assert.True(process.ExitCode == 0,
+                           returnStderr ? string.Join(Environment.NewLine, lines) :
+                                          process.StandardError.ReadToEnd());
+            return lines.ToArray();
         }
 
         private void VerifyServerWorks()
