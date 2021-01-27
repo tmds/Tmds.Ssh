@@ -177,5 +177,36 @@ namespace Tmds.Ssh
 
         [DllImport(Library)]
         public static extern uint ssh_channel_window_size(ChannelHandle channel);
+
+        [DllImport(Library)]
+        public static extern void ssh_key_free(IntPtr key);
+
+        [DllImport(Library, EntryPoint="ssh_pki_import_pubkey_file")]
+        private static unsafe extern int ssh_pki_import_pubkey_file_(string filename, IntPtr* pkey);
+
+        public unsafe static int ssh_pki_import_pubkey_file(string filename, out SshKeyHandle? keyHandle)
+        {
+            IntPtr pkey;
+            int rv = ssh_pki_import_pubkey_file_(filename, &pkey);
+            keyHandle = rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
+            return rv;
+        }
+
+        [DllImport(Library)]
+        public static extern AuthResult ssh_userauth_try_publickey(SessionHandle session, string? username, SshKeyHandle pubkey);
+
+        [DllImport(Library, EntryPoint="ssh_pki_import_privkey_file")]
+        public static unsafe extern int ssh_pki_import_privkey_file_(string filename, string? passphrase, IntPtr auth_fn, IntPtr auth_data, IntPtr*  pkey);
+
+        public static unsafe int ssh_pki_import_privkey_file(string filename, string? passphrase, out SshKeyHandle? keyHandle)
+        {
+            IntPtr pkey;
+            int rv = ssh_pki_import_privkey_file_(filename, passphrase, IntPtr.Zero, IntPtr.Zero, &pkey);
+            keyHandle = rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
+            return rv;
+        }
+
+        [DllImport(Library)]
+        public static extern AuthResult ssh_userauth_publickey(SessionHandle session, string? username, SshKeyHandle privkey);
     }
 }

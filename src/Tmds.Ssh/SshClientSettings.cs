@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections.Generic;
 
 namespace Tmds.Ssh
 {
@@ -43,5 +44,6 @@ namespace Tmds.Ssh
         internal string UserName { get; set; }
         internal string Host { get; set; }
         internal int Port { get; set; } = 22;
+        public List<Credential> Credentials { get; } = new List<Credential>();
     }
 }
