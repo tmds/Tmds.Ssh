@@ -20,6 +20,7 @@ namespace Tmds.Ssh.Tests
         public string ServerHost => _host;
         public int ServerPort => _port;
         public string KnownHostsFile => _knownHostsFile;
+        public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
         private readonly string _imageId;
         private readonly string _containerId;
@@ -30,6 +31,8 @@ namespace Tmds.Ssh.Tests
 
         public SshServer()
         {
+            Console.WriteLine("Starting SSH server for tests.");
+
             _useDockerInstead = !HasContainerEngine("podman") &&
                                 HasContainerEngine("docker");
 
@@ -66,6 +69,8 @@ namespace Tmds.Ssh.Tests
                 Run("chmod", "600", TestUserIdentityFile);
 
                 VerifyServerWorks();
+
+                Console.WriteLine("SSH server is running.");
             }
             catch
             {
@@ -117,6 +122,7 @@ namespace Tmds.Ssh.Tests
 
         public void Dispose()
         {
+            System.Console.WriteLine("Stopping SSH server.");
             try
             {
                 if (_knownHostsFile != null)
@@ -127,10 +133,11 @@ namespace Tmds.Ssh.Tests
                 {
                     Run("podman", "rm", "-f", _containerId);
                 }
-                if (_imageId != null)
-                {
-                    Run("podman", "rmi", "-f", _imageId);
-                }
+                // Don't remove the image to make the next test run faster.
+                // if (_imageId != null)
+                // {
+                //     Run("podman", "rmi", "-f", _imageId);
+                // }
             }
             catch
             { }
@@ -143,7 +150,7 @@ namespace Tmds.Ssh.Tests
                 filename = "docker";
             }
 
-            // Console.WriteLine($"Running {filename} {string.Join(' ', arguments)}");
+            Console.WriteLine($"  exec: {filename} {string.Join(' ', arguments)}");
             var psi = new ProcessStartInfo()
             {
                 FileName = filename,

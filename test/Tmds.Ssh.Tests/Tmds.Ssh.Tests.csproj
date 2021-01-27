@@ -21,7 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="$(MSBuildThisFileDirectory)sshd_container/*" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="$(MSBuildThisFileDirectory)sshd_container/*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tmds.Ssh\Tmds.Ssh.csproj" />
   </ItemGroup>
 
 </Project>

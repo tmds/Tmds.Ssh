@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +12,7 @@ using static Tmds.Ssh.Interop;
 
 namespace Tmds.Ssh
 {
-    public sealed class SshClient : IDisposable
+    public sealed partial class SshClient : IDisposable
     {
         enum SessionState
         {
@@ -39,6 +40,7 @@ namespace Tmds.Ssh
         private readonly List<SshChannel> _channels = new();
         private readonly SessionHandle _ssh;
         private readonly SshClientSettings _clientSettings;
+        private readonly AuthState _authState = new AuthState();
 
         private SessionState _state = SessionState.Initial;
         private TaskCompletionSource<object?>? _connectTcs;
@@ -83,10 +85,11 @@ namespace Tmds.Ssh
             }
         }
 
-        public SshClient(string destination)
+        public SshClient(string destination, Action<SshClientSettings>? configure = null)
         {
             EnableDebugLogging();
             _clientSettings = new SshClientSettings(destination);
+            configure?.Invoke(_clientSettings);
             _ssh = ssh_new();
             ssh_set_blocking(_ssh, blocking: 0);
             ssh_options_set(_ssh, SshOption.Host, _clientSettings.Host);
@@ -151,6 +154,8 @@ namespace Tmds.Ssh
 
             _state = SessionState.Disconnected;
             _closeReason = closeReason;
+
+            _authState.Reset();
 
             _connectTcs?.SetException(GetErrorException());
             _flushedTcs?.SetResult(FlushResult.SessionDisconnected);
@@ -224,19 +229,9 @@ namespace Tmds.Ssh
                         }
                         break;
                     case SessionState.Authenticate:
-                        AuthResult authResult = ssh_userauth_publickey_auto(_ssh, null, null);
-                        if (authResult == AuthResult.Again)
+                        Authenticate();
+                        if (_state != SessionState.Connected)
                         {
-                            return;
-                        }
-                        else if (authResult == AuthResult.Success)
-                        {
-                            _state = SessionState.Connected;
-                            CompleteConnect(null);
-                        }
-                        else
-                        {
-                            CompleteConnect(new SshSessionException("Client authentication failed."));
                             return;
                         }
                         break;
