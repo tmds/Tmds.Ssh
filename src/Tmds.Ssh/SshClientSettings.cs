@@ -3,9 +3,14 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
+    public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+
     // This class gathers settings for SshClient in a separate object.
     public sealed class SshClientSettings
     {
@@ -45,5 +50,13 @@ namespace Tmds.Ssh
         internal string Host { get; set; }
         internal int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
+        public string? KnownHostFile = DefaultKnownHostsFile;
+        public bool CheckGlobalKnownHostFile { get; set; } = true;
+        public KeyVerification? KeyVerification { get; set; }
+
+        private static string DefaultKnownHostsFile
+            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify),
+                            ".ssh",
+                            "known_hosts");
     }
 }
