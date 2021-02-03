@@ -7,11 +7,11 @@ namespace Tmds.Ssh
 {
     public sealed class PublicKey
     {
-        internal PublicKey(byte[] hash)
+        internal PublicKey(byte[] sha256Hash)
         {
-            Hash = hash;
+            SHA256Hash = sha256Hash;
         }
 
-        public Memory<byte> Hash { get; }
+        public Memory<byte> SHA256Hash { get; }
     }
 }

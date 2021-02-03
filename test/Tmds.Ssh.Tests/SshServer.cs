@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Tmds.Ssh.Tests
@@ -198,6 +199,19 @@ namespace Tmds.Ssh.Tests
             );
             Assert.NotEmpty(output);
             Assert.Contains(HelloWorld, output);
+        }
+
+        public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null)
+        {
+            var client = new SshClient(Destination,
+                settings =>
+                    {
+                        settings.KnownHostFile = KnownHostsFile;
+                        settings.Credentials.Add(new PrivateKeyFileCredential(TestUserIdentityFile));
+                        configure?.Invoke(settings);
+                    });
+            await client.ConnectAsync();
+            return client;
         }
     }
 

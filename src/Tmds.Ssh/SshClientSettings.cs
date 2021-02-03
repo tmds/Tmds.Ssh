@@ -45,7 +45,7 @@ namespace Tmds.Ssh
             Port = port;
         }
 
-        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15); // TODO
+        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
         internal string UserName { get; set; }
         internal string Host { get; set; }
         internal int Port { get; set; } = 22;

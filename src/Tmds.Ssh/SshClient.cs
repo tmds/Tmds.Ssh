@@ -112,6 +112,9 @@ namespace Tmds.Ssh
             {
                 ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostFile);
             }
+
+            _connectionInfo.Host = _clientSettings.Host;
+            _connectionInfo.Port = _clientSettings.Port;
         }
 
         internal static void EnableDebugLogging()
@@ -170,6 +173,19 @@ namespace Tmds.Ssh
                             _ => throw new IndexOutOfRangeException($"Unknown KnownHostResult"),
                         };
                     }
+
+                    int rv = ssh_get_server_publickey(_ssh, out SshKeyHandle key);
+                    if (rv == SSH_ERROR)
+                    {
+                        throw GetErrorException();
+                    }
+                    rv = ssh_get_publickey_hash(key, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
+                    key.Dispose();
+                    if (rv != SSH_OK)
+                    {
+                        throw new SshSessionException("Could not obtain public key.");
+                    }
+                    _connectionInfo.ServerKey = new PublicKey(hash);
                 }
 
                 if (result != KeyVerificationResult.Trusted)
@@ -177,7 +193,15 @@ namespace Tmds.Ssh
                     if (_clientSettings.KeyVerification != null &&
                         (result == KeyVerificationResult.Changed || result == KeyVerificationResult.Unknown))
                     {
-                        result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken);
+                        try
+                        {
+                            result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken);
+                        }
+                        catch (Exception e) when (e is not SshSessionException)
+                        {
+                            // Wrap the exception
+                            throw new SshSessionException($"Key verification failed: {e.Message}.", e);
+                        }
                     }
                 }
                 if (result == KeyVerificationResult.AddKnownHost)
@@ -210,7 +234,10 @@ namespace Tmds.Ssh
             }
             catch (Exception e)
             {
-                Disconnect(e);
+                lock (Gate)
+                {
+                    Disconnect(e);
+                }
 
                 throw;
             }
