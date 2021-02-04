@@ -1,0 +1,30 @@
+using System;
+using System.IO;
+using Xunit;
+
+namespace Tmds.Ssh.Tests
+{
+    public class ClientSettingsTests
+    {
+        [Fact]
+        public void Defaults()
+        {
+            using var client = new SshClient(settings =>
+            {
+                Assert.Equal(TimeSpan.FromSeconds(15), settings.ConnectTimeout);
+                Assert.Equal(string.Empty, settings.UserName);
+                Assert.Equal(string.Empty, settings.Host);
+                Assert.Equal(22, settings.Port);
+                Assert.Empty(settings.Credentials);
+                Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFile);
+                Assert.True(settings.CheckGlobalKnownHostsFile);
+                Assert.Null(settings.KeyVerification);
+            });
+        }
+
+        private static string DefaultKnownHostsFile
+            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify),
+                            ".ssh",
+                            "known_hosts");
+    }
+}

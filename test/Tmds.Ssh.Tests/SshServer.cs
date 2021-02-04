@@ -203,10 +203,9 @@ namespace Tmds.Ssh.Tests
 
         public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null)
         {
-            var client = new SshClient(Destination,
-                settings =>
+            var client = new SshClient(Destination, settings =>
                     {
-                        settings.KnownHostFile = KnownHostsFile;
+                        settings.KnownHostsFile = KnownHostsFile;
                         settings.Credentials.Add(new PrivateKeyFileCredential(TestUserIdentityFile));
                         configure?.Invoke(settings);
                     });

@@ -86,11 +86,35 @@ namespace Tmds.Ssh
             }
         }
 
+        public SshClient(Action<SshClientSettings> configure)
+            : this(null, configure, requireDestination: false)
+        {}
+
         public SshClient(string destination, Action<SshClientSettings>? configure = null)
+            : this(destination, configure, requireDestination: true)
+        {}
+
+        private SshClient(string? destination, Action<SshClientSettings>? configure, bool requireDestination)
         {
+            if (requireDestination)
+            {
+                if (destination is null)
+                {
+                    throw new ArgumentNullException(nameof(destination));
+                }
+            }
+            else if (configure is null)
+            {
+                throw new ArgumentNullException(nameof(configure));
+            }
+
             EnableDebugLogging();
 
-            _clientSettings = new SshClientSettings(destination);
+            _clientSettings = new SshClientSettings();
+            if (destination is not null)
+            {
+                _clientSettings.ConfigureForDestination(destination);
+            }
             configure?.Invoke(_clientSettings);
 
             _ssh = ssh_new();
@@ -100,17 +124,17 @@ namespace Tmds.Ssh
             ssh_options_set(_ssh, SshOption.Port, (uint)_clientSettings.Port);
 
             string invalidFilePath = Platform.IsWindows ? "C:\\" : "/";
-            if (!_clientSettings.CheckGlobalKnownHostFile)
+            if (!_clientSettings.CheckGlobalKnownHostsFile)
             {
                 ssh_options_set(_ssh, SshOption.GlobalKnownHosts, invalidFilePath);
             }
-            if (string.IsNullOrEmpty(_clientSettings.KnownHostFile))
+            if (string.IsNullOrEmpty(_clientSettings.KnownHostsFile))
             {
                 ssh_options_set(_ssh, SshOption.KnownHosts, invalidFilePath);
             }
             else
             {
-                ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostFile);
+                ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostsFile);
             }
 
             _connectionInfo.Host = _clientSettings.Host;
@@ -158,8 +182,8 @@ namespace Tmds.Ssh
                         throw GetErrorException();
                     }
 
-                    bool checkKnownHosts = _clientSettings.CheckGlobalKnownHostFile ||
-                                            !string.IsNullOrEmpty(_clientSettings.KnownHostFile);
+                    bool checkKnownHosts = _clientSettings.CheckGlobalKnownHostsFile ||
+                                            !string.IsNullOrEmpty(_clientSettings.KnownHostsFile);
                     if (checkKnownHosts)
                     {
                         result = ssh_session_is_known_server(_ssh) switch
@@ -174,13 +198,13 @@ namespace Tmds.Ssh
                         };
                     }
 
-                    int rv = ssh_get_server_publickey(_ssh, out SshKeyHandle key);
+                    int rv = ssh_get_server_publickey(_ssh, out SshKeyHandle? key);
                     if (rv == SSH_ERROR)
                     {
                         throw GetErrorException();
                     }
-                    rv = ssh_get_publickey_hash(key, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
-                    key.Dispose();
+                    rv = ssh_get_publickey_hash(key!, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
+                    key!.Dispose();
                     if (rv != SSH_OK)
                     {
                         throw new SshSessionException("Could not obtain public key.");
@@ -207,7 +231,7 @@ namespace Tmds.Ssh
                 if (result == KeyVerificationResult.AddKnownHost)
                 {
                     throw new NotImplementedException(); // TODO: add key
-                    result = KeyVerificationResult.Trusted;
+                    // result = KeyVerificationResult.Trusted;
                 }
                 if (result != KeyVerificationResult.Trusted)
                 {
