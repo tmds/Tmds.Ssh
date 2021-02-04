@@ -152,8 +152,9 @@ namespace Tmds.Ssh
         {
             try
             {
-                TaskCompletionSource<object?> tcs;
                 // SessionState.Connecting
+                // calling ssh_connect until it completes.
+                TaskCompletionSource<object?> tcs;
                 lock (Gate)
                 {
                     EnsureState(SessionState.Initial);
@@ -174,6 +175,7 @@ namespace Tmds.Ssh
                 }
 
                 // SessionState.VerifyServer
+                // ssh_connect completed, now verify the server key.
                 KeyVerificationResult result = KeyVerificationResult.Unknown;
                 lock (Gate)
                 {
@@ -198,13 +200,12 @@ namespace Tmds.Ssh
                         };
                     }
 
-                    int rv = ssh_get_server_publickey(_ssh, out SshKeyHandle? key);
-                    if (rv == SSH_ERROR)
+                    using SshKeyHandle? key = ssh_get_server_publickey(_ssh);
+                    if (key == null)
                     {
                         throw GetErrorException();
                     }
-                    rv = ssh_get_publickey_hash(key!, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
-                    key!.Dispose();
+                    int rv = ssh_get_publickey_hash(key!, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
                     if (rv != SSH_OK)
                     {
                         throw new SshSessionException("Could not obtain public key.");
@@ -239,6 +240,7 @@ namespace Tmds.Ssh
                 }
 
                 // SessionState.Authenticate
+                // server trusted, now authenticate.
                 lock (Gate)
                 {
                     if (_state != SessionState.VerifyServer)
@@ -279,15 +281,15 @@ namespace Tmds.Ssh
                 }
                 return default;
             }
-        }
 
-        static void AbortConnect(SshClient sshClient, Exception e)
-        {
-            lock (sshClient.Gate)
+            static void AbortConnect(SshClient sshClient, Exception e)
             {
-                if (sshClient._connectTcs != null)
+                lock (sshClient.Gate)
                 {
-                    sshClient.CompleteConnectStep(e);
+                    if (sshClient._connectTcs != null)
+                    {
+                        sshClient.CompleteConnectStep(e);
+                    }
                 }
             }
         }

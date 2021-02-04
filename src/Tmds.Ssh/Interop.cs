@@ -202,12 +202,11 @@ namespace Tmds.Ssh
         [DllImport(Library)]
         private static unsafe extern int ssh_get_server_publickey(SessionHandle session, IntPtr* pkey);
 
-        public unsafe static int ssh_get_server_publickey(SessionHandle session, out SshKeyHandle? keyHandle)
+        public unsafe static SshKeyHandle? ssh_get_server_publickey(SessionHandle session)
         {
             IntPtr pkey;
             int rv = ssh_get_server_publickey(session, &pkey);
-            keyHandle = rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
-            return rv;
+            return rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
         }
 
         [DllImport(Library)]
