@@ -9,7 +9,7 @@ namespace Tmds.Ssh
 {
     static class Interop
     {
-        const string Library = "libssh";
+        const string Library = "libssh.so.4";
 
         public const int SSH_OK = 0;
         public const int SSH_ERROR = -1;
