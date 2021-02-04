@@ -3,18 +3,22 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Tmds.Ssh
 {
+    public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+
     // This class gathers settings for SshClient in a separate object.
     public sealed class SshClientSettings
     {
-        internal SshClientSettings(string destination)
+        public SshClientSettings()
+        { }
+
+        internal void ConfigureForDestination(string destination)
         {
-            if (destination == null)
-            {
-                throw new ArgumentNullException(nameof(destination));
-            }
             string host = destination;
             int port = 22;
             int colonPos = host.IndexOf(":");
@@ -40,10 +44,18 @@ namespace Tmds.Ssh
             Port = port;
         }
 
-        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15); // TODO
-        internal string UserName { get; set; }
-        internal string Host { get; set; }
-        internal int Port { get; set; } = 22;
+        public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
+        public string UserName { get; set; } = string.Empty;
+        public string Host { get; set; } = string.Empty;
+        public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
+        public string? KnownHostsFile = DefaultKnownHostsFile;
+        public bool CheckGlobalKnownHostsFile { get; set; } = true;
+        public KeyVerification? KeyVerification { get; set; }
+
+        private static string DefaultKnownHostsFile
+            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify),
+                            ".ssh",
+                            "known_hosts");
     }
 }

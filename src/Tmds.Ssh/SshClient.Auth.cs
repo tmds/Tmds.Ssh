@@ -84,7 +84,7 @@ namespace Tmds.Ssh
                 int credentialIndex = _authState.CredentialIndex;
                 if (credentialIndex >= credentials.Count)
                 {
-                    CompleteConnect(new SshSessionException("Client authentication failed."));
+                    CompleteConnectStep(new SshSessionException("Client authentication failed."));
                     return;
                 }
                 Credential credential = credentials[credentialIndex];
@@ -104,11 +104,11 @@ namespace Tmds.Ssh
                 if (result == CredentialAuthResult.Success)
                 {
                     _state = SessionState.Connected;
-                    CompleteConnect(null);
+                    CompleteConnectStep(null);
                 }
                 else if (result == CredentialAuthResult.Error)
                 {
-                    CompleteConnect(new SshSessionException(errorMessage ?? ssh_get_error(_ssh)));
+                    CompleteConnectStep(new SshSessionException(errorMessage ?? ssh_get_error(_ssh)));
                 }
                 else if (result == CredentialAuthResult.NextCredential)
                 {

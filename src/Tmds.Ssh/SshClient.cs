@@ -41,11 +41,12 @@ namespace Tmds.Ssh
         private readonly SessionHandle _ssh;
         private readonly SshClientSettings _clientSettings;
         private readonly AuthState _authState = new AuthState();
+        private readonly SshConnectionInfo _connectionInfo = new SshConnectionInfo();
 
         private SessionState _state = SessionState.Initial;
         private TaskCompletionSource<object?>? _connectTcs;
         private TaskCompletionSource<FlushResult>? _flushedTcs;
-        private SshSessionException? _closeReason;
+        private Exception? _closeReason;
         private Socket? _pollSocket;
 
         internal SessionHandle SshHandle => _ssh;
@@ -85,16 +86,59 @@ namespace Tmds.Ssh
             }
         }
 
+        public SshClient(Action<SshClientSettings> configure)
+            : this(null, configure, requireDestination: false)
+        {}
+
         public SshClient(string destination, Action<SshClientSettings>? configure = null)
+            : this(destination, configure, requireDestination: true)
+        {}
+
+        private SshClient(string? destination, Action<SshClientSettings>? configure, bool requireDestination)
         {
+            if (requireDestination)
+            {
+                if (destination is null)
+                {
+                    throw new ArgumentNullException(nameof(destination));
+                }
+            }
+            else if (configure is null)
+            {
+                throw new ArgumentNullException(nameof(configure));
+            }
+
             EnableDebugLogging();
-            _clientSettings = new SshClientSettings(destination);
+
+            _clientSettings = new SshClientSettings();
+            if (destination is not null)
+            {
+                _clientSettings.ConfigureForDestination(destination);
+            }
             configure?.Invoke(_clientSettings);
+
             _ssh = ssh_new();
             ssh_set_blocking(_ssh, blocking: 0);
             ssh_options_set(_ssh, SshOption.Host, _clientSettings.Host);
             ssh_options_set(_ssh, SshOption.User, _clientSettings.UserName);
             ssh_options_set(_ssh, SshOption.Port, (uint)_clientSettings.Port);
+
+            string invalidFilePath = Platform.IsWindows ? "C:\\" : "/";
+            if (!_clientSettings.CheckGlobalKnownHostsFile)
+            {
+                ssh_options_set(_ssh, SshOption.GlobalKnownHosts, invalidFilePath);
+            }
+            if (string.IsNullOrEmpty(_clientSettings.KnownHostsFile))
+            {
+                ssh_options_set(_ssh, SshOption.KnownHosts, invalidFilePath);
+            }
+            else
+            {
+                ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostsFile);
+            }
+
+            _connectionInfo.Host = _clientSettings.Host;
+            _connectionInfo.Port = _clientSettings.Port;
         }
 
         internal static void EnableDebugLogging()
@@ -104,22 +148,150 @@ namespace Tmds.Ssh
 #endif
         }
 
-        public async Task ConnectAsync()
+        public async Task ConnectAsync(CancellationToken cancellationToken = default)
         {
-            TaskCompletionSource<object?> tcs;
-
-            lock (Gate)
+            try
             {
-                EnsureState(SessionState.Initial);
+                // SessionState.Connecting
+                // calling ssh_connect until it completes.
+                TaskCompletionSource<object?> tcs;
+                lock (Gate)
+                {
+                    EnsureState(SessionState.Initial);
 
-                tcs = _connectTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                _state = SessionState.Connecting;
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                Process();
+                    tcs = _connectTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _state = SessionState.Connecting;
+
+                    Process();
+                }
+                {
+                    TimerCallback timerCallback =
+                        static o => AbortConnect((SshClient)o!, new SshSessionException("The operation has timed out.", new TimeoutException()));
+                    using var timer = new Timer(timerCallback, this, dueTime: (int)_clientSettings.ConnectTimeout.TotalMilliseconds, period: -1);
+                    using CancellationTokenRegistration ctr = RegisterCancellation(this, cancellationToken);
+                    await tcs.Task.ConfigureAwait(false);
+                }
+
+                // SessionState.VerifyServer
+                // ssh_connect completed, now verify the server key.
+                KeyVerificationResult result = KeyVerificationResult.Unknown;
+                lock (Gate)
+                {
+                    if (_state != SessionState.VerifyServer)
+                    {
+                        throw GetErrorException();
+                    }
+
+                    bool checkKnownHosts = _clientSettings.CheckGlobalKnownHostsFile ||
+                                            !string.IsNullOrEmpty(_clientSettings.KnownHostsFile);
+                    if (checkKnownHosts)
+                    {
+                        result = ssh_session_is_known_server(_ssh) switch
+                        {
+                            KnownHostResult.Error => KeyVerificationResult.Error,
+                            KnownHostResult.Ok => KeyVerificationResult.Trusted,
+                            KnownHostResult.FileNotFound => KeyVerificationResult.Unknown,
+                            KnownHostResult.Unknown => KeyVerificationResult.Unknown,
+                            KnownHostResult.Changed => KeyVerificationResult.Changed,
+                            KnownHostResult.OtherType => KeyVerificationResult.Error,
+                            _ => throw new IndexOutOfRangeException($"Unknown KnownHostResult"),
+                        };
+                    }
+
+                    using SshKeyHandle? key = ssh_get_server_publickey(_ssh);
+                    if (key == null)
+                    {
+                        throw GetErrorException();
+                    }
+                    int rv = ssh_get_publickey_hash(key!, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
+                    if (rv != SSH_OK)
+                    {
+                        throw new SshSessionException("Could not obtain public key.");
+                    }
+                    _connectionInfo.ServerKey = new PublicKey(hash);
+                }
+
+                if (result != KeyVerificationResult.Trusted)
+                {
+                    if (_clientSettings.KeyVerification != null &&
+                        (result == KeyVerificationResult.Changed || result == KeyVerificationResult.Unknown))
+                    {
+                        try
+                        {
+                            result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken);
+                        }
+                        catch (Exception e) when (e is not SshSessionException)
+                        {
+                            // Wrap the exception
+                            throw new SshSessionException($"Key verification failed: {e.Message}.", e);
+                        }
+                    }
+                }
+                if (result == KeyVerificationResult.AddKnownHost)
+                {
+                    throw new NotImplementedException(); // TODO: add key
+                    // result = KeyVerificationResult.Trusted;
+                }
+                if (result != KeyVerificationResult.Trusted)
+                {
+                    throw new SshSessionException("Server not trusted.");
+                }
+
+                // SessionState.Authenticate
+                // server trusted, now authenticate.
+                lock (Gate)
+                {
+                    if (_state != SessionState.VerifyServer)
+                    {
+                        throw GetErrorException();
+                    }
+
+                    tcs = _connectTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _state = SessionState.Authenticate;
+
+                    Process();
+                }
+                {
+                    using CancellationTokenRegistration ctr = RegisterCancellation(this, cancellationToken);
+                    await tcs.Task.ConfigureAwait(false);
+                }
+            }
+            catch (Exception e)
+            {
+                lock (Gate)
+                {
+                    Disconnect(e);
+                }
+
+                throw;
             }
 
-            // 'await' to include method in Exception StackTrace.
-            await tcs.Task.ConfigureAwait(false);
+            static CancellationTokenRegistration RegisterCancellation(SshClient client, CancellationToken cancellationToken)
+            {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    return cancellationToken.Register(
+                        static o =>
+                        {
+                            var arg = ((SshClient client, CancellationToken ct))o!;
+                            AbortConnect(arg.client, new OperationCanceledException(arg.ct));
+                        }, (client, cancellationToken));
+                }
+                return default;
+            }
+
+            static void AbortConnect(SshClient sshClient, Exception e)
+            {
+                lock (sshClient.Gate)
+                {
+                    if (sshClient._connectTcs != null)
+                    {
+                        sshClient.CompleteConnectStep(e);
+                    }
+                }
+            }
         }
 
         private void EnsureState(SessionState state)
@@ -142,7 +314,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private void Disconnect(SshSessionException? closeReason)
+        private void Disconnect(Exception? closeReason)
         {
             EnableDebugLogging();
             Debug.Assert(Monitor.IsEntered(Gate));
@@ -201,33 +373,19 @@ namespace Tmds.Ssh
                                 Socket pollSocket = CreatePollSocket();
                                 PollThread.AddSession(pollSocket, this);
                             }
-                            if (rv == SSH_AGAIN)
-                            {
-                                return;
-                            }
-                            else
+                            if (rv != SSH_AGAIN)
                             {
                                 _state = SessionState.VerifyServer;
+                                CompleteConnectStep(null);
                             }
                         }
                         else
                         {
-                            CompleteConnect(new SshSessionException(ssh_get_error(_ssh)));
-                            return;
+                            CompleteConnectStep(new SshSessionException(ssh_get_error(_ssh)));
                         }
-                        break;
+                        return;
                     case SessionState.VerifyServer:
-                        KnownHostResult verifyResult = ssh_session_is_known_server(_ssh);
-                        if (verifyResult == KnownHostResult.Ok)
-                        {
-                            _state = SessionState.Authenticate;
-                        }
-                        else
-                        {
-                            CompleteConnect(new SshSessionException("Server not trusted."));
-                            return;
-                        }
-                        break;
+                        return;
                     case SessionState.Authenticate:
                         Authenticate();
                         if (_state != SessionState.Connected)
@@ -279,13 +437,13 @@ namespace Tmds.Ssh
                 SshException exception = isFatal ? new SshSessionException(message) : new SshOperationException(message);
                 if (isFatal)
                 {
-                    Disconnect((SshSessionException)exception);
+                    Disconnect(exception);
                 }
                 return exception;
             }
         }
 
-        private void CompleteConnect(SshSessionException? exception)
+        private void CompleteConnectStep(Exception? exception)
         {
             Debug.Assert(_connectTcs != null);
             var tcs = _connectTcs;
@@ -296,7 +454,6 @@ namespace Tmds.Ssh
             }
             else
             {
-                Disconnect(exception);
                 tcs.SetException(exception);
             }
         }

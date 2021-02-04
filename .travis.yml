@@ -1,14 +1,21 @@
 language: csharp
 mono: none
 dotnet: 5.0 # .NET version
+dist: focal
 
 services:
   - docker
+
+addons:
+  apt:
+    packages:
+    - libssh-4
 
 env:
   global:
     # NuGetApiKey
     secure: Swd/FT98UYjlj2u3z/x5mAxbCKRIVSoBksF3w6mWbrKSMHR5Rf951Qs+gAjXZoSw6OTcw5rM/HegWRlVXSQwMI1iC46C/bljr9gYPGSrUCDdtIyMGyUoWCOpEfeJq/L+51GJ5Nij0bmiharXoF8f5juL2wjkk1Mt4arZLglXhFsSrMIy6kG31l0KdB6z0FVJESq/pKkSnyEf5+xwNlCj+5mvhThYwJ29yVSM7wXBpDfLMb7XEKSadjcsBZy42iab+FBPACbkFIPLma/K5+h/gF7c5WJhoUwe7GONoNzsS3u7c4nSYcZERL90n3LRuGZtzD5oOWwrfT+xwlz+WBF39OA/GMKsSRRLME+aQUKtnXkmwKQhvmFRHW1e1pQv7hBS96wLlE9apUw7axFU++d5094WnhPm1+0p5EFq95yhQB6MJS0ajfUP1WO62E7Zuxae0gQxUYKv8JMKVm/ATCxhRDh0Fx/3NLgo020cZWIxU9+kc7azGG0sDFi0k4/Ctq11VPnAYLOtDaCbtQ6w91NijPxBG5iyHMcJHKjmzj7HbwiJcLbZw3NtffgIktCjXxt6gV7GbJUP7Q+FDSDeQyo0XwR0sjcfUGTgoBMvbYrIQgr2Y8XZFzgZ/q3yv4W1uT6WXBH8v5cTax74qG9K+LxXPEoySRhi70E6axUuaAlPDG8=
+
 
 script:
   - dotnet build

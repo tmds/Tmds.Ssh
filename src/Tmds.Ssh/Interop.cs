@@ -9,7 +9,7 @@ namespace Tmds.Ssh
 {
     static class Interop
     {
-        const string Library = "libssh";
+        const string Library = "libssh.so.4";
 
         public const int SSH_OK = 0;
         public const int SSH_ERROR = -1;
@@ -20,6 +20,13 @@ namespace Tmds.Ssh
         public const int SSH_REQUEST_DENIED = 1;
         public const int SSH_FATAL = 2;
         public const int SSH_EINTR = 3;
+
+        public enum PublicKeyHashType : uint
+        {
+            SSH_PUBLICKEY_HASH_SHA1,
+            SSH_PUBLICKEY_HASH_MD5,
+            SSH_PUBLICKEY_HASH_SHA256,
+        }
 
         [DllImport(Library)]
         public static extern SessionHandle ssh_new();
@@ -189,6 +196,40 @@ namespace Tmds.Ssh
             IntPtr pkey;
             int rv = ssh_pki_import_pubkey_file_(filename, &pkey);
             keyHandle = rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
+            return rv;
+        }
+
+        [DllImport(Library)]
+        private static unsafe extern int ssh_get_server_publickey(SessionHandle session, IntPtr* pkey);
+
+        public unsafe static SshKeyHandle? ssh_get_server_publickey(SessionHandle session)
+        {
+            IntPtr pkey;
+            int rv = ssh_get_server_publickey(session, &pkey);
+            return rv == SSH_OK ? new SshKeyHandle(pkey, ownsHandle: true) : null;
+        }
+
+        [DllImport(Library)]
+        private static unsafe extern int ssh_get_publickey_hash(SshKeyHandle key, PublicKeyHashType type, IntPtr* hash, nuint* hlen);
+
+        [DllImport(Library)]
+        private static unsafe extern void ssh_clean_pubkey_hash(IntPtr* hash);
+
+        public static unsafe int ssh_get_publickey_hash(SshKeyHandle key, PublicKeyHashType type, out byte[] hash)
+        {
+            IntPtr pHash;
+            nuint length;
+            int rv = ssh_get_publickey_hash(key, type, &pHash, &length);
+            if (rv == SSH_OK)
+            {
+                hash = new byte[length];
+                new Span<byte>((void*)pHash, (int)length).CopyTo(hash);
+                ssh_clean_pubkey_hash(&pHash);
+            }
+            else
+            {
+                hash = Array.Empty<byte>();
+            }
             return rv;
         }
 

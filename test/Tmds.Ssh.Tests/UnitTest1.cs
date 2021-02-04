@@ -6,7 +6,7 @@ namespace Tmds.Ssh.Tests
     [Collection(nameof(SshServerCollection))]
     public class UnitTest1
     {
-        SshServer _sshServer;
+        private readonly SshServer _sshServer;
 
         public UnitTest1(SshServer sshServer)
         {
