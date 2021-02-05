@@ -73,6 +73,8 @@ namespace Tmds.Ssh
 
         private void Authenticate()
         {
+            Debug.Assert(Monitor.IsEntered(Gate));
+
             var credentials = _clientSettings.Credentials;
             if (credentials == null || credentials.Count == 0)
             {

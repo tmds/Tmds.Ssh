@@ -61,7 +61,7 @@ namespace Tmds.Ssh
             var tcs = _openTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
             _state = ChannelState.OpenSession;
-            Process();
+            HandleEvents();
 
             return tcs.Task;
         }
@@ -130,7 +130,7 @@ namespace Tmds.Ssh
            _handle?.Dispose();
         }
 
-        internal unsafe void Process()
+        internal unsafe void HandleEvents()
         {
             Debug.Assert(Monitor.IsEntered(_client.Gate));
 
