@@ -127,7 +127,7 @@ namespace Tmds.Ssh
                             ssh_event_add_session(ev, session.SshHandle); // TODO: rv
                             ssh_event_dopoll(ev, timeout: 0);
                             ssh_event_remove_session(ev, session.SshHandle); // TODO: rv
-                            session.Process();
+                            session.HandleEvents();
                         }
                     }
                     else if (socket == _readSocket)
