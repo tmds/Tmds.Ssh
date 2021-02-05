@@ -201,7 +201,7 @@ namespace Tmds.Ssh.Tests
             Assert.Contains(HelloWorld, output);
         }
 
-        public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null)
+        public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default)
         {
             var client = new SshClient(Destination, settings =>
                     {
@@ -209,7 +209,7 @@ namespace Tmds.Ssh.Tests
                         settings.Credentials.Add(new PrivateKeyFileCredential(TestUserIdentityFile));
                         configure?.Invoke(settings);
                     });
-            await client.ConnectAsync();
+            await client.ConnectAsync(cancellationToken);
             return client;
         }
     }

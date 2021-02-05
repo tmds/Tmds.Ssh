@@ -245,7 +245,7 @@ namespace Tmds.Ssh
                     {
                         result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
                     }
-                    catch (Exception e) when (e is not SshSessionException)
+                    catch (Exception e) when (e is not SshSessionException && e is not OperationCanceledException)
                     {
                         // Wrap the exception
                         throw new SshSessionException($"Key verification failed: {e.Message}.", e);
