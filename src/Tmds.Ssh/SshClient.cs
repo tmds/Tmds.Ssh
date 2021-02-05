@@ -175,7 +175,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private Task SshConnectAsync(CancellationToken cancellationToken)
+        private async Task SshConnectAsync(CancellationToken cancellationToken)
         {
             TaskCompletionSource<object?> tcs;
             lock (Gate)
@@ -193,7 +193,7 @@ namespace Tmds.Ssh
                     static o => AbortConnect((SshClient)o!, new SshSessionException("The operation has timed out.", new TimeoutException()));
                 using var timer = new Timer(timerCallback, this, dueTime: (int)_clientSettings.ConnectTimeout.TotalMilliseconds, period: -1);
                 using CancellationTokenRegistration ctr = RegisterConnectCancellation(this, cancellationToken);
-                return tcs.Task;
+                await tcs.Task; // await so the timer doesn't dispose.
             }
         }
 
@@ -466,7 +466,9 @@ namespace Tmds.Ssh
 
         private void CompleteConnectStep(Exception? exception)
         {
+            Debug.Assert(Monitor.IsEntered(Gate));
             Debug.Assert(_connectTcs != null);
+
             var tcs = _connectTcs;
             _connectTcs = null;
             if (exception == null)
@@ -475,6 +477,7 @@ namespace Tmds.Ssh
             }
             else
             {
+                Disconnect(exception);
                 tcs.SetException(exception);
             }
         }
