@@ -107,10 +107,12 @@ namespace Tmds.Ssh
                 {
                     _state = SessionState.Connected;
                     CompleteConnectStep(null);
+                    return;
                 }
                 else if (result == CredentialAuthResult.Error)
                 {
                     CompleteConnectStep(new SshSessionException(errorMessage ?? ssh_get_error(_ssh)));
+                    return;
                 }
                 else if (result == CredentialAuthResult.NextCredential)
                 {

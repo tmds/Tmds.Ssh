@@ -177,9 +177,14 @@ namespace Tmds.Ssh
         [DllImport(Library, EntryPoint="ssh_channel_is_closed")]
         private static extern int ssh_channel_is_closed_(ChannelHandle channel);
 
-        public static bool ssh_channel_is_closed(ChannelHandle channel)
+        public unsafe static bool ssh_channel_is_closed(SessionHandle session, ChannelHandle channel)
         {
-            return ssh_channel_is_closed_(channel) != 0;
+            return ssh_channel_is_closed_(channel) != 0
+                || // workaround https://bugs.libssh.org/T31.
+                   (ssh_channel_is_eof(channel) &&
+                    ssh_channel_write(channel, new IntPtr(-1), 0) == -1 &&
+                    ssh_get_error(session) == "Remote channel is closed"
+                   );
         }
 
         [DllImport(Library)]
@@ -249,5 +254,8 @@ namespace Tmds.Ssh
 
         [DllImport(Library)]
         public static extern AuthResult ssh_userauth_publickey(SessionHandle session, string? username, SshKeyHandle privkey);
+
+        [DllImport(Library)]
+        public static extern int ssh_channel_get_exit_status(ChannelHandle channel);
     }
 }

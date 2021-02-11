@@ -4,8 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static Tmds.Ssh.Interop;
@@ -20,6 +20,7 @@ namespace Tmds.Ssh
 
             // ConnectAsync steps
             Connecting,
+            ConnectingComplete,
             VerifyServer,
             Authenticate,
 
@@ -180,7 +181,10 @@ namespace Tmds.Ssh
             TaskCompletionSource<object?> tcs;
             lock (Gate)
             {
-                EnsureState(SessionState.Initial);
+                if (_state != SessionState.Initial)
+                {
+                    throw new InvalidOperationException($"Unable to perform operation, session is {_state}.");
+                }
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -202,10 +206,11 @@ namespace Tmds.Ssh
             KeyVerificationResult result = KeyVerificationResult.Unknown;
             lock (Gate)
             {
-                if (_state != SessionState.VerifyServer)
+                if (_state != SessionState.ConnectingComplete)
                 {
                     throw GetErrorException();
                 }
+                _state = SessionState.VerifyServer;
 
                 bool checkKnownHosts = _clientSettings.CheckGlobalKnownHostsFile ||
                                         !string.IsNullOrEmpty(_clientSettings.KnownHostsFile);
@@ -308,16 +313,13 @@ namespace Tmds.Ssh
             }
         }
 
-        private void EnsureState(SessionState state)
+        private void EnsureConnected()
         {
-            if (_state != state)
+            if (_state != SessionState.Connected)
             {
-                ThrowInvalidState(state);
+                ThrowNotConnectedState();
             }
         }
-
-        internal void EnsureConnected()
-            => EnsureState(SessionState.Connected);
 
         public void Dispose()
         {
@@ -379,6 +381,8 @@ namespace Tmds.Ssh
                 case SessionState.Connecting:
                     Connect();
                     break;
+                case SessionState.ConnectingComplete:
+                    break;
                 case SessionState.VerifyServer:
                     break;
                 case SessionState.Authenticate:
@@ -433,7 +437,7 @@ namespace Tmds.Ssh
                 }
                 if (rv != SSH_AGAIN)
                 {
-                    _state = SessionState.VerifyServer;
+                    _state = SessionState.ConnectingComplete;
                     CompleteConnectStep(null);
                 }
             }
@@ -482,13 +486,15 @@ namespace Tmds.Ssh
             }
         }
 
-        private void ThrowInvalidState(SessionState desired)
+        private void ThrowNotConnectedState()
         {
+            Debug.Assert(_state != SessionState.Connected);
+
             if (_state == SessionState.Disposed)
             {
                 throw new ObjectDisposedException(typeof(SshClient).FullName);
             }
-            else if (desired == SessionState.Connected && _state >= SessionState.Disconnected)
+            else if (_state >= SessionState.Disconnected)
             {
                 throw GetErrorException();
             }
@@ -498,7 +504,30 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
+        public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken)
+            => ExecuteAsync(command, null, cancellationToken);
+
+        public async Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default)
+        {
+            ExecuteOptions? options = null;
+            if (configure != null)
+            {
+                options = new ExecuteOptions();
+                configure?.Invoke(options);
+            }
+
+            var channel = await OpenChannelAsync(new SshChannelOptions { Command = command }, cancellationToken);
+
+            Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
+            Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
+            Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
+            return new RemoteProcess(channel,
+                standardInputEncoding,
+                standardErrorEncoding,
+                standardOutputEncoding);
+        }
+
+        private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
         {
             SshChannel? channel = null;
             try
@@ -506,7 +535,7 @@ namespace Tmds.Ssh
                 Task openTask;
                 using (GateWithPollCheck())
                 {
-                    EnsureState(SessionState.Connected);
+                    EnsureConnected();
 
                     cancellationToken.ThrowIfCancellationRequested();
 
