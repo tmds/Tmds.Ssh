@@ -5,7 +5,7 @@ using System;
 
 namespace Tmds.Ssh
 {
-    sealed public class PrivateKeyFileCredential : Credential
+    public sealed class PrivateKeyFileCredential : Credential
     {
         public PrivateKeyFileCredential(string filename)
         {

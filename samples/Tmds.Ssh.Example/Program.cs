@@ -13,24 +13,24 @@ namespace Tmds.Ssh
             string destination = args.Length >= 1 ? args[0] : "localhost";
             string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
 
-            using SshClient session = new SshClient(destination);
-            await session.ConnectAsync(); 
-            using var channel = await session.OpenChannelAsync(new SshChannelOptions() { Command = command });
+            using SshClient client = new SshClient(destination);
+            await client.ConnectAsync(); 
+            using var process = await client.ExecuteAsync(command);
             Func<Task> channelToConsole = async () =>
             {
                 try
                 {
                     byte[] buffer = new byte[1024];
-                    ChannelReadType readType;
+                    ProcessReadType readType;
                     do
                     {
                         int bytesRead;
-                        (readType, bytesRead) = await channel.ReadAsync(buffer);
-                        if (readType == ChannelReadType.StandardOutput)
+                        (readType, bytesRead) = await process.ReadAsync(buffer, null);
+                        if (readType == ProcessReadType.StandardOutput)
                         {
                             Console.Write(Encoding.UTF8.GetString(buffer.AsSpan().Slice(0, bytesRead)));
                         }
-                    } while (readType != ChannelReadType.Closed);
+                    } while (readType != ProcessReadType.ProcessExit);
                 }
                 catch (Exception ex)
                 {
@@ -46,7 +46,7 @@ namespace Tmds.Ssh
                     {
                         string line = Console.ReadLine();
                         line += "\n";
-                        await channel.WriteAsync(Encoding.UTF8.GetBytes(line));
+                        await process.WriteAsync(Encoding.UTF8.GetBytes(line));
                     }
                 }
                 catch (Exception ex)

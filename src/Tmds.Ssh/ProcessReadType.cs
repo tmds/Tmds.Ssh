@@ -3,8 +3,10 @@
 
 namespace Tmds.Ssh
 {
-    sealed class SshChannelOptions
+    public enum ProcessReadType
     {
-        public string? Command { get; set; }
+        StandardOutput = 1,
+        StandardError = 2,
+        ProcessExit = 3,
     }
 }

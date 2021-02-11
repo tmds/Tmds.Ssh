@@ -11,7 +11,7 @@ using static Tmds.Ssh.Interop;
 
 namespace Tmds.Ssh
 {
-    public class SshChannel : IDisposable // TODO: internal
+    class SshChannel : IDisposable
     {
         enum ChannelState
         {
@@ -42,6 +42,8 @@ namespace Tmds.Ssh
         private bool _skippingStdout;
         private bool _skippingStderr;
         private ChannelReadType _readNextType = ChannelReadType.StandardOutput;
+
+        public int? ExitCode { get; private set; }
 
         internal SshChannel(SshClient session, SshChannelOptions options)
         {
@@ -106,24 +108,31 @@ namespace Tmds.Ssh
             _client.RemoveChannel(this);
 
             CompletePending(ref _openTcs);
-            CompletePending(ref _readableTcs);
-            CompletePending(ref _windowReadyTcs);
+            CompletePending(ref _readableTcs, success: true);
+            CompletePending(ref _windowReadyTcs, success: true);
 
-            void CompletePending(ref TaskCompletionSource<object?>? tcsField)
+            void CompletePending(ref TaskCompletionSource<object?>? tcsField, bool success = false)
             {
                 var tcs = tcsField;
                 if (tcs != null)
                 {
                     tcsField = null;
-                    Exception ex = targetState switch
+                    if (success)
                     {
-                        ChannelState.SessionClosed => _client.GetErrorException(),
-                        ChannelState.Canceled => new OperationCanceledException(),
-                        ChannelState.Closed => new SshOperationException("Channel closed."),
-                        ChannelState.Disposed => new SshOperationException("Channel disposed."),
-                        _ => throw new IndexOutOfRangeException($"Unhandled state: {targetState}."),
-                    };
-                    tcs.SetException(ex);
+                        tcs.SetResult(null);
+                    }
+                    else
+                    {
+                        Exception ex = targetState switch
+                        {
+                            ChannelState.SessionClosed => _client.GetErrorException(),
+                            ChannelState.Canceled => new OperationCanceledException(),
+                            ChannelState.Closed => new SshOperationException("Channel closed."),
+                            ChannelState.Disposed => new SshOperationException("Channel disposed."),
+                            _ => throw new IndexOutOfRangeException($"Unhandled state: {targetState}."),
+                        };
+                        tcs.SetException(ex);
+                    }
                 }
             }
 
@@ -194,7 +203,7 @@ namespace Tmds.Ssh
                             }
                             else
                             {
-                                if (ssh_channel_is_closed(_handle))
+                                if (ssh_channel_is_closed(_client.SshHandle, _handle))
                                 {
                                     CompleteReadable();
                                 }
@@ -246,7 +255,7 @@ namespace Tmds.Ssh
         public ValueTask WriteAsync(
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default)
-            => WriteAsync(buffer, isError: false);
+            => WriteAsync(buffer, isError: false, cancellationToken);
 
         public ValueTask WriteErrorAsync(
             ReadOnlyMemory<byte> buffer,
@@ -286,7 +295,7 @@ namespace Tmds.Ssh
 
                         if (_state >= ChannelState.Closed)
                         {
-                            ThrowNotOpen();
+                            ThrowNotOpen(closedIsInvalid: false, cancellationToken);
                         }
                         Debug.Assert(_handle != null);
 
@@ -384,7 +393,7 @@ namespace Tmds.Ssh
 
                         if (_state >= ChannelState.Closed)
                         {
-                            ThrowNotOpen();
+                            ThrowNotOpen(closedIsInvalid: true, cancellationToken);
                         }
                         Debug.Assert(_handle != null);
 
@@ -392,8 +401,9 @@ namespace Tmds.Ssh
 
                         if (_state == ChannelState.Eof)
                         {
-                            if (ssh_channel_is_closed(_handle))
+                            if (ssh_channel_is_closed(_client.SshHandle, _handle))
                             {
+                                ExitCode = ssh_channel_get_exit_status(_handle);
                                 Close(ChannelState.Closed);
                                 return (ChannelReadType.Closed, 0);
                             }
@@ -475,14 +485,14 @@ namespace Tmds.Ssh
                     rv = (readType, bytesRead);
                     return true;
                 }
-                else if (bytesAvailable == SSH_EOF
-                        || (bytesAvailable == 0 && ssh_channel_is_eof(_handle)))
+                else if ((bytesAvailable == SSH_EOF || bytesAvailable == 0)
+                         && ssh_channel_is_eof(_handle)) // TODO: (libssh) poll can return EOF when there is still data to read?
                 {
                     _state = ChannelState.Eof;
                     rv = (ChannelReadType.Eof, 0);
                     return true;
                 }
-                else if (bytesAvailable == 0 || bytesAvailable == SSH_AGAIN)
+                else if (bytesAvailable == 0 || bytesAvailable == SSH_AGAIN || bytesAvailable == SSH_EOF)
                 {
                     // await readable
                     rv = default;
@@ -499,17 +509,19 @@ namespace Tmds.Ssh
             }
         }
 
-        private void ThrowNotOpen()
+        private void ThrowNotOpen(bool closedIsInvalid, CancellationToken cancellationToken)
         {
             Debug.Assert(_state >= ChannelState.Closed);
             switch (_state)
             {
                 case ChannelState.Closed:
-                    throw new InvalidOperationException("Channel closed."); 
+                    throw closedIsInvalid ? new InvalidOperationException("Channel closed.") :
+                                            new SshOperationException("Channel closed.") ; 
                 case ChannelState.SessionClosed:
                     throw _client.GetErrorException();
                 case ChannelState.Canceled:
-                    throw new OperationCanceledException();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    throw new SshOperationException("Channel closed due to canceled operation.");
                 case ChannelState.Disposed:
                     throw new ObjectDisposedException(typeof(SshChannel).FullName);
                 default:

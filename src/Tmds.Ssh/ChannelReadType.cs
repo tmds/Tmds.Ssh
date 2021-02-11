@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh
 {
-    public enum ChannelReadType // TODO: internal
+    enum ChannelReadType
     {
         StandardOutput = 1,
         StandardError = 2,

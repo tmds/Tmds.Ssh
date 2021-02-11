@@ -23,4 +23,4 @@ RUN chmod 600 /home/testuser/.ssh/authorized_keys
 RUN rm /run/nologin
 
 # Run sshd.
-CMD /usr/sbin/sshd -o LogLevel=DEBUG3 -De
+CMD /usr/sbin/sshd -o LogLevel=DEBUG2 -De
