@@ -3,10 +3,8 @@
 
 using System;
 using System.Diagnostics;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using static Tmds.Ssh.Interop;
 
 namespace Tmds.Ssh
@@ -354,6 +352,7 @@ namespace Tmds.Ssh
              Memory<byte>? stderrBuffer = default,
             CancellationToken cancellationToken = default)
         {
+            // TODO: don't accept empty buffers, and don't return bytesRead=0 for stdout/err.
             try
             {
                 Task? readable = null;

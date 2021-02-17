@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh
 {
-    public enum ProcessReadType
+    enum ProcessReadType
     {
         StandardOutput = 1,
         StandardError = 2,
