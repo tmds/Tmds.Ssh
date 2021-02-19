@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -18,28 +19,45 @@ namespace Tmds.Ssh.Tests
         }
 
         [Theory]
-        [InlineData(ProcessReadType.StandardOutput)]
-        [InlineData(ProcessReadType.StandardError)]
-        public async Task HelloWorld(ProcessReadType readType)
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task HelloWorld(bool stderr)
         {
             using var client = await _sshServer.CreateClientAsync();
             byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
             string command = "echo -n 'hello world'";
-            if (readType == ProcessReadType.StandardError)
+            if (stderr)
             {
                 command += " >&2";
             }
             using var process = await client.ExecuteAsync(command);
 
             byte[] buffer = new byte[512];
-            (ProcessReadType type, int bytesRead) = await process.ReadAsync(buffer, buffer);
-            Assert.Equal(readType, type);
+            (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
+            Assert.Equal(stderr, isError);
             Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
 
-            (type, bytesRead) = await process.ReadAsync(buffer, buffer);
-            Assert.Equal(ProcessReadType.ProcessExit, type);
+            (isError, bytesRead) = await process.ReadAsync(buffer, buffer);
+            Assert.Equal(false, isError);
             Assert.Equal(0, bytesRead);
 
+            Assert.Equal(0, process.ExitCode);
+        }
+
+        [Fact]
+        public async Task ExitCodeThrowsInvalidOperationExceptionWhenProcessNotExited()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var process = await client.ExecuteAsync("sleep 60");
+            Assert.Throws<InvalidOperationException>(() => process.ExitCode);
+        }
+
+        [Fact]
+        public async Task WaitForExit()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var process = await client.ExecuteAsync("sleep 1");
+            await process.WaitForExitAsync();
             Assert.Equal(0, process.ExitCode);
         }
 
@@ -75,8 +93,8 @@ namespace Tmds.Ssh.Tests
             }
 
             byte[] buffer = new byte[512];
-            (ProcessReadType type, int bytesRead) = await process.ReadAsync(buffer, buffer);
-            Assert.Equal(ProcessReadType.StandardOutput, type);
+            (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
+            Assert.Equal(false, isError);
             Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
         }
 
@@ -99,12 +117,12 @@ namespace Tmds.Ssh.Tests
                 byte[] readBuffer = new byte[10_000_000];
                 while (true)
                 {
-                    (ProcessReadType type, int bytesRead) = await process.ReadAsync(readBuffer, readBuffer);
-                    if (type == ProcessReadType.ProcessExit)
+                    (bool isError, int bytesRead) = await process.ReadAsync(readBuffer, readBuffer);
+                    if (bytesRead == 0)
                     {
                         break;
                     }
-                    Assert.Equal(ProcessReadType.StandardOutput, type);
+                    Assert.Equal(false, isError);
                     Assert.NotEqual(0, bytesRead);
                     ms.Write(readBuffer.AsSpan(0, bytesRead));
                 }
@@ -118,8 +136,8 @@ namespace Tmds.Ssh.Tests
             using var client = await _sshServer.CreateClientAsync();
             using var process = await client.ExecuteAsync("exit 0");
 
-            (ProcessReadType type, int bytesRead) = await process.ReadAsync(null, null);
-            Assert.Equal(ProcessReadType.ProcessExit, type);
+            (bool isError, int bytesRead) = await process.ReadAsync(null, null);
+            Assert.Equal(false, isError);
             Assert.Equal(0, bytesRead);
 
             var ioException = await Assert.ThrowsAsync<IOException>(() =>
@@ -187,17 +205,16 @@ namespace Tmds.Ssh.Tests
         [Theory]
         [InlineData(0)]
         [InlineData(42)]
-        public async Task ExitCodeAndHasExited(int exitCode)
+        public async Task ExitCode(int exitCode)
         {
             using var client = await _sshServer.CreateClientAsync();
             using var process = await client.ExecuteAsync($"exit {exitCode}");
 
-            (ProcessReadType type, int bytesRead) = await process.ReadAsync(null, null);
-            Assert.Equal(ProcessReadType.ProcessExit, type);
+            (bool isError, int bytesRead) = await process.ReadAsync(null, null);
+            Assert.Equal(false, isError);
             Assert.Equal(0, bytesRead);
 
             Assert.Equal(exitCode, process.ExitCode);
-            Assert.True(process.HasExited);
         }
 
         [Fact]
@@ -216,6 +233,141 @@ namespace Tmds.Ssh.Tests
             // Call without token.
             await Assert.ThrowsAsync<SshOperationException>(() =>
                 process.ReadAsync(null, null).AsTask());
+        }
+
+        [Theory]
+        [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        public async Task ReadToEndAsStringAsync(bool readStdout, bool readStderr)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var process = await client.ExecuteAsync("bash");
+
+            await process.WriteLineAsync("echo -n 'hello stdout1'");
+            await process.WriteLineAsync("echo -n 'hello stderr1' >&2");
+            await process.WriteLineAsync("sleep 1");
+            await process.WriteLineAsync("echo -n 'hello stdout2'");
+            await process.WriteLineAsync("echo -n 'hello stderr2' >&2");
+            await process.WriteLineAsync("exit 0");
+
+            (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync(readStdout, readStderr);
+            Assert.Equal(readStdout ? "hello stdout1hello stdout2" : null, stdout);
+            Assert.Equal(readStderr ? "hello stderr1hello stderr2" : null, stderr);
+        }
+
+        [Theory]
+        [MemberData(nameof(NewlineTestData))]
+        public async Task ReadNewlines(string[] writeStrings, string[] readStrings)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var process = await client.ExecuteAsync("bash");
+            Func<Task> reader = async () =>
+            {
+                bool isError;
+                string? s;
+                foreach (var readString in readStrings)
+                {
+                    (isError, s) = await process.ReadLineAsync(readStdout: true, readStderr: false);
+                    Assert.Equal(false, isError);
+                    Assert.Equal(readString, s);
+                }
+                (isError, s) = await process.ReadLineAsync(readStdout: true, readStderr: false);
+                Assert.Null(s);
+                Assert.Equal(false, isError);
+            };
+            Task reading = reader();
+            foreach (var writeString in writeStrings)
+            {
+                string echoCmd = "echo -n $'"
+                                  + writeString.Replace("\r", "\\r").Replace("\n", "\\n")
+                                  + "'";
+                await process.WriteLineAsync(echoCmd);
+                // Wait a little in order to make the client pick up the write separately.
+                await Task.Delay(20);
+            }
+            await process.WriteLineAsync("exit 0");
+            await reading;
+        }
+
+        public static IEnumerable<object[]> NewlineTestData
+        {
+            get
+            {
+                foreach (var data in RawData())
+                {
+                    yield return new object[] { data.writeStrings, data.readStrings };
+                }
+
+                static IEnumerable<(string[] writeStrings, string[] readStrings)> RawData()
+                {
+                    string[] expected;
+
+                    // -- Type 1: normal cases
+
+                    // \r\n
+                    expected = new[] { "line1" };
+                    yield return (new[] { "line1\r\n" }, expected);
+
+                    expected = new[] { "line1", "line2" };
+                    yield return (new[] { "line1\r\nline2\r\n" }, expected);
+
+                    // split between '\r' '\n'.
+                    yield return (new[] { "line1\r", "\nline2\r", "\n" }, expected);
+                    // \r
+                    yield return (new[] { "line1\rline2\r" }, expected);
+                    // \n
+                    yield return (new[] { "line1\nline2\n" }, expected);
+
+                    // -- Type 2: type 1 with a long prefix to cause StringBuilder usage.
+
+                    string longPrefix = new string('a', 8000);
+                    // \r\n
+                    expected = new[] { $"{longPrefix}line1" };
+                    yield return (new[] { $"{longPrefix}line1\r\n" }, expected);
+
+                    expected = new[] { $"{longPrefix}line1", $"{longPrefix}line2" };
+                    yield return (new[] { $"{longPrefix}line1\r\n{longPrefix}line2\r\n" }, expected);
+
+                    yield return (new[] { $"{longPrefix}line1\r", $"\n{longPrefix}line2\r", $"\n" }, expected);
+                    // \r
+                    // split between '\r' '\n'.
+                    yield return (new[] { $"{longPrefix}line1\r{longPrefix}line2\r" }, expected);
+                    // \n
+                    yield return (new[] { $"{longPrefix}line1\n{longPrefix}line2\n" }, expected);
+
+                    // -- Type 3: type 1 and 2 with additional line ("line3") without endline.
+
+                    // \r\n
+                    expected = new[] { "line1", "line3" };
+                    yield return (new[] { "line1\r\nline3" }, expected);
+
+                    expected = new[] { "line1", "line2", "line3" };
+                    yield return (new[] { "line1\r\nline2\r\nline3" }, expected);
+
+                    // split between '\r' '\n'.
+                    yield return (new[] { "line1\r", "\nline2\r", "\nline3" }, expected);
+                    // \r
+                    yield return (new[] { "line1\rline2\rline3" }, expected);
+                    // \n
+                    yield return (new[] { "line1\nline2\nline3" }, expected);
+
+                    // \r\n
+                    expected = new[] { $"{longPrefix}line1", $"{longPrefix}line3" };
+                    yield return (new[] { $"{longPrefix}line1\r\n{longPrefix}line3" }, expected);
+
+                    expected = new[] { $"{longPrefix}line1", $"{longPrefix}line2", $"{longPrefix}line3" };
+                    yield return (new[] { $"{longPrefix}line1\r\n{longPrefix}line2\r\n{longPrefix}line3" }, expected);
+
+                    // split between '\r' '\n'.
+                    yield return (new[] { $"{longPrefix}line1\r", $"\n{longPrefix}line2\r", $"\n{longPrefix}line3" }, expected);
+                    // \r
+                    yield return (new[] { $"{longPrefix}line1\r{longPrefix}line2\r{longPrefix}line3" }, expected);
+                    // \n
+                    yield return (new[] { $"{longPrefix}line1\n{longPrefix}line2\n{longPrefix}line3" }, expected);
+                }
+            }
         }
     }
 }

@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Linq;
-using System.Text;
-using Tmds.Ssh;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Tmds.Ssh
 {
@@ -14,48 +12,42 @@ namespace Tmds.Ssh
             string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
 
             using SshClient client = new SshClient(destination);
-            await client.ConnectAsync(); 
+            await client.ConnectAsync();
+
             using var process = await client.ExecuteAsync(command);
-            Func<Task> channelToConsole = async () =>
+            Task[] tasks = new[]
             {
-                try
-                {
-                    byte[] buffer = new byte[1024];
-                    ProcessReadType readType;
-                    do
-                    {
-                        int bytesRead;
-                        (readType, bytesRead) = await process.ReadAsync(buffer, null);
-                        if (readType == ProcessReadType.StandardOutput)
-                        {
-                            Console.Write(Encoding.UTF8.GetString(buffer.AsSpan().Slice(0, bytesRead)));
-                        }
-                    } while (readType != ProcessReadType.ProcessExit);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                }
+                PrintToConsole(process),
+                ReadInputFromConsole(process)
             };
-            Func<Task> consoleToChannel = async () =>
+            Task.WaitAny(tasks);
+            PrintExceptions(tasks);
+
+            static async Task PrintToConsole(RemoteProcess process)
             {
-                try
+                await foreach ((bool isError, string line) in process.ReadAllLinesAsync())
                 {
-                    await Task.Yield();
-                    while (true)
+                    Console.WriteLine(line);
+                }
+            }
+
+            static Task ReadInputFromConsole(RemoteProcess process)
+            {
+                return Console.OpenStandardInput().CopyToAsync(process.StandardInputStream); // TODO: cancellationToken
+            }
+
+            static void PrintExceptions(Task[] tasks)
+            {
+                foreach (var task in tasks)
+                {
+                    Exception? innerException = task.Exception?.InnerException;
+                    if (innerException is not null)
                     {
-                        string line = Console.ReadLine();
-                        line += "\n";
-                        await process.WriteAsync(Encoding.UTF8.GetBytes(line));
+                        System.Console.WriteLine("Exception:");
+                        Console.WriteLine(innerException);
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                }
-            };
-            Task[] tasks = new[] { channelToConsole(), consoleToChannel() };
-            Task.WaitAny(tasks);
+            }
         }
     }
 }

@@ -3,10 +3,8 @@
 
 using System;
 using System.Diagnostics;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using static Tmds.Ssh.Interop;
 
 namespace Tmds.Ssh
@@ -354,6 +352,14 @@ namespace Tmds.Ssh
              Memory<byte>? stderrBuffer = default,
             CancellationToken cancellationToken = default)
         {
+            if (stdoutBuffer is { Length: 0 })
+            {
+                throw new ArgumentException("Buffer length cannot be zero.", nameof(stdoutBuffer));
+            }
+            if (stderrBuffer is { Length: 0 })
+            {
+                throw new ArgumentException("Buffer length cannot be zero.", nameof(stderrBuffer));
+            }
             try
             {
                 Task? readable = null;
