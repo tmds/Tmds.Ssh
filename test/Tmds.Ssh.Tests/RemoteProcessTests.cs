@@ -304,6 +304,41 @@ namespace Tmds.Ssh.Tests
                 {
                     string[] expected;
 
+                    // -- Type 1: normal cases
+
+                    // \r\n
+                    expected = new[] { "line1" };
+                    yield return (new[] { "line1\r\n" }, expected);
+
+                    expected = new[] { "line1", "line2" };
+                    yield return (new[] { "line1\r\nline2\r\n" }, expected);
+
+                    // split between '\r' '\n'.
+                    yield return (new[] { "line1\r", "\nline2\r", "\n" }, expected);
+                    // \r
+                    yield return (new[] { "line1\rline2\r" }, expected);
+                    // \n
+                    yield return (new[] { "line1\nline2\n" }, expected);
+
+                    // -- Type 2: type 1 with a long prefix to cause StringBuilder usage.
+
+                    string longPrefix = new string('a', 8000);
+                    // \r\n
+                    expected = new[] { $"{longPrefix}line1" };
+                    yield return (new[] { $"{longPrefix}line1\r\n" }, expected);
+
+                    expected = new[] { $"{longPrefix}line1", $"{longPrefix}line2" };
+                    yield return (new[] { $"{longPrefix}line1\r\n{longPrefix}line2\r\n" }, expected);
+
+                    yield return (new[] { $"{longPrefix}line1\r", $"\n{longPrefix}line2\r", $"\n" }, expected);
+                    // \r
+                    // split between '\r' '\n'.
+                    yield return (new[] { $"{longPrefix}line1\r{longPrefix}line2\r" }, expected);
+                    // \n
+                    yield return (new[] { $"{longPrefix}line1\n{longPrefix}line2\n" }, expected);
+
+                    // -- Type 3: type 1 and 2 with additional line ("line3") without endline.
+
                     // \r\n
                     expected = new[] { "line1", "line3" };
                     yield return (new[] { "line1\r\nline3" }, expected);
@@ -318,7 +353,6 @@ namespace Tmds.Ssh.Tests
                     // \n
                     yield return (new[] { "line1\nline2\nline3" }, expected);
 
-                    string longPrefix = new string('a', 8000);
                     // \r\n
                     expected = new[] { $"{longPrefix}line1", $"{longPrefix}line3" };
                     yield return (new[] { $"{longPrefix}line1\r\n{longPrefix}line3" }, expected);

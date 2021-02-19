@@ -352,7 +352,14 @@ namespace Tmds.Ssh
              Memory<byte>? stderrBuffer = default,
             CancellationToken cancellationToken = default)
         {
-            // TODO: don't accept empty buffers, and don't return bytesRead=0 for stdout/err.
+            if (stdoutBuffer is { Length: 0 })
+            {
+                throw new ArgumentException("Buffer length cannot be zero.", nameof(stdoutBuffer));
+            }
+            if (stderrBuffer is { Length: 0 })
+            {
+                throw new ArgumentException("Buffer length cannot be zero.", nameof(stderrBuffer));
+            }
             try
             {
                 Task? readable = null;

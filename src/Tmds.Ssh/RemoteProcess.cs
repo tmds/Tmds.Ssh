@@ -30,6 +30,7 @@ namespace Tmds.Ssh
             {
                 if (_charBuffer == null)
                 {
+                    // TODO: alloc from ArrayPool?
                     _charBuffer = new char[encoding.GetMaxCharCount(BufferSize)];
                     _decoder = encoding.GetDecoder();
                     _sbHasNoNewlines = true;
@@ -411,6 +412,7 @@ namespace Tmds.Ssh
             }
             if (_channel.ExitCode.HasValue && !HasExited)
             {
+                // Channel close was not yet observed by user.
                 HasExited = true;
                 return (false, null);
             }
@@ -451,6 +453,7 @@ namespace Tmds.Ssh
         {
             if (_byteBuffer == null)
             {
+                // TODO: alloc from ArrayPool?
                 _byteBuffer = new byte[BufferSize];
                 if (readStdout)
                 {
