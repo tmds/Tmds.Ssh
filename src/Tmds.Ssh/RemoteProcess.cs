@@ -200,19 +200,38 @@ namespace Tmds.Ssh
         {
             get
             {
-                if (!HasExited)
+                if (_readMode == ReadMode.Disposed)
                 {
-                    throw new InvalidOperationException("Process has not exited.");
+                    ThrowObjectDisposedException();
+                }
+                else if (_readMode != ReadMode.Exited)
+                {
+                    throw new InvalidOperationException("The process has not yet exited.");
                 }
 
                 return _channel.ExitCode!.Value;
             }
         }
 
-        private bool HasExited { get; set; } // delays exit until it was read by the user.
+        private enum ReadMode
+        {
+            Initial,
+            ReadBytes,
+            ReadChars,
+            ReadException,
+            Exited,
+            Disposed
+        }
+
+        private ReadMode _readMode;
+
+        private bool HasExited { get => _readMode == ReadMode.Exited;  } // delays exit until it was read by the user.
 
         public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-            => _channel.WriteAsync(buffer, cancellationToken);
+        {
+            ThrowIfDisposed();
+            return _channel.WriteAsync(buffer, cancellationToken);
+        }
 
         public Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
         {
@@ -270,6 +289,8 @@ namespace Tmds.Ssh
 
         public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
         {
+            CheckReadMode(ReadMode.ReadBytes);
+
             while (true)
             {
                 (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken);
@@ -280,7 +301,7 @@ namespace Tmds.Ssh
                     case ChannelReadType.StandardError:
                         return (true, BytesRead);
                     case ChannelReadType.Closed:
-                        HasExited = true;
+                        _readMode = ReadMode.Exited;
                         return (false, 0);
                     case ChannelReadType.Eof:
                         continue;
@@ -297,12 +318,14 @@ namespace Tmds.Ssh
 
         public async ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
         {
+            CheckReadMode(ReadMode.ReadChars);
+
             while (true)
             {
                 ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken);
                 if (readType == ProcessReadType.ProcessExit)
                 {
-                    HasExited = true;
+                    _readMode = ReadMode.Exited;
                     string? stdout = readStdout ? _stdoutBuffer.BuildString() : null;
                     string? stderr = readStderr ? _stderrBuffer.BuildString() : null;
                     return (stdout, stderr);
@@ -312,6 +335,9 @@ namespace Tmds.Ssh
 
         public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool disposeStreams = true, CancellationToken cancellationToken = default)
         {
+            ReadMode readMode = stdoutStream is null && stderrStream is null ? ReadMode.Exited : ReadMode.ReadBytes;
+            CheckReadMode(readMode);
+
             try
             {
                 await ReadToEndAsync(stdoutStream != null ? writeToStream : null, stdoutStream,
@@ -344,7 +370,8 @@ namespace Tmds.Ssh
                                               Func<Memory<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
                                               CancellationToken cancellationToken = default)
         {
-            // CheckReadState(readStdout, readStderr, ReadStatus.ReadRaw);
+            CheckReadMode(ReadMode.ReadBytes);
+
             bool readStdout = handleStdout != null;
             bool readStderr = handleStderr != null;
             byte[]? buffer = ArrayPool<byte>.Shared.Rent(4096);
@@ -366,14 +393,14 @@ namespace Tmds.Ssh
                     }
                     else if (readType == ChannelReadType.Closed)
                     {
-                        HasExited = true;
+                        _readMode = ReadMode.Exited;
                         return;
                     }
                 } while (true);
             }
             catch
             {
-                // _readStatus = ReadStatus.ReadThrewException;
+                _readMode = ReadMode.ReadException;
 
                 throw;
             }
@@ -388,6 +415,8 @@ namespace Tmds.Ssh
 
         public async IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation]CancellationToken cancellationToken = default)
         {
+            CheckReadMode(ReadMode.ReadChars);
+
             while (true)
             {
                 (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken);
@@ -401,6 +430,8 @@ namespace Tmds.Ssh
 
         public async ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
         {
+            CheckReadMode(ReadMode.ReadChars);
+
             string? line;
             if (readStdout && _stdoutBuffer.TryReadLine(out line, HasExited))
             {
@@ -413,7 +444,7 @@ namespace Tmds.Ssh
             if (_channel.ExitCode.HasValue && !HasExited)
             {
                 // Channel close was not yet observed by user.
-                HasExited = true;
+                _readMode = ReadMode.Exited;
                 return (false, null);
             }
             while (true)
@@ -443,7 +474,7 @@ namespace Tmds.Ssh
                     {
                         return (true, line);
                     }
-                    HasExited = true;
+                    _readMode = ReadMode.Exited;
                     return (false, null);
                 }
             }
@@ -485,7 +516,45 @@ namespace Tmds.Ssh
 
         public void Dispose()
         {
+            _readMode = ReadMode.Disposed;
             _channel.Dispose();
+        }
+
+        private void CheckReadMode(ReadMode readMode)
+        {
+            if (_readMode == ReadMode.Disposed)
+            {
+                throw new ObjectDisposedException(typeof(RemoteProcess).FullName);
+            }
+            else if (_readMode == ReadMode.Exited)
+            {
+                throw new InvalidOperationException("The process has exited");
+            }
+            else if (_readMode == ReadMode.ReadException && readMode != ReadMode.Exited)
+            {
+                throw new InvalidOperationException("Previous read operation threw an exception.");
+            }
+            else if (_readMode == ReadMode.ReadChars && readMode == ReadMode.ReadBytes)
+            {
+                throw new InvalidOperationException("Cannot read raw bytes after reading chars.");
+            }
+            if (_readMode != ReadMode.Exited)
+            {
+                _readMode = readMode;
+            }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_readMode == ReadMode.Disposed)
+            {
+                ThrowObjectDisposedException();
+            }
+        }
+
+        private void ThrowObjectDisposedException()
+        {
+            throw new ObjectDisposedException(typeof(RemoteProcess).FullName);
         }
 
         sealed class StdInStream : Stream
