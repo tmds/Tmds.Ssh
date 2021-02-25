@@ -87,15 +87,15 @@ namespace Tmds.Ssh
             }
         }
 
-        public SshClient(Action<SshClientSettings> configure)
-            : this(null, configure, requireDestination: false)
+        public SshClient(SshClientSettings clientSettings)
+            : this(clientSettings, null, null, requireDestination: false)
         {}
 
         public SshClient(string destination, Action<SshClientSettings>? configure = null)
-            : this(destination, configure, requireDestination: true)
+            : this(new SshClientSettings(), destination, configure, requireDestination: true)
         {}
 
-        private SshClient(string? destination, Action<SshClientSettings>? configure, bool requireDestination)
+        private SshClient(SshClientSettings clientSettings, string? destination, Action<SshClientSettings>? configure, bool requireDestination)
         {
             if (requireDestination)
             {
@@ -104,19 +104,15 @@ namespace Tmds.Ssh
                     throw new ArgumentNullException(nameof(destination));
                 }
             }
-            else if (configure is null)
-            {
-                throw new ArgumentNullException(nameof(configure));
-            }
+            _clientSettings = clientSettings ?? throw new ArgumentNullException(nameof(clientSettings));
 
-            EnableDebugLogging();
-
-            _clientSettings = new SshClientSettings();
             if (destination is not null)
             {
                 _clientSettings.ConfigureForDestination(destination);
             }
             configure?.Invoke(_clientSettings);
+
+            EnableDebugLogging();
 
             _ssh = ssh_new();
             ssh_set_blocking(_ssh, blocking: 0);

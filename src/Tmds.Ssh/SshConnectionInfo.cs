@@ -5,6 +5,7 @@ namespace Tmds.Ssh
 {
     public sealed class SshConnectionInfo
     {
+        internal SshConnectionInfo() { }
         public PublicKey ServerKey { get; internal set; } = null!;
         public string Host { get; internal set; } = string.Empty;
         public int Port { get; internal set; }
