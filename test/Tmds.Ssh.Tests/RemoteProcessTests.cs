@@ -38,7 +38,7 @@ namespace Tmds.Ssh.Tests
             Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
 
             (isError, bytesRead) = await process.ReadAsync(buffer, buffer);
-            Assert.Equal(false, isError);
+            Assert.False(isError);
             Assert.Equal(0, bytesRead);
 
             Assert.Equal(0, process.ExitCode);
@@ -94,7 +94,7 @@ namespace Tmds.Ssh.Tests
 
             byte[] buffer = new byte[512];
             (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
-            Assert.Equal(false, isError);
+            Assert.False(false);
             Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
         }
 
@@ -122,7 +122,7 @@ namespace Tmds.Ssh.Tests
                     {
                         break;
                     }
-                    Assert.Equal(false, isError);
+                    Assert.False(isError);
                     Assert.NotEqual(0, bytesRead);
                     ms.Write(readBuffer.AsSpan(0, bytesRead));
                 }
@@ -137,7 +137,7 @@ namespace Tmds.Ssh.Tests
             using var process = await client.ExecuteAsync("exit 0");
 
             (bool isError, int bytesRead) = await process.ReadAsync(null, null);
-            Assert.Equal(false, isError);
+            Assert.False(isError);
             Assert.Equal(0, bytesRead);
 
             var ioException = await Assert.ThrowsAsync<IOException>(() =>
@@ -211,7 +211,7 @@ namespace Tmds.Ssh.Tests
             using var process = await client.ExecuteAsync($"exit {exitCode}");
 
             (bool isError, int bytesRead) = await process.ReadAsync(null, null);
-            Assert.Equal(false, isError);
+            Assert.False(isError);
             Assert.Equal(0, bytesRead);
 
             Assert.Equal(exitCode, process.ExitCode);
@@ -270,12 +270,12 @@ namespace Tmds.Ssh.Tests
                 foreach (var readString in readStrings)
                 {
                     (isError, s) = await process.ReadLineAsync(readStdout: true, readStderr: false);
-                    Assert.Equal(false, isError);
+                    Assert.False(isError);
                     Assert.Equal(readString, s);
                 }
                 (isError, s) = await process.ReadLineAsync(readStdout: true, readStderr: false);
                 Assert.Null(s);
-                Assert.Equal(false, isError);
+                Assert.False(isError);
             };
             Task reading = reader();
             foreach (var writeString in writeStrings)
@@ -289,6 +289,16 @@ namespace Tmds.Ssh.Tests
             }
             await process.WriteLineAsync("exit 0");
             await reading;
+        }
+
+        [Fact]
+        public async Task ExecutionAbortedAtExitWithoutRead()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var process = await client.ExecuteAsync("echo 'hello world'");
+            var tcs = new TaskCompletionSource();
+            process.ExecutionAborted.Register(() => tcs.SetResult());
+            await tcs.Task.WithTimeout();
         }
 
         public static IEnumerable<object[]> NewlineTestData

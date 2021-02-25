@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using System.Threading;
+using System.IO;
 
 namespace Tmds.Ssh
 {
@@ -31,9 +31,20 @@ namespace Tmds.Ssh
                 }
             }
 
-            static Task ReadInputFromConsole(RemoteProcess process)
+            static async Task ReadInputFromConsole(RemoteProcess process)
             {
-                return Console.OpenStandardInput().CopyToAsync(process.StandardInputStream); // TODO: cancellationToken
+                // note: Console doesn't have an async ReadLine that accepts a CancellationToken...
+                await Task.Yield();
+                var cancellationToken = process.ExecutionAborted;
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    string? line = Console.ReadLine();
+                    if (line == null)
+                    {
+                        break;
+                    }
+                    await process.WriteLineAsync(line);
+                }
             }
 
             static void PrintExceptions(Task[] tasks)
