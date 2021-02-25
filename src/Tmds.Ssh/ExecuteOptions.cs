@@ -12,6 +12,8 @@ namespace Tmds.Ssh
         internal static readonly UTF8Encoding DefaultEncoding =
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
+        internal ExecuteOptions() { }
+
         public Encoding StandardInputEncoding { get; set; } = DefaultEncoding;
         public Encoding StandardErrorEncoding { get; set; } = DefaultEncoding;
         public Encoding StandardOutputEncoding { get; set; } = DefaultEncoding;

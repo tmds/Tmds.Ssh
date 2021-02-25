@@ -49,7 +49,7 @@ namespace Tmds.Ssh
         public string Host { get; set; } = string.Empty;
         public int Port { get; set; } = 22;
         public List<Credential> Credentials { get; } = new List<Credential>();
-        public string? KnownHostsFile = DefaultKnownHostsFile;
+        public string? KnownHostsFile { get; set; } = DefaultKnownHostsFile;
         public bool CheckGlobalKnownHostsFile { get; set; } = true;
         public KeyVerification? KeyVerification { get; set; }
 

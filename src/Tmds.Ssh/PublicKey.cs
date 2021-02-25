@@ -12,6 +12,6 @@ namespace Tmds.Ssh
             SHA256Hash = sha256Hash;
         }
 
-        public Memory<byte> SHA256Hash { get; }
+        public ReadOnlyMemory<byte> SHA256Hash { get; }
     }
 }
