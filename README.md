@@ -34,67 +34,67 @@ hello world!
 ```cs
 namespace Tmds.Ssh
 {
-public class SshClient : IDisposable
+class SshClient : IDisposable
 {
-  public SshClient(string destination, Action<SshClientSettings>? configure = null) { }
-  public SshClient(SshClientSettings clientSettings) { }
+  SshClient(string destination, Action<SshClientSettings>? configure = null) { }
+  SshClient(SshClientSettings clientSettings) { }
 
-  public Task ConnectAsync(CancellationToken cancellationToken) { }
+  Task ConnectAsync(CancellationToken cancellationToken) { }
 
-  public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken) { }
-  public Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default) { }
+  Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken) { }
+  Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default) { }
 }
-public class ExecuteOptions
+class ExecuteOptions
 {
-  public Encoding StandardInputEncoding { get; set; }
-  public Encoding StandardErrorEncoding { get; set; }
-  public Encoding StandardOutputEncoding { get; set; }
+  Encoding StandardInputEncoding { get; set; }
+  Encoding StandardErrorEncoding { get; set; }
+  Encoding StandardOutputEncoding { get; set; }
 }
-public class RemoteProcess : IDisposable
+class RemoteProcess : IDisposable
 {
   // Read from the remote process.
-  public ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  public ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  public IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  public ValueTask? ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool? disposeStreams, CancellationToken? cancellationToken) { }
-  public ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default) { }
-  public ValueTask? ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken) { }
+  ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
+  ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
+  IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
+  ValueTask? ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool? disposeStreams, CancellationToken? cancellationToken) { }
+  ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default) { }
+  ValueTask? ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken) { }
 
   // Write to the remote process.
-  public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) { }
-  public Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  public Task WriteAsync(string value, CancellationToken cancellationToken = default) { }
-  public Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  public Task WriteLineAsync(string? value, CancellationToken cancellationToken = default) { }
-  public Stream StandardInputStream { get; }
-  public StreamWriter StandardInputWriter { get; }
+  ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) { }
+  Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
+  Task WriteAsync(string value, CancellationToken cancellationToken = default) { }
+  Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
+  Task WriteLineAsync(string? value, CancellationToken cancellationToken = default) { }
+  Stream StandardInputStream { get; }
+  StreamWriter StandardInputWriter { get; }
 
   // Wait for the remote process to exit.
-  public ValueTask WaitForExitAsync(CancellationToken cancellationToken) { }
+  ValueTask WaitForExitAsync(CancellationToken cancellationToken) { }
 
   // CancellationToken that cancels when remote process terminates.
-  public CancellationToken ExecutionAborted { get; }
+  CancellationToken ExecutionAborted { get; }
 
   // Exit code.
-  public int ExitCode { get; }
+  int ExitCode { get; }
 }
-public class SshClientSettings
+class SshClientSettings
 {
-  public SshClientSettings() { }
-  public string? KnownHostsFile { get; set; }
-  public TimeSpan ConnectTimeout { get; set; }
-  public string UserName { get; set; }
-  public string Host { get; set; }
-  public int Port { get; set; }
-  public List<Credential> Credentials { get; }
-  public bool CheckGlobalKnownHostsFile { get; set; }
-  public KeyVerification? KeyVerification { get; set; }
+  SshClientSettings() { }
+  string? KnownHostsFile { get; set; }
+  TimeSpan ConnectTimeout { get; set; }
+  string UserName { get; set; }
+  string Host { get; set; }
+  int Port { get; set; }
+  List<Credential> Credentials { get; }
+  bool CheckGlobalKnownHostsFile { get; set; }
+  KeyVerification? KeyVerification { get; set; }
 }
-public class PublicKey
+class PublicKey
 {
-  public ReadOnlyMemory<byte> SHA256Hash { get; }
+  ReadOnlyMemory<byte> SHA256Hash { get; }
 }
-public enum KeyVerificationResult
+enum KeyVerificationResult
 {
   Trusted,
   AddKnownHost,
@@ -103,32 +103,32 @@ public enum KeyVerificationResult
   Changed,
   Unknown,
 }
-public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken = default);
-public class SshConnectionInfo
+delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken = default);
+class SshConnectionInfo
 {
-  public PublicKey ServerKey { get; }
-  public string Host { get; }
-  public int Port { get; }
+  PublicKey ServerKey { get; }
+  string Host { get; }
+  int Port { get; }
 }
 // Base class for all credentials.
-public abstract class Credential
+abstract class Credential
 { }
-public class PrivateKeyFileCredential : Credential
+class PrivateKeyFileCredential : Credential
 {
-  public PrivateKeyFileCredential(string filename) { }
-  public string FileName { get; }
+  PrivateKeyFileCredential(string filename) { }
+  string FileName { get; }
 }
 // Base class.
-public class SshException : Exception
+class SshException : Exception
 { }
 // Operation on SshClient failed.
-public class SshOperationException : SshException
+class SshOperationException : SshException
 { }
 // SshClient encountered an error, connection is closed.
-public class SshSessionException : SshException
+class SshSessionException : SshException
 { }
 // Connection already closed. InnerException contains reason when closed due to failure.
-public class SshSessionClosedException : SshSessionException
+class SshSessionClosedException : SshSessionException
 { }
 }
 ```
