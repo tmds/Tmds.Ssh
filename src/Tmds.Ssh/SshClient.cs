@@ -197,7 +197,7 @@ namespace Tmds.Ssh
                     static o => AbortConnect((SshClient)o!, new SshSessionException("The operation has timed out.", new TimeoutException()));
                 using var timer = new Timer(timerCallback, this, dueTime: (int)_clientSettings.ConnectTimeout.TotalMilliseconds, period: -1);
                 using CancellationTokenRegistration ctr = RegisterConnectCancellation(this, cancellationToken);
-                await tcs.Task; // await so the timer doesn't dispose.
+                await tcs.Task.ConfigureAwait(false); // await so the timer doesn't dispose.
             }
         }
 
@@ -516,7 +516,8 @@ namespace Tmds.Ssh
                 configure?.Invoke(options);
             }
 
-            var channel = await OpenChannelAsync(new SshChannelOptions { Command = command }, cancellationToken);
+            var channel = await OpenChannelAsync(new SshChannelOptions { Command = command }, cancellationToken)
+                                .ConfigureAwait(false);
 
             Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
             Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;

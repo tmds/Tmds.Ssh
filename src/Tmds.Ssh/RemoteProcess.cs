@@ -213,6 +213,9 @@ namespace Tmds.Ssh
             }
         }
 
+        public CancellationToken ExecutionAborted
+            => _channel.ChannelAborted;
+
         private enum ReadMode
         {
             Initial,
@@ -224,6 +227,7 @@ namespace Tmds.Ssh
         }
 
         private ReadMode _readMode;
+        private bool _delayedExit;
 
         private bool HasExited { get => _readMode == ReadMode.Exited;  } // delays exit until it was read by the user.
 
@@ -233,45 +237,55 @@ namespace Tmds.Ssh
             return _channel.WriteAsync(buffer, cancellationToken);
         }
 
-        public Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        public async Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
         {
             var writer = StandardInputWriter;
-            if (writer.AutoFlush)
+            var autoFlush = writer.AutoFlush;
+            if (!autoFlush)
             {
-                return StandardInputWriter.WriteAsync(buffer, cancellationToken);
-            }
-            else
-            {
-                return WriteAndFlush(writer, buffer, cancellationToken);
-            }
-
-            static async Task WriteAndFlush(StreamWriter writer, ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
-            {
-                Debug.Assert(!writer.AutoFlush);
                 writer.AutoFlush = true;
-                await writer.WriteAsync(buffer, cancellationToken);
-                writer.AutoFlush = false;
+            }
+            try
+            {
+                await writer.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException e) // Unwrap IOException. TODO: avoid wrap and unwrap...
+            {
+                Debug.Assert(e.InnerException != null);
+                throw e.InnerException;
+            }
+            finally
+            {
+                if (!autoFlush)
+                {
+                    writer.AutoFlush = false;
+                }
             }
         }
 
-        public Task WriteLineAsync(ReadOnlyMemory<char> buffer = default, CancellationToken cancellationToken = default)
+        public async Task WriteLineAsync(ReadOnlyMemory<char> buffer = default, CancellationToken cancellationToken = default)
         {
             var writer = StandardInputWriter;
-            if (writer.AutoFlush)
+            var autoFlush = writer.AutoFlush;
+            if (!autoFlush)
             {
-                return StandardInputWriter.WriteLineAsync(buffer, cancellationToken);
-            }
-            else
-            {
-                return WriteAndFlush(writer, buffer, cancellationToken);
-            }
-
-            static async Task WriteAndFlush(StreamWriter writer, ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
-            {
-                Debug.Assert(!writer.AutoFlush);
                 writer.AutoFlush = true;
-                await writer.WriteAsync(buffer, cancellationToken);
-                writer.AutoFlush = false;
+            }
+            try
+            {
+                await writer.WriteLineAsync(buffer, cancellationToken).ConfigureAwait(false);;
+            }
+            catch (IOException e) // Unwrap IOException.
+            {
+                Debug.Assert(e.InnerException != null);
+                throw e.InnerException;
+            }
+            finally
+            {
+                if (!autoFlush)
+                {
+                    writer.AutoFlush = false;
+                }
             }
         }
 
@@ -293,7 +307,7 @@ namespace Tmds.Ssh
 
             while (true)
             {
-                (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken);
+                (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken).ConfigureAwait(false);;
                 switch (ReadType)
                 {
                     case ChannelReadType.StandardOutput:
@@ -322,7 +336,7 @@ namespace Tmds.Ssh
 
             while (true)
             {
-                ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken);
+                ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false);;
                 if (readType == ProcessReadType.ProcessExit)
                 {
                     _readMode = ReadMode.Exited;
@@ -382,7 +396,7 @@ namespace Tmds.Ssh
             {
                 do
                 {
-                    (ChannelReadType readType, int bytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken);
+                    (ChannelReadType readType, int bytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken).ConfigureAwait(false);;
                     if (readType == ChannelReadType.StandardOutput)
                     {
                         await handleStdout!(stdoutBuffer!.Value.Slice(0, bytesRead), stdoutContext, cancellationToken).ConfigureAwait(false);
@@ -419,7 +433,7 @@ namespace Tmds.Ssh
 
             while (true)
             {
-                (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken);
+                (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false);;
                 if (line == null)
                 {
                     break;
@@ -433,23 +447,22 @@ namespace Tmds.Ssh
             CheckReadMode(ReadMode.ReadChars);
 
             string? line;
-            if (readStdout && _stdoutBuffer.TryReadLine(out line, HasExited))
+            if (readStdout && _stdoutBuffer.TryReadLine(out line, _delayedExit))
             {
                 return (false, line);
             }
-            if (readStderr && _stderrBuffer.TryReadLine(out line, HasExited))
+            if (readStderr && _stderrBuffer.TryReadLine(out line, _delayedExit))
             {
                 return (true, line);
             }
-            if (_channel.ExitCode.HasValue && !HasExited)
+            if (_delayedExit)
             {
-                // Channel close was not yet observed by user.
                 _readMode = ReadMode.Exited;
                 return (false, null);
             }
             while (true)
             {
-                ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken);
+                ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false);;
                 if (readType == ProcessReadType.StandardOutput)
                 {
                     if (_stdoutBuffer.TryReadLine(out line, false))
@@ -468,10 +481,12 @@ namespace Tmds.Ssh
                 {
                     if (readStdout && _stdoutBuffer.TryReadLine(out line, true))
                     {
+                        _delayedExit = true;
                         return (false, line);
                     }
                     if (readStderr && _stderrBuffer.TryReadLine(out line, true))
                     {
+                        _delayedExit = true;
                         return (true, line);
                     }
                     _readMode = ReadMode.Exited;
@@ -496,7 +511,8 @@ namespace Tmds.Ssh
                 }
             }
             (ChannelReadType readType, int bytesRead) = await _channel.ReadAsync(readStdout ? _byteBuffer : default(Memory<byte>?),
-                                                                                 readStderr ? _byteBuffer : default(Memory<byte>?), cancellationToken);
+                                                                                 readStderr ? _byteBuffer : default(Memory<byte>?), cancellationToken)
+                                                                                 .ConfigureAwait(false);;
             switch (readType)
             {
                 case ChannelReadType.StandardOutput:
@@ -506,7 +522,8 @@ namespace Tmds.Ssh
                     _stderrBuffer.AppendFromEncoded(_byteBuffer.AsSpan(0, bytesRead));
                     return ProcessReadType.StandardError;
                 case ChannelReadType.Eof:
-                    return await ReadCharsAsync(readStdout, readStderr, cancellationToken);
+                    return await ReadCharsAsync(readStdout, readStderr, cancellationToken)
+                        .ConfigureAwait(false); // TODO: remove await, add while loop...
                 case ChannelReadType.Closed:
                     return ProcessReadType.ProcessExit;
                 default:
@@ -608,7 +625,7 @@ namespace Tmds.Ssh
             {
                 try
                 {
-                    await _process.WriteAsync(buffer, cancellationToken);
+                    await _process.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
                 }
                 catch (SshException ex)
                 {

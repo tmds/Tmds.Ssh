@@ -177,14 +177,9 @@ namespace Tmds.Ssh
         [DllImport(Library, EntryPoint="ssh_channel_is_closed")]
         private static extern int ssh_channel_is_closed_(ChannelHandle channel);
 
-        public unsafe static bool ssh_channel_is_closed(SessionHandle session, ChannelHandle channel)
+        public unsafe static bool ssh_channel_is_closed(ChannelHandle channel)
         {
-            return ssh_channel_is_closed_(channel) != 0
-                || // workaround https://bugs.libssh.org/T31.
-                   (ssh_channel_is_eof(channel) &&
-                    ssh_channel_write(channel, new IntPtr(-1), 0) == -1 &&
-                    ssh_get_error(session) == "Remote channel is closed"
-                   );
+            return ssh_channel_is_closed_(channel) != 0;
         }
 
         [DllImport(Library)]
@@ -257,5 +252,33 @@ namespace Tmds.Ssh
 
         [DllImport(Library)]
         public static extern int ssh_channel_get_exit_status(ChannelHandle channel);
+
+        [DllImport(Library)]
+        public unsafe static extern int ssh_set_channel_callbacks(ChannelHandle channel, ssh_channel_callbacks_struct* cb);
+
+        [DllImport(Library)]
+        public unsafe static extern int ssh_remove_channel_callbacks(ChannelHandle channel, ssh_channel_callbacks_struct* cb);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public unsafe struct ssh_channel_callbacks_struct
+        {
+            public nint size;
+            public IntPtr userdata;
+            public IntPtr channel_data_function;
+            public IntPtr channel_eof_function;
+            public delegate* unmanaged<IntPtr, IntPtr, IntPtr, void> channel_close_function;
+            public IntPtr channel_signal_function;
+            public IntPtr channel_exit_status_function;
+            public IntPtr channel_exit_signal_function;
+            public IntPtr channel_pty_request_function;
+            public IntPtr channel_shell_request_function;
+            public IntPtr channel_auth_agent_req_function;
+            public IntPtr channel_x11_req_function;
+            public IntPtr channel_pty_window_change_function;
+            public IntPtr channel_exec_request_function;
+            public IntPtr channel_env_request_function;
+            public IntPtr channel_subsystem_request_function;
+            public IntPtr channel_write_wontblock_function;
+        }
     }
 }

@@ -2,7 +2,9 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using static Tmds.Ssh.Interop;
@@ -11,6 +13,8 @@ namespace Tmds.Ssh
 {
     class SshChannel : IDisposable
     {
+        private static readonly Dictionary<IntPtr, SshChannel> s_callbacksToChannel = new();
+
         enum ChannelState
         {
             Initial,
@@ -40,7 +44,10 @@ namespace Tmds.Ssh
         private bool _skippingStdout;
         private bool _skippingStderr;
         private ChannelReadType _readNextType = ChannelReadType.StandardOutput;
-
+        private CancellationTokenSource? _abortedCts;
+        private IntPtr _channel_callbacks; // ssh_channel_callbacks_struct*
+        private bool _remoteClosed;
+        
         public int? ExitCode { get; private set; }
 
         internal SshChannel(SshClient session, SshChannelOptions options)
@@ -51,13 +58,28 @@ namespace Tmds.Ssh
             _options = options;
         }
 
-        internal Task OpenAsync()
+        internal unsafe Task OpenAsync()
         {
             SshClient.EnableDebugLogging();
             Debug.Assert(Monitor.IsEntered(_client.Gate));
             Debug.Assert(_state == ChannelState.Initial);
 
+            ssh_channel_callbacks_struct* pCallbacks;
+            lock (s_callbacksToChannel)
+            {
+                int cbSize = Marshal.SizeOf<ssh_channel_callbacks_struct>();
+                _channel_callbacks = Marshal.AllocHGlobal(cbSize);
+
+                pCallbacks = (ssh_channel_callbacks_struct*)_channel_callbacks;
+                new Span<ssh_channel_callbacks_struct>(pCallbacks, 1).Clear();
+                pCallbacks->size = cbSize;
+                pCallbacks->userdata = _channel_callbacks;
+                pCallbacks->channel_close_function = &OnCloseCallback;
+
+                s_callbacksToChannel.Add(_channel_callbacks, this);
+            }
             _handle = ssh_channel_new(_client.SshHandle);
+            ssh_set_channel_callbacks(_handle, pCallbacks);
             var tcs = _openTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
             _state = ChannelState.OpenSession;
@@ -66,9 +88,62 @@ namespace Tmds.Ssh
             return tcs.Task;
         }
 
+        [UnmanagedCallersOnly]
+        private static void OnCloseCallback(IntPtr pSession, IntPtr pChannel, IntPtr userdata)
+        {
+            lock (s_callbacksToChannel)
+            {
+                if (s_callbacksToChannel.TryGetValue(userdata, out SshChannel? channel))
+                {
+                    channel.OnClose();
+                }
+            }
+        }
+
+        private void OnClose()
+        {
+            Debug.Assert(Monitor.IsEntered(_client.Gate));
+            _remoteClosed = true;
+            CancelAbortedTcs();
+        }
+
+        private void CancelAbortedTcs()
+        {
+            if (_abortedCts != null)
+            {
+                ThreadPool.QueueUserWorkItem(
+                    o => ((CancellationTokenSource)o!).Cancel(),
+                    _abortedCts
+                );
+            }
+        }
+
         internal void OnSessionDisconnect()
         {
             Close(ChannelState.SessionClosed);
+        }
+
+        public CancellationToken ChannelAborted
+        {
+            get
+            {
+                lock (_client.Gate)
+                {
+                    if (_state == ChannelState.Disposed)
+                    {
+                        ThrowNewObjectDisposedException();
+                    }
+                    else if (_state >= ChannelState.Closed || _remoteClosed)
+                    {
+                        return new CancellationToken(true);
+                    }
+                    if (_abortedCts == null)
+                    {
+                        _abortedCts = new CancellationTokenSource();
+                    }
+                    return _abortedCts.Token;
+                }
+            }
         }
 
         public void Dispose()
@@ -87,7 +162,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private void Close(ChannelState targetState)
+        private unsafe void Close(ChannelState targetState)
         {
             Debug.Assert(targetState >= ChannelState.Closed);
             Debug.Assert(Monitor.IsEntered(_client.Gate));
@@ -108,6 +183,7 @@ namespace Tmds.Ssh
             CompletePending(ref _openTcs);
             CompletePending(ref _readableTcs, success: true);
             CompletePending(ref _windowReadyTcs, success: true);
+            CancelAbortedTcs();
 
             void CompletePending(ref TaskCompletionSource<object?>? tcsField, bool success = false)
             {
@@ -131,6 +207,21 @@ namespace Tmds.Ssh
                         };
                         tcs.SetException(ex);
                     }
+                }
+            }
+
+            if (_channel_callbacks != IntPtr.Zero)
+            {
+                if (_handle != null)
+                {
+                    ssh_remove_channel_callbacks(_handle, (ssh_channel_callbacks_struct*)_channel_callbacks);
+                }
+                lock (s_callbacksToChannel)
+                {
+                    s_callbacksToChannel.Remove(_channel_callbacks);
+
+                    Marshal.FreeHGlobal(_channel_callbacks);
+                    _channel_callbacks = IntPtr.Zero;
                 }
             }
 
@@ -201,7 +292,7 @@ namespace Tmds.Ssh
                             }
                             else
                             {
-                                if (ssh_channel_is_closed(_client.SshHandle, _handle))
+                                if (ssh_channel_is_read_closed(_handle))
                                 {
                                     CompleteReadable();
                                 }
@@ -407,7 +498,7 @@ namespace Tmds.Ssh
 
                         if (_state == ChannelState.Eof)
                         {
-                            if (ssh_channel_is_closed(_client.SshHandle, _handle))
+                            if (ssh_channel_is_read_closed(_handle))
                             {
                                 ExitCode = ssh_channel_get_exit_status(_handle);
                                 Close(ChannelState.Closed);
@@ -515,6 +606,13 @@ namespace Tmds.Ssh
             }
         }
 
+        private bool ssh_channel_is_read_closed(ChannelHandle channel)
+        {
+            return ssh_channel_is_closed(channel)
+                    // workaround https://bugs.libssh.org/T31.
+                    || (_remoteClosed && ssh_channel_is_eof(channel));
+        }
+
         private void ThrowNotOpen(bool closedIsInvalid, CancellationToken cancellationToken)
         {
             Debug.Assert(_state >= ChannelState.Closed);
@@ -529,10 +627,16 @@ namespace Tmds.Ssh
                     cancellationToken.ThrowIfCancellationRequested();
                     throw new SshOperationException("Channel closed due to canceled operation.");
                 case ChannelState.Disposed:
-                    throw new ObjectDisposedException(typeof(SshChannel).FullName);
+                    ThrowNewObjectDisposedException();
+                    break;
                 default:
                     throw new IndexOutOfRangeException($"Unknown state {_state}");
             }
+        }
+
+        private void ThrowNewObjectDisposedException()
+        {
+            throw new ObjectDisposedException(typeof(SshChannel).FullName);
         }
     }
 }
