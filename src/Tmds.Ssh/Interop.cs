@@ -103,8 +103,23 @@ namespace Tmds.Ssh
         [DllImport(Library)]
         public static extern PollFlags ssh_get_poll_flags(SessionHandle session);
 
-        [DllImport(Library)]
-        public static extern int ssh_get_fd(SessionHandle session); // TODO: Windows: return IntPtr
+        [DllImport(Library, EntryPoint="ssh_get_fd")]
+        private static extern IntPtr ssh_get_fd_windows(SessionHandle session);
+
+        [DllImport(Library, EntryPoint="ssh_get_fd")]
+        private static extern int ssh_get_fd_unix(SessionHandle session);
+
+        public static IntPtr ssh_get_fd(SessionHandle session)
+        {
+            if (Platform.IsWindows)
+            {
+                return ssh_get_fd_windows(session);
+            }
+            else
+            {
+                return new IntPtr(ssh_get_fd_unix(session));
+            }
+        }
 
         [DllImport(Library)]
         public static extern int ssh_channel_poll(ChannelHandle channel, int is_stderr);

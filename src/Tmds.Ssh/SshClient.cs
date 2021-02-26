@@ -559,7 +559,7 @@ namespace Tmds.Ssh
         internal Socket CreatePollSocket()
         {
             Debug.Assert(_pollSocket == null);
-            return _pollSocket = new Socket(new SafeSocketHandle(new IntPtr(ssh_get_fd(_ssh)), ownsHandle: false));
+            return _pollSocket = new Socket(new SafeSocketHandle(ssh_get_fd(_ssh), ownsHandle: false));
         }
 
         internal PollFlags SessionPollFlags
