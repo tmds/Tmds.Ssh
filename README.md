@@ -1,6 +1,6 @@
 # Tmds.Ssh
 
-.NET SSH client library based on [libssh](https://www.libssh.org/).
+.NET SSH client library that uses [libssh](https://www.libssh.org/).
 
 # Getting Started
 
