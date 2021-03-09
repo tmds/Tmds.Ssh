@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -413,9 +414,16 @@ namespace Tmds.Ssh
                     tcs.SetResult(FlushResult.Flushed);
                 }
             }
-            foreach (var channel in _channels)
+            for (int i = 0; i < _channels.Count; i++)
             {
+                var channel = _channels[i];
                 channel.HandleEvents();
+                // HandleEvents can cause a channel to get removed
+                // another channel may move to that location.
+                if (i < _channels.Count && _channels[i] != channel)
+                {
+                    _channels[i].HandleEvents();
+                }
             }
         }
 
@@ -512,7 +520,7 @@ namespace Tmds.Ssh
                 configure?.Invoke(options);
             }
 
-            var channel = await OpenChannelAsync(new SshChannelOptions { Command = command }, cancellationToken)
+            var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.Execute) { Command = command }, cancellationToken)
                                 .ConfigureAwait(false);
 
             Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
@@ -522,6 +530,14 @@ namespace Tmds.Ssh
                 standardInputEncoding,
                 standardErrorEncoding,
                 standardOutputEncoding);
+        }
+
+        public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+        {
+            var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.TcpStream) { Host = host, Port = port }, cancellationToken)
+                                .ConfigureAwait(false);
+
+            return new SshDataStream(channel);
         }
 
         private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
