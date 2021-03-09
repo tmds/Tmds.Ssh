@@ -5,6 +5,14 @@ namespace Tmds.Ssh
 {
     sealed class SshChannelOptions
     {
+        public SshChannelOptions(SshChannelType type)
+        {
+            Type = type;
+        }
+
+        public SshChannelType Type { get; private set; }
         public string? Command { get; set; }
+        public string? Host { get; set; }
+        public int Port { get; set; }
     }
 }

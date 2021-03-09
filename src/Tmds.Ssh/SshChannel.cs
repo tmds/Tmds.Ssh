@@ -22,6 +22,8 @@ namespace Tmds.Ssh
             OpenSession,
             RequestExec,
 
+            OpenForward,
+
             Open,
 
             Eof,
@@ -82,7 +84,12 @@ namespace Tmds.Ssh
             ssh_set_channel_callbacks(_handle, pCallbacks);
             var tcs = _openTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            _state = ChannelState.OpenSession;
+            _state = _options.Type switch
+            {
+                SshChannelType.Execute => ChannelState.OpenSession,
+                SshChannelType.TcpStream => ChannelState.OpenForward,
+                _ => throw new IndexOutOfRangeException($"Unknown channel type: {_options.Type}")
+            };
             HandleEvents();
 
             return tcs.Task;
@@ -260,6 +267,23 @@ namespace Tmds.Ssh
                         break;
                     case ChannelState.RequestExec:
                         rv = ssh_channel_request_exec(_handle, _options.Command!); // TODO nullable
+                        if (rv == SSH_AGAIN)
+                        {
+                            return;
+                        }
+                        else if (rv == SSH_OK)
+                        {
+                            _state = ChannelState.Open;
+                            CompleteOpen(success: true);
+                        }
+                        else
+                        {
+                            CompleteOpen(success: false);
+                            return;
+                        }
+                        break;
+                    case ChannelState.OpenForward:
+                        rv = ssh_channel_open_forward(_handle, _options.Host!, _options.Port, "0.0.0.0", 0); // TODO nullable
                         if (rv == SSH_AGAIN)
                         {
                             return;

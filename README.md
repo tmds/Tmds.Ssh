@@ -43,6 +43,8 @@ class SshClient : IDisposable
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken) { }
   Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default) { }
+
+  Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
 }
 class ExecuteOptions
 {
@@ -77,6 +79,10 @@ class RemoteProcess : IDisposable
 
   // Exit code.
   int ExitCode { get; }
+}
+class SshDataStream : Stream
+{
+  CancellationToken StreamAborted { get; }
 }
 class SshClientSettings
 {

@@ -274,6 +274,9 @@ namespace Tmds.Ssh
         [DllImport(Library)]
         public unsafe static extern int ssh_remove_channel_callbacks(ChannelHandle channel, ssh_channel_callbacks_struct* cb);
 
+        [DllImport(Library)]
+        public static extern int ssh_channel_open_forward(ChannelHandle channel, string remotehost, int remoteport, string sourcehost, int localport);
+
         [StructLayout(LayoutKind.Sequential)]
         public unsafe struct ssh_channel_callbacks_struct
         {

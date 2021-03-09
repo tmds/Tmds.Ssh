@@ -1,7 +1,7 @@
 FROM centos:8
 
 # Install packages.
-RUN dnf install -y openssh-server passwd && \
+RUN dnf install -y openssh-server passwd socat && \
     rm -rf /var/cache/yum/*
 
 # Add a user.
