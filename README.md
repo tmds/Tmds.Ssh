@@ -45,6 +45,7 @@ class SshClient : IDisposable
   Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default) { }
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
+  Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
 }
 class ExecuteOptions
 {
@@ -109,7 +110,7 @@ enum KeyVerificationResult
   Changed,
   Unknown,
 }
-delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken = default);
+delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 class SshConnectionInfo
 {
   PublicKey ServerKey { get; }

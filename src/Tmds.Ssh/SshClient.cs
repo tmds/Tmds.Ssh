@@ -540,6 +540,14 @@ namespace Tmds.Ssh
             return new SshDataStream(channel);
         }
 
+        public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
+        {
+            var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.UnixStream) { Path = path }, cancellationToken)
+                                .ConfigureAwait(false);
+
+            return new SshDataStream(channel);
+        }
+
         private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
         {
             SshChannel? channel = null;
