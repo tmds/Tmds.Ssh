@@ -22,7 +22,9 @@ namespace Tmds.Ssh
             OpenSession,
             RequestExec,
 
-            OpenForward,
+            OpenForwardTcp,
+
+            OpenForwardUnix,
 
             Open,
 
@@ -87,7 +89,8 @@ namespace Tmds.Ssh
             _state = _options.Type switch
             {
                 SshChannelType.Execute => ChannelState.OpenSession,
-                SshChannelType.TcpStream => ChannelState.OpenForward,
+                SshChannelType.TcpStream => ChannelState.OpenForwardTcp,
+                SshChannelType.UnixStream => ChannelState.OpenForwardUnix,
                 _ => throw new IndexOutOfRangeException($"Unknown channel type: {_options.Type}")
             };
             HandleEvents();
@@ -282,8 +285,25 @@ namespace Tmds.Ssh
                             return;
                         }
                         break;
-                    case ChannelState.OpenForward:
+                    case ChannelState.OpenForwardTcp:
                         rv = ssh_channel_open_forward(_handle, _options.Host!, _options.Port, "0.0.0.0", 0); // TODO nullable
+                        if (rv == SSH_AGAIN)
+                        {
+                            return;
+                        }
+                        else if (rv == SSH_OK)
+                        {
+                            _state = ChannelState.Open;
+                            CompleteOpen(success: true);
+                        }
+                        else
+                        {
+                            CompleteOpen(success: false);
+                            return;
+                        }
+                        break;
+                    case ChannelState.OpenForwardUnix:
+                        rv = ssh_channel_open_forward_unix(_handle, _options.Path!, "0.0.0.0", 0); // TODO nullable
                         if (rv == SSH_AGAIN)
                         {
                             return;

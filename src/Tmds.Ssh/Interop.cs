@@ -277,6 +277,9 @@ namespace Tmds.Ssh
         [DllImport(Library)]
         public static extern int ssh_channel_open_forward(ChannelHandle channel, string remotehost, int remoteport, string sourcehost, int localport);
 
+        [DllImport(Library)]
+        public static extern int ssh_channel_open_forward_unix(ChannelHandle channel, string remotepath, string sourcehost, int localport);
+
         [StructLayout(LayoutKind.Sequential)]
         public unsafe struct ssh_channel_callbacks_struct
         {

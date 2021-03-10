@@ -6,6 +6,7 @@ namespace Tmds.Ssh
     enum SshChannelType
     {
         Execute,
-        TcpStream
+        TcpStream,
+        UnixStream
     }
 }
