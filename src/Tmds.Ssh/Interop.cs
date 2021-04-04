@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -9,7 +10,23 @@ namespace Tmds.Ssh
 {
     static class Interop
     {
-        const string Library = "libssh.so.4";
+        const string Library = "libssh";
+
+        static Interop()
+        {
+            NativeLibrary.SetDllImportResolver(typeof(Interop).Assembly, ImportResolver);
+        }
+
+        private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            IntPtr libHandle = IntPtr.Zero;
+            if (libraryName == Library)
+            {
+                libraryName = Platform.IsWindows ? "libssh.dll" : "libssh.so.4";
+                NativeLibrary.TryLoad(libraryName, assembly, null, out libHandle);
+            }
+            return libHandle;
+        }
 
         public const int SSH_OK = 0;
         public const int SSH_ERROR = -1;

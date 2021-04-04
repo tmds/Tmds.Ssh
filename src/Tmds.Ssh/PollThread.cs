@@ -143,12 +143,14 @@ namespace Tmds.Ssh
 
         private static (Socket socket1, Socket socket2) CreateSocketPair()
         {
-            using Socket s = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            EndPoint ep = new UnixDomainSocketEndPoint("\0" + Guid.NewGuid().ToString());
+            using Socket s = Platform.IsWindows ? new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) :
+                                                  new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            EndPoint ep = Platform.IsWindows ? new IPEndPoint(IPAddress.Any, 0) :
+                                               new UnixDomainSocketEndPoint("\0" + Guid.NewGuid().ToString());
             s.Bind(ep);
             s.Listen(1);
-            Socket socket1 = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            socket1.Connect(ep);
+            Socket socket1 = new Socket(s.AddressFamily, s.SocketType, s.ProtocolType);
+            socket1.Connect(s.LocalEndPoint!);
             Socket socket2 = s.Accept();
             socket1.Blocking = false;
             socket2.Blocking = false;
@@ -198,9 +200,12 @@ namespace Tmds.Ssh
         internal static void RemoveSession(Socket pollSocket)
         {
             PollThread pollThread = s_instance!;
-            bool removed = pollThread.Sessions.TryRemove(pollSocket, out _);
-            Debug.Assert(removed);
-            pollThread.Interrupt();
+            if (pollThread != null)
+            {
+                bool removed = pollThread.Sessions.TryRemove(pollSocket, out _);
+                Debug.Assert(removed);
+                pollThread.Interrupt();
+            }
         }
     }
 }
