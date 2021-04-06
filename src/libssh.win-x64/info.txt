@@ -1,0 +1,30 @@
+dll: libgcc_s_seh-1.dll
+package: mingw64-gcc
+version: 10.2.1
+release: 2.fc33
+license: GPLv3+ and GPLv3+ with exceptions and GPLv2+ with exceptions
+
+dll: libcrypto-1_1-x64.dll
+package: mingw64-openssl
+version: 1.1.1c
+release: 6.fc33
+license: OpenSSL
+
+dll: zlib1.dll
+package: mingw64-zlib
+version: 1.2.11
+release: 3.fc33
+license: zlib
+
+dll: libssp-0.dll
+package: mingw64-gcc
+version: 10.2.1
+release: 2.fc33
+license: GPLv3+ and GPLv3+ with exceptions and GPLv2+ with exceptions
+
+dll: libssh.dll
+package: libssh
+version: 0.9.5
+release: 1.fc33
+license: LGPLv2+
+

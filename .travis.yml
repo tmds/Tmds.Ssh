@@ -20,6 +20,7 @@ env:
 script:
   - dotnet build
   - dotnet test
+  - src/libssh.win-x64/build.sh
 
 deploy:
   - provider: script
