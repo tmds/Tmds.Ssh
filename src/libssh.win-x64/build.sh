@@ -2,16 +2,23 @@
 
 set -e
 
+# Use docker instead of podman when available.
+if command -v podman >/dev/null; then
+  docker() {
+    podman "$@"
+  }
+fi
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 rm -rf dlls
 
 # Build an image that has the dlls we care about.
-podman build --iidfile=iid --pull-always context-dir
+docker build --iidfile=iid --pull context-dir
 IMAGE="$(cat iid)"
 # Extract them.
-podman run --rm -v .:/target:z "$IMAGE" cp -r /root/dlls /target
+docker run --rm -v "$(pwd):/target:z" "$IMAGE" cp -r /root/dlls /target
 rm iid
 
 # Report an error if dll metadata changed.
