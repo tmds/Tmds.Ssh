@@ -15,7 +15,7 @@
 
   <!-- Target Frameworks -->
   <PropertyGroup>
-    <DefaultTargetFramework>net5.0</DefaultTargetFramework>
+    <DefaultTargetFramework>net7.0</DefaultTargetFramework>
     <AppTargetFramework>$(DefaultTargetFramework)</AppTargetFramework>
     <LibTargetFrameworks>$(DefaultTargetFramework)</LibTargetFrameworks>
     <TestTargetFrameworks>$(DefaultTargetFramework)</TestTargetFrameworks>

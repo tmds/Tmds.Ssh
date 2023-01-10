@@ -22,7 +22,15 @@ namespace Tmds.Ssh
             IntPtr libHandle = IntPtr.Zero;
             if (libraryName == Library)
             {
-                libraryName = Platform.IsWindows ? "libssh.dll" : "libssh.so.4";
+                string? libraryPath = Environment.GetEnvironmentVariable("LIBSSH_PATH");
+                if (!string.IsNullOrEmpty(libraryPath))
+                {
+                    libraryName = libraryPath;
+                }
+                else
+                {
+                    libraryName = Platform.IsWindows ? "libssh.dll" : "libssh.so.4";
+                }
                 NativeLibrary.TryLoad(libraryName, assembly, null, out libHandle);
             }
             return libHandle;
@@ -104,6 +112,9 @@ namespace Tmds.Ssh
         public static extern int ssh_channel_request_exec(ChannelHandle channel, string cmd);
 
         [DllImport(Library)]
+        public static extern int ssh_channel_request_subsystem(ChannelHandle channel, string subsys);
+
+        [DllImport(Library)]
         public static extern int ssh_channel_read(ChannelHandle channel, IntPtr dest, uint count, int is_stderr);
 
         public static unsafe int ssh_channel_read(ChannelHandle channel, Span<byte> dest, int is_stderr)
@@ -119,6 +130,9 @@ namespace Tmds.Ssh
 
         [DllImport(Library)]
         public static extern PollFlags ssh_get_poll_flags(SessionHandle session);
+
+        [DllImport(Library)]
+        public static extern StatusFlags ssh_get_status(SessionHandle session);
 
         [DllImport(Library, EntryPoint="ssh_get_fd")]
         private static extern IntPtr ssh_get_fd_windows(SessionHandle session);
@@ -302,8 +316,8 @@ namespace Tmds.Ssh
         {
             public nint size;
             public IntPtr userdata;
-            public IntPtr channel_data_function;
-            public IntPtr channel_eof_function;
+            public delegate* unmanaged<IntPtr, IntPtr, IntPtr, int, int, IntPtr, int> channel_data_function;
+            public delegate* unmanaged<IntPtr, IntPtr, IntPtr, void> channel_eof_function;
             public delegate* unmanaged<IntPtr, IntPtr, IntPtr, void> channel_close_function;
             public IntPtr channel_signal_function;
             public IntPtr channel_exit_status_function;
@@ -316,7 +330,9 @@ namespace Tmds.Ssh
             public IntPtr channel_exec_request_function;
             public IntPtr channel_env_request_function;
             public IntPtr channel_subsystem_request_function;
-            public IntPtr channel_write_wontblock_function;
+            public delegate* unmanaged<IntPtr, IntPtr, uint, IntPtr, void> channel_write_wontblock_function;
+            public delegate* unmanaged<IntPtr, IntPtr, int, IntPtr, void> channel_open_response_function;
+            public delegate* unmanaged<IntPtr, IntPtr, IntPtr, void> channel_request_response_function;
         }
     }
 }
