@@ -20,6 +20,9 @@ namespace Tmds.Ssh
             Initial,
 
             OpenSession,
+
+            RequestSubsystem,
+
             RequestExec,
 
             OpenForwardTcp,
@@ -31,7 +34,7 @@ namespace Tmds.Ssh
             Eof,
 
             Closed, // Channel closed by peer
-            SessionClosed, // Session closed,
+            SessionClosed, // Session closed
             Canceled, // Canceled by user
 
             Disposed // By user
@@ -51,7 +54,9 @@ namespace Tmds.Ssh
         private CancellationTokenSource? _abortedCts;
         private IntPtr _channel_callbacks; // ssh_channel_callbacks_struct*
         private bool _remoteClosed;
-        
+        private int _stdoutLength;
+        private int _stderrLength;
+
         public int? ExitCode { get; private set; }
 
         internal SshChannel(SshClient session, SshChannelOptions options)
@@ -78,7 +83,12 @@ namespace Tmds.Ssh
                 new Span<ssh_channel_callbacks_struct>(pCallbacks, 1).Clear();
                 pCallbacks->size = cbSize;
                 pCallbacks->userdata = _channel_callbacks;
+                pCallbacks->channel_data_function = &OnDataCallback;
                 pCallbacks->channel_close_function = &OnCloseCallback;
+                pCallbacks->channel_eof_function = &OnEofCallback;
+                pCallbacks->channel_request_response_function = &OnRequestResponse;
+                pCallbacks->channel_open_response_function = &OnOpenResponse;
+                pCallbacks->channel_write_wontblock_function = &OnWriteWontBlock;
 
                 s_callbacksToChannel.Add(_channel_callbacks, this);
             }
@@ -89,32 +99,187 @@ namespace Tmds.Ssh
             _state = _options.Type switch
             {
                 SshChannelType.Execute => ChannelState.OpenSession,
+                SshChannelType.Sftp => ChannelState.OpenSession,
                 SshChannelType.TcpStream => ChannelState.OpenForwardTcp,
                 SshChannelType.UnixStream => ChannelState.OpenForwardUnix,
                 _ => throw new IndexOutOfRangeException($"Unknown channel type: {_options.Type}")
             };
-            HandleEvents();
+
+            Open();
 
             return tcs.Task;
         }
 
-        [UnmanagedCallersOnly]
-        private static void OnCloseCallback(IntPtr pSession, IntPtr pChannel, IntPtr userdata)
+        private void Open()
         {
-            lock (s_callbacksToChannel)
+            int rv;
+            switch (_state)
             {
-                if (s_callbacksToChannel.TryGetValue(userdata, out SshChannel? channel))
-                {
-                    channel.OnClose();
-                }
+                case ChannelState.OpenSession:
+                    rv = ssh_channel_open_session(_handle);
+                    break;
+                case ChannelState.OpenForwardTcp:
+                    rv = ssh_channel_open_forward(_handle, _options.Host!, _options.Port, "0.0.0.0", 0); // TODO nullable
+                    break;
+                case ChannelState.OpenForwardUnix:
+                    rv = ssh_channel_open_forward_unix(_handle, _options.Path!, "0.0.0.0", 0); // TODO nullable
+                    break;
+                default:
+                    rv = SSH_ERROR;
+                    break;
+            }
+            if (rv == SSH_ERROR)
+            {
+                CompleteOpen(success: false);
+                return;
+            }
+            Debug.Assert(rv == SSH_AGAIN);
+        }
+
+        private void HandleCallback(Callback callback, bool isSuccess = true, bool isStdout = true, int length = 0)
+        {
+            Debug.Assert(Monitor.IsEntered(_client.Gate));
+
+            if (_state >= ChannelState.Closed)
+            {
+                return;
+            }
+
+            switch (callback)
+            {
+                case Callback.OpenResponse:
+                    switch (_state)
+                    {
+                        case ChannelState.OpenSession:
+                            int rv;
+                            switch (_options.Type)
+                            {
+                                case SshChannelType.Execute:
+                                    _state = ChannelState.RequestExec;
+                                    rv = ssh_channel_request_exec(_handle, _options.Command!); // TODO nullable
+                                    break;
+                                case SshChannelType.Sftp:
+                                    _state = ChannelState.RequestSubsystem;
+                                    string subsystem;
+                                    switch (_options.Type)
+                                    {
+                                        case SshChannelType.Sftp:
+                                            subsystem = "sftp";
+                                            break;
+                                        default:
+                                            throw new IndexOutOfRangeException($"Unexpected channel type: {_options.Type}");
+                                    };
+                                    rv = ssh_channel_request_subsystem(_handle, subsystem);
+                                    break;
+                                default:
+                                    throw new IndexOutOfRangeException($"Unexpected channel type: {_options.Type}");
+                            };
+                            if (rv == SSH_ERROR)
+                            {
+                                CompleteOpen(success: false);
+                                return;
+                            }
+                            Debug.Assert(rv == SSH_AGAIN);
+                            break;
+                        case ChannelState.OpenForwardUnix:
+                        case ChannelState.OpenForwardTcp:
+                            _state = ChannelState.Open;
+                            CompleteOpen(success: isSuccess);
+                            break;
+                    }
+                    break;
+                case Callback.RequestResponse:
+                    switch (_state)
+                    {
+                        case ChannelState.RequestExec:
+                        case ChannelState.RequestSubsystem:
+                            // issue a request to get the pending result.
+                            int rv = ssh_channel_request_subsystem(_handle, "");
+                            isSuccess = rv == SSH_OK;
+                            if (isSuccess)
+                            {
+                                _state = ChannelState.Open;
+                            }
+                            CompleteOpen(isSuccess);
+                            break;
+                    }
+                    break;
+                case Callback.Close:
+                    _remoteClosed = true;
+                    CancelAbortedTcs();
+                    if (_readableTcs != null)
+                    {
+                        CompleteReadable();
+                    }
+                    break;
+                case Callback.Data:
+                    if (isStdout)
+                    {
+                        _stdoutLength = length;
+                    }
+                    else
+                    {
+                        _stderrLength = length;
+                    }
+                    if (_readableTcs != null)
+                    {
+                        CompleteReadable();
+                    }
+                    break;
+                case Callback.Eof:
+                    if (_readableTcs != null)
+                    {
+                        CompleteReadable();
+                    }
+                    break;
+                case Callback.Writable:
+                    if (_windowReadyTcs != null)
+                    {
+                        var tcs = _windowReadyTcs;
+                        _windowReadyTcs = null;
+                        tcs.SetResult(null);
+                    }
+                    break;
             }
         }
 
-        private void OnClose()
+        private void CompleteOpen(bool success)
         {
-            Debug.Assert(Monitor.IsEntered(_client.Gate));
-            _remoteClosed = true;
-            CancelAbortedTcs();
+            Debug.Assert(_openTcs != null);
+
+            if (success)
+            {
+                var tcs = _openTcs;
+                _openTcs = null;
+                tcs.SetResult(null);
+            }
+            else
+            {
+                // Because this gets called on a channel callback, we can't
+                // dispose the channel handle immediately.
+                // https://gitlab.com/libssh/libssh-mirror/-/issues/171
+                ThreadPool.QueueUserWorkItem(
+                    o =>
+                    {
+                        SshChannel channel = (SshChannel)o;
+                        SshClient client = channel._client;
+
+                        lock (client.Gate)
+                        {
+                            var tcs = _openTcs;
+                            _openTcs = null;
+
+                            // may cause change to ChannelState.SessionClosed
+                            var exception = _client.GetErrorException();
+
+                            Close(ChannelState.Disposed);
+
+                            tcs?.SetException(exception);
+                        }
+                    },
+                    this
+                );
+            }
         }
 
         private void CancelAbortedTcs()
@@ -158,7 +323,7 @@ namespace Tmds.Ssh
 
         public void Dispose()
         {
-            using (_client.GateWithPollCheck())
+            using (_client.GateWithPollCheck()) // TODO: poll check still needed?
             {
                 Close(ChannelState.Disposed);
             }
@@ -166,7 +331,7 @@ namespace Tmds.Ssh
 
         internal void Cancel()
         {
-            using (_client.GateWithPollCheck())
+            using (_client.GateWithPollCheck()) // TODO: poll check still needed?
             {
                 Close(ChannelState.Canceled);
             }
@@ -207,15 +372,7 @@ namespace Tmds.Ssh
                     }
                     else
                     {
-                        Exception ex = targetState switch
-                        {
-                            ChannelState.SessionClosed => _client.GetErrorException(),
-                            ChannelState.Canceled => new OperationCanceledException(),
-                            ChannelState.Closed => new SshOperationException("Channel closed."),
-                            ChannelState.Disposed => new SshOperationException("Channel disposed."),
-                            _ => throw new IndexOutOfRangeException($"Unhandled state: {targetState}."),
-                        };
-                        tcs.SetException(ex);
+                        tcs.SetException(CreateCloseException());
                     }
                 }
             }
@@ -238,149 +395,25 @@ namespace Tmds.Ssh
            _handle?.Dispose();
         }
 
-        internal unsafe void HandleEvents()
+        internal Exception CreateCloseException(Func<Exception>? createCancelException = null)
+        => _state switch
+            {
+                ChannelState.SessionClosed => _client.GetErrorException(),
+                ChannelState.Canceled => createCancelException is null ? new OperationCanceledException() : createCancelException(),
+                ChannelState.Closed => new SshOperationException("Channel closed."),
+                ChannelState.Disposed => new SshOperationException("Channel disposed."),
+                _ => throw new IndexOutOfRangeException($"Unhandled state: {_state}."),
+            };
+
+        void CompleteReadable()
         {
-            Debug.Assert(Monitor.IsEntered(_client.Gate));
-
-            while (true)
+            lock (_client.Gate)
             {
-                if (_state >= ChannelState.Closed)
+                if (_readableTcs != null)
                 {
-                    return;
-                }
-                Debug.Assert(_handle != null);
-
-                switch (_state)
-                {
-                    case ChannelState.OpenSession:
-                        int rv = ssh_channel_open_session(_handle);
-                        if (rv == SSH_AGAIN)
-                        {
-                            return;
-                        }
-                        else if (rv == SSH_OK)
-                        {
-                            _state = ChannelState.RequestExec;
-                        }
-                        else
-                        {
-                            CompleteOpen(success: false);
-                            return;
-                        }
-                        break;
-                    case ChannelState.RequestExec:
-                        rv = ssh_channel_request_exec(_handle, _options.Command!); // TODO nullable
-                        if (rv == SSH_AGAIN)
-                        {
-                            return;
-                        }
-                        else if (rv == SSH_OK)
-                        {
-                            _state = ChannelState.Open;
-                            CompleteOpen(success: true);
-                        }
-                        else
-                        {
-                            CompleteOpen(success: false);
-                            return;
-                        }
-                        break;
-                    case ChannelState.OpenForwardTcp:
-                        rv = ssh_channel_open_forward(_handle, _options.Host!, _options.Port, "0.0.0.0", 0); // TODO nullable
-                        if (rv == SSH_AGAIN)
-                        {
-                            return;
-                        }
-                        else if (rv == SSH_OK)
-                        {
-                            _state = ChannelState.Open;
-                            CompleteOpen(success: true);
-                        }
-                        else
-                        {
-                            CompleteOpen(success: false);
-                            return;
-                        }
-                        break;
-                    case ChannelState.OpenForwardUnix:
-                        rv = ssh_channel_open_forward_unix(_handle, _options.Path!, "0.0.0.0", 0); // TODO nullable
-                        if (rv == SSH_AGAIN)
-                        {
-                            return;
-                        }
-                        else if (rv == SSH_OK)
-                        {
-                            _state = ChannelState.Open;
-                            CompleteOpen(success: true);
-                        }
-                        else
-                        {
-                            CompleteOpen(success: false);
-                            return;
-                        }
-                        break;
-                    case ChannelState.Open:
-                    case ChannelState.Eof:
-                        if (_readableTcs != null)
-                        {
-                            if (_state == ChannelState.Open)
-                            {
-                                // TODO: pass result of check through TaskCompletionSource
-                                // TODO (libssh): avoid using syscalls.
-                                if (ssh_channel_poll(_handle, is_stderr: 0) != 0 ||
-                                    ssh_channel_poll(_handle, is_stderr: 1) != 0 ||
-                                    ssh_channel_is_eof(_handle))
-                                {
-                                    CompleteReadable();
-                                }
-                            }
-                            else
-                            {
-                                if (ssh_channel_is_read_closed(_handle))
-                                {
-                                    CompleteReadable();
-                                }
-                            }
-                        }
-                        if (_windowReadyTcs != null)
-                        {
-                            if (ssh_channel_window_size(_handle) > 0)
-                            {
-                                var tcs = _windowReadyTcs;
-                                _windowReadyTcs = null;
-                                tcs.SetResult(null);
-                            }
-                        }
-                        return;
-                    default:
-                        throw new IndexOutOfRangeException($"Invalid Channel state: {_state}.");
-                }
-            }
-
-            void CompleteReadable()
-            {
-                var tcs = _readableTcs;
-                _readableTcs = null;
-                tcs.SetResult(null);
-            }
-
-            void CompleteOpen(bool success)
-            {
-                Debug.Assert(_openTcs != null);
-                var tcs = _openTcs;
-                _openTcs = null;
-                if (success)
-                {
+                    var tcs = _readableTcs;
+                    _readableTcs = null;
                     tcs.SetResult(null);
-                }
-                else
-                {
-                    // may cause change to ChannelState.SessionClosed
-                    var exception = _client.GetErrorException();
-
-                    Close(ChannelState.Disposed);
-
-                    tcs.SetException(exception);
                 }
             }
         }
@@ -419,7 +452,7 @@ namespace Tmds.Ssh
                     }
 
                     SshClient.EnableDebugLogging();
-                    using (_client.GateWithPollCheck())
+                    using (_client.GateWithPollCheck()) // TODO: poll check still needed?
                     {
                         if (windowReady == null && _windowReadyTcs != null)
                         {
@@ -514,7 +547,7 @@ namespace Tmds.Ssh
                     }
 
                     SshClient.EnableDebugLogging();
-                    using (_client.GateWithPollCheck())
+                    using (_client.GateWithPollCheck()) // TODO: poll check still needed?
                     {
                         if (readable == null && _readableTcs != null)
                         {
@@ -614,7 +647,7 @@ namespace Tmds.Ssh
             bool TryReadBuffer(ChannelReadType readType, Span<byte> buffer, out (ChannelReadType type, int bytesRead) rv)
             {
                 int is_stderr = readType == ChannelReadType.StandardError ? 1 : 0;
-                int bytesAvailable = ssh_channel_poll(_handle, is_stderr);
+                int bytesAvailable = is_stderr != 0 ? _stderrLength : _stdoutLength;
                 if (bytesAvailable > 0)
                 {
                     bytesAvailable = Math.Min(bytesAvailable, buffer.Length);
@@ -623,29 +656,28 @@ namespace Tmds.Ssh
                     {
                         throw _client.GetErrorException();
                     }
+                    if (is_stderr != 0)
+                    {
+                        _stderrLength -= bytesRead;
+                    }
+                    else
+                    {
+                        _stdoutLength -= bytesRead;
+                    }
                     rv = (readType, bytesRead);
                     return true;
                 }
-                else if ((bytesAvailable == SSH_EOF || bytesAvailable == 0)
-                         && ssh_channel_is_eof(_handle)) // TODO: (libssh) poll can return EOF when there is still data to read?
+                else if (ssh_channel_is_eof(_handle)) // TODO: (libssh) poll can return EOF when there is still data to read?
                 {
                     _state = ChannelState.Eof;
                     rv = (ChannelReadType.Eof, 0);
                     return true;
                 }
-                else if (bytesAvailable == 0 || bytesAvailable == SSH_AGAIN || bytesAvailable == SSH_EOF)
+                else
                 {
                     // await readable
                     rv = default;
                     return false;
-                }
-                else if (bytesAvailable == SSH_ERROR)
-                {
-                    throw _client.GetErrorException();
-                }
-                else
-                {
-                    throw new IndexOutOfRangeException($"Unexpected ssh_channel_poll return value: {bytesAvailable}");
                 }
             }
         }
@@ -655,6 +687,57 @@ namespace Tmds.Ssh
             return ssh_channel_is_closed(channel)
                     // workaround https://bugs.libssh.org/T31.
                     || (_remoteClosed && ssh_channel_is_eof(channel));
+        }
+
+        private static SshChannel? GetChannel(IntPtr userdata)
+        {
+            lock (s_callbacksToChannel)
+            {
+                s_callbacksToChannel.TryGetValue(userdata, out SshChannel? channel);
+                return channel;
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void OnCloseCallback(IntPtr pSession, IntPtr pChannel, IntPtr userdata)
+            => GetChannel(userdata)?.HandleCallback(Callback.Close);
+
+        [UnmanagedCallersOnly]
+        private static void OnWriteWontBlock(IntPtr pSession, IntPtr pChannel, uint size, IntPtr userdata)
+        {
+            if (size != 0)
+            {
+                GetChannel(userdata)?.HandleCallback(Callback.Writable);
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void OnEofCallback(IntPtr pSession, IntPtr pChannel, IntPtr userdata)
+            => GetChannel(userdata)?.HandleCallback(Callback.Eof);
+
+        [UnmanagedCallersOnly]
+        private static int OnDataCallback(IntPtr pSession, IntPtr pChannel, IntPtr data, int len, int is_stderr, IntPtr userdata)
+        {
+            GetChannel(userdata)?.HandleCallback(Callback.Data, isStdout: is_stderr == 0, length: len);
+            return 0;
+        }
+
+        [UnmanagedCallersOnly]
+        private static void OnOpenResponse(IntPtr pSession, IntPtr pChannel, int is_success, IntPtr userdata)
+            => GetChannel(userdata)?.HandleCallback(Callback.OpenResponse, isSuccess: is_success == 1);
+
+        [UnmanagedCallersOnly]
+        private static void OnRequestResponse(IntPtr pSession, IntPtr pChannel, IntPtr userdata)
+            => GetChannel(userdata)?.HandleCallback(Callback.RequestResponse);
+
+        private enum Callback
+        {
+            OpenResponse,
+            RequestResponse,
+            Data,
+            Close,
+            Eof,
+            Writable
         }
 
         private void ThrowNotOpen(bool closedIsInvalid, CancellationToken cancellationToken)

@@ -46,6 +46,8 @@ class SshClient : IDisposable
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
+
+  Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken = default) { }
 }
 class ExecuteOptions
 {
@@ -85,6 +87,16 @@ class SshDataStream : Stream
 {
   CancellationToken StreamAborted { get; }
 }
+class SftpClient : IDisposable
+{
+  CancellationToken ClientAborted { get; }
+
+  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags);
+}
+class SftpFile : Stream
+{
+  ValueTask CloseAsync(CancellationToken cancellationToken = default);
+}
 class SshClientSettings
 {
   SshClientSettings() { }
@@ -96,6 +108,31 @@ class SshClientSettings
   List<Credential> Credentials { get; }
   bool CheckGlobalKnownHostsFile { get; set; }
   KeyVerification? KeyVerification { get; set; }
+}
+class SftpException : SshOperationException
+{
+  public SftpError Error { get; }
+}
+public enum SftpError
+{
+  None = 0,
+  Eof = 1,
+  NoSuchFile = 2,
+  PermissionDenied = 3,
+  Failure = 4,
+  BadMessage = 5,
+  Unsupported = 8
+}
+[Flags]
+public enum OpenFlags : uint
+{
+  Read = 1,
+  Write = 2,
+  Append = 4,
+  Open = 0,
+  OpenOrCreate = 8,
+  TruncateOrCreate = 16 | 32,
+  CreateNew = 8 | 32,
 }
 class PublicKey
 {

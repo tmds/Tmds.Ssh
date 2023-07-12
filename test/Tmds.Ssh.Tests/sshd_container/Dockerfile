@@ -1,4 +1,4 @@
-FROM centos:8
+FROM quay.io/centos/centos:stream8
 
 # Install packages.
 RUN dnf install -y openssh-server passwd socat && \
@@ -19,7 +19,6 @@ COPY user_key_rsa.pub /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 
-# Needed for sshd to start.
 RUN rm /run/nologin
 
 # Run sshd.

@@ -400,9 +400,14 @@ namespace Tmds.Ssh
         {
             Debug.Assert(Monitor.IsEntered(Gate));
 
-            if (!ssh_is_connected(_ssh))
+            if ((ssh_get_status(_ssh) & StatusFlags.ClosedError) != 0)
             {
-                Disconnect(new SshSessionException("Closed by peer."));
+                Disconnect(GetErrorException());
+                return;
+            }
+            else if (!ssh_is_connected(_ssh))
+            {
+                Disconnect(new SshSessionException("Connection closed."));
                 return;
             }
             if (_flushedTcs != null)
@@ -412,17 +417,6 @@ namespace Tmds.Ssh
                     var tcs = _flushedTcs;
                     _flushedTcs = null;
                     tcs.SetResult(FlushResult.Flushed);
-                }
-            }
-            for (int i = 0; i < _channels.Count; i++)
-            {
-                var channel = _channels[i];
-                channel.HandleEvents();
-                // HandleEvents can cause a channel to get removed
-                // another channel may move to that location.
-                if (i < _channels.Count && _channels[i] != channel)
-                {
-                    _channels[i].HandleEvents();
                 }
             }
         }
@@ -546,6 +540,27 @@ namespace Tmds.Ssh
                                 .ConfigureAwait(false);
 
             return new SshDataStream(channel);
+        }
+
+        public async Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken = default)
+        {
+            var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.Sftp), cancellationToken)
+                                .ConfigureAwait(false);
+
+            var sftpClient = new SftpClient(channel);
+
+            try
+            {
+                await sftpClient.ProtocolInitAsync(cancellationToken);
+            }
+            catch
+            {
+                sftpClient.Dispose();
+
+                throw;
+            }
+
+            return sftpClient;
         }
 
         private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
