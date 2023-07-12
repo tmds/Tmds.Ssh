@@ -13,7 +13,7 @@ namespace Tmds.Ssh
         private readonly SftpClient _client;
         internal string Handle { get; }
         private bool _disposed;
-        private int _offset;
+        private long _offset;
         private bool _operationInProgress;
 
         internal SftpFile(SftpClient client, string handle)
@@ -30,7 +30,27 @@ namespace Tmds.Ssh
 
         public override long Length => throw new NotImplementedException();
 
-        public override long Position { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+        public override long Position
+        {
+            get
+            {
+                StartOperation();
+
+                long offset = _offset;
+
+                CompleteOperation(0);
+
+                return offset;
+            }
+            set
+            {
+                StartOperation();
+
+                _offset = value;
+
+                CompleteOperation(0);
+            }
+        }
 
         public override void Flush()
         { }
@@ -56,7 +76,9 @@ namespace Tmds.Ssh
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            StartOperation();
+
+            return _client.WriteFileAsync(this, _offset, buffer);
         }
 
         private void StartOperation()
@@ -76,6 +98,19 @@ namespace Tmds.Ssh
         {
             _offset += count;
             _operationInProgress = false;
+        }
+
+        internal void IncreaseOffset(int count)
+        {
+            _offset += count;
+        }
+
+        public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+        {
+            StartOperation();
+            _disposed = true;
+
+            return _client.CloseFileAsync(Handle);
         }
 
         protected override void Dispose(bool disposing)

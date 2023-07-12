@@ -19,5 +19,7 @@ COPY user_key_rsa.pub /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 
+RUN rm /run/nologin
+
 # Run sshd.
 CMD /usr/sbin/sshd -o LogLevel=DEBUG2 -De

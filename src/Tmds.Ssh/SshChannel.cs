@@ -34,7 +34,7 @@ namespace Tmds.Ssh
             Eof,
 
             Closed, // Channel closed by peer
-            SessionClosed, // Session closed,
+            SessionClosed, // Session closed
             Canceled, // Canceled by user
 
             Disposed // By user
@@ -372,15 +372,7 @@ namespace Tmds.Ssh
                     }
                     else
                     {
-                        Exception ex = targetState switch
-                        {
-                            ChannelState.SessionClosed => _client.GetErrorException(),
-                            ChannelState.Canceled => new OperationCanceledException(),
-                            ChannelState.Closed => new SshOperationException("Channel closed."),
-                            ChannelState.Disposed => new SshOperationException("Channel disposed."),
-                            _ => throw new IndexOutOfRangeException($"Unhandled state: {targetState}."),
-                        };
-                        tcs.SetException(ex);
+                        tcs.SetException(CreateCloseException());
                     }
                 }
             }
@@ -402,6 +394,16 @@ namespace Tmds.Ssh
 
            _handle?.Dispose();
         }
+
+        internal Exception CreateCloseException(Func<Exception>? createCancelException = null)
+        => _state switch
+            {
+                ChannelState.SessionClosed => _client.GetErrorException(),
+                ChannelState.Canceled => createCancelException is null ? new OperationCanceledException() : createCancelException(),
+                ChannelState.Closed => new SshOperationException("Channel closed."),
+                ChannelState.Disposed => new SshOperationException("Channel disposed."),
+                _ => throw new IndexOutOfRangeException($"Unhandled state: {_state}."),
+            };
 
         void CompleteReadable()
         {
