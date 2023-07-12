@@ -14,6 +14,7 @@ namespace Tmds.Ssh
     public partial class SftpClient
     {
         private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        private readonly SemaphoreSlim _writeSemaphore = new SemaphoreSlim(1, 1);
         private int _nextId = 5;
 
         private int GetNextId() => Interlocked.Increment(ref _nextId);
@@ -118,17 +119,27 @@ namespace Tmds.Ssh
             private const int StackallocThreshold = 256;
         }
 
-        private ValueTask WritePacketForPendingOperationAsync(Packet packet, PacketType packetType, int id, PendingOperation pendingOperation)
+        private async ValueTask WritePacketForPendingOperationAsync(Packet packet, PacketType packetType, int id, PendingOperation pendingOperation, CancellationToken cancellationToken)
         {
-            ValueTask writeOperation;
-            // Under a lock, add request to the dictionary AFTER writing it.
-            lock (_gate)
+            // Serialize packet writing to the channel.
+            await _writeSemaphore.WaitAsync(cancellationToken);
+            CancellationTokenRegistration ctr = pendingOperation.RegisterForCancellation(cancellationToken);
+            try
             {
-                writeOperation = _channel.WriteAsync(packet.Data); // Throws if the channel is closed.
-                _pendingOperations.Add(id, pendingOperation);
+                _pendingOperations[id] = pendingOperation;
+                await _channel.WriteAsync(packet.Data); // Throws if the channel is closed.
             }
+            catch
+            {
+                ctr.Dispose();
+                _pendingOperations.TryRemove(id, out _);
 
-            return writeOperation;
+                throw;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
         }
 
         sealed class PendingOperation : IValueTaskSource<object>, IValueTaskSource<int>
@@ -199,8 +210,6 @@ namespace Tmds.Ssh
                             reader.Remainder.Slice(0, count).CopyTo(buffer.Span);
                         }
 
-                        file.CompleteOperation(count);
-
                         SetIntResult(count);
                         return;
                 }
@@ -226,6 +235,16 @@ namespace Tmds.Ssh
 
             public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
                 => _core.OnCompleted(continuation, state, token, flags);
+
+            internal CancellationTokenRegistration RegisterForCancellation(CancellationToken cancellationToken)
+            {
+                 return cancellationToken.Register(pending => ((PendingOperation)pending).Cancel(), this);
+            }
+
+            private void Cancel()
+            {
+                
+            }
         }
     }
 }

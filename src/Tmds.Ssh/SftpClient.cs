@@ -2,13 +2,12 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Threading.Tasks.Sources;
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 
 namespace Tmds.Ssh
 {
@@ -19,7 +18,7 @@ namespace Tmds.Ssh
 
         private readonly SshChannel _channel;
         private readonly object _gate = new();
-        private readonly Dictionary<int, PendingOperation> _pendingOperations = new();
+        private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
         private byte[]? _receiveBuffer;
 
         internal SftpClient(SshChannel channel)
@@ -100,12 +99,7 @@ namespace Tmds.Ssh
                         break;
                     }
                     int id = BinaryPrimitives.ReadInt32BigEndian(packet.Span.Slice(1));
-                    PendingOperation? operation;
-                    lock (_gate)
-                    {
-                        _pendingOperations.Remove(id, out operation);
-                    }
-                    if (operation is not null)
+                    if (_pendingOperations.Remove(id, out PendingOperation? operation))
                     {
                         operation.HandleReply(this, packet.Span);
                     }
@@ -117,10 +111,9 @@ namespace Tmds.Ssh
             {
                 // Ensure the channel is closed by cancelling it.
                 // No more pending operations can be added after this.
-                lock (_gate) // Synchronize with WritePacketForPendingOperationAsync.
-                {
-                    _channel.Cancel();
-                }
+                _channel.Cancel();
+
+                _writeSemaphore.Wait();
 
                 foreach (var item in _pendingOperations)
                 {
@@ -130,6 +123,8 @@ namespace Tmds.Ssh
                     item.Value.HandleClose(exception);
                 }
                 _pendingOperations.Clear();
+
+                _writeSemaphore.Release();
             }
         }
 
@@ -142,7 +137,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public async ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags)
+        public async ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
@@ -155,12 +150,12 @@ namespace Tmds.Ssh
             packet.WriteUInt((uint)flags);
             packet.WriteUInt(0); // attrs
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation);
+            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
 
             return (SftpFile)await new ValueTask<object>(pendingOperation, pendingOperation.Token);
         }
 
-        internal async ValueTask<int> ReadFileAsync(SftpFile file, long offset, Memory<byte> buffer)
+        internal async ValueTask<int> ReadFileAsync(SftpFile file, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_READ;
 
@@ -175,73 +170,58 @@ namespace Tmds.Ssh
             packet.WriteInt64(offset);
             packet.WriteInt(buffer.Length);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation);
+            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
 
             return await new ValueTask<int>(pendingOperation, pendingOperation.Token);
         }
 
-        internal async ValueTask WriteFileAsync(SftpFile file, long offset, ReadOnlyMemory<byte> buffer)
+        internal async ValueTask WriteFileAsync(SftpFile file, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
-            int writtenTotal = 0;
-            try
+            while (!buffer.IsEmpty)
             {
-                while (!buffer.IsEmpty)
-                {
-                    /*
-                        TODO: take into account the max packet size of the channel.
+                /*
+                    TODO: take into account the max packet size of the channel.
 
-                        All servers SHOULD support packets of at
-                        least 34000 bytes (where the packet size refers to the full length,
-                        including the header above).  This should allow for reads and writes
-                        of at most 32768 bytes.
-                    */
-                    int writeLength = Math.Min(buffer.Length, 32768);
-                    ReadOnlyMemory<byte> writeBuffer = buffer.Slice(0, writeLength);
+                    All servers SHOULD support packets of at
+                    least 34000 bytes (where the packet size refers to the full length,
+                    including the header above).  This should allow for reads and writes
+                    of at most 32768 bytes.
+                */
+                int writeLength = Math.Min(buffer.Length, 32768);
+                ReadOnlyMemory<byte> writeBuffer = buffer.Slice(0, writeLength);
 
-                    PacketType packetType = PacketType.SSH_FXP_WRITE;
+                PacketType packetType = PacketType.SSH_FXP_WRITE;
 
-                    int id = GetNextId();
-                    PendingOperation pendingOperation = new(packetType);
-                    pendingOperation.Context = file;
-                    pendingOperation.Buffer = MemoryMarshal.AsMemory(writeBuffer);
+                int id = GetNextId();
+                PendingOperation pendingOperation = new(packetType);
+                pendingOperation.Context = file;
+                pendingOperation.Buffer = MemoryMarshal.AsMemory(writeBuffer);
 
-                    using Packet packet = new Packet(packetType, payloadSize: 4 /* id */
+                using Packet packet = new Packet(packetType, payloadSize:
+                                                                4 /* id */
                                                                 + Packet.MaxHandleStringLength
                                                                 + 8 /* offset */
                                                                 + Packet.GetStringLength(writeBuffer.Span));
-                    packet.WriteInt(id);
-                    packet.WriteString(file.Handle);
-                    packet.WriteInt64(offset + writtenTotal);
-                    packet.WriteString(writeBuffer);
+                packet.WriteInt(id);
+                packet.WriteString(file.Handle);
+                packet.WriteInt64(offset);
+                packet.WriteString(writeBuffer);
 
-                    await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation);
+                await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
 
-                    await new ValueTask<object>(pendingOperation, pendingOperation.Token);
+                await new ValueTask<object>(pendingOperation, pendingOperation.Token);
 
-                    buffer = buffer.Slice(writeLength);
-                    writtenTotal += writeLength;
-
-                    file.IncreaseOffset(writeLength);
-                }
-            }
-            finally
-            {
-                file.CompleteOperation(0);
+                buffer = buffer.Slice(writeLength);
+                offset += writeLength;
             }
         }
 
         internal void CloseFile(string handle)
         {
-            int id = GetNextId();
-
-            using Packet packet = new Packet(PacketType.SSH_FXP_CLOSE);
-            packet.WriteInt(id);
-            packet.WriteString(handle);
-
-            _ = _channel.WriteAsync(packet.Data);
+            _ = CloseFileAsync(handle, default(CancellationToken));
         }
 
-        internal async ValueTask CloseFileAsync(string handle)
+        internal async ValueTask CloseFileAsync(string handle, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_CLOSE;
 
@@ -252,7 +232,7 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(handle);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation);
+            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
 
             await new ValueTask<object>(pendingOperation, pendingOperation.Token);
         }
