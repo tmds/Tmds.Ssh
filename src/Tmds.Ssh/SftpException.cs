@@ -1,6 +1,8 @@
+using System.IO;
+
 namespace Tmds.Ssh
 {
-    public class SftpException : SshOperationException
+    public class SftpException : IOException
     {
         public SftpError Error { get; private set; }
 

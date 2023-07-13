@@ -119,7 +119,12 @@ namespace Tmds.Ssh
             private const int StackallocThreshold = 256;
         }
 
-        private async ValueTask WritePacketForPendingOperationAsync(Packet packet, PacketType packetType, int id, PendingOperation pendingOperation, CancellationToken cancellationToken)
+        private async ValueTask WritePacketForPendingOperationAsync(
+            Packet packet,
+            PacketType packetType,
+            int id,
+            PendingOperation pendingOperation,
+            CancellationToken cancellationToken)
         {
             // Serialize packet writing to the channel.
             await _writeSemaphore.WaitAsync(cancellationToken);
@@ -144,13 +149,59 @@ namespace Tmds.Ssh
 
         sealed class PendingOperation : IValueTaskSource<object>, IValueTaskSource<int>
         {
+            const int NotCompleted = 0;
+            const int Completed = 1;
+            const int Canceled = 2;
+
             private ManualResetValueTaskSourceCore<object> _core;
             private int IntResult;
+            private CancellationTokenRegistration _ctr;
+            private int _state = NotCompleted;
 
             private void SetIntResult(int value)
             {
-                IntResult = value;
-                _core.SetResult(null!);
+                _ctr.Dispose(); // Synchronize with Cancel.
+                int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
+                if (previousState == NotCompleted)
+                {
+                    IntResult = value;
+                    _core.SetResult(null!);
+                }
+            }
+
+            private void SetResult(object value)
+            {
+                _ctr.Dispose(); // Synchronize with Cancel.
+                int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
+                if (previousState == NotCompleted)
+                {
+                    _core.SetResult(value);
+                }
+                else if (previousState == Canceled)
+                {
+                    if (value is SftpFile file)
+                    {
+                        file.Dispose();
+                    }
+                }
+            }
+
+            private void SetException(Exception exception)
+            {
+                _ctr.Dispose(); // Synchronize with Cancel.
+                if (Interlocked.CompareExchange(ref _state, Completed, NotCompleted) == NotCompleted)
+                {
+                    _core.SetException(exception);
+                }
+            }
+
+            private void Cancel()
+            {
+                // note: do NOT dispose the CancellationTokenRegistration.
+                if (Interlocked.CompareExchange(ref _state, Canceled, NotCompleted) == NotCompleted)
+                {
+                    _core.SetException(new OperationCanceledException());
+                }
             }
 
             public short Token => _core.Version;
@@ -159,6 +210,7 @@ namespace Tmds.Ssh
             public Memory<byte> Buffer { get; set; }
 
             private readonly PacketType _requestType;
+
             public PendingOperation(PacketType request)
             {
                 _requestType = request;
@@ -167,7 +219,7 @@ namespace Tmds.Ssh
 
             internal void HandleClose(Exception exception)
             {
-                _core.SetException(exception);
+                SetException(exception);
             }
 
             internal void HandleReply(SftpClient client, ReadOnlySpan<byte> reply)
@@ -185,14 +237,14 @@ namespace Tmds.Ssh
 
                 if (error != SftpError.None && !(_requestType == PacketType.SSH_FXP_READ && error == SftpError.Eof))
                 {
-                    _core.SetException(new SftpException(error));
+                    SetException(new SftpException(error));
                     return;
                 }
                 switch (_requestType, responseType)
                 {
                     case (PacketType.SSH_FXP_OPEN, PacketType.SSH_FXP_HANDLE):
                         string handle = reader.ReadString();
-                        _core.SetResult(new SftpFile(client, handle));
+                        SetResult(new SftpFile(client, handle));
                         return;
                     case (PacketType.SSH_FXP_READ, PacketType.SSH_FXP_DATA):
                     case (PacketType.SSH_FXP_READ, PacketType.SSH_FXP_STATUS):
@@ -215,11 +267,11 @@ namespace Tmds.Ssh
                 }
                 if (responseType == PacketType.SSH_FXP_STATUS)
                 {
-                    _core.SetResult(null!);
+                    SetResult(null!);
                 }
                 else
                 {
-                    _core.SetException(new SshOperationException($"Cannot handle {responseType} for {_requestType}."));
+                    SetException(new SshOperationException($"Cannot handle {responseType} for {_requestType}."));
                 }
             }
 
@@ -238,12 +290,7 @@ namespace Tmds.Ssh
 
             internal CancellationTokenRegistration RegisterForCancellation(CancellationToken cancellationToken)
             {
-                 return cancellationToken.Register(pending => ((PendingOperation)pending).Cancel(), this);
-            }
-
-            private void Cancel()
-            {
-                
+                 return _ctr = cancellationToken.Register(pending => ((PendingOperation)pending!).Cancel(), this);
             }
         }
     }

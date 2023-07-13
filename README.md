@@ -109,7 +109,7 @@ class SshClientSettings
   bool CheckGlobalKnownHostsFile { get; set; }
   KeyVerification? KeyVerification { get; set; }
 }
-class SftpException : SshOperationException
+class SftpException : IOException
 {
   public SftpError Error { get; }
 }
