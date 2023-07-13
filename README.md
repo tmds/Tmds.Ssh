@@ -32,8 +32,8 @@ hello world!
 ## API
 
 ```cs
-namespace Tmds.Ssh
-{
+namespace Tmds.Ssh;
+
 class SshClient : IDisposable
 {
   SshClient(string destination, Action<SshClientSettings>? configure = null) { }
@@ -91,10 +91,27 @@ class SftpClient : IDisposable
 {
   CancellationToken ClientAborted { get; }
 
-  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
+
+  ValueTask RemoveFileAsync(string path, CancellationToken cancellationToken = default);
+
+  ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
+
+  ValueTask RemoveDirectoryAsync(string path, CancellationToken cancellationToken = default);
+
+  ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
+
+  ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {
+  ValueTask<FileAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
+
   ValueTask CloseAsync(CancellationToken cancellationToken = default);
 }
 class SshClientSettings
@@ -111,28 +128,59 @@ class SshClientSettings
 }
 class SftpException : IOException
 {
-  public SftpError Error { get; }
+  SftpError Error { get; }
 }
-public enum SftpError
+enum SftpError
 {
-  None = 0,
-  Eof = 1,
-  NoSuchFile = 2,
-  PermissionDenied = 3,
-  Failure = 4,
-  BadMessage = 5,
-  Unsupported = 8
+  None,
+  Eof,
+  NoSuchFile,
+  PermissionDenied,
+  Failure,
+  BadMessage,
+  Unsupported
 }
 [Flags]
-public enum OpenFlags : uint
+enum OpenMode
 {
-  Read = 1,
-  Write = 2,
-  Append = 4,
-  Open = 0,
-  OpenOrCreate = 8,
-  TruncateOrCreate = 16 | 32,
-  CreateNew = 8 | 32,
+    None,
+    Append,
+    Truncate
+}
+class FileAttributes
+{
+    long? Length { get; set; }
+    int? Uid { get; set; }
+    int? Gid { get; set; }
+    PosixFileMode? FileMode { get; set; }
+    DateTimeOffset? LastAccessTime { get; set; }
+    DateTimeOffset? LastWriteTime { get; set; }
+    Dictionary<string, string>? ExtendedAttributes { get; set; }
+}
+[Flags]
+enum PosixFileMode
+{
+    None,
+    OtherExecute,
+    OtherWrite,
+    OtherRead,
+    GroupExecute,
+    GroupWrite,
+    GroupRead,
+    UserExecute,
+    UserWrite,
+    UserRead,
+    StickyBit,
+    SetGroup,
+    SetUser,
+
+    RegularFile,
+    Directory,
+    SymbolicLink,
+    CharacterDevice,
+    BlockDevice,
+    Socket,
+    Fifo,
 }
 class PublicKey
 {
@@ -174,5 +222,4 @@ class SshSessionException : SshException
 // Connection already closed. InnerException contains reason when closed due to failure.
 class SshSessionClosedException : SshSessionException
 { }
-}
 ```
