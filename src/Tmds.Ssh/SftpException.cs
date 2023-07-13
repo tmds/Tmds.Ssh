@@ -1,3 +1,6 @@
+// This file is part of Tmds.Ssh which is released under MIT.
+// See file LICENSE for full license details.
+
 using System.IO;
 
 namespace Tmds.Ssh

@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Collections.Concurrent;
 
 namespace Tmds.Ssh
 {
@@ -17,9 +16,9 @@ namespace Tmds.Ssh
         const uint ProtocolVersion = 3;
 
         private readonly SshChannel _channel;
-        private readonly object _gate = new();
-        private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
         private byte[]? _receiveBuffer;
+        private int _nextId = 5;
+        private int GetNextId() => Interlocked.Increment(ref _nextId);
 
         internal SftpClient(SshChannel channel)
         {
@@ -142,7 +141,7 @@ namespace Tmds.Ssh
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
             int id = GetNextId();
-            PendingOperation pendingOperation = new(packetType);
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
             using Packet packet = new Packet(packetType);
             packet.WriteInt(id);
@@ -160,7 +159,7 @@ namespace Tmds.Ssh
             PacketType packetType = PacketType.SSH_FXP_READ;
 
             int id = GetNextId();
-            PendingOperation pendingOperation = new(packetType);
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
             pendingOperation.Context = file;
             pendingOperation.Buffer = buffer;
 
@@ -193,7 +192,7 @@ namespace Tmds.Ssh
                 PacketType packetType = PacketType.SSH_FXP_WRITE;
 
                 int id = GetNextId();
-                PendingOperation pendingOperation = new(packetType);
+                PendingOperation pendingOperation = CreatePendingOperation(packetType);
                 pendingOperation.Context = file;
                 pendingOperation.Buffer = MemoryMarshal.AsMemory(writeBuffer);
 
@@ -226,7 +225,7 @@ namespace Tmds.Ssh
             PacketType packetType = PacketType.SSH_FXP_CLOSE;
 
             int id = GetNextId();
-            PendingOperation pendingOperation = new(packetType);
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
             using Packet packet = new Packet(packetType);
             packet.WriteInt(id);

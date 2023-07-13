@@ -35,12 +35,24 @@ namespace Tmds.Ssh
 
         public override long Position
         {
-            get => _position;
-            set => _position = value;
+            get
+            {
+                ThrowIfDisposed();
+
+                return _position;
+            }
+            set
+            {
+                ThrowIfDisposed();
+
+                _position = value;
+            }
         }
 
         public override void Flush()
-        { }
+        {
+            ThrowIfDisposed();
+        }
 
         public override int Read(byte[] buffer, int offset, int count)
             => ReadAsync(buffer.AsMemory(offset, count)).GetAwaiter().GetResult();

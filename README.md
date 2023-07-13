@@ -91,7 +91,7 @@ class SftpClient : IDisposable
 {
   CancellationToken ClientAborted { get; }
 
-  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags);
+  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {
