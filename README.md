@@ -47,7 +47,7 @@ class SshClient : IDisposable
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
 
-  Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken = default) { }
+  Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default) { }
 }
 class ExecuteOptions
 {

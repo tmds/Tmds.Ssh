@@ -13,14 +13,14 @@ namespace Tmds.Ssh
         private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
         private readonly ConcurrentBag<PendingOperation> _pendingOperationPool = new();
 
-        sealed class PendingOperation : IValueTaskSource<object>, IValueTaskSource<int>
+        sealed class PendingOperation : IValueTaskSource<object?>, IValueTaskSource<int>
         {
             const int NotCompleted = 0;
             const int Completed = 1;
             const int Canceled = 2;
 
             private readonly SftpClient _client;
-            private ManualResetValueTaskSourceCore<object> _core;
+            private ManualResetValueTaskSourceCore<object?> _core;
             private int IntResult;
             private CancellationTokenRegistration _ctr;
             private int _state = NotCompleted;
@@ -38,7 +38,7 @@ namespace Tmds.Ssh
                 }
             }
 
-            private void SetResult(object value)
+            private void SetResult(object? value)
             {
                 // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
                 _ctr.Dispose();
@@ -80,7 +80,6 @@ namespace Tmds.Ssh
 
             public short Token => _core.Version;
 
-            public object? Context { get; set; }
             public Memory<byte> Buffer { get; set; }
             public PacketType RequestType { get; set; }
 
@@ -98,7 +97,6 @@ namespace Tmds.Ssh
             public void Reset()
             {
                 // Don't root objects.
-                Context = null;
                 Buffer = default;
 
                 // Reset ValueTask state.
@@ -119,7 +117,12 @@ namespace Tmds.Ssh
                     error = (SftpError)reader.ReadUInt();
                 }
 
-                if (error != SftpError.None && !(RequestType == PacketType.SSH_FXP_READ && error == SftpError.Eof))
+                if (error != SftpError.None &&
+                    !( (RequestType == PacketType.SSH_FXP_READ && error == SftpError.Eof)         // return 0
+                    || (RequestType == PacketType.SSH_FXP_STAT && error == SftpError.NoSuchFile)  // return (FileAttributes)null
+                    || (RequestType == PacketType.SSH_FXP_LSTAT && error == SftpError.NoSuchFile) // return (FileAttributes)null
+                    || (RequestType == PacketType.SSH_FXP_OPEN && error == SftpError.NoSuchFile)  // return (SftpFile)Null
+                    ))
                 {
                     SetException(new SftpException(error));
                     return;
@@ -127,13 +130,14 @@ namespace Tmds.Ssh
                 switch (RequestType, responseType)
                 {
                     case (PacketType.SSH_FXP_OPEN, PacketType.SSH_FXP_HANDLE):
-                        string handle = reader.ReadString();
-                        SetResult(new SftpFile(client, handle));
+                        SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadString()));
                         return;
-                    case (PacketType.SSH_FXP_READ, PacketType.SSH_FXP_DATA):
-                    case (PacketType.SSH_FXP_READ, PacketType.SSH_FXP_STATUS):
-                        (var file, var buffer) = (Context as SftpFile, Buffer);
-
+                    case (PacketType.SSH_FXP_STAT, _):
+                    case (PacketType.SSH_FXP_LSTAT, _):
+                    case (PacketType.SSH_FXP_FSTAT, _):
+                        SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
+                        return;
+                    case (PacketType.SSH_FXP_READ, _):
                         int count;
                         if (error == SftpError.Eof)
                         {
@@ -142,7 +146,7 @@ namespace Tmds.Ssh
                         else
                         {
                             count = reader.ReadInt();
-                            reader.Remainder.Slice(0, count).CopyTo(buffer.Span);
+                            reader.Remainder.Slice(0, count).CopyTo(Buffer.Span);
                         }
 
                         SetIntResult(count);
@@ -158,7 +162,7 @@ namespace Tmds.Ssh
                 }
             }
 
-            public object GetResult(short token)
+            public object? GetResult(short token)
             {
                 bool recycle = CanRecycle;
                 try

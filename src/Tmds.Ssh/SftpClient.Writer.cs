@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Buffers.Binary;
 using System.Text;
+using System.Collections.Generic;
 
 namespace Tmds.Ssh
 {
@@ -71,6 +72,101 @@ namespace Tmds.Ssh
             {
                 BinaryPrimitives.WriteInt64BigEndian(_buffer.AsSpan(_length), value);
                 _length += 8;
+            }
+
+            public void WriteAttributes(FileAttributes? attributes)
+            {
+                if (attributes is null)
+                {
+                    WriteUInt(0);
+                }
+                else
+                {
+                    WriteAttributes(attributes.Length, attributes.Uid, attributes.Gid, attributes.FileMode, attributes.LastAccessTime, attributes.LastWriteTime, attributes.ExtendedAttributes);
+                }
+            }
+
+            public void WriteAttributes(
+                long? length = default,
+                int? uid = default,
+                int? gid = default,
+                PosixFileMode? fileMode = default,
+                DateTimeOffset? lastAccessTime = default,
+                DateTimeOffset? lastWriteTime = default,
+                Dictionary<string, string>? extendedAttributes = default
+            )
+            {
+                uint flags = 0;
+                if (length.HasValue)
+                {
+                    flags |= 1;
+                }
+                if (uid.HasValue || gid.HasValue)
+                {
+                    if (!uid.HasValue)
+                    {
+                        throw new ArgumentException(nameof(uid));
+                    }
+                    if (!gid.HasValue)
+                    {
+                        throw new ArgumentException(nameof(gid));
+                    }
+                    flags |= 2;
+                }
+                if (fileMode.HasValue)
+                {
+                    flags |= 4;
+                }
+                if (lastAccessTime.HasValue || lastWriteTime.HasValue)
+                {
+                    if (!lastAccessTime.HasValue)
+                    {
+                        throw new ArgumentException(nameof(lastAccessTime));
+                    }
+                    if (!lastWriteTime.HasValue)
+                    {
+                        throw new ArgumentException(nameof(lastWriteTime));
+                    }
+                    flags |= 8;
+                }
+                if (extendedAttributes is not null && extendedAttributes.Count > 0)
+                {
+                    flags |= 0x80000000;
+                }
+                WriteUInt(flags);
+                if (length.HasValue)
+                {
+                    WriteInt64(length.Value);
+                }
+                if (uid.HasValue)
+                {
+                    WriteInt(uid.Value);
+                }
+                if (gid.HasValue)
+                {
+                    WriteInt(gid.Value);
+                }
+                if (fileMode.HasValue)
+                {
+                    WriteInt((int)fileMode.Value);
+                }
+                if (lastAccessTime.HasValue)
+                {
+                    WriteInt((int)lastAccessTime.Value.ToUnixTimeSeconds());
+                }
+                if (lastWriteTime.HasValue)
+                {
+                    WriteInt((int)lastWriteTime.Value.ToUnixTimeSeconds());
+                }
+                if (extendedAttributes is not null && extendedAttributes.Count > 0)
+                {
+                    WriteInt(extendedAttributes.Count);
+                    foreach (var pair in extendedAttributes)
+                    {
+                        WriteString(pair.Key);
+                        WriteString(pair.Value);
+                    }
+                }
             }
 
             public unsafe void WriteString(string value)

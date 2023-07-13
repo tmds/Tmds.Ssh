@@ -542,7 +542,7 @@ namespace Tmds.Ssh
             return new SshDataStream(channel);
         }
 
-        public async Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken = default)
+        public async Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default)
         {
             var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.Sftp), cancellationToken)
                                 .ConfigureAwait(false);
