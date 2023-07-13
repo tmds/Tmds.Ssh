@@ -12,9 +12,12 @@ namespace Tmds.Ssh
     {
         private readonly SftpClient _client;
         internal string Handle { get; }
+
         private bool _disposed;
-        private long _offset;
-        private bool _operationInProgress;
+
+        // Tracks the position in the file for the next operation.
+        // The position is updated at the start of the operation to support concurrent requests.
+        private long _position;
 
         internal SftpFile(SftpClient client, string handle)
         {
@@ -34,26 +37,22 @@ namespace Tmds.Ssh
         {
             get
             {
-                StartOperation();
+                ThrowIfDisposed();
 
-                long offset = _offset;
-
-                CompleteOperation(0);
-
-                return offset;
+                return _position;
             }
             set
             {
-                StartOperation();
+                ThrowIfDisposed();
 
-                _offset = value;
-
-                CompleteOperation(0);
+                _position = value;
             }
         }
 
         public override void Flush()
-        { }
+        {
+            ThrowIfDisposed();
+        }
 
         public override int Read(byte[] buffer, int offset, int count)
             => ReadAsync(buffer.AsMemory(offset, count)).GetAwaiter().GetResult();
@@ -61,11 +60,20 @@ namespace Tmds.Ssh
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
             => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            StartOperation();
+            ThrowIfDisposed();
 
-            return _client.ReadFileAsync(this, _offset, buffer);
+            long readOffset = Interlocked.Add(ref _position, buffer.Length) - buffer.Length;
+            int bytesRead = 0;
+            try
+            {
+                return bytesRead = await _client.ReadFileAsync(this, readOffset, buffer, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Add(ref _position, bytesRead - buffer.Length);
+            }
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -74,43 +82,36 @@ namespace Tmds.Ssh
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
             => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        public async override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            StartOperation();
+            ThrowIfDisposed();
 
-            return _client.WriteFileAsync(this, _offset, buffer);
+            long writeOffset = Interlocked.Add(ref _position, buffer.Length) - buffer.Length;
+            try
+            {
+                await _client.WriteFileAsync(this, writeOffset, buffer, cancellationToken);
+            }
+            catch
+            {
+                Interlocked.Add(ref _position, -buffer.Length);
+                throw;
+            }
         }
 
-        private void StartOperation()
+        private void ThrowIfDisposed()
         {
             if (_disposed)
             {
                 throw new ObjectDisposedException(GetType().FullName);
             }
-            if (_operationInProgress)
-            {
-                throw new InvalidOperationException();
-            }
-            _operationInProgress = true;
-        }
-
-        internal void CompleteOperation(int count)
-        {
-            _offset += count;
-            _operationInProgress = false;
-        }
-
-        internal void IncreaseOffset(int count)
-        {
-            _offset += count;
         }
 
         public ValueTask CloseAsync(CancellationToken cancellationToken = default)
         {
-            StartOperation();
+            ThrowIfDisposed();
             _disposed = true;
 
-            return _client.CloseFileAsync(Handle);
+            return _client.CloseFileAsync(Handle, cancellationToken);
         }
 
         protected override void Dispose(bool disposing)

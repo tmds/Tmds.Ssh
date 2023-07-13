@@ -91,7 +91,7 @@ class SftpClient : IDisposable
 {
   CancellationToken ClientAborted { get; }
 
-  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags);
+  ValueTask<SftpFile> OpenFileAsync(string filename, OpenFlags flags, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {
@@ -109,7 +109,7 @@ class SshClientSettings
   bool CheckGlobalKnownHostsFile { get; set; }
   KeyVerification? KeyVerification { get; set; }
 }
-class SftpException : SshOperationException
+class SftpException : IOException
 {
   public SftpError Error { get; }
 }
