@@ -69,104 +69,92 @@ namespace Tmds.Ssh
             return flags;
         }
 
-        private async ValueTask<SftpFile?> OpenFileCoreAsync(string filename, SftpOpenFlags flags, CancellationToken cancellationToken = default)
+        private ValueTask<SftpFile?> OpenFileCoreAsync(string filename, SftpOpenFlags flags, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(filename);
             packet.WriteUInt((uint)flags);
             packet.WriteAttributes(null);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            return (SftpFile?)await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
+        public ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_REMOVE;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        public ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RMDIR;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default)
+        public ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RENAME;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(oldpath);
             packet.WriteString(newpath);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+        public ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
         {
             PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT ;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            return (FileAttributes?)await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync<FileAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_MKDIR;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(path);
             packet.WriteAttributes(null);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
         internal async Task ProtocolInitAsync(CancellationToken cancellationToken)
@@ -179,6 +167,7 @@ namespace Tmds.Ssh
             HandleVersionPacket(versionPacket.Span);
 
             _ = ReadAllPacketsAsync();
+            _ = SendPacketsAsync();
         }
 
         private async ValueTask<ReadOnlyMemory<byte>> ReadPacketAsync(CancellationToken cancellationToken = default)
@@ -221,6 +210,26 @@ namespace Tmds.Ssh
             return new ReadOnlyMemory<byte>(_receiveBuffer, 4, packetLength);
         }
 
+        private async Task SendPacketsAsync()
+        {
+            bool sendPackets = true;
+            await foreach (Packet packet in _pendingSends.Reader.ReadAllAsync())
+            {
+                if (sendPackets)
+                {
+                    try
+                    {
+                        await _channel.WriteAsync(packet.Data);
+                    }
+                    catch
+                    {
+                        sendPackets = false;
+                    }
+                }
+                packet.Dispose();
+            }
+        }
+
         private async Task ReadAllPacketsAsync()
         {
             try
@@ -243,23 +252,28 @@ namespace Tmds.Ssh
             { }
             finally
             {
-                // Ensure the channel is closed by cancelling it.
-                // No more pending operations can be added after this.
+                // Ensure the channel is closed
+                // and CreatePendingOperationCloseException will return an appropriate exception.
                 _channel.Cancel();
 
-                _writeSemaphore.Wait();
+                // No additional sends can be queued.
+                _pendingSends.Writer.Complete();
 
+                // Complete pending operations.
                 foreach (var item in _pendingOperations)
                 {
-                    var exception = _channel.CreateCloseException(
-                                        // Override the cancellation exception.
-                                        createCancelException: () => new SshOperationException("Unexpected reply or eof."));
-                    item.Value.HandleClose(exception);
+                    if (_pendingOperations.TryRemove(item.Key, out PendingOperation? removed))
+                    {
+                        removed.HandleClose();
+                    }
                 }
-                _pendingOperations.Clear();
-
-                _writeSemaphore.Release();
             }
+        }
+
+        internal Exception CreatePendingOperationCloseException()
+        {
+            return _channel.CreateCloseException(
+                createCancelException: () => new SshOperationException("Unexpected reply or eof."));
         }
 
         private void HandleVersionPacket(ReadOnlySpan<byte> packet)
@@ -271,7 +285,7 @@ namespace Tmds.Ssh
             }
         }
 
-        internal async ValueTask<int> ReadFileAsync(string handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
+        internal ValueTask<int> ReadFileAsync(string handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_READ;
 
@@ -279,31 +293,27 @@ namespace Tmds.Ssh
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
             pendingOperation.Buffer = buffer;
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(handle);
             packet.WriteInt64(offset);
             packet.WriteInt(buffer.Length);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            return await new ValueTask<int>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync<int>(packet, id, pendingOperation, cancellationToken);
         }
 
-        internal async ValueTask<FileAttributes> GetAttributesForHandleAsync(string handle, CancellationToken cancellationToken = default)
+        internal ValueTask<FileAttributes> GetAttributesForHandleAsync(string handle, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_FSTAT;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(handle);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            return (FileAttributes)(await new ValueTask<object?>(pendingOperation, pendingOperation.Token))!;
+            return ExecuteAsync<FileAttributes>(packet, id, pendingOperation, cancellationToken);
         }
 
         internal async ValueTask WriteFileAsync(string handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
@@ -327,7 +337,7 @@ namespace Tmds.Ssh
                 PendingOperation pendingOperation = CreatePendingOperation(packetType);
                 pendingOperation.Buffer = MemoryMarshal.AsMemory(writeBuffer);
 
-                using Packet packet = new Packet(packetType, payloadSize:
+                Packet packet = new Packet(packetType, payloadSize:
                                                                 4 /* id */
                                                                 + Packet.MaxHandleStringLength
                                                                 + 8 /* offset */
@@ -337,9 +347,7 @@ namespace Tmds.Ssh
                 packet.WriteInt64(offset);
                 packet.WriteString(writeBuffer);
 
-                await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-                await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+                await ExecuteAsync(packet, id, pendingOperation, cancellationToken);
 
                 buffer = buffer.Slice(writeLength);
                 offset += writeLength;
@@ -351,20 +359,18 @@ namespace Tmds.Ssh
             _ = CloseFileAsync(handle, default(CancellationToken));
         }
 
-        internal async ValueTask CloseFileAsync(string handle, CancellationToken cancellationToken)
+        internal ValueTask CloseFileAsync(string handle, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_CLOSE;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
-            using Packet packet = new Packet(packetType);
+            Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(handle);
 
-            await WritePacketForPendingOperationAsync(packet, packetType, id, pendingOperation, cancellationToken);
-
-            await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
     }
 }
