@@ -5,11 +5,13 @@ using System;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 using System.Collections.Concurrent;
+using System.Threading.Channels;
 
 namespace Tmds.Ssh
 {
     public partial class SftpClient
     {
+        private readonly Channel<Packet> _pendingSends = Channel.CreateUnbounded<Packet>();
         private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
         private readonly ConcurrentBag<PendingOperation> _pendingOperationPool = new();
 
@@ -89,9 +91,9 @@ namespace Tmds.Ssh
                 _core.RunContinuationsAsynchronously = true;
             }
 
-            internal void HandleClose(Exception exception)
+            internal void HandleClose()
             {
-                SetException(exception);
+                SetException(_client.CreatePendingOperationCloseException());
             }
 
             public void Reset()

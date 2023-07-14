@@ -14,7 +14,6 @@ namespace Tmds.Ssh
     public partial class SftpClient
     {
         private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-        private readonly SemaphoreSlim _writeSemaphore = new SemaphoreSlim(1, 1);
 
         // Represents an outgoing packet.
         struct Packet : IDisposable
@@ -211,31 +210,46 @@ namespace Tmds.Ssh
             private const int StackallocThreshold = 256;
         }
 
-        private async ValueTask WritePacketForPendingOperationAsync(
+        private async ValueTask ExecuteAsync(
             Packet packet,
-            PacketType packetType,
             int id,
             PendingOperation pendingOperation,
             CancellationToken cancellationToken)
         {
-            // Serialize packet writing to the channel.
-            await _writeSemaphore.WaitAsync(cancellationToken);
-            CancellationTokenRegistration ctr = pendingOperation.RegisterForCancellation(cancellationToken);
-            try
-            {
-                _pendingOperations[id] = pendingOperation;
-                await _channel.WriteAsync(packet.Data); // Throws if the channel is closed.
-            }
-            catch
-            {
-                ctr.Dispose();
-                _pendingOperations.TryRemove(id, out _);
+            await ExecuteAsync<object?>(packet, id, pendingOperation, cancellationToken);
+        }
 
-                throw;
-            }
-            finally
+        private async ValueTask<T> ExecuteAsync<T>(
+            Packet packet,
+            int id,
+            PendingOperation pendingOperation,
+            CancellationToken cancellationToken)
+        {
+            CancellationTokenRegistration ctr = pendingOperation.RegisterForCancellation(cancellationToken);
+
+            // Track the pending operation before queueing the send.
+            _pendingOperations[id] = pendingOperation;
+            bool sendQueued = _pendingSends.Writer.TryWrite(packet);
+
+            if (!sendQueued)
             {
-                _writeSemaphore.Release();
+                packet.Dispose();
+
+                if (_pendingOperations.TryRemove(id, out _))
+                {
+                    pendingOperation.HandleClose();
+                }
+            }
+
+            if (typeof(T) == typeof(int))
+            {
+                int result = await new ValueTask<int>(pendingOperation, pendingOperation.Token);
+                return (T)(object)result;
+            }
+            else
+            {
+                object? result = await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+                return (T)result!;
             }
         }
     }
