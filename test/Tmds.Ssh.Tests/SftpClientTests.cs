@@ -19,7 +19,7 @@ namespace Tmds.Ssh.Tests
         public async Task OpenClient()
         {
             using var client = await _sshServer.CreateClientAsync();
-            using var sftpClient = await client.OpenSftpClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
         }
 
         [InlineData(10)]
@@ -29,12 +29,12 @@ namespace Tmds.Ssh.Tests
         public async Task ReadWriteFile(int fileSize)
         {
             using var client = await _sshServer.CreateClientAsync();
-            using var sftpClient = await client.OpenSftpClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
             string filename = $"/tmp/{Path.GetRandomFileName()}";
 
             byte[] writeBuffer = new byte[fileSize];
 
-            using var writeFile = await sftpClient.OpenFileAsync(filename, OpenFlags.CreateNew | OpenFlags.Write);
+            using var writeFile = await sftpClient.CreateNewFileAsync(filename, FileAccess.Write);
             Random.Shared.NextBytes(writeBuffer);
             await writeFile.WriteAsync(writeBuffer.AsMemory(0, fileSize));
             Assert.Equal(fileSize, writeFile.Position);
@@ -42,7 +42,8 @@ namespace Tmds.Ssh.Tests
 
             byte[] receiveBuffer = new byte[fileSize + 10];
 
-            using var readFile = await sftpClient.OpenFileAsync(filename, OpenFlags.Open | OpenFlags.Read);
+            using var readFile = await sftpClient.OpenFileAsync(filename, FileAccess.Read);
+            Assert.NotNull(readFile);
             int bytesReceived = 0;
             int bytesRead = 0;
             while (bytesReceived < fileSize)
@@ -56,6 +57,143 @@ namespace Tmds.Ssh.Tests
             Assert.Equal(fileSize, bytesReceived);
             Assert.Equal(fileSize, readFile.Position);
             await readFile.CloseAsync();
+        }
+
+        [Fact]
+        public async Task Directory()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateDirectoryAsync(path);
+
+            var attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.NotNull(attributes);
+            Assert.True((attributes.FileMode & PosixFileMode.Directory) != 0);
+
+            await sftpClient.DeleteDirectoryAsync(path);
+            attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.Null(attributes);
+        }
+
+        [Fact]
+        public async Task RemoveFile()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            using var file = await sftpClient.CreateNewFileAsync(path, FileAccess.Write);
+            await file.CloseAsync();
+
+            var attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.NotNull(attributes);
+            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+
+            await sftpClient.DeleteFileAsync(path);
+            attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.Null(attributes);
+        }
+
+        [Fact]
+        public async Task Rename()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            using var file = await sftpClient.CreateNewFileAsync(path, FileAccess.Write);
+            await file.CloseAsync();
+
+            var attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.NotNull(attributes);
+            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+
+            string newpath = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.RenameAsync(path, newpath);
+
+            attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.Null(attributes);
+
+            attributes = await sftpClient.GetAttributesAsync(newpath);
+            Assert.NotNull(attributes);
+            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+        }
+
+        [Fact]
+        public async Task GetAttributes()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            DateTimeOffset someTimeAgo = DateTimeOffset.Now - TimeSpan.FromSeconds(5);
+
+            int fileLength = 12;
+            using var file = await sftpClient.CreateNewFileAsync(path, FileAccess.Write);
+            await file.WriteAsync(new byte[fileLength]);
+
+            var attributes = await file.GetAttributesAsync();
+            CheckFileAttributes(attributes);
+
+            await file.CloseAsync();
+
+            attributes = await sftpClient.GetAttributesAsync(path);
+            CheckFileAttributes(attributes);
+
+            void CheckFileAttributes(FileAttributes? attributes)
+            {
+                Assert.NotNull(attributes);
+                Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+                Assert.Equal(fileLength, attributes.Length);
+                Assert.True(attributes.Uid >= 1000);
+                Assert.True(attributes.Gid >= 1000);
+                Assert.True(attributes.LastAccessTime!.Value >= someTimeAgo);
+                Assert.True(attributes.LastWriteTime!.Value >= someTimeAgo);
+            }
+        }
+
+        [Fact]
+        public async Task OpenFileNotExistsReturnsNull()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            using var file = await sftpClient.OpenFileAsync(path, FileAccess.Write);
+            Assert.Null(file);
+        }
+
+        [Fact]
+        public async Task AttributesNotExistsReturnsNull()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            var attributes = await sftpClient.GetAttributesAsync(path);
+            Assert.Null(attributes);
+        }
+
+        [Fact]
+        public async Task FileNotExistsDeleteDoesNotThrow()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.DeleteFileAsync(path);
+        }
+
+        [Fact]
+        public async Task DirectoryNotExistsDeleteDoesNotThrow()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.DeleteDirectoryAsync(path);
         }
     }
 }
