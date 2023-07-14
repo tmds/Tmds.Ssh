@@ -87,7 +87,7 @@ namespace Tmds.Ssh
             return (SftpFile?)await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
         }
 
-        public async ValueTask RemoveFileAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_REMOVE;
 
@@ -103,7 +103,7 @@ namespace Tmds.Ssh
             await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
         }
 
-        public async ValueTask RemoveDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RMDIR;
 

@@ -118,10 +118,13 @@ namespace Tmds.Ssh
                 }
 
                 if (error != SftpError.None &&
-                    !( (RequestType == PacketType.SSH_FXP_READ && error == SftpError.Eof)         // return 0
-                    || (RequestType == PacketType.SSH_FXP_STAT && error == SftpError.NoSuchFile)  // return (FileAttributes)null
-                    || (RequestType == PacketType.SSH_FXP_LSTAT && error == SftpError.NoSuchFile) // return (FileAttributes)null
-                    || (RequestType == PacketType.SSH_FXP_OPEN && error == SftpError.NoSuchFile)  // return (SftpFile)Null
+                    !( (error, RequestType) is (SftpError.Eof, PacketType.SSH_FXP_READ) or         // Read: return 0
+                                               (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT      // GetAttributes: return null
+                                                                      or PacketType.SSH_FXP_LSTAT  // GetAttributes: return null
+                                                                      or PacketType.SSH_FXP_OPEN   // OpenFile: return null
+                                                                      or PacketType.SSH_FXP_REMOVE // DeleteFile: don't throw
+                                                                      or PacketType.SSH_FXP_RMDIR  // DeleteDirectory: don't throw
+                                               )
                     ))
                 {
                     SetException(new SftpException(error));
@@ -129,7 +132,7 @@ namespace Tmds.Ssh
                 }
                 switch (RequestType, responseType)
                 {
-                    case (PacketType.SSH_FXP_OPEN, PacketType.SSH_FXP_HANDLE):
+                    case (PacketType.SSH_FXP_OPEN, _):
                         SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadString()));
                         return;
                     case (PacketType.SSH_FXP_STAT, _):
@@ -151,8 +154,12 @@ namespace Tmds.Ssh
 
                         SetIntResult(count);
                         return;
+                    case (PacketType.SSH_FXP_REMOVE, _):
+                    case (PacketType.SSH_FXP_RMDIR, _):
+                        SetResult(null!);
+                        return;
                 }
-                if (responseType == PacketType.SSH_FXP_STATUS)
+                if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
                 {
                     SetResult(null!);
                 }

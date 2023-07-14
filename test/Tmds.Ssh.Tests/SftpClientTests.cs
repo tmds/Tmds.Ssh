@@ -72,7 +72,7 @@ namespace Tmds.Ssh.Tests
             Assert.NotNull(attributes);
             Assert.True((attributes.FileMode & PosixFileMode.Directory) != 0);
 
-            await sftpClient.RemoveDirectoryAsync(path);
+            await sftpClient.DeleteDirectoryAsync(path);
             attributes = await sftpClient.GetAttributesAsync(path);
             Assert.Null(attributes);
         }
@@ -91,7 +91,7 @@ namespace Tmds.Ssh.Tests
             Assert.NotNull(attributes);
             Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
 
-            await sftpClient.RemoveFileAsync(path);
+            await sftpClient.DeleteFileAsync(path);
             attributes = await sftpClient.GetAttributesAsync(path);
             Assert.Null(attributes);
         }
@@ -155,7 +155,7 @@ namespace Tmds.Ssh.Tests
         }
 
         [Fact]
-        public async Task OpenFileNotExists()
+        public async Task OpenFileNotExistsReturnsNull()
         {
             using var client = await _sshServer.CreateClientAsync();
             using var sftpClient = await client.CreateSftpClientAsync();
@@ -166,7 +166,7 @@ namespace Tmds.Ssh.Tests
         }
 
         [Fact]
-        public async Task AttributesNotExists()
+        public async Task AttributesNotExistsReturnsNull()
         {
             using var client = await _sshServer.CreateClientAsync();
             using var sftpClient = await client.CreateSftpClientAsync();
@@ -174,6 +174,26 @@ namespace Tmds.Ssh.Tests
 
             var attributes = await sftpClient.GetAttributesAsync(path);
             Assert.Null(attributes);
+        }
+
+        [Fact]
+        public async Task FileNotExistsDeleteDoesNotThrow()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.DeleteFileAsync(path);
+        }
+
+        [Fact]
+        public async Task DirectoryNotExistsDeleteDoesNotThrow()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.DeleteDirectoryAsync(path);
         }
     }
 }

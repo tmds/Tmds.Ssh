@@ -95,14 +95,19 @@ class SftpClient : IDisposable
   ValueTask<SftpFile> OpenOrCreateFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
+
+  // Returns null if the file does not exist.
   ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default);
+  // Returns null if the file does not exist.
   ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
 
-  ValueTask RemoveFileAsync(string path, CancellationToken cancellationToken = default);
+  // Does not throw if the path did not exist.
+  ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
   ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
 
-  ValueTask RemoveDirectoryAsync(string path, CancellationToken cancellationToken = default);
+  // Does not throw if the path did not exist.
+  ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
 
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
