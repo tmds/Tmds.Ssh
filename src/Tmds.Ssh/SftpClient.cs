@@ -17,14 +17,14 @@ namespace Tmds.Ssh
         const uint ProtocolVersion = 3;
 
         private readonly SshChannel _channel;
-        private byte[]? _receiveBuffer;
+        private byte[]? _packetBuffer;
+        private int _packetBufferLength = 32 * 1024;
         private int _nextId = 5;
         private int GetNextId() => Interlocked.Increment(ref _nextId);
 
         internal SftpClient(SshChannel channel)
         {
             _channel = channel;
-            _receiveBuffer = new byte[4096];
         }
 
         public CancellationToken ClientAborted
@@ -142,6 +142,24 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
+        public IAsyncEnumerable<(string Name, FileAttributes Attributes)> GetEntriesAsync(string path)
+            => new SftpFileSystemEnumerable<(string, FileAttributes)>(this, path,
+                    transform: (ref SftpFileEntry entry) => (new string(entry.FileName), entry.GetAttributes()));
+
+        internal ValueTask<string> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        {
+            PacketType packetType = PacketType.SSH_FXP_OPENDIR;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(path);
+
+            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+        }
+
         public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_MKDIR;
@@ -170,14 +188,39 @@ namespace Tmds.Ssh
             _ = SendPacketsAsync();
         }
 
+        internal ValueTask<byte[]> ReadDirAsync(string handle, CancellationToken cancellationToken)
+        {
+            PacketType packetType = PacketType.SSH_FXP_READDIR;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(handle);
+
+            return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
+        }
+
+        internal byte[] StealPacketBuffer()
+        {
+            var packetBuffer = _packetBuffer!;
+            _packetBuffer = null;
+            return packetBuffer;
+        }
+
         private async ValueTask<ReadOnlyMemory<byte>> ReadPacketAsync(CancellationToken cancellationToken = default)
         {
+            if (_packetBuffer is null)
+            {
+                _packetBuffer = new byte[_packetBufferLength]; // TODO: rent from shared pool.
+            }
             int totalReceived = 0;
 
             // Read packet length.
             do
             {
-                Memory<byte> readBuffer = new Memory<byte>(_receiveBuffer, totalReceived, 4 - totalReceived);
+                Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, 4 - totalReceived);
                 (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
                 if (type != ChannelReadType.StandardOutput)
                 {
@@ -186,20 +229,21 @@ namespace Tmds.Ssh
                 totalReceived += bytesRead;
             } while (totalReceived < 4);
 
-            int packetLength = BinaryPrimitives.ReadInt32BigEndian(_receiveBuffer);
+            int packetLength = BinaryPrimitives.ReadInt32BigEndian(_packetBuffer);
             int totalReceiveLength = packetLength + 4;
 
             // Ensure receive buffer can fit packet.
-            if (_receiveBuffer!.Length < totalReceiveLength)
+            if (_packetBuffer!.Length < totalReceiveLength)
             {
-                _receiveBuffer = new byte[totalReceiveLength];
-                BinaryPrimitives.WriteInt32BigEndian(_receiveBuffer, packetLength);
+                _packetBufferLength = totalReceiveLength;
+                _packetBuffer = new byte[totalReceiveLength];
+                BinaryPrimitives.WriteInt32BigEndian(_packetBuffer, packetLength);
             }
 
             // Read packet.
             while (totalReceived < totalReceiveLength)
             {
-                Memory<byte> readBuffer = new Memory<byte>(_receiveBuffer, totalReceived, _receiveBuffer.Length - totalReceived);
+                Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, _packetBuffer.Length - totalReceived);
                 (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
                 if (type != ChannelReadType.StandardOutput)
                 {
@@ -207,7 +251,7 @@ namespace Tmds.Ssh
                 }
                 totalReceived += bytesRead;
             }
-            return new ReadOnlyMemory<byte>(_receiveBuffer, 4, packetLength);
+            return new ReadOnlyMemory<byte>(_packetBuffer, 4, packetLength);
         }
 
         private async Task SendPacketsAsync()

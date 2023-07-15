@@ -15,5 +15,8 @@ namespace Tmds.Ssh
         public DateTimeOffset? LastAccessTime { get; set; } // ATime
         public DateTimeOffset? LastWriteTime { get; set; } // MTime
         public Dictionary<string, string>? ExtendedAttributes { get; set; }
+
+        public PosixFileMode? FileType => FileMode & (PosixFileMode)0xf000;
+        public PosixFileMode? Permissions => FileMode & (PosixFileMode)0x0fff;
     }
 }

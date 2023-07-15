@@ -5,7 +5,7 @@ namespace Tmds.Ssh
 {
     public partial class SftpClient
     {
-        enum PacketType : byte
+        internal enum PacketType : byte
         {
             SSH_FXP_INIT = 1,
             SSH_FXP_VERSION = 2,
