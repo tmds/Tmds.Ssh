@@ -112,6 +112,8 @@ class SftpClient : IDisposable
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
   ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
+
+  IAsyncEnumerable<(string Name, FileAttributes Attributes)> GetEntriesAsync(string path);
 }
 class SftpFile : Stream
 {
@@ -161,6 +163,9 @@ class FileAttributes
     DateTimeOffset? LastAccessTime { get; set; }
     DateTimeOffset? LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
+
+    PosixFileMode? FileType { get; }
+    PosixFileMode? Permissions { get; }
 }
 [Flags]
 enum PosixFileMode

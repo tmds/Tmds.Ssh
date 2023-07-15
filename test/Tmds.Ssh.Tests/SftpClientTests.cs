@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -194,6 +195,47 @@ namespace Tmds.Ssh.Tests
             string path = $"/tmp/{Path.GetRandomFileName()}";
 
             await sftpClient.DeleteDirectoryAsync(path);
+        }
+
+        [Fact]
+        public async Task EnumerateDirectory()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateDirectoryAsync(directoryPath);
+
+            const int FileCount = 1024;
+            const int DirCount = 512;
+
+            for (int i = 0; i < DirCount; i++)
+            {
+                await sftpClient.CreateDirectoryAsync($"{directoryPath}/dir{i}");
+            }
+
+            for (int i = 0; i < FileCount; i++)
+            {
+                using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file{i}", FileAccess.Write);
+                await file.CloseAsync();
+            }
+
+            var entries = await sftpClient.GetEntriesAsync(directoryPath).ToListAsync();
+            Assert.Equal(entries.Count, FileCount + DirCount);
+
+            var fileEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.RegularFile).ToList();
+            Assert.Equal(fileEntries.Count, FileCount);
+            foreach (var file in fileEntries)
+            {
+                Assert.StartsWith("file", file.Name);
+            }
+
+            var dirEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.Directory).ToList();
+            Assert.Equal(dirEntries.Count, DirCount);
+            foreach (var dir in dirEntries)
+            {
+                Assert.StartsWith("dir", dir.Name);
+            }
         }
     }
 }

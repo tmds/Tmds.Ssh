@@ -9,7 +9,7 @@ namespace Tmds.Ssh
 {
     public partial class SftpClient
     {
-        ref struct PacketReader
+        internal ref struct PacketReader
         {
             private ReadOnlySpan<byte> _remainder;
 
