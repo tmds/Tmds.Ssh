@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -220,22 +221,70 @@ namespace Tmds.Ssh.Tests
                 await file.CloseAsync();
             }
 
-            var entries = await sftpClient.GetEntriesAsync(directoryPath).ToListAsync();
+            var entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath).ToListAsync();
             Assert.Equal(entries.Count, FileCount + DirCount);
 
             var fileEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.RegularFile).ToList();
             Assert.Equal(fileEntries.Count, FileCount);
             foreach (var file in fileEntries)
             {
-                Assert.StartsWith("file", file.Name);
+                Assert.StartsWith($"{directoryPath}/file", file.Path);
             }
 
             var dirEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.Directory).ToList();
             Assert.Equal(dirEntries.Count, DirCount);
             foreach (var dir in dirEntries)
             {
-                Assert.StartsWith("dir", dir.Name);
+                Assert.StartsWith($"{directoryPath}/dir", dir.Path);
             }
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task EnumerateDirectoryRecursive(bool recurse)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateDirectoryAsync(directoryPath);
+
+            using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file", FileAccess.Write);
+            await file.CloseAsync();
+
+            await sftpClient.CreateDirectoryAsync($"{directoryPath}/childdir");
+
+            using var file2 = await sftpClient.CreateNewFileAsync($"{directoryPath}/childdir/file2", FileAccess.Write);
+            await file2.CloseAsync();
+
+            List<(string Path, FileAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath, new EnumerationOptions() { RecurseSubdirectories = recurse }).ToListAsync();
+
+            if (recurse == true)
+            {
+                Assert.Equal(
+                    new HashSet<string>(new[] { $"{directoryPath}/file", $"{directoryPath}/childdir", $"{directoryPath}/childdir/file2" }),
+                    entries.Select(entry => entry.Path).ToHashSet()
+                );
+
+                // Recursion happens at the end.
+                Assert.Equal($"{directoryPath}/childdir/file2", entries[2].Path);
+            }
+            else
+            {
+                Assert.Equal(
+                    new HashSet<string>(new[] { $"{directoryPath}/file", $"{directoryPath}/childdir" }),
+                    entries.Select(entry => entry.Path).ToHashSet()
+                );
+            }
+        }
+
+        [Fact]
+        public void DefaultEnumerationOptions()
+        {
+            var options = new EnumerationOptions();
+
+            Assert.False(options.RecurseSubdirectories);
         }
     }
 }

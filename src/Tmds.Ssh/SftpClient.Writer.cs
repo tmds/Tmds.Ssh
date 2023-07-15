@@ -213,7 +213,7 @@ namespace Tmds.Ssh
         private async ValueTask ExecuteAsync(
             Packet packet,
             int id,
-            PendingOperation pendingOperation,
+            PendingOperation? pendingOperation,
             CancellationToken cancellationToken)
         {
             await ExecuteAsync<object?>(packet, id, pendingOperation, cancellationToken);
@@ -222,13 +222,19 @@ namespace Tmds.Ssh
         private async ValueTask<T> ExecuteAsync<T>(
             Packet packet,
             int id,
-            PendingOperation pendingOperation,
+            PendingOperation? pendingOperation,
             CancellationToken cancellationToken)
         {
-            CancellationTokenRegistration ctr = pendingOperation.RegisterForCancellation(cancellationToken);
+            CancellationTokenRegistration ctr;
 
-            // Track the pending operation before queueing the send.
-            _pendingOperations[id] = pendingOperation;
+            if (pendingOperation is not null)
+            {
+                ctr = pendingOperation.RegisterForCancellation(cancellationToken);
+
+                // Track the pending operation before queueing the send.
+                _pendingOperations[id] = pendingOperation;
+            }
+            
             bool sendQueued = _pendingSends.Writer.TryWrite(packet);
 
             if (!sendQueued)
@@ -237,8 +243,13 @@ namespace Tmds.Ssh
 
                 if (_pendingOperations.TryRemove(id, out _))
                 {
-                    pendingOperation.HandleClose();
+                    pendingOperation?.HandleClose();
                 }
+            }
+
+            if (pendingOperation is null)
+            {
+                return default!;
             }
 
             if (typeof(T) == typeof(int))

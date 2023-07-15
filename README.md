@@ -113,7 +113,7 @@ class SftpClient : IDisposable
 
   ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
 
-  IAsyncEnumerable<(string Name, FileAttributes Attributes)> GetEntriesAsync(string path);
+  IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = default);
 }
 class SftpFile : Stream
 {
@@ -166,6 +166,10 @@ class FileAttributes
 
     PosixFileMode? FileType { get; }
     PosixFileMode? Permissions { get; }
+}
+class EnumerationOptions
+{
+    bool RecurseSubdirectories { get; set; }
 }
 [Flags]
 enum PosixFileMode
