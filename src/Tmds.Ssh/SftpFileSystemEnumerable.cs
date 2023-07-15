@@ -1,3 +1,6 @@
+// This file is part of Tmds.Ssh which is released under MIT.
+// See file LICENSE for full license details.
+
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -9,16 +12,16 @@ namespace Tmds.Ssh;
 // TODO: make non-allocating
 ref struct SftpFileEntry
 {
-    private readonly string _name;
+    private readonly string _path;
     private readonly FileAttributes _attributes;
 
-    internal SftpFileEntry(string name, FileAttributes attributes)
+    internal SftpFileEntry(string path, FileAttributes attributes)
     {
-        _name = name;
+        _path = path;
         _attributes = attributes;
     }
 
-    public ReadOnlySpan<char> FileName => _name;
+    public ReadOnlySpan<char> Path => _path;
 
     public FileAttributes GetAttributes() => _attributes;
 }
@@ -30,40 +33,48 @@ sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
     private readonly SftpClient _client;
     private readonly string _path;
     private readonly SftpFileEntryTransform<T> _transform;
+    private readonly EnumerationOptions _options;
 
-    public SftpFileSystemEnumerable(SftpClient client, string path, SftpFileEntryTransform<T> transform)
+    public SftpFileSystemEnumerable(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
     {
         _client = client;
         _path = path;
         _transform = transform;
+        _options = options;
     }
 
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        => new SftpFileSystemEnumerator<T>(_client, _path, _transform, cancellationToken);
+        => new SftpFileSystemEnumerator<T>(_client, _path, _transform, _options, cancellationToken);
 }
 
 sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 {
     private readonly SftpClient _client;
-    private readonly string _path;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
 
+    private string _path;
+    private readonly bool _recurseSubdirectories;
+
     private bool _disposed;
+
+    private Queue<string>? _pending;
+
     private string? _directoryHandle;
 
-    private string? _currentName;
+    private string? _currentPath;
     private FileAttributes? _currentAttributes;
     private byte[]? _readDirPacket;
     private int _bufferOffset;
     private int _entriesRemaining;
 
-    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, CancellationToken cancellationToken)
+    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
         _client = client;
-        _path = path;
+        _path = path.TrimEnd('/');
         _transform = transform;
         _cancellationToken = cancellationToken;
+        _recurseSubdirectories = options.RecurseSubdirectories;
     }
 
     public T Current
@@ -75,7 +86,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
     }
 
-    private SftpFileEntry CurrentEntry => new SftpFileEntry(_currentName!, _currentAttributes!);
+    private SftpFileEntry CurrentEntry => new SftpFileEntry(_currentPath!, _currentAttributes!);
 
     public ValueTask DisposeAsync()
     {
@@ -111,7 +122,17 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
             if (_entriesRemaining == -1)
             {
-                return false;
+                if (_pending?.TryDequeue(out string? path) == true)
+                {
+                    _client.CloseFile(_directoryHandle!);
+                    _directoryHandle = null;
+
+                    _path = path;
+                }
+                else
+                {
+                    return false;
+                }
             }
 
             await ReadNewBufferAsync();
@@ -142,20 +163,30 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private bool ReadNextEntry()
     {
         SftpClient.PacketReader reader = new(_readDirPacket.AsSpan(_bufferOffset));
-        _currentName = reader.ReadString();
+        string name = reader.ReadString();
         _ = reader.ReadString(); // TODO: skip string
-        _currentAttributes = reader.ReadFileAttributes();
+        // Each SSH_FXP_READDIR request returns one or more file names with FULL file attributes for each file.
+        FileAttributes attributes = reader.ReadFileAttributes();
 
+        // Update offset for the next read.
         _bufferOffset = _readDirPacket!.Length - reader.Remainder.Length;
         _entriesRemaining--;
 
-        var entry = CurrentEntry;
-        return IncludeEntry(ref entry);
-    }
+        // Don't return special directories.
+        if (name == "." || name == "..")
+        {
+            return false;
+        }
 
-    private bool IncludeEntry(ref SftpFileEntry entry)
-    {
-        return !entry.FileName.SequenceEqual(".") &&
-               !entry.FileName.SequenceEqual("..");
+        _currentPath = $"{_path}/{name}";
+        _currentAttributes = attributes;
+
+        if (_recurseSubdirectories && attributes.FileType == PosixFileMode.Directory)
+        {
+            _pending ??= new();
+            _pending.Enqueue(_currentPath);
+        }
+
+        return true;
     }
 }

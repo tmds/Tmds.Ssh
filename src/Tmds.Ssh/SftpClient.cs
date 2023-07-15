@@ -16,6 +16,8 @@ namespace Tmds.Ssh
         // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
         const uint ProtocolVersion = 3;
 
+        private static readonly EnumerationOptions DefaultEnumerationOptions = new();
+
         private readonly SshChannel _channel;
         private byte[]? _packetBuffer;
         private int _packetBufferLength = 32 * 1024;
@@ -142,9 +144,10 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public IAsyncEnumerable<(string Name, FileAttributes Attributes)> GetEntriesAsync(string path)
+        public IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = default)
             => new SftpFileSystemEnumerable<(string, FileAttributes)>(this, path,
-                    transform: (ref SftpFileEntry entry) => (new string(entry.FileName), entry.GetAttributes()));
+                    transform: (ref SftpFileEntry entry) => (new string(entry.Path), entry.GetAttributes()),
+                    options ?? DefaultEnumerationOptions);
 
         internal ValueTask<string> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
@@ -400,7 +403,15 @@ namespace Tmds.Ssh
 
         internal void CloseFile(string handle)
         {
-            _ = CloseFileAsync(handle, default(CancellationToken));
+            PacketType packetType = PacketType.SSH_FXP_CLOSE;
+
+            int id = GetNextId();
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(handle);
+
+            _ = ExecuteAsync(packet, id, pendingOperation: null, cancellationToken: default);
         }
 
         internal ValueTask CloseFileAsync(string handle, CancellationToken cancellationToken)
