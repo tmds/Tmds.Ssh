@@ -49,14 +49,16 @@ sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
 
 sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 {
+    const int DirectoryEof = -1;
+    const int Complete = -2;
+    const int Disposed = -3;
+
     private readonly SftpClient _client;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
 
     private string _path;
     private readonly bool _recurseSubdirectories;
-
-    private bool _disposed;
 
     private Queue<string>? _pending;
 
@@ -67,6 +69,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private byte[]? _readDirPacket;
     private int _bufferOffset;
     private int _entriesRemaining;
+    private ValueTask<byte[]> _readAhead;
 
     public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
@@ -90,9 +93,9 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     public ValueTask DisposeAsync()
     {
-        if (!_disposed)
+        if (_entriesRemaining != Disposed)
         {
-            _disposed = true;
+            _entriesRemaining = Disposed;
 
             if (_directoryHandle is not null)
             {
@@ -105,9 +108,14 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     public async ValueTask<bool> MoveNextAsync()
     {
-        if (_disposed)
+        if (_entriesRemaining == Disposed)
         {
             throw new ObjectDisposedException(GetType().FullName);
+        }
+
+        if (_entriesRemaining == Complete)
+        {
+            return false;
         }
 
         do
@@ -119,24 +127,32 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
                     return true;
                 }
             }
+        } while (await TryReadNewBufferAsync());
 
-            if (_entriesRemaining == -1)
+        _entriesRemaining = Complete;
+        return false;
+    }
+
+    private async ValueTask<bool> TryReadNewBufferAsync()
+    {
+        if (_entriesRemaining == DirectoryEof)
+        {
+            _client.CloseFile(_directoryHandle!);
+            _directoryHandle = null;
+
+            if (_pending?.TryDequeue(out string? path) == true)
             {
-                if (_pending?.TryDequeue(out string? path) == true)
-                {
-                    _client.CloseFile(_directoryHandle!);
-                    _directoryHandle = null;
-
-                    _path = path;
-                }
-                else
-                {
-                    return false;
-                }
+                
+                _path = path;
             }
+            else
+            {
+                return false;
+            }
+        }
 
-            await ReadNewBufferAsync();
-        } while (true);
+        await ReadNewBufferAsync();
+        return true;
     }
 
     private async ValueTask ReadNewBufferAsync()
@@ -144,17 +160,20 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         if (_directoryHandle is null)
         {
             _directoryHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken);
+            _readAhead = _client.ReadDirAsync(_directoryHandle, _cancellationToken);
         }
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
-        // TODO: return current _readDirPacket?
-        _readDirPacket = await _client.ReadDirAsync(_directoryHandle, _cancellationToken);
+
+        _readDirPacket = await _readAhead;
+
         if (_readDirPacket.Length < CountIndex + 4)
         {
-            _entriesRemaining = -1;
+            _entriesRemaining = DirectoryEof;
         }
         else
         {
+            _readAhead = _client.ReadDirAsync(_directoryHandle, _cancellationToken);
             _entriesRemaining = BinaryPrimitives.ReadInt32BigEndian(_readDirPacket.AsSpan(CountIndex));
             _bufferOffset = CountIndex + 4;
         }
