@@ -137,10 +137,10 @@ namespace Tmds.Ssh
                 switch (RequestType, responseType)
                 {
                     case (PacketType.SSH_FXP_OPEN, _):
-                        SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadString()));
+                        SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes()));
                         return;
                     case (PacketType.SSH_FXP_OPENDIR, _):
-                        SetResult(reader.ReadString());
+                        SetResult(reader.ReadStringAsBytes());
                         return;
                     case (PacketType.SSH_FXP_STAT, _):
                     case (PacketType.SSH_FXP_LSTAT, _):
