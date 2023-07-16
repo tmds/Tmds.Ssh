@@ -49,6 +49,15 @@ namespace Tmds.Ssh
                 return value;
             }
 
+            public byte[] ReadStringAsBytes()
+            {
+                int length = ReadInt();
+                byte[] value = new byte[length];
+                _remainder.Slice(0, length).CopyTo(value);
+                _remainder = _remainder.Slice(length);
+                return value;
+            }
+
             public byte ReadByte()
             {
                 byte value = _remainder[0];

@@ -62,7 +62,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private Queue<string>? _pending;
 
-    private string? _directoryHandle;
+    private byte[]? _directoryHandle;
 
     private string? _currentPath;
     private FileAttributes? _currentAttributes;

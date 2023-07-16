@@ -11,7 +11,7 @@ namespace Tmds.Ssh
     public sealed class SftpFile : Stream
     {
         private readonly SftpClient _client;
-        internal string Handle { get; }
+        internal byte[] Handle { get; }
 
         private bool _disposed;
 
@@ -19,7 +19,7 @@ namespace Tmds.Ssh
         // The position is updated at the start of the operation to support concurrent requests.
         private long _position;
 
-        internal SftpFile(SftpClient client, string handle)
+        internal SftpFile(SftpClient client, byte[] handle)
         {
             _client = client;
             Handle = handle;

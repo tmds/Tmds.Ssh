@@ -149,7 +149,7 @@ namespace Tmds.Ssh
                     transform: (ref SftpFileEntry entry) => (new string(entry.Path), entry.GetAttributes()),
                     options ?? DefaultEnumerationOptions);
 
-        internal ValueTask<string> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        internal ValueTask<byte[]> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_OPENDIR;
 
@@ -160,7 +160,7 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+            return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
         }
 
         public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
@@ -191,7 +191,7 @@ namespace Tmds.Ssh
             _ = SendPacketsAsync();
         }
 
-        internal ValueTask<byte[]> ReadDirAsync(string handle, CancellationToken cancellationToken)
+        internal ValueTask<byte[]> ReadDirAsync(byte[] handle, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_READDIR;
 
@@ -332,7 +332,7 @@ namespace Tmds.Ssh
             }
         }
 
-        internal ValueTask<int> ReadFileAsync(string handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
+        internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_READ;
 
@@ -349,7 +349,7 @@ namespace Tmds.Ssh
             return ExecuteAsync<int>(packet, id, pendingOperation, cancellationToken);
         }
 
-        internal ValueTask<FileAttributes> GetAttributesForHandleAsync(string handle, CancellationToken cancellationToken = default)
+        internal ValueTask<FileAttributes> GetAttributesForHandleAsync(byte[] handle, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_FSTAT;
 
@@ -363,7 +363,7 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileAttributes>(packet, id, pendingOperation, cancellationToken);
         }
 
-        internal async ValueTask WriteFileAsync(string handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+        internal async ValueTask WriteFileAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
             while (!buffer.IsEmpty)
             {
@@ -401,7 +401,7 @@ namespace Tmds.Ssh
             }
         }
 
-        internal void CloseFile(string handle)
+        internal void CloseFile(byte[] handle)
         {
             PacketType packetType = PacketType.SSH_FXP_CLOSE;
 
@@ -414,7 +414,7 @@ namespace Tmds.Ssh
             _ = ExecuteAsync(packet, id, pendingOperation: null, cancellationToken: default);
         }
 
-        internal ValueTask CloseFileAsync(string handle, CancellationToken cancellationToken)
+        internal ValueTask CloseFileAsync(byte[] handle, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_CLOSE;
 
