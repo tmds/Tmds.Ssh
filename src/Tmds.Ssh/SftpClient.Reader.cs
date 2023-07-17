@@ -49,6 +49,18 @@ namespace Tmds.Ssh
                 return value;
             }
 
+            public void SkipString()
+            {
+                int length = ReadInt();
+                _remainder = _remainder.Slice(length);
+            }
+
+            public void SkipString(out int length)
+            {
+                length = ReadInt();
+                _remainder = _remainder.Slice(length);
+            }
+
             public byte[] ReadStringAsBytes()
             {
                 int length = ReadInt();

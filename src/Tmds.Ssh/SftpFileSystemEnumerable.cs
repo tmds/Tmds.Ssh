@@ -9,25 +9,6 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh;
 
-// TODO: make non-allocating
-ref struct SftpFileEntry
-{
-    private readonly string _path;
-    private readonly FileAttributes _attributes;
-
-    internal SftpFileEntry(string path, FileAttributes attributes)
-    {
-        _path = path;
-        _attributes = attributes;
-    }
-
-    public ReadOnlySpan<char> Path => _path;
-
-    public FileAttributes GetAttributes() => _attributes;
-}
-
-delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
-
 sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
 {
     private readonly SftpClient _client;
@@ -56,6 +37,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly SftpClient _client;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
+    private readonly char[] _pathBuffer = new char[4096]; // TODO: pool alloc
+    private readonly char[] _nameBuffer = new char[256]; // TODO: pool alloc
 
     private string _path;
     private readonly bool _recurseSubdirectories;
@@ -70,6 +53,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private int _bufferOffset;
     private int _entriesRemaining;
     private ValueTask<byte[]> _readAhead;
+    private T? _current;
 
     public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
@@ -80,16 +64,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _recurseSubdirectories = options.RecurseSubdirectories;
     }
 
-    public T Current
-    {
-        get
-        {
-            var entry = CurrentEntry;
-            return _transform(ref entry);
-        }
-    }
-
-    private SftpFileEntry CurrentEntry => new SftpFileEntry(_currentPath!, _currentAttributes!);
+    public T Current => _current!;
 
     public ValueTask DisposeAsync()
     {
@@ -142,7 +117,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
             if (_pending?.TryDequeue(out string? path) == true)
             {
-                
+
                 _path = path;
             }
             else
@@ -181,31 +156,25 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private bool ReadNextEntry()
     {
-        SftpClient.PacketReader reader = new(_readDirPacket.AsSpan(_bufferOffset));
-        string name = reader.ReadString();
-        _ = reader.ReadString(); // TODO: skip string
-        // Each SSH_FXP_READDIR request returns one or more file names with FULL file attributes for each file.
-        FileAttributes attributes = reader.ReadFileAttributes();
+        SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(_bufferOffset), _pathBuffer, _nameBuffer, out int entryLength);
 
-        // Update offset for the next read.
-        _bufferOffset = _readDirPacket!.Length - reader.Remainder.Length;
+        _bufferOffset += entryLength;
         _entriesRemaining--;
 
-        // Don't return special directories.
-        if (name == "." || name == "..")
+        // Don't return "." and "..".
+        ReadOnlySpan<byte> entryName = entry.NameBytes;
+        if (entryName[0] == '.' && (entryName.Length == 1 || (entryName[1] == '.' && entryName.Length == 2)))
         {
             return false;
         }
 
-        _currentPath = $"{_path}/{name}";
-        _currentAttributes = attributes;
-
-        if (_recurseSubdirectories && attributes.FileType == PosixFileMode.Directory)
+        if (_recurseSubdirectories && entry.FileType == PosixFileMode.Directory)
         {
             _pending ??= new();
-            _pending.Enqueue(_currentPath);
+            _pending.Enqueue(entry.ToPath());
         }
 
+        _current = _transform(ref entry);
         return true;
     }
 }
