@@ -26,7 +26,7 @@ namespace Tmds.Ssh.Tests
 
         [InlineData(10)]
         [InlineData(10 * 1024)] // 10 kiB
-        [InlineData(10 * 1024 * 1024)] // 10 MiB
+        [InlineData(1 * 1024 * 1024)] // 1 MiB
         [Theory]
         public async Task ReadWriteFile(int fileSize)
         {

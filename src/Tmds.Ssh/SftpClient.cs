@@ -144,10 +144,11 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = default)
-            => new SftpFileSystemEnumerable<(string, FileAttributes)>(this, path,
-                    transform: (ref SftpFileEntry entry) => (new string(entry.Path), entry.GetAttributes()),
-                    options ?? DefaultEnumerationOptions);
+        public IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null)
+            => GetDirectoryEntriesAsync<(string, FileAttributes)>(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
+
+        public IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null)
+            => new SftpFileSystemEnumerable<T>(this, path, transform, options ?? DefaultEnumerationOptions);
 
         internal ValueTask<byte[]> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
@@ -246,7 +247,7 @@ namespace Tmds.Ssh
             // Read packet.
             while (totalReceived < totalReceiveLength)
             {
-                Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, _packetBuffer.Length - totalReceived);
+                Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, totalReceiveLength - totalReceived);
                 (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
                 if (type != ChannelReadType.StandardOutput)
                 {
