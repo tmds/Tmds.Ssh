@@ -112,7 +112,6 @@ class SftpClient : IDisposable
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
   ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
-
   
   IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
