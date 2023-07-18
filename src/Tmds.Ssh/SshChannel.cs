@@ -13,6 +13,8 @@ namespace Tmds.Ssh
 {
     class SshChannel : IDisposable
     {
+        private const int MinPacketLength = 32768;
+
         private static readonly Dictionary<IntPtr, SshChannel> s_callbacksToChannel = new();
 
         enum ChannelState
@@ -58,6 +60,10 @@ namespace Tmds.Ssh
         private int _stderrLength;
 
         public int? ExitCode { get; private set; }
+
+        // libssh doesn't have APIs to get these of the channel. Assume the minimum.
+        public int ReceiveMaxPacket => MinPacketLength;
+        public int SendMaxPacket => MinPacketLength - 10; // https://gitlab.com/libssh/libssh-mirror/-/merge_requests/393
 
         internal SshChannel(SshClient session, SshChannelOptions options)
         {
