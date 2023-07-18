@@ -8,6 +8,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Diagnostics;
 
 namespace Tmds.Ssh
 {
@@ -20,7 +21,6 @@ namespace Tmds.Ssh
 
         private readonly SshChannel _channel;
         private byte[]? _packetBuffer;
-        private int _packetBufferLength = 32 * 1024;
         private int _nextId = 5;
         private int GetNextId() => Interlocked.Increment(ref _nextId);
 
@@ -28,6 +28,15 @@ namespace Tmds.Ssh
         {
             _channel = channel;
         }
+
+        internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
+            => _channel.SendMaxPacket
+                - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */
+                - 4 /* handle length */ - handle.Length - 8 /* offset */ - 4 /* data length */;
+
+        internal int MaxReadSize // SSH_FXP_DATA payload
+            => _channel.ReceiveMaxPacket
+                - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
 
         public CancellationToken ClientAborted
             => _channel.ChannelAborted;
@@ -217,7 +226,7 @@ namespace Tmds.Ssh
         {
             if (_packetBuffer is null)
             {
-                _packetBuffer = new byte[_packetBufferLength]; // TODO: rent from shared pool.
+                _packetBuffer = new byte[_channel.ReceiveMaxPacket]; // TODO: rent from shared pool.
             }
             int totalReceived = 0;
 
@@ -235,14 +244,6 @@ namespace Tmds.Ssh
 
             int packetLength = BinaryPrimitives.ReadInt32BigEndian(_packetBuffer);
             int totalReceiveLength = packetLength + 4;
-
-            // Ensure receive buffer can fit packet.
-            if (_packetBuffer!.Length < totalReceiveLength)
-            {
-                _packetBufferLength = totalReceiveLength;
-                _packetBuffer = new byte[totalReceiveLength];
-                BinaryPrimitives.WriteInt32BigEndian(_packetBuffer, packetLength);
-            }
 
             // Read packet.
             while (totalReceived < totalReceiveLength)
@@ -337,6 +338,11 @@ namespace Tmds.Ssh
         {
             PacketType packetType = PacketType.SSH_FXP_READ;
 
+            if (buffer.Length > MaxReadSize)
+            {
+                buffer = buffer.Slice(0, MaxReadSize);
+            }
+
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
             pendingOperation.Buffer = buffer;
@@ -364,42 +370,52 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileAttributes>(packet, id, pendingOperation, cancellationToken);
         }
 
-        internal async ValueTask WriteFileAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+        internal ValueTask WriteFileAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+        {
+            if (buffer.Length <= GetMaxWritePayload(handle))
+            {
+                return WriteFileSingleAsync(handle, offset, buffer, cancellationToken);
+            }
+            else
+            {
+                return WriteFileMultiAsync(handle, offset, buffer, cancellationToken);
+            }
+        }
+
+        private async ValueTask WriteFileMultiAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
         {
             while (!buffer.IsEmpty)
             {
-                /*
-                    TODO: take into account the max packet size of the channel.
+                int writeLength = Math.Min(buffer.Length, GetMaxWritePayload(handle));
 
-                    All servers SHOULD support packets of at
-                    least 34000 bytes (where the packet size refers to the full length,
-                    including the header above).  This should allow for reads and writes
-                    of at most 32768 bytes.
-                */
-                int writeLength = Math.Min(buffer.Length, 32768);
-                ReadOnlyMemory<byte> writeBuffer = buffer.Slice(0, writeLength);
-
-                PacketType packetType = PacketType.SSH_FXP_WRITE;
-
-                int id = GetNextId();
-                PendingOperation pendingOperation = CreatePendingOperation(packetType);
-                pendingOperation.Buffer = MemoryMarshal.AsMemory(writeBuffer);
-
-                Packet packet = new Packet(packetType, payloadSize:
-                                                                4 /* id */
-                                                                + Packet.MaxHandleStringLength
-                                                                + 8 /* offset */
-                                                                + Packet.GetStringLength(writeBuffer.Span));
-                packet.WriteInt(id);
-                packet.WriteString(handle);
-                packet.WriteInt64(offset);
-                packet.WriteString(writeBuffer);
-
-                await ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+                await WriteFileSingleAsync(handle, offset, buffer.Slice(0, writeLength), cancellationToken);
 
                 buffer = buffer.Slice(writeLength);
                 offset += writeLength;
             }
+        }
+
+        internal ValueTask WriteFileSingleAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+        {
+            Debug.Assert(buffer.Length <= GetMaxWritePayload(handle));
+
+            PacketType packetType = PacketType.SSH_FXP_WRITE;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+            pendingOperation.Buffer = MemoryMarshal.AsMemory(buffer);
+
+            Packet packet = new Packet(packetType, payloadSize:
+                                                            4   /* id */
+                                                            + Packet.GetStringLength(handle)
+                                                            + 8 /* offset */
+                                                            + Packet.GetStringLength(buffer.Span));
+            packet.WriteInt(id);
+            packet.WriteString(handle);
+            packet.WriteInt64(offset);
+            packet.WriteString(buffer);
+
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
         internal void CloseFile(byte[] handle)
