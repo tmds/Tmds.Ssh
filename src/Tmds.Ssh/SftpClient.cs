@@ -141,7 +141,7 @@ namespace Tmds.Ssh
 
         public ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
         {
-            PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT ;
+            PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT;
 
             int id = GetNextId();
             PendingOperation pendingOperation = CreatePendingOperation(packetType);
@@ -173,12 +173,66 @@ namespace Tmds.Ssh
             return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default)
+        {
+            // This method doesn't throw if the target directory already exists.
+            // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
+            ValueTask<FileAttributes?> checkExists = GetAttributesAsync(path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
+            ValueTask mkdir = CreateNewDirectoryAsync(path, createParents, cancellationToken);
+
+            try
+            {
+                await mkdir;
+                await IsDirectory(checkExists);
+            }
+            catch (SftpException ex) when (ex.Error == SftpError.Failure)
+            {
+                if (await IsDirectory(checkExists))
+                {
+                    return;
+                }
+
+                throw;
+            }
+
+            async ValueTask<bool> IsDirectory(ValueTask<FileAttributes?> checkExists)
+            {
+                try
+                {
+                    FileAttributes? attributes = await checkExists;
+                    return attributes?.FileType == PosixFileMode.Directory;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default)
+        {
+            if (createParents)
+            {
+                ReadOnlySpan<char> span = path.AsSpan().TrimEnd('/');
+                int offset = 1;
+                int idx = 0;
+                while ((idx = span.Slice(offset).IndexOf('/')) != -1)
+                {
+                    offset += idx;
+                    _ = CreateNewDirectoryAsync(span.Slice(0, offset), awaitable: false);
+                    offset++;
+                }
+            }
+
+            return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
+        }
+
+        private ValueTask CreateNewDirectoryAsync(ReadOnlySpan<char> path, bool awaitable, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_MKDIR;
 
             int id = GetNextId();
-            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+            PendingOperation? pendingOperation = awaitable ? CreatePendingOperation(packetType) : null;
 
             Packet packet = new Packet(packetType);
             packet.WriteInt(id);
