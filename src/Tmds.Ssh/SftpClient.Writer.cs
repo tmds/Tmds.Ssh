@@ -168,7 +168,7 @@ namespace Tmds.Ssh
                 }
             }
 
-            public unsafe void WriteString(string value)
+            public unsafe void WriteString(ReadOnlySpan<char> value)
             {
                 byte[]? poolBuffer = null;
 

@@ -104,7 +104,10 @@ class SftpClient : IDisposable
   // Does not throw if the path did not exist.
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
-  ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
+  // Does not throw if the path is an existing directory, or a link to one.
+  ValueTask CreateDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default);
+  // Throws if the path exists.
+  ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);

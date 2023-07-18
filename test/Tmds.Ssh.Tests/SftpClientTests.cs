@@ -68,7 +68,7 @@ namespace Tmds.Ssh.Tests
             using var sftpClient = await client.CreateSftpClientAsync();
             string path = $"/tmp/{Path.GetRandomFileName()}";
 
-            await sftpClient.CreateDirectoryAsync(path);
+            await sftpClient.CreateNewDirectoryAsync(path);
 
             var attributes = await sftpClient.GetAttributesAsync(path);
             Assert.NotNull(attributes);
@@ -77,6 +77,53 @@ namespace Tmds.Ssh.Tests
             await sftpClient.DeleteDirectoryAsync(path);
             attributes = await sftpClient.GetAttributesAsync(path);
             Assert.Null(attributes);
+        }
+
+        [Fact]
+        public async Task CreateNewDirectoryThrowsIfExists()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync(path);
+
+            await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.CreateNewDirectoryAsync(path));
+        }
+
+        [Fact]
+        public async Task CreateDirectoryDoesntThrowIfExists()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateDirectoryAsync(path);
+
+            await sftpClient.CreateDirectoryAsync(path);
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task CreateDirectoryCreatesParentDirectories(bool createParents)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string path = $"/tmp/{Path.GetRandomFileName()}/child/subchild//";
+
+            if (createParents)
+            {
+                await sftpClient.CreateDirectoryAsync(path, createParents);
+
+                var attributes = await sftpClient.GetAttributesAsync(path);
+                Assert.NotNull(attributes);
+                Assert.Equal(PosixFileMode.Directory, attributes.FileType);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.CreateDirectoryAsync(path, createParents));
+            }
         }
 
         [Fact]
@@ -205,14 +252,14 @@ namespace Tmds.Ssh.Tests
             using var sftpClient = await client.CreateSftpClientAsync();
             string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
 
-            await sftpClient.CreateDirectoryAsync(directoryPath);
+            await sftpClient.CreateNewDirectoryAsync(directoryPath);
 
             const int FileCount = 1024;
             const int DirCount = 512;
 
             for (int i = 0; i < DirCount; i++)
             {
-                await sftpClient.CreateDirectoryAsync($"{directoryPath}/dir{i}");
+                await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/dir{i}");
             }
 
             for (int i = 0; i < FileCount; i++)
@@ -248,12 +295,12 @@ namespace Tmds.Ssh.Tests
             using var sftpClient = await client.CreateSftpClientAsync();
             string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
 
-            await sftpClient.CreateDirectoryAsync(directoryPath);
+            await sftpClient.CreateNewDirectoryAsync(directoryPath);
 
             using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file", FileAccess.Write);
             await file.CloseAsync();
 
-            await sftpClient.CreateDirectoryAsync($"{directoryPath}/childdir");
+            await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/childdir");
 
             using var file2 = await sftpClient.CreateNewFileAsync($"{directoryPath}/childdir/file2", FileAccess.Write);
             await file2.CloseAsync();
