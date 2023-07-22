@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Tmds.Ssh
 {
@@ -16,7 +17,7 @@ namespace Tmds.Ssh
         public DateTimeOffset? LastWriteTime { get; set; } // MTime
         public Dictionary<string, string>? ExtendedAttributes { get; set; }
 
-        public PosixFileMode? FileType => FileMode & (PosixFileMode)0xf000;
-        public PosixFileMode? Permissions => FileMode & (PosixFileMode)0x0fff;
+        public UnixFileType? FileType => (UnixFileType?)(FileMode & (PosixFileMode)0xf000);
+        public UnixFileMode? Permissions => (UnixFileMode?)(FileMode & (PosixFileMode)0x0fff);
     }
 }
