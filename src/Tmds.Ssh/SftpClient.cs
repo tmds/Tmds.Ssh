@@ -21,6 +21,8 @@ namespace Tmds.Ssh
         const uint ProtocolVersion = 3;
 
         private static readonly EnumerationOptions DefaultEnumerationOptions = new();
+        private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
+        private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
 
         private readonly SshChannel _channel;
         private byte[]? _packetBuffer;
@@ -222,7 +224,7 @@ namespace Tmds.Ssh
         {
             if (createParents)
             {
-                ReadOnlySpan<char> span = RemotePath.TrimEndingDirectorySeparator(path);
+                ReadOnlySpan<char> span = RemotePath.TrimEndingDirectorySeparators(path);
                 int offset = 1;
                 int idx = 0;
                 while ((idx = span.Slice(offset).IndexOf(RemotePath.DirectorySeparatorChar)) != -1)
@@ -236,8 +238,12 @@ namespace Tmds.Ssh
             return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
         }
 
-        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, bool overwrite, CancellationToken cancellationToken = default)
+        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options = null, CancellationToken cancellationToken = default)
         {
+            options ??= DefaultUploadEntriesOptions;
+            bool overwrite = options.Overwrite;
+            bool recurse = options.RecurseSubdirectories;
+
             localDirectory = Path.GetFullPath(localDirectory);
             int trimLocalDirectory = localDirectory.Length;
             if (!LocalPath.EndsInDirectorySeparator(localDirectory))
@@ -263,7 +269,7 @@ namespace Tmds.Ssh
                             },
                             new System.IO.EnumerationOptions()
                             {
-                                RecurseSubdirectories = true
+                                RecurseSubdirectories = recurse
                             });
 
             byte[] buffer = ArrayPool<byte>.Shared.Rent(_channel.SendMaxPacket);
@@ -314,8 +320,12 @@ namespace Tmds.Ssh
             }
         }
 
-        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, bool overwrite, CancellationToken cancellationToken = default)
+        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options = null, CancellationToken cancellationToken = default)
         {
+            options ??= DefaultDownloadEntriesOptions;
+            bool overwrite = options.Overwrite;
+            bool recurse = options.RecurseSubdirectories;
+
             int trimRemoteDirectory = remoteDirectory.Length;
             if (!LocalPath.EndsInDirectorySeparator(remoteDirectory))
             {

@@ -118,7 +118,7 @@ namespace Tmds.Ssh.Tests
 
                 var attributes = await sftpClient.GetAttributesAsync(path);
                 Assert.NotNull(attributes);
-                Assert.Equal(PosixFileMode.Directory, attributes.FileType);
+                Assert.Equal(UnixFileType.Directory, attributes.FileType);
             }
             else
             {
@@ -271,14 +271,14 @@ namespace Tmds.Ssh.Tests
             var entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath).ToListAsync();
             Assert.Equal(entries.Count, FileCount + DirCount);
 
-            var fileEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.RegularFile).ToList();
+            var fileEntries = entries.Where(e => e.Attributes.FileType == UnixFileType.RegularFile).ToList();
             Assert.Equal(fileEntries.Count, FileCount);
             foreach (var file in fileEntries)
             {
                 Assert.StartsWith($"{directoryPath}/file", file.Path);
             }
 
-            var dirEntries = entries.Where(e => e.Attributes.FileType == PosixFileMode.Directory).ToList();
+            var dirEntries = entries.Where(e => e.Attributes.FileType == UnixFileType.Directory).ToList();
             Assert.Equal(dirEntries.Count, DirCount);
             foreach (var dir in dirEntries)
             {

@@ -56,7 +56,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
         _client = client;
-        _path = RemotePath.TrimEndingDirectorySeparator(path);
+        _path = RemotePath.TrimEndingDirectorySeparators(path);
         _transform = transform;
         _cancellationToken = cancellationToken;
         _recurseSubdirectories = options.RecurseSubdirectories;
