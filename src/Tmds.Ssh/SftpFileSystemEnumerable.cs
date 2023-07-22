@@ -37,8 +37,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly SftpClient _client;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
-    private readonly char[] _pathBuffer = new char[4096]; // TODO: pool alloc
-    private readonly char[] _nameBuffer = new char[256]; // TODO: pool alloc
+    private readonly char[] _pathBuffer = new char[RemotePath.MaxPathLength]; // TODO: pool alloc
+    private readonly char[] _nameBuffer = new char[RemotePath.MaxNameLength]; // TODO: pool alloc
 
     private string _path;
     private readonly bool _recurseSubdirectories;
@@ -47,8 +47,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private byte[]? _directoryHandle;
 
-    private string? _currentPath;
-    private FileAttributes? _currentAttributes;
     private byte[]? _readDirPacket;
     private int _bufferOffset;
     private int _entriesRemaining;
@@ -58,7 +56,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
         _client = client;
-        _path = path.TrimEnd('/');
+        _path = RemotePath.TrimEndingDirectorySeparators(path);
         _transform = transform;
         _cancellationToken = cancellationToken;
         _recurseSubdirectories = options.RecurseSubdirectories;
@@ -168,7 +166,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             return false;
         }
 
-        if (_recurseSubdirectories && entry.FileType == PosixFileMode.Directory)
+        if (_recurseSubdirectories && entry.FileType == UnixFileType.Directory)
         {
             _pending ??= new();
             _pending.Enqueue(entry.ToPath());

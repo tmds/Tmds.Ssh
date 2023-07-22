@@ -9,6 +9,9 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.IO;
 using System.Diagnostics;
+using System.Buffers;
+using System.IO.Enumeration;
+using System.Text;
 
 namespace Tmds.Ssh
 {
@@ -18,6 +21,8 @@ namespace Tmds.Ssh
         const uint ProtocolVersion = 3;
 
         private static readonly EnumerationOptions DefaultEnumerationOptions = new();
+        private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
+        private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
 
         private readonly SshChannel _channel;
         private byte[]? _packetBuffer;
@@ -34,7 +39,7 @@ namespace Tmds.Ssh
                 - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */
                 - 4 /* handle length */ - handle.Length - 8 /* offset */ - 4 /* data length */;
 
-        internal int MaxReadSize // SSH_FXP_DATA payload
+        internal int MaxReadPayload // SSH_FXP_DATA payload
             => _channel.ReceiveMaxPacket
                 - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
 
@@ -173,7 +178,10 @@ namespace Tmds.Ssh
             return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default)
+        public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
+            => CreateDirectoryAsync(path, createParents: false, cancellationToken);
+
+        public async ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
         {
             // This method doesn't throw if the target directory already exists.
             // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
@@ -200,7 +208,7 @@ namespace Tmds.Ssh
                 try
                 {
                     FileAttributes? attributes = await checkExists;
-                    return attributes?.FileType == PosixFileMode.Directory;
+                    return attributes?.FileType == UnixFileType.Directory;
                 }
                 catch
                 {
@@ -209,14 +217,17 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default)
+        public ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default)
+            => CreateNewDirectoryAsync(path, createParents: false, cancellationToken);
+
+        public ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
         {
             if (createParents)
             {
-                ReadOnlySpan<char> span = path.AsSpan().TrimEnd('/');
+                ReadOnlySpan<char> span = RemotePath.TrimEndingDirectorySeparators(path);
                 int offset = 1;
                 int idx = 0;
-                while ((idx = span.Slice(offset).IndexOf('/')) != -1)
+                while ((idx = span.Slice(offset).IndexOf(RemotePath.DirectorySeparatorChar)) != -1)
                 {
                     offset += idx;
                     _ = CreateNewDirectoryAsync(span.Slice(0, offset), awaitable: false);
@@ -225,6 +236,167 @@ namespace Tmds.Ssh
             }
 
             return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
+        }
+
+        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            options ??= DefaultUploadEntriesOptions;
+            bool overwrite = options.Overwrite;
+            bool recurse = options.RecurseSubdirectories;
+
+            localDirectory = Path.GetFullPath(localDirectory);
+            int trimLocalDirectory = localDirectory.Length;
+            if (!LocalPath.EndsInDirectorySeparator(localDirectory))
+            {
+                trimLocalDirectory++;
+            }
+            remoteDirectory = RemotePath.EnsureTrailingSeparator(remoteDirectory);
+
+            char[] pathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
+            var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirectory,
+                            (ref FileSystemEntry entry) =>
+                            {
+                                string localPath = entry.ToFullPath();
+                                using ValueStringBuilder remotePathBuilder = new(pathBuffer);
+                                remotePathBuilder.Append(remoteDirectory);
+                                remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
+                                var attributes = entry.Attributes;
+                                UnixFileType mode = (attributes & System.IO.FileAttributes.ReparsePoint) != 0 ? UnixFileType.SymbolicLink :
+                                                    (attributes & System.IO.FileAttributes.Directory) != 0    ? UnixFileType.Directory :
+                                                                                                                UnixFileType.RegularFile;
+                                long length = entry.Length;
+                                return (localPath, remotePathBuilder.ToString(), mode, length);
+                            },
+                            new System.IO.EnumerationOptions()
+                            {
+                                RecurseSubdirectories = recurse
+                            });
+
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(_channel.SendMaxPacket);
+            try
+            {
+                foreach (var item in fse)
+                {
+                    switch (item.Type)
+                    {
+                        case UnixFileType.Directory:
+                            if (overwrite)
+                            {
+                                await CreateDirectoryAsync(item.RemotePath, cancellationToken);
+                            }
+                            else
+                            {
+                                await CreateNewDirectoryAsync(item.RemotePath, cancellationToken);
+                            }
+                            break;
+                        case UnixFileType.RegularFile:
+                            {
+                                using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(item.RemotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
+                                                                      : await CreateNewFileAsync(item.RemotePath, FileAccess.Write, cancellationToken);
+
+                                using FileStream localFile = new FileStream(item.LocalPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
+                                int bytesRead;
+                                do
+                                {
+                                    bytesRead = localFile.Read(buffer.AsSpan(0, GetMaxWritePayload(remoteFile.Handle)));
+                                    if (bytesRead != 0)
+                                    {
+                                        await remoteFile.WriteAsync(buffer.AsMemory(0, bytesRead));
+                                    }
+                                } while (bytesRead != 0);
+                            }
+                            break;
+                        case UnixFileType.SymbolicLink:
+                            throw new NotImplementedException($"{item.Type}"); // TODO
+                        default:
+                            break;
+                    }
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                ArrayPool<char>.Shared.Return(pathBuffer);
+            }
+        }
+
+        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            options ??= DefaultDownloadEntriesOptions;
+            bool overwrite = options.Overwrite;
+            bool recurse = options.RecurseSubdirectories;
+
+            int trimRemoteDirectory = remoteDirectory.Length;
+            if (!LocalPath.EndsInDirectorySeparator(remoteDirectory))
+            {
+                trimRemoteDirectory++;
+            }
+            localDirectory = LocalPath.EnsureTrailingSeparator(localDirectory);
+
+            char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
+            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(remoteDirectory,
+                (ref SftpFileEntry entry) =>
+                {
+                    string remotePath = entry.ToPath();
+                    using ValueStringBuilder localPathBuilder = new(pathBuffer);
+                    localPathBuilder.Append(localDirectory);
+                    localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
+                    return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Length);
+                },
+                new EnumerationOptions() { RecurseSubdirectories = recurse });
+
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(MaxReadPayload);
+            try
+            {
+                await foreach (var item in fse.WithCancellation(cancellationToken))
+                {
+                    switch (item.Type)
+                    {
+                        case UnixFileType.Directory:
+                            bool exists = Directory.Exists(item.LocalPath);
+                            if (!overwrite && exists)
+                            {
+                                throw new IOException($"Directory '{item.LocalPath}' already exists.");
+                            }
+                            if (!exists)
+                            {
+                                Directory.CreateDirectory(item.LocalPath);
+                            }
+                            break;
+                        case UnixFileType.RegularFile:
+                            {
+                                using SftpFile? remoteFile = await OpenFileAsync(item.RemotePath, FileAccess.Read, cancellationToken);
+                                if (remoteFile is null)
+                                {
+                                    continue;
+                                }
+
+                                using FileStream localFile = new FileStream(item.LocalPath, overwrite ? FileMode.Create : FileMode.CreateNew,
+                                    FileAccess.Write, FileShare.None, bufferSize: 0);
+
+                                int bytesRead;
+                                do
+                                {
+                                    bytesRead = await remoteFile.ReadAsync(buffer, cancellationToken);
+                                    if (bytesRead != 0)
+                                    {
+                                        localFile.Write(buffer.AsSpan(0, bytesRead));
+                                    }
+                                } while (bytesRead != 0);
+                            }
+                            break;
+                        case UnixFileType.SymbolicLink:
+                            throw new NotImplementedException($"{item.Type}"); // TODO
+                        default:
+                            break;
+                    }
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                ArrayPool<char>.Shared.Return(pathBuffer);
+            }
         }
 
         private ValueTask CreateNewDirectoryAsync(ReadOnlySpan<char> path, bool awaitable, CancellationToken cancellationToken = default)
@@ -392,9 +564,9 @@ namespace Tmds.Ssh
         {
             PacketType packetType = PacketType.SSH_FXP_READ;
 
-            if (buffer.Length > MaxReadSize)
+            if (buffer.Length > MaxReadPayload)
             {
-                buffer = buffer.Slice(0, MaxReadSize);
+                buffer = buffer.Slice(0, MaxReadPayload);
             }
 
             int id = GetNextId();

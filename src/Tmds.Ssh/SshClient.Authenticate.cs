@@ -61,7 +61,7 @@ namespace Tmds.Ssh
             if (s_defaultCredentials == null)
             {
                 List<Credential> credentials = new();
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify);
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
                 credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_ed25519")));
                 credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_ecdsa")));
                 credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_rsa")));

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace Tmds.Ssh;
@@ -43,7 +44,7 @@ public ref struct SftpFileEntry
                 _directoryPath.AsSpan().CopyTo(_pathBuffer);
                 int length = _directoryPath.Length;
 
-                _pathBuffer[length] = '/';
+                _pathBuffer[length] = RemotePath.DirectorySeparatorChar;
                 length++;
 
                 ReadOnlySpan<char> filename = FileName;
@@ -90,8 +91,8 @@ public ref struct SftpFileEntry
     public string ToPath()
         => _path ??= new string(Path);
 
-    public PosixFileMode FileType => FileMode & (PosixFileMode)0xf000;
-    public PosixFileMode Permissions => FileMode & (PosixFileMode)0x0fff;
+    public UnixFileType FileType => (UnixFileType)(FileMode & (PosixFileMode)0xf000);
+    public UnixFileMode Permissions => (UnixFileMode)(FileMode & (PosixFileMode)0x0fff);
 
     internal ReadOnlySpan<byte> NameBytes => _entry.Slice(4, _nameByteLength);
 
