@@ -372,7 +372,6 @@ namespace Tmds.Ssh.Tests
                 // Download
                 Directory.CreateDirectory(destinationPath);
                 await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath);
-                System.Console.WriteLine(destinationPath);
 
                 // Verify the download matches the source directory that was uploaded.
                 byte[] buffer2 = new byte[PacketSize * 2];

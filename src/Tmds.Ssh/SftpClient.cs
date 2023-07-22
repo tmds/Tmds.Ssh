@@ -343,7 +343,7 @@ namespace Tmds.Ssh
                     localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
                     return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Length);
                 },
-                new EnumerationOptions() { RecurseSubdirectories = true });
+                new EnumerationOptions() { RecurseSubdirectories = recurse });
 
             byte[] buffer = ArrayPool<byte>.Shared.Rent(MaxReadPayload);
             try
