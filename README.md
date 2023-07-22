@@ -105,9 +105,11 @@ class SftpClient : IDisposable
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
   // Does not throw if the path is an existing directory, or a link to one.
-  ValueTask CreateDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default);
+  ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
+  ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
   // Throws if the path exists.
-  ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, CancellationToken cancellationToken = default);
+  ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default);
+  ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
@@ -118,6 +120,9 @@ class SftpClient : IDisposable
   
   IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
+
+  ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options = null, CancellationToken cancellationToken = default)
 }
 class SftpFile : Stream
 {
@@ -158,6 +163,16 @@ enum OpenMode
     Append,
     Truncate
 }
+enum UnixFileType
+{
+    RegularFile,
+    Directory,
+    SymbolicLink,
+    CharacterDevice,
+    BlockDevice,
+    Socket,
+    Fifo,
+}
 class FileAttributes
 {
     long? Length { get; set; }
@@ -168,12 +183,17 @@ class FileAttributes
     DateTimeOffset? LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
 
-    PosixFileMode? FileType { get; }
-    PosixFileMode? Permissions { get; }
+    UnixFileType? FileType { get; }
+    UnixFileMode? Permissions { get; }
 }
 class EnumerationOptions
 {
-    bool RecurseSubdirectories { get; set; }
+    bool RecurseSubdirectories { get; set; } = false;
+}
+class DownloadEntriesOptions
+{
+    bool Overwrite { get; set; } = false;
+    bool RecurseSubdirectories { get; set; } = true;
 }
 delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
 ref struct SftpFileEntry
@@ -182,8 +202,8 @@ ref struct SftpFileEntry
     int Uid { get; }
     int Gid { get; }
     PosixFileMode FileMode { get; }
-    PosixFileMode FileType { get; }
-    PosixFileMode Permissions { get; }
+    UnixFileType FileType { get; }
+    UnixFileMode Permissions { get; }
     DateTimeOffset LastAccessTime { get; }
     DateTimeOffset LastWriteTime { get; }
     ReadOnlySpan<char> Path { get; }
