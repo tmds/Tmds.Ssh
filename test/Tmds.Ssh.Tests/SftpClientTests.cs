@@ -62,7 +62,7 @@ namespace Tmds.Ssh.Tests
         }
 
         [Fact]
-        public async Task Directory()
+        public async Task CreateDeleteDirectory()
         {
             using var client = await _sshServer.CreateClientAsync();
             using var sftpClient = await client.CreateSftpClientAsync();
@@ -332,6 +332,77 @@ namespace Tmds.Ssh.Tests
             var options = new EnumerationOptions();
 
             Assert.False(options.RecurseSubdirectories);
+        }
+
+        [Fact]
+        public async Task UploadDownloadDirectory()
+        {
+            const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            string destinationPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+            try
+            {
+                // Create a local directory and populate it with files.
+                string childDirPath = Path.Combine(sourcePath, "childdir");
+                Directory.CreateDirectory(childDirPath);
+                byte[] buffer = new byte[PacketSize * 2];
+                foreach (bool inChild in new[] { false, true })
+                {
+                    for (int i = 0; i < 128; i++)
+                    {
+                        using FileStream fs = new FileStream(Path.Combine(inChild ? childDirPath : sourcePath, $"file{i}"),
+                                                FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 0);
+
+                        // create files with random bytes that are sent in one or two packets.
+                        int length = PacketSize - PacketSize / 2 + Random.Shared.Next(PacketSize);
+                        Random.Shared.NextBytes(buffer.AsSpan(0, length));
+                        fs.Write(buffer.AsSpan(0, length));
+                    }
+                }
+
+                // Upload
+                string remoteDirPath = $"/tmp/{Path.GetRandomFileName()}";
+                await sftpClient.CreateNewDirectoryAsync(remoteDirPath);
+                await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath);
+
+                // Download
+                Directory.CreateDirectory(destinationPath);
+                await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath);
+                System.Console.WriteLine(destinationPath);
+
+                // Verify the download matches the source directory that was uploaded.
+                byte[] buffer2 = new byte[PacketSize * 2];
+                string[] sourceFiles = Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories);
+                foreach (var sourceFile in sourceFiles)
+                {
+                    string destinationFile = Path.Join(destinationPath, sourceFile.Substring(sourcePath.Length));
+                    using FileStream src = File.OpenRead(sourceFile);
+                    using FileStream dst = File.OpenRead(destinationFile);
+                    int length = (int)src.Length;
+                    Assert.Equal(length, dst.Length);
+                    src.ReadAtLeast(buffer, length);
+                    dst.ReadAtLeast(buffer2, length);
+                    Assert.True(buffer.AsSpan(0, length).SequenceEqual(buffer2.AsSpan(0, length)));
+                }
+                string[] destinationFiles = Directory.GetFiles(destinationPath, "*", SearchOption.AllDirectories);
+                Assert.Equal(sourceFiles.Length, destinationFiles.Length);
+            }
+            finally
+            {
+                foreach (string dir in new[] { sourcePath, destinationPath })
+                {
+                    try
+                    {
+                        Directory.Delete(dir, true);
+                    }
+                    catch
+                    { }
+                }
+            }
         }
     }
 }
