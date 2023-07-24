@@ -12,6 +12,7 @@ using System.Diagnostics;
 using System.Buffers;
 using System.IO.Enumeration;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Tmds.Ssh
 {
@@ -19,6 +20,11 @@ namespace Tmds.Ssh
     {
         // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
         const uint ProtocolVersion = 3;
+
+        const int MaxConcurrentOperations = 64;
+        // Limit the number of buffers allocated for copying.
+        // An onGoing ValueTask may allocate multiple buffers.
+        const int MaxConcurrentBuffers = 64;
 
         private static readonly EnumerationOptions DefaultEnumerationOptions = new();
         private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
@@ -272,39 +278,30 @@ namespace Tmds.Ssh
                                 RecurseSubdirectories = recurse
                             });
 
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(_channel.SendMaxPacket);
+            var onGoing = new Queue<ValueTask>();
+            var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
             try
             {
                 foreach (var item in fse)
                 {
+                    if (onGoing.Count == MaxConcurrentOperations)
+                    {
+                        await onGoing.Dequeue();
+                    }
                     switch (item.Type)
                     {
                         case UnixFileType.Directory:
                             if (overwrite)
                             {
-                                await CreateDirectoryAsync(item.RemotePath, cancellationToken);
+                                onGoing.Enqueue(CreateDirectoryAsync(item.RemotePath, cancellationToken));
                             }
                             else
                             {
-                                await CreateNewDirectoryAsync(item.RemotePath, cancellationToken);
+                                onGoing.Enqueue(CreateNewDirectoryAsync(item.RemotePath, cancellationToken));
                             }
                             break;
                         case UnixFileType.RegularFile:
-                            {
-                                using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(item.RemotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
-                                                                      : await CreateNewFileAsync(item.RemotePath, FileAccess.Write, cancellationToken);
-
-                                using FileStream localFile = new FileStream(item.LocalPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
-                                int bytesRead;
-                                do
-                                {
-                                    bytesRead = localFile.Read(buffer.AsSpan(0, GetMaxWritePayload(remoteFile.Handle)));
-                                    if (bytesRead != 0)
-                                    {
-                                        await remoteFile.WriteAsync(buffer.AsMemory(0, bytesRead));
-                                    }
-                                } while (bytesRead != 0);
-                            }
+                            onGoing.Enqueue(CopyFile(item.LocalPath, item.RemotePath, item.Length, overwrite));
                             break;
                         case UnixFileType.SymbolicLink:
                             throw new NotImplementedException($"{item.Type}"); // TODO
@@ -312,11 +309,75 @@ namespace Tmds.Ssh
                             break;
                     }
                 }
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    await pending;
+                }
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    try
+                    {
+                        await pending;
+                    }
+                    catch
+                    { }
+                }
                 ArrayPool<char>.Shared.Return(pathBuffer);
+            }
+
+            async ValueTask CopyFile(string localPath, string remotePath, long length, bool overwrite)
+            {
+                using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(remotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
+                                                      : await CreateNewFileAsync(remotePath, FileAccess.Write, cancellationToken);
+
+                using SafeFileHandle localFile = File.OpenHandle(localPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+                ValueTask previous = default;
+
+                for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
+                {
+                    // Obtain a buffer before starting the copy to ensure we're not competing
+                    // for buffers with the previous copy.
+                    await bufferSemaphore.WaitAsync(cancellationToken);
+                    previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+                }
+
+                await previous;
+
+                await remoteFile.CloseAsync(cancellationToken);
+
+                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+                {
+                    byte[]? buffer = null;
+                    try
+                    {
+                        buffer = ArrayPool<byte>.Shared.Rent(length);
+                        do
+                        {
+                            int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
+                            if (bytesRead == 0)
+                            {
+                                break;
+                            }
+                            await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken);
+                            length -= bytesRead;
+                            offset += bytesRead;
+                        } while (length > 0);
+
+                        await previousCopy;
+                    }
+                    finally
+                    {
+                        if (buffer != null)
+                        {
+                            ArrayPool<byte>.Shared.Return(buffer);
+                        }
+                        bufferSemaphore.Release();
+                    }
+                }
             }
         }
 
@@ -345,11 +406,16 @@ namespace Tmds.Ssh
                 },
                 new EnumerationOptions() { RecurseSubdirectories = recurse });
 
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(MaxReadPayload);
+            var onGoing = new Queue<ValueTask>();
+            var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
             try
             {
                 await foreach (var item in fse.WithCancellation(cancellationToken))
                 {
+                    if (onGoing.Count == MaxConcurrentOperations)
+                    {
+                        await onGoing.Dequeue();
+                    }
                     switch (item.Type)
                     {
                         case UnixFileType.Directory:
@@ -364,26 +430,7 @@ namespace Tmds.Ssh
                             }
                             break;
                         case UnixFileType.RegularFile:
-                            {
-                                using SftpFile? remoteFile = await OpenFileAsync(item.RemotePath, FileAccess.Read, cancellationToken);
-                                if (remoteFile is null)
-                                {
-                                    continue;
-                                }
-
-                                using FileStream localFile = new FileStream(item.LocalPath, overwrite ? FileMode.Create : FileMode.CreateNew,
-                                    FileAccess.Write, FileShare.None, bufferSize: 0);
-
-                                int bytesRead;
-                                do
-                                {
-                                    bytesRead = await remoteFile.ReadAsync(buffer, cancellationToken);
-                                    if (bytesRead != 0)
-                                    {
-                                        localFile.Write(buffer.AsSpan(0, bytesRead));
-                                    }
-                                } while (bytesRead != 0);
-                            }
+                            onGoing.Enqueue(CopyFile(item.RemotePath, item.LocalPath, item.Length, overwrite));
                             break;
                         case UnixFileType.SymbolicLink:
                             throw new NotImplementedException($"{item.Type}"); // TODO
@@ -391,11 +438,79 @@ namespace Tmds.Ssh
                             break;
                     }
                 }
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    await pending;
+                }
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    try
+                    {
+                        await pending;
+                    }
+                    catch
+                    { }
+                }
                 ArrayPool<char>.Shared.Return(pathBuffer);
+            }
+
+            async ValueTask CopyFile(string remotePath, string localPath, long length, bool overwrite)
+            {
+                using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken);
+                if (remoteFile is null)
+                {
+                    return;
+                }
+
+                using SafeFileHandle localFile = File.OpenHandle(localPath, overwrite ? FileMode.Create : FileMode.CreateNew,
+                                                                 FileAccess.Write, FileShare.None);
+
+                ValueTask previous = default;
+
+                for (long offset = 0; offset < length; offset += MaxReadPayload)
+                {
+                    // Obtain a buffer before starting the copy to ensure we're not competing
+                    // for buffers with the previous copy.
+                    await bufferSemaphore.WaitAsync(cancellationToken);
+                    previous = CopyBuffer(previous, offset, MaxReadPayload);
+                }
+
+                await previous;
+
+                await remoteFile.CloseAsync(cancellationToken);
+
+                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+                {
+                    byte[]? buffer = null;
+                    try
+                    {
+                        buffer = ArrayPool<byte>.Shared.Rent(length);
+                        do
+                        {
+                            int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken);
+                            if (bytesRead == 0)
+                            {
+                                break;
+                            }
+                            RandomAccess.Write(localFile, buffer.AsSpan(0, bytesRead), offset);
+                            length -= bytesRead;
+                            offset += bytesRead;
+                        } while (length > 0);
+
+                        await previousCopy;
+                    }
+                    finally
+                    {
+                        if (buffer != null)
+                        {
+                            ArrayPool<byte>.Shared.Return(buffer);
+                        }
+                        bufferSemaphore.Release();
+                    }
+                }
             }
         }
 

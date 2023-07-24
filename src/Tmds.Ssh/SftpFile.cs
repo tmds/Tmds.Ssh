@@ -68,12 +68,21 @@ namespace Tmds.Ssh
             int bytesRead = 0;
             try
             {
-                return bytesRead = await _client.ReadFileAsync(Handle, readOffset, buffer, cancellationToken);
+                bytesRead = await _client.ReadFileAsync(Handle, readOffset, buffer, cancellationToken);
+
+                return bytesRead;
             }
             finally
             {
                 Interlocked.Add(ref _position, bytesRead - buffer.Length);
             }
+        }
+
+        public ValueTask<int> ReadAtAsync(byte[] buffer, long offset, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+
+            return _client.ReadFileAsync(Handle, offset, buffer, cancellationToken);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -96,6 +105,13 @@ namespace Tmds.Ssh
                 Interlocked.Add(ref _position, -buffer.Length);
                 throw;
             }
+        }
+
+        public ValueTask WriteAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+
+            return _client.WriteFileAsync(Handle, offset, buffer, cancellationToken);
         }
 
         public ValueTask<FileAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
