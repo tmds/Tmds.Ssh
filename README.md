@@ -128,6 +128,10 @@ class SftpFile : Stream
 {
   ValueTask<FileAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
 
+  // Read/write at an offset. This does NOT update the offset tracked by the instance.
+  ValueTask WriteAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default);
+  ValueTask<int> ReadAtAsync(byte[] buffer, long offset, CancellationToken cancellationToken = default);
+
   ValueTask CloseAsync(CancellationToken cancellationToken = default);
 }
 class SshClientSettings
