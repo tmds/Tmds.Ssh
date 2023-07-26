@@ -347,30 +347,22 @@ namespace Tmds.Ssh
             }
         }
 
-        public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, bool disposeStreams = true, CancellationToken cancellationToken = default)
+        public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken cancellationToken = default)
         {
             ReadMode readMode = stdoutStream is null && stderrStream is null ? ReadMode.Exited : ReadMode.ReadBytes;
             CheckReadMode(readMode);
 
-            try
+            await ReadToEndAsync(stdoutStream != null ? writeToStream : null, stdoutStream,
+                                 stderrStream != null ? writeToStream : null, stderrStream,
+                                 cancellationToken).ConfigureAwait(false);
+
+            if (stdoutStream != null)
             {
-                await ReadToEndAsync(stdoutStream != null ? writeToStream : null, stdoutStream,
-                                     stderrStream != null ? writeToStream : null, stderrStream,
-                                     cancellationToken).ConfigureAwait(false);
+                await stdoutStream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
-            finally
+            if (stderrStream != null && stderrStream != stdoutStream)
             {
-                if (disposeStreams)
-                {
-                    if (stdoutStream != null)
-                    {
-                        await stdoutStream.DisposeAsync().ConfigureAwait(false);
-                    }
-                    if (stderrStream != null)
-                    {
-                        await stderrStream.DisposeAsync().ConfigureAwait(false);
-                    }
-                }
+                await stderrStream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
             static async ValueTask writeToStream(Memory<byte> buffer, object? context, CancellationToken ct)
