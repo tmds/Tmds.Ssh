@@ -31,6 +31,11 @@ namespace Tmds.Ssh
         private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
 
         private readonly SshChannel _channel;
+
+        // Limits the number of buffers concurrently used for uploading/downloading.
+        private readonly SemaphoreSlim s_downloadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
+        private readonly SemaphoreSlim s_uploadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
+
         private byte[]? _packetBuffer;
         private int _nextId = 5;
         private int GetNextId() => Interlocked.Increment(ref _nextId);
@@ -244,7 +249,10 @@ namespace Tmds.Ssh
             return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
         }
 
-        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options = null, CancellationToken cancellationToken = default)
+        public ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, CancellationToken cancellationToken = default)
+            => UploadDirectoryEntriesAsync(localDirectory, remoteDirectory, options: null, cancellationToken);
+
+        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
         {
             options ??= DefaultUploadEntriesOptions;
             bool overwrite = options.Overwrite;
@@ -301,7 +309,7 @@ namespace Tmds.Ssh
                             }
                             break;
                         case UnixFileType.RegularFile:
-                            onGoing.Enqueue(CopyFile(item.LocalPath, item.RemotePath, item.Length, overwrite));
+                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
                             throw new NotImplementedException($"{item.Type}"); // TODO
@@ -327,61 +335,72 @@ namespace Tmds.Ssh
                 }
                 ArrayPool<char>.Shared.Return(pathBuffer);
             }
+        }
 
-            async ValueTask CopyFile(string localPath, string remotePath, long length, bool overwrite)
+        public ValueTask UploadFileAsync(string localPath, string remotePath, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localPath, remotePath, overwrite: false, cancellationToken);
+
+        public ValueTask UploadFileAsync(string localPath, string remotePath, bool overwrite, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localPath, remotePath, length: null, overwrite, cancellationToken);
+
+        private async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, CancellationToken cancellationToken)
+        {
+            using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(remotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
+                                                    : await CreateNewFileAsync(remotePath, FileAccess.Write, cancellationToken);
+
+            using SafeFileHandle localFile = File.OpenHandle(localPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            length ??= RandomAccess.GetLength(localFile);
+
+            ValueTask previous = default;
+
+            for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
             {
-                using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(remotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
-                                                      : await CreateNewFileAsync(remotePath, FileAccess.Write, cancellationToken);
+                // Obtain a buffer before starting the copy to ensure we're not competing
+                // for buffers with the previous copy.
+                await s_uploadBufferSemaphore.WaitAsync(cancellationToken);
+                previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+            }
 
-                using SafeFileHandle localFile = File.OpenHandle(localPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await previous;
 
-                ValueTask previous = default;
+            await remoteFile.CloseAsync(cancellationToken);
 
-                for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
+            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+            {
+                byte[]? buffer = null;
+                try
                 {
-                    // Obtain a buffer before starting the copy to ensure we're not competing
-                    // for buffers with the previous copy.
-                    await bufferSemaphore.WaitAsync(cancellationToken);
-                    previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
-                }
-
-                await previous;
-
-                await remoteFile.CloseAsync(cancellationToken);
-
-                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
-                {
-                    byte[]? buffer = null;
-                    try
+                    buffer = ArrayPool<byte>.Shared.Rent(length);
+                    do
                     {
-                        buffer = ArrayPool<byte>.Shared.Rent(length);
-                        do
+                        int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
+                        if (bytesRead == 0)
                         {
-                            int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
-                            if (bytesRead == 0)
-                            {
-                                break;
-                            }
-                            await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken);
-                            length -= bytesRead;
-                            offset += bytesRead;
-                        } while (length > 0);
-
-                        await previousCopy;
-                    }
-                    finally
-                    {
-                        if (buffer != null)
-                        {
-                            ArrayPool<byte>.Shared.Return(buffer);
+                            break;
                         }
-                        bufferSemaphore.Release();
+                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken);
+                        length -= bytesRead;
+                        offset += bytesRead;
+                    } while (length > 0);
+
+                    await previousCopy;
+                }
+                finally
+                {
+                    if (buffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
                     }
+                    s_uploadBufferSemaphore.Release();
                 }
             }
         }
 
-        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options = null, CancellationToken cancellationToken = default)
+        public ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, CancellationToken cancellationToken = default)
+            => DownloadDirectoryEntriesAsync(remoteDirectory, localDirectory, options: null, cancellationToken);
+
+        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
         {
             options ??= DefaultDownloadEntriesOptions;
             bool overwrite = options.Overwrite;
@@ -407,7 +426,6 @@ namespace Tmds.Ssh
                 new EnumerationOptions() { RecurseSubdirectories = recurse });
 
             var onGoing = new Queue<ValueTask>();
-            var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
             try
             {
                 await foreach (var item in fse.WithCancellation(cancellationToken))
@@ -430,7 +448,7 @@ namespace Tmds.Ssh
                             }
                             break;
                         case UnixFileType.RegularFile:
-                            onGoing.Enqueue(CopyFile(item.RemotePath, item.LocalPath, item.Length, overwrite));
+                            onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
                             throw new NotImplementedException($"{item.Type}"); // TODO
@@ -456,60 +474,71 @@ namespace Tmds.Ssh
                 }
                 ArrayPool<char>.Shared.Return(pathBuffer);
             }
+        }
 
-            async ValueTask CopyFile(string remotePath, string localPath, long length, bool overwrite)
+        public ValueTask DownloadFileAsync(string remotePath, string localPath, CancellationToken cancellationToken = default)
+            => DownloadFileAsync(remotePath, localPath, overwrite: false, cancellationToken);
+
+        public ValueTask DownloadFileAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken = default)
+            => DownloadFileAsync(remotePath, localPath, length: null, overwrite, cancellationToken);
+
+        private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, CancellationToken cancellationToken)
+        {
+            using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken);
+            if (remoteFile is null)
             {
-                using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken);
-                if (remoteFile is null)
+                return;
+            }
+
+            using SafeFileHandle localFile = File.OpenHandle(localPath, overwrite ? FileMode.Create : FileMode.CreateNew,
+                                                                FileAccess.Write, FileShare.None);
+
+            ValueTask<FileAttributes> getAttributes = length == null ? remoteFile.GetAttributesAsync() : default;
+
+            await s_downloadBufferSemaphore.WaitAsync(cancellationToken);
+            ValueTask previous = CopyBuffer(default, offset: 0, MaxReadPayload);
+
+            length ??= (await getAttributes).Length;
+
+            for (long offset = MaxReadPayload; offset < length; offset += MaxReadPayload)
+            {
+                // Obtain a buffer before starting the copy to ensure we're not competing
+                // for buffers with the previous copy.
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken);
+                previous = CopyBuffer(previous, offset, MaxReadPayload);
+            }
+
+            await previous;
+
+            await remoteFile.CloseAsync(cancellationToken);
+
+            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+            {
+                byte[]? buffer = null;
+                try
                 {
-                    return;
-                }
-
-                using SafeFileHandle localFile = File.OpenHandle(localPath, overwrite ? FileMode.Create : FileMode.CreateNew,
-                                                                 FileAccess.Write, FileShare.None);
-
-                ValueTask previous = default;
-
-                for (long offset = 0; offset < length; offset += MaxReadPayload)
-                {
-                    // Obtain a buffer before starting the copy to ensure we're not competing
-                    // for buffers with the previous copy.
-                    await bufferSemaphore.WaitAsync(cancellationToken);
-                    previous = CopyBuffer(previous, offset, MaxReadPayload);
-                }
-
-                await previous;
-
-                await remoteFile.CloseAsync(cancellationToken);
-
-                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
-                {
-                    byte[]? buffer = null;
-                    try
+                    buffer = ArrayPool<byte>.Shared.Rent(length);
+                    do
                     {
-                        buffer = ArrayPool<byte>.Shared.Rent(length);
-                        do
+                        int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken);
+                        if (bytesRead == 0)
                         {
-                            int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken);
-                            if (bytesRead == 0)
-                            {
-                                break;
-                            }
-                            RandomAccess.Write(localFile, buffer.AsSpan(0, bytesRead), offset);
-                            length -= bytesRead;
-                            offset += bytesRead;
-                        } while (length > 0);
-
-                        await previousCopy;
-                    }
-                    finally
-                    {
-                        if (buffer != null)
-                        {
-                            ArrayPool<byte>.Shared.Return(buffer);
+                            break;
                         }
-                        bufferSemaphore.Release();
+                        RandomAccess.Write(localFile, buffer.AsSpan(0, bytesRead), offset);
+                        length -= bytesRead;
+                        offset += bytesRead;
+                    } while (length > 0);
+
+                    await previousCopy;
+                }
+                finally
+                {
+                    if (buffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
                     }
+                    s_downloadBufferSemaphore.Release();
                 }
             }
         }

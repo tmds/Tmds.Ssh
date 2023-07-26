@@ -9,20 +9,18 @@ if (args.Length < 2)
 Location source = Location.Parse(args[0]);
 Location destination = Location.Parse(args[1]);
 
-if (source.IsLocal == destination.IsLocal)
+if (source.IsLocal == true && destination.IsLocal == true)
 {
-    if (source.IsLocal)
-    {
-        Console.Error.WriteLine("Cannot copy between local directories.");
-    }
-    else
-    {
-        Console.Error.WriteLine("Cannot copy between remote directories.");
-    }
+    Console.Error.WriteLine("Cannot perform local copies.");
+    return 1;
+}
+if (source.IsLocal == false && destination.IsLocal == false)
+{
+    Console.Error.WriteLine("Cannot perform remote copies.");
     return 1;
 }
 
-string sshDestination = source.SshDestination ?? destination.SshDestination;
+string sshDestination = source.SshDestination ?? destination.SshDestination!;
 
 using SshClient client = new SshClient(sshDestination);
 
@@ -32,13 +30,41 @@ using SftpClient sftpClient = await client.CreateSftpClientAsync();
 
 if (source.IsLocal)
 {
-    await sftpClient.CreateDirectoryAsync(destination.Path);
-    await sftpClient.UploadDirectoryEntriesAsync(source.Path, destination.Path);
+    bool isDirectory = Directory.Exists(source.Path);
+
+    if (isDirectory)
+    {
+        await sftpClient.CreateDirectoryAsync(destination.Path);
+        await sftpClient.UploadDirectoryEntriesAsync(source.Path, destination.Path);
+    }
+    else
+    {
+        await sftpClient.UploadFileAsync(source.Path, destination.Path);
+    }
 }
 else
 {
-    Directory.CreateDirectory(destination.Path);
-    await sftpClient.DownloadDirectoryEntriesAsync(source.Path, destination.Path);
+    var attributes = await sftpClient.GetAttributesAsync(source.Path, followLinks: true);
+    if (attributes is null)
+    {
+        Console.Error.WriteLine($"Source '{source.Path}' is not found.");
+        return 1;
+    }
+
+    switch (attributes.FileType)
+    {
+        case UnixFileType.Directory:
+            Directory.CreateDirectory(destination.Path);
+            await sftpClient.DownloadDirectoryEntriesAsync(source.Path, destination.Path);
+            break;
+        case UnixFileType.RegularFile:
+            await sftpClient.DownloadFileAsync(source.Path, destination.Path);
+            break;
+        default:
+            Console.Error.WriteLine($"Cannot copy file of type {attributes.FileType}.");
+            return 1;
+
+    }
 }
 
 return 0;
@@ -46,8 +72,8 @@ return 0;
 sealed class Location
 {
     public bool IsLocal => SshDestination is null;
-    public string? SshDestination { get; init; }
-    public string Path { get; init; }
+    public required string? SshDestination { get; init; }
+    public required string Path { get; init; }
 
     public static Location Parse(string value)
     {

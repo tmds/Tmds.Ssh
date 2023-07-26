@@ -121,8 +121,15 @@ class SftpClient : IDisposable
   IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
-  ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options = null, CancellationToken cancellationToken = default);
-  ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options = null, CancellationToken cancellationToken = default)
+  ValueTask UploadFileAsync(string localPath, string remotePath, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(string localPath, string remotePath, bool overwrite, CancellationToken cancellationToken = default);
+  ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, CancellationToken cancellationToken = default);
+  ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options, CancellationToken cancellationToken = default);
+
+  ValueTask DownloadFileAsync(string remotePath, string localPath, CancellationToken cancellationToken = default);
+  ValueTask DownloadFileAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken = default);
+  ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, CancellationToken cancellationToken = default);
+  ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {

@@ -10,6 +10,8 @@ namespace Tmds.Ssh.Tests
     [Collection(nameof(SshServerCollection))]
     public class SftpClientTests
     {
+        const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
+
         private readonly SshServer _sshServer;
 
         public SftpClientTests(SshServer sshServer)
@@ -26,7 +28,7 @@ namespace Tmds.Ssh.Tests
 
         [InlineData(10)]
         [InlineData(10 * 1024)] // 10 kiB
-        [InlineData(1 * 1024 * 1024)] // 1 MiB
+        [InlineData(2 * PacketSize + 1024)]
         [Theory]
         public async Task ReadWriteFile(int fileSize)
         {
@@ -337,7 +339,6 @@ namespace Tmds.Ssh.Tests
         [Fact]
         public async Task UploadDownloadDirectory()
         {
-            const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
             using var client = await _sshServer.CreateClientAsync();
             using var sftpClient = await client.CreateSftpClientAsync();
 
@@ -397,6 +398,53 @@ namespace Tmds.Ssh.Tests
                     try
                     {
                         Directory.Delete(dir, true);
+                    }
+                    catch
+                    { }
+                }
+            }
+        }
+
+        [InlineData(0)]
+        [InlineData(10)]
+        [InlineData(2 * PacketSize + 1024)]
+        public async Task UploadDownloadFile(int fileSize)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            string destinationPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+            try
+            {
+                byte[] buffer = new byte[fileSize];
+                using FileStream fs = new FileStream(sourcePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 0);
+                Random.Shared.NextBytes(buffer);
+                fs.Write(buffer);
+
+                // Upload
+                string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+                await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remotePath);
+
+                // Download
+                await sftpClient.DownloadDirectoryEntriesAsync(remotePath, destinationPath);
+
+                // Verify the downloaded file matches the source file that was uploaded.
+                using FileStream dst = File.OpenRead(destinationPath);
+                int length = (int)dst.Length;
+                Assert.Equal(fileSize, length);
+                byte[] buffer2 = new byte[fileSize];
+                dst.ReadAtLeast(buffer2, length);
+                Assert.True(buffer.AsSpan(0, length).SequenceEqual(buffer2.AsSpan(0, length)));
+            }
+            finally
+            {
+                foreach (string dir in new[] { sourcePath, destinationPath })
+                {
+                    try
+                    {
+                        File.Delete(dir);
                     }
                     catch
                     { }
