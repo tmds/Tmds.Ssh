@@ -155,7 +155,7 @@ namespace Tmds.Ssh
             return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
-        public ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+        public ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
         {
             PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT;
 
@@ -166,11 +166,11 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync<FileAttributes?>(packet, id, pendingOperation, cancellationToken);
+            return ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null)
-            => GetDirectoryEntriesAsync<(string, FileAttributes)>(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
+        public IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null)
+            => GetDirectoryEntriesAsync<(string, FileEntryAttributes)>(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
 
         public IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null)
             => new SftpFileSystemEnumerable<T>(this, path, transform, options ?? DefaultEnumerationOptions);
@@ -196,7 +196,7 @@ namespace Tmds.Ssh
         {
             // This method doesn't throw if the target directory already exists.
             // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
-            ValueTask<FileAttributes?> checkExists = GetAttributesAsync(path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
+            ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
             ValueTask mkdir = CreateNewDirectoryAsync(path, createParents, cancellationToken);
 
             try
@@ -214,11 +214,11 @@ namespace Tmds.Ssh
                 throw;
             }
 
-            async ValueTask<bool> IsDirectory(ValueTask<FileAttributes?> checkExists)
+            async ValueTask<bool> IsDirectory(ValueTask<FileEntryAttributes?> checkExists)
             {
                 try
                 {
-                    FileAttributes? attributes = await checkExists;
+                    FileEntryAttributes? attributes = await checkExists;
                     return attributes?.FileType == UnixFileType.Directory;
                 }
                 catch
@@ -275,8 +275,8 @@ namespace Tmds.Ssh
                                 remotePathBuilder.Append(remoteDirectory);
                                 remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
                                 var attributes = entry.Attributes;
-                                UnixFileType mode = (attributes & System.IO.FileAttributes.ReparsePoint) != 0 ? UnixFileType.SymbolicLink :
-                                                    (attributes & System.IO.FileAttributes.Directory) != 0    ? UnixFileType.Directory :
+                                UnixFileType mode = (attributes & FileAttributes.ReparsePoint) != 0 ? UnixFileType.SymbolicLink :
+                                                    (attributes & FileAttributes.Directory) != 0    ? UnixFileType.Directory :
                                                                                                                 UnixFileType.RegularFile;
                                 long length = entry.Length;
                                 return (localPath, remotePathBuilder.ToString(), mode, length);
@@ -493,7 +493,7 @@ namespace Tmds.Ssh
             using SafeFileHandle localFile = File.OpenHandle(localPath, overwrite ? FileMode.Create : FileMode.CreateNew,
                                                                 FileAccess.Write, FileShare.None);
 
-            ValueTask<FileAttributes> getAttributes = length == null ? remoteFile.GetAttributesAsync() : default;
+            ValueTask<FileEntryAttributes> getAttributes = length == null ? remoteFile.GetAttributesAsync() : default;
 
             await s_downloadBufferSemaphore.WaitAsync(cancellationToken);
             ValueTask previous = CopyBuffer(default, offset: 0, MaxReadPayload);
@@ -726,7 +726,7 @@ namespace Tmds.Ssh
             return ExecuteAsync<int>(packet, id, pendingOperation, cancellationToken);
         }
 
-        internal ValueTask<FileAttributes> GetAttributesForHandleAsync(byte[] handle, CancellationToken cancellationToken = default)
+        internal ValueTask<FileEntryAttributes> GetAttributesForHandleAsync(byte[] handle, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_FSTAT;
 
@@ -737,7 +737,7 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(handle);
 
-            return ExecuteAsync<FileAttributes>(packet, id, pendingOperation, cancellationToken);
+            return ExecuteAsync<FileEntryAttributes>(packet, id, pendingOperation, cancellationToken);
         }
 
         internal ValueTask WriteFileAsync(byte[] handle, long offset, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)

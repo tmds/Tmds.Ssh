@@ -73,7 +73,7 @@ namespace Tmds.Ssh
                 _length += 8;
             }
 
-            public void WriteAttributes(FileAttributes? attributes)
+            public void WriteAttributes(FileEntryAttributes? attributes)
             {
                 if (attributes is null)
                 {

@@ -116,9 +116,9 @@ class SftpClient : IDisposable
 
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
-  ValueTask<FileAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
+  ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
   
-  IAsyncEnumerable<(string Path, FileAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
+  IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default);
@@ -133,7 +133,7 @@ class SftpClient : IDisposable
 }
 class SftpFile : Stream
 {
-  ValueTask<FileAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
+  ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
 
   // Read/write at an offset. This does NOT update the offset tracked by the instance.
   ValueTask WriteAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default);
@@ -184,7 +184,7 @@ enum UnixFileType
     Socket,
     Fifo,
 }
-class FileAttributes
+class FileEntryAttributes
 {
     long? Length { get; set; }
     int? Uid { get; set; }
@@ -220,7 +220,7 @@ ref struct SftpFileEntry
     ReadOnlySpan<char> Path { get; }
     ReadOnlySpan<char> FileName { get; }
 
-    FileAttributes ToAttributes();
+    FileEntryAttributes ToAttributes();
     string ToPath()
 }
 [Flags]

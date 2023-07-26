@@ -7,7 +7,7 @@ using System.IO;
 
 namespace Tmds.Ssh
 {
-    public sealed class FileAttributes
+    public sealed class FileEntryAttributes
     {
         public long? Length { get; set; }
         public int? Uid { get; set; }

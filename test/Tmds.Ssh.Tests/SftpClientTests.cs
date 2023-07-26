@@ -193,7 +193,7 @@ namespace Tmds.Ssh.Tests
             attributes = await sftpClient.GetAttributesAsync(path);
             CheckFileAttributes(attributes);
 
-            void CheckFileAttributes(FileAttributes? attributes)
+            void CheckFileAttributes(FileEntryAttributes? attributes)
             {
                 Assert.NotNull(attributes);
                 Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
@@ -307,7 +307,7 @@ namespace Tmds.Ssh.Tests
             using var file2 = await sftpClient.CreateNewFileAsync($"{directoryPath}/childdir/file2", FileAccess.Write);
             await file2.CloseAsync();
 
-            List<(string Path, FileAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath, new EnumerationOptions() { RecurseSubdirectories = recurse }).ToListAsync();
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath, new EnumerationOptions() { RecurseSubdirectories = recurse }).ToListAsync();
 
             if (recurse == true)
             {
