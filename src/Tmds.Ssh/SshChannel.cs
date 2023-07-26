@@ -98,7 +98,25 @@ namespace Tmds.Ssh
 
                 s_callbacksToChannel.Add(_channel_callbacks, this);
             }
-            _handle = ssh_channel_new(_client.SshHandle);
+            bool releaseRef = false;
+            try
+            {
+                // A ChannelHandle holds a reference to the SessionHandle
+                // to ensure the session can't be free-ed before the channel.
+                bool refAdded = false;
+                _client.SshHandle.DangerousAddRef(ref refAdded);
+                releaseRef = refAdded;
+                _handle = ssh_channel_new(_client.SshHandle);
+                _handle.SessionHandle = _client.SshHandle;
+                releaseRef = false; // ref will be released by ChannelHandle.
+            }
+            finally
+            {
+                if (releaseRef)
+                {
+                    _client.SshHandle.DangerousRelease();
+                }
+            }
             ssh_set_channel_callbacks(_handle, pCallbacks);
             var tcs = _openTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

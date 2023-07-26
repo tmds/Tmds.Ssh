@@ -12,9 +12,12 @@ namespace Tmds.Ssh
 
         public override bool IsInvalid => handle == IntPtr.Zero;
 
+        internal SessionHandle? SessionHandle { get; set; }
+
         protected override bool ReleaseHandle()
         {
             Interop.ssh_channel_free(handle);
+            SessionHandle?.DangerousRelease();
             return true;
         }
     }
