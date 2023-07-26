@@ -337,11 +337,11 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask UploadFileAsync(string localPath, string remotePath, CancellationToken cancellationToken = default)
-            => UploadFileAsync(localPath, remotePath, overwrite: false, cancellationToken);
+        public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, cancellationToken);
 
-        public ValueTask UploadFileAsync(string localPath, string remotePath, bool overwrite, CancellationToken cancellationToken = default)
-            => UploadFileAsync(localPath, remotePath, length: null, overwrite, cancellationToken);
+        public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, cancellationToken);
 
         private async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, CancellationToken cancellationToken)
         {
@@ -476,11 +476,11 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask DownloadFileAsync(string remotePath, string localPath, CancellationToken cancellationToken = default)
-            => DownloadFileAsync(remotePath, localPath, overwrite: false, cancellationToken);
+        public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken = default)
+            => DownloadFileAsync(remoteFilePath, localFilePath, overwrite: false, cancellationToken);
 
-        public ValueTask DownloadFileAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken = default)
-            => DownloadFileAsync(remotePath, localPath, length: null, overwrite, cancellationToken);
+        public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite, CancellationToken cancellationToken = default)
+            => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, cancellationToken);
 
         private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, CancellationToken cancellationToken)
         {
