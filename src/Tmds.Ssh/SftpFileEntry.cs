@@ -26,7 +26,7 @@ public ref struct SftpFileEntry
     private int _nameByteLength;
     private int _pathLength = 0;
     private int _nameLength = 0;
-    private FileAttributes? _attributes;
+    private FileEntryAttributes? _attributes;
     private string? _path;
 
     public long Length { get; }
@@ -69,9 +69,9 @@ public ref struct SftpFileEntry
             return _nameBuffer.AsSpan(0, _nameLength);
         }
     }
-    public FileAttributes ToAttributes()
+    public FileEntryAttributes ToAttributes()
         => _attributes ??=
-            new FileAttributes()
+            new FileEntryAttributes()
             {
                 Length = this.Length,
                 Uid = this.Uid,

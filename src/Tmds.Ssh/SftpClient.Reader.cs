@@ -77,10 +77,10 @@ namespace Tmds.Ssh
                 return value;
             }
 
-            public FileAttributes ReadFileAttributes()
-                => ReadFileAttributes(new FileAttributes());
+            public FileEntryAttributes ReadFileAttributes()
+                => ReadFileAttributes(new FileEntryAttributes());
 
-            public FileAttributes ReadFileAttributes(FileAttributes attributes)
+            public FileEntryAttributes ReadFileAttributes(FileEntryAttributes attributes)
             {
                 long? length = default;
                 int? uid = default;

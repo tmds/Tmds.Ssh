@@ -114,7 +114,7 @@ namespace Tmds.Ssh
             return _client.WriteFileAsync(Handle, offset, buffer, cancellationToken);
         }
 
-        public ValueTask<FileAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
+        public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
