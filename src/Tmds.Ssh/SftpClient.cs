@@ -62,25 +62,25 @@ namespace Tmds.Ssh
             _channel.Dispose();
         }
 
-        public ValueTask<SftpFile> OpenOrCreateFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default)
-            => OpenOrCreateFileAsync(filename, access, OpenMode.None, cancellationToken);
+        public ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
+            => OpenOrCreateFileAsync(path, access, OpenMode.None, cancellationToken);
 
-        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(filename, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), cancellationToken)
+        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), cancellationToken)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
-        public ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default)
-            => CreateNewFileAsync(filename, access, OpenMode.None, cancellationToken);
+        public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
+            => CreateNewFileAsync(path, access, OpenMode.None, cancellationToken);
 
-        public async ValueTask<SftpFile> CreateNewFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(filename, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), cancellationToken)
+        public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), cancellationToken)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
-        public ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, CancellationToken cancellationToken = default)
-            => OpenFileAsync(filename, access, OpenMode.None, cancellationToken);
+        public ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
+            => OpenFileAsync(path, access, OpenMode.None, cancellationToken);
 
-        public async ValueTask<SftpFile?> OpenFileAsync(string filename, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(filename, GetOpenFlags(SftpOpenFlags.Open, access, mode), cancellationToken);
+        public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), cancellationToken);
 
         private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode mode)
         {
@@ -96,7 +96,7 @@ namespace Tmds.Ssh
             return flags;
         }
 
-        private ValueTask<SftpFile?> OpenFileCoreAsync(string filename, SftpOpenFlags flags, CancellationToken cancellationToken = default)
+        private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
@@ -105,7 +105,7 @@ namespace Tmds.Ssh
 
             Packet packet = new Packet(packetType);
             packet.WriteInt(id);
-            packet.WriteString(filename);
+            packet.WriteString(path);
             packet.WriteUInt((uint)flags);
             packet.WriteAttributes(null);
 
@@ -249,30 +249,30 @@ namespace Tmds.Ssh
             return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
         }
 
-        public ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, CancellationToken cancellationToken = default)
-            => UploadDirectoryEntriesAsync(localDirectory, remoteDirectory, options: null, cancellationToken);
+        public ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default)
+            => UploadDirectoryEntriesAsync(localDirPath, remoteDirPath, options: null, cancellationToken);
 
-        public async ValueTask UploadDirectoryEntriesAsync(string localDirectory, string remoteDirectory, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
+        public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
         {
             options ??= DefaultUploadEntriesOptions;
             bool overwrite = options.Overwrite;
             bool recurse = options.RecurseSubdirectories;
 
-            localDirectory = Path.GetFullPath(localDirectory);
-            int trimLocalDirectory = localDirectory.Length;
-            if (!LocalPath.EndsInDirectorySeparator(localDirectory))
+            localDirPath = Path.GetFullPath(localDirPath);
+            int trimLocalDirectory = localDirPath.Length;
+            if (!LocalPath.EndsInDirectorySeparator(localDirPath))
             {
                 trimLocalDirectory++;
             }
-            remoteDirectory = RemotePath.EnsureTrailingSeparator(remoteDirectory);
+            remoteDirPath = RemotePath.EnsureTrailingSeparator(remoteDirPath);
 
             char[] pathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
-            var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirectory,
+            var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirPath,
                             (ref FileSystemEntry entry) =>
                             {
                                 string localPath = entry.ToFullPath();
                                 using ValueStringBuilder remotePathBuilder = new(pathBuffer);
-                                remotePathBuilder.Append(remoteDirectory);
+                                remotePathBuilder.Append(remoteDirPath);
                                 remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
                                 var attributes = entry.Attributes;
                                 UnixFileType mode = (attributes & FileAttributes.ReparsePoint) != 0 ? UnixFileType.SymbolicLink :
@@ -397,29 +397,29 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, CancellationToken cancellationToken = default)
-            => DownloadDirectoryEntriesAsync(remoteDirectory, localDirectory, options: null, cancellationToken);
+        public ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, CancellationToken cancellationToken = default)
+            => DownloadDirectoryEntriesAsync(remoteDirPath, localDirPath, options: null, cancellationToken);
 
-        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirectory, string localDirectory, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
+        public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
         {
             options ??= DefaultDownloadEntriesOptions;
             bool overwrite = options.Overwrite;
             bool recurse = options.RecurseSubdirectories;
 
-            int trimRemoteDirectory = remoteDirectory.Length;
-            if (!LocalPath.EndsInDirectorySeparator(remoteDirectory))
+            int trimRemoteDirectory = remoteDirPath.Length;
+            if (!LocalPath.EndsInDirectorySeparator(remoteDirPath))
             {
                 trimRemoteDirectory++;
             }
-            localDirectory = LocalPath.EnsureTrailingSeparator(localDirectory);
+            localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
 
             char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
-            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(remoteDirectory,
+            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(remoteDirPath,
                 (ref SftpFileEntry entry) =>
                 {
                     string remotePath = entry.ToPath();
                     using ValueStringBuilder localPathBuilder = new(pathBuffer);
-                    localPathBuilder.Append(localDirectory);
+                    localPathBuilder.Append(localDirPath);
                     localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
                     return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Length);
                 },
