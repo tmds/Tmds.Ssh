@@ -271,17 +271,17 @@ namespace Tmds.Ssh.Tests
             }
 
             var entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath).ToListAsync();
-            Assert.Equal(entries.Count, FileCount + DirCount);
+            Assert.Equal(FileCount + DirCount, entries.Count);
 
             var fileEntries = entries.Where(e => e.Attributes.FileType == UnixFileType.RegularFile).ToList();
-            Assert.Equal(fileEntries.Count, FileCount);
+            Assert.Equal(FileCount, fileEntries.Count);
             foreach (var file in fileEntries)
             {
                 Assert.StartsWith($"{directoryPath}/file", file.Path);
             }
 
             var dirEntries = entries.Where(e => e.Attributes.FileType == UnixFileType.Directory).ToList();
-            Assert.Equal(dirEntries.Count, DirCount);
+            Assert.Equal(DirCount, dirEntries.Count);
             foreach (var dir in dirEntries)
             {
                 Assert.StartsWith($"{directoryPath}/dir", dir.Path);
@@ -408,6 +408,7 @@ namespace Tmds.Ssh.Tests
         [InlineData(0)]
         [InlineData(10)]
         [InlineData(2 * PacketSize + 1024)]
+        [Theory]
         public async Task UploadDownloadFile(int fileSize)
         {
             using var client = await _sshServer.CreateClientAsync();
@@ -422,13 +423,14 @@ namespace Tmds.Ssh.Tests
                 using FileStream fs = new FileStream(sourcePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 0);
                 Random.Shared.NextBytes(buffer);
                 fs.Write(buffer);
+                fs.Dispose();
 
                 // Upload
                 string remotePath = $"/tmp/{Path.GetRandomFileName()}";
-                await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remotePath);
+                await sftpClient.UploadFileAsync(sourcePath, remotePath);
 
                 // Download
-                await sftpClient.DownloadDirectoryEntriesAsync(remotePath, destinationPath);
+                await sftpClient.DownloadFileAsync(remotePath, destinationPath);
 
                 // Verify the downloaded file matches the source file that was uploaded.
                 using FileStream dst = File.OpenRead(destinationPath);
