@@ -169,6 +169,53 @@ namespace Tmds.Ssh
             return ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken);
         }
 
+        public ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)
+        {
+            PacketType packetType = PacketType.SSH_FXP_READLINK;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(linkPath);
+
+            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+        }
+
+        public ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
+            => CreateSymbolicLinkAsync(linkPath, targetPath, overwrite: false, cancellationToken);
+
+        private ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken = default)
+        {
+            int id;
+            Packet packet;
+
+            if (overwrite)
+            {
+                id = GetNextId();
+
+                packet = new Packet(PacketType.SSH_FXP_REMOVE);
+                packet.WriteInt(id);
+                packet.WriteString(linkPath);
+
+                _ = ExecuteAsync(packet, id, pendingOperation: null, cancellationToken: default);
+            }
+
+            PacketType packetType = PacketType.SSH_FXP_SYMLINK;
+
+            id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            packet = new Packet(packetType);
+            packet.WriteInt(id);
+            // ... OpenSSH has these arguments swapped: https://bugzilla.mindrot.org/show_bug.cgi?id=861
+            packet.WriteString(targetPath);
+            packet.WriteString(linkPath);
+
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+        }
+
         public IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null)
             => GetDirectoryEntriesAsync<(string, FileEntryAttributes)>(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
 
@@ -312,7 +359,18 @@ namespace Tmds.Ssh
                             onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
-                            throw new NotImplementedException($"{item.Type}"); // TODO
+                            FileInfo file = new FileInfo(item.LocalPath);
+                            string? targetPath = file.LinkTarget;
+                            if (targetPath is null)
+                            {
+                                throw new IOException($"Can not determine link target path of '{item.LocalPath}'.");
+                            }
+                            if (OperatingSystem.IsWindows())
+                            {
+                                targetPath = targetPath.Replace('\\', '/');
+                            }
+                            onGoing.Enqueue(CreateSymbolicLinkAsync(item.RemotePath, targetPath, overwrite, cancellationToken));
+                            break;
                         default:
                             break;
                     }
@@ -451,7 +509,8 @@ namespace Tmds.Ssh
                             onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
-                            throw new NotImplementedException($"{item.Type}"); // TODO
+                            onGoing.Enqueue(DownloadLinkAsync(item.RemotePath, item.LocalPath, overwrite, cancellationToken));
+                            break;
                         default:
                             break;
                     }
@@ -474,6 +533,23 @@ namespace Tmds.Ssh
                 }
                 ArrayPool<char>.Shared.Return(pathBuffer);
             }
+        }
+
+        private async ValueTask DownloadLinkAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
+        {
+            bool exists = Path.Exists(localPath);
+            if (!overwrite && exists)
+            {
+                throw new IOException($"The file '{localPath}' already exists.");
+            }
+
+            // note: the remote server is expected to return a path that has forward slashes, also when that server runs on Windows.
+            string targetPath = await GetLinkTargetAsync(remotePath, cancellationToken);
+            if (exists)
+            {
+                File.Delete(localPath);
+            }
+            File.CreateSymbolicLink(localPath, targetPath);
         }
 
         public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken = default)
