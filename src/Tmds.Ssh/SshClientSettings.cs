@@ -17,6 +17,15 @@ namespace Tmds.Ssh
         public SshClientSettings()
         { }
 
+        public SshClientSettings(string destination)
+        {
+            if (destination is null)
+            {
+                throw new ArgumentNullException(nameof(destination));
+            }
+            ConfigureForDestination(destination);
+        }
+
         internal void ConfigureForDestination(string destination)
         {
             string host = destination;
