@@ -67,10 +67,10 @@ class RemoteProcess : IDisposable
 
   // Write to the remote process.
   ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) { }
-  Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  Task WriteAsync(string value, CancellationToken cancellationToken = default) { }
-  Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  Task WriteLineAsync(string? value, CancellationToken cancellationToken = default) { }
+  ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
+  ValueTask WriteAsync(string value, CancellationToken cancellationToken = default) { }
+  ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
+  ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default) { }
   Stream StandardInputStream { get; }
   StreamWriter StandardInputWriter { get; }
 
