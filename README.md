@@ -139,8 +139,8 @@ class SftpFile : Stream
   ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
 
   // Read/write at an offset. This does NOT update the offset tracked by the instance.
-  ValueTask WriteAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default);
-  ValueTask<int> ReadAtAsync(byte[] buffer, long offset, CancellationToken cancellationToken = default);
+  ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default);
+  ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default);
 
   ValueTask CloseAsync(CancellationToken cancellationToken = default);
 }
@@ -206,6 +206,11 @@ class EnumerationOptions
     bool RecurseSubdirectories { get; set; } = false;
 }
 class DownloadEntriesOptions
+{
+    bool Overwrite { get; set; } = false;
+    bool RecurseSubdirectories { get; set; } = true;
+}
+class UploadEntriesOptions
 {
     bool Overwrite { get; set; } = false;
     bool RecurseSubdirectories { get; set; } = true;
