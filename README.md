@@ -148,7 +148,7 @@ class SshClientSettings
 {
   SshClientSettings() { }
   SshClientSettings(string destination) { }
-  string? KnownHostsFile { get; set; }
+  string? KnownHostsFilePath { get; set; }
   TimeSpan ConnectTimeout { get; set; }
   string UserName { get; set; }
   string Host { get; set; }
@@ -277,8 +277,8 @@ abstract class Credential
 { }
 class PrivateKeyFileCredential : Credential
 {
-  PrivateKeyFileCredential(string path) { }
-  string path { get; }
+  PrivateKeyFileCredential(string filePath) { }
+  string FilePath { get; }
 }
 // Base class.
 class SshException : Exception
