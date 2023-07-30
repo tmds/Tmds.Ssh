@@ -237,7 +237,7 @@ namespace Tmds.Ssh
             return _channel.WriteAsync(buffer, cancellationToken);
         }
 
-        public async Task WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
         {
             var writer = StandardInputWriter;
             var autoFlush = writer.AutoFlush;
@@ -263,7 +263,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task WriteLineAsync(ReadOnlyMemory<char> buffer = default, CancellationToken cancellationToken = default)
+        public async ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer = default, CancellationToken cancellationToken = default)
         {
             var writer = StandardInputWriter;
             var autoFlush = writer.AutoFlush;
@@ -289,10 +289,10 @@ namespace Tmds.Ssh
             }
         }
 
-        public Task WriteAsync(string value, CancellationToken cancellationToken = default)
+        public ValueTask WriteAsync(string value, CancellationToken cancellationToken = default)
             => WriteAsync(value.AsMemory(), cancellationToken);
 
-        public Task WriteLineAsync(string? value, CancellationToken cancellationToken = default)
+        public ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default)
             => WriteLineAsync(value != null ? value.AsMemory() : default, cancellationToken);
 
         public Stream StandardInputStream
