@@ -78,7 +78,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask<int> ReadAtAsync(byte[] buffer, long offset, CancellationToken cancellationToken = default)
+        public ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
@@ -107,7 +107,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask WriteAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
+        public ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
