@@ -161,6 +161,10 @@ namespace Tmds.Ssh
 
                         SetIntResult(count);
                         return;
+                    case (PacketType.SSH_FXP_READLINK, _):
+                        reader.ReadInt(); // skip count, which should be '1'
+                        SetResult(reader.ReadString());
+                        return;
                     case (PacketType.SSH_FXP_REMOVE, _):
                     case (PacketType.SSH_FXP_RMDIR, _):
                         SetResult(null!);

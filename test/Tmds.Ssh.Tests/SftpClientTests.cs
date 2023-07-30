@@ -453,5 +453,44 @@ namespace Tmds.Ssh.Tests
                 }
             }
         }
+
+        [Fact]
+        public async Task ReadCreateLink()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string linkPath = $"/tmp/{Path.GetRandomFileName()}";
+            string contentOfLink = "link_content";
+
+            await sftpClient.CreateSymbolicLinkAsync(linkPath, contentOfLink);
+
+            Assert.Equal(contentOfLink, await sftpClient.GetLinkTargetAsync(linkPath));
+        }
+
+        [Fact]
+        public async Task DownloadUploadLink()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(sourceDir);
+            string linkName = "link";
+            string contentOfLink = "link_content";
+            File.CreateSymbolicLink(Path.Combine(sourceDir, linkName), contentOfLink);
+
+            string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.CreateNewDirectoryAsync(remoteDir);
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir);
+
+            Assert.Equal(contentOfLink, await sftpClient.GetLinkTargetAsync($"{remoteDir}/{linkName}"));
+
+            string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(dstDir);
+            await sftpClient.DownloadDirectoryEntriesAsync(remoteDir, dstDir);
+
+            Assert.Equal(contentOfLink, new FileInfo(Path.Combine(dstDir, linkName)).LinkTarget);
+        }
     }
 }

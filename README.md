@@ -130,6 +130,9 @@ class SftpClient : IDisposable
   ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default);
+
+  ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default);
+  ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {
