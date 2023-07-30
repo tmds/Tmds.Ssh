@@ -88,30 +88,13 @@ namespace Tmds.Ssh
             }
         }
 
+        public SshClient(string destination)
+            : this(new SshClientSettings(destination))
+        {}
+
         public SshClient(SshClientSettings clientSettings)
-            : this(clientSettings, null, null, requireDestination: false)
-        {}
-
-        public SshClient(string destination, Action<SshClientSettings>? configure = null)
-            : this(new SshClientSettings(), destination, configure, requireDestination: true)
-        {}
-
-        private SshClient(SshClientSettings clientSettings, string? destination, Action<SshClientSettings>? configure, bool requireDestination)
         {
-            if (requireDestination)
-            {
-                if (destination is null)
-                {
-                    throw new ArgumentNullException(nameof(destination));
-                }
-            }
             _clientSettings = clientSettings ?? throw new ArgumentNullException(nameof(clientSettings));
-
-            if (destination is not null)
-            {
-                _clientSettings.ConfigureForDestination(destination);
-            }
-            configure?.Invoke(_clientSettings);
 
             EnableDebugLogging();
 
@@ -505,15 +488,8 @@ namespace Tmds.Ssh
         public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken)
             => ExecuteAsync(command, null, cancellationToken);
 
-        public async Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default)
+        public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
         {
-            ExecuteOptions? options = null;
-            if (configure != null)
-            {
-                options = new ExecuteOptions();
-                configure?.Invoke(options);
-            }
-
             var channel = await OpenChannelAsync(new SshChannelOptions(SshChannelType.Execute) { Command = command }, cancellationToken)
                                 .ConfigureAwait(false);
 

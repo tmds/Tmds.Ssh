@@ -108,10 +108,11 @@ namespace Tmds.Ssh.Tests
             s.Listen();
             int port = (s.LocalEndPoint as IPEndPoint)!.Port;
 
-            using var client = new SshClient($"user@{address}:{port}", settings =>
-            {
-                settings.ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout);
-            });
+            using var client = new SshClient(
+                new SshClientSettings($"user@{address}:{port}")
+                {
+                    ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout)
+                });
             SshSessionException exception = await Assert.ThrowsAsync<SshSessionException>(() => client.ConnectAsync());
             Assert.IsType<TimeoutException>(exception.InnerException);
         }

@@ -36,7 +36,7 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination, Action<SshClientSettings>? configure = null) { }
+  SshClient(string destination) { }
   SshClient(SshClientSettings clientSettings) { }
 
   Task ConnectAsync(CancellationToken cancellationToken) { }
@@ -61,9 +61,9 @@ class RemoteProcess : IDisposable
   ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
   ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
   IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  ValueTask? ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken) { }
+  ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken) { }
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default) { }
-  ValueTask? ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken) { }
+  ValueTask ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken) { }
 
   // Write to the remote process.
   ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) { }
@@ -147,6 +147,7 @@ class SftpFile : Stream
 class SshClientSettings
 {
   SshClientSettings() { }
+  SshClientSettings(string destination) { }
   string? KnownHostsFile { get; set; }
   TimeSpan ConnectTimeout { get; set; }
   string UserName { get; set; }
