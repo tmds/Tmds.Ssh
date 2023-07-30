@@ -20,7 +20,7 @@ namespace Tmds.Ssh.Tests
         public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
         public string ServerHost => _host;
         public int ServerPort => _port;
-        public string KnownHostsFile => _knownHostsFile;
+        public string KnownHostsFilePath => _knownHostsFile;
         public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
         private readonly string _imageId;
@@ -192,7 +192,7 @@ namespace Tmds.Ssh.Tests
             string[] output = Run("ssh",
                                     "-i", TestUserIdentityFile,
                                     "-o", "BatchMode=yes",
-                                    "-o", $"UserKnownHostsFile={KnownHostsFile}",
+                                    "-o", $"UserKnownHostsFile={KnownHostsFilePath}",
                                     "-p", ServerPort.ToString(),
                                     $"{TestUser}@{ServerHost}",
                                     $"echo '{HelloWorld}'"
@@ -205,7 +205,7 @@ namespace Tmds.Ssh.Tests
         {
             var settings = new SshClientSettings(Destination)
                     {
-                        KnownHostsFile = KnownHostsFile,
+                        KnownHostsFilePath = KnownHostsFilePath,
                         Credentials = {new PrivateKeyFileCredential(TestUserIdentityFile) },
                     };
             configure?.Invoke(settings);

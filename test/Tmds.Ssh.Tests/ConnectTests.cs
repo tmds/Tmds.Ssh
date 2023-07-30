@@ -29,7 +29,7 @@ namespace Tmds.Ssh.Tests
         {
             await Assert.ThrowsAsync<SshSessionException>(() =>
                 _sshServer.CreateClientAsync(settings => 
-                    settings.KnownHostsFile = "/"
+                    settings.KnownHostsFilePath = "/"
                 ));
         }
 
@@ -38,7 +38,7 @@ namespace Tmds.Ssh.Tests
         {
             using var _ = await _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = "/";
+                    settings.KnownHostsFilePath = "/";
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
@@ -57,7 +57,7 @@ namespace Tmds.Ssh.Tests
         {
             using var _ = await _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = null;
+                    settings.KnownHostsFilePath = null;
                     settings.CheckGlobalKnownHostsFile = false;
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
@@ -78,7 +78,7 @@ namespace Tmds.Ssh.Tests
             await Assert.ThrowsAsync<SshSessionException>(() =>
                 _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = "/";
+                    settings.KnownHostsFilePath = "/";
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
@@ -142,7 +142,7 @@ namespace Tmds.Ssh.Tests
             await Assert.ThrowsAsync<OperationCanceledException>(() =>
                 _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = "/";
+                    settings.KnownHostsFilePath = "/";
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
@@ -162,7 +162,7 @@ namespace Tmds.Ssh.Tests
             await Assert.ThrowsAsync<OperationCanceledException>(() =>
                 _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = "/";
+                    settings.KnownHostsFilePath = "/";
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
@@ -182,7 +182,7 @@ namespace Tmds.Ssh.Tests
             var ex = await Assert.ThrowsAsync<SshSessionException>(() =>
                 _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFile = "/";
+                    settings.KnownHostsFilePath = "/";
                     settings.KeyVerification =
                     (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {

@@ -130,7 +130,7 @@ namespace Tmds.Ssh
         {
             errorMessage = null;
 
-            string privateKeyFile = credential.FileName;
+            string privateKeyFile = credential.FilePath;
             if (_authState.Step == AuthStep.Initial)
             {
                 Debug.Assert(_authState.PublicKey == null);

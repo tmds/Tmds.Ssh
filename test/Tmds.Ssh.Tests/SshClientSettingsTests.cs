@@ -15,7 +15,7 @@ namespace Tmds.Ssh.Tests
             Assert.Equal(string.Empty, settings.Host);
             Assert.Equal(22, settings.Port);
             Assert.Empty(settings.Credentials);
-            Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFile);
+            Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFilePath);
             Assert.True(settings.CheckGlobalKnownHostsFile);
             Assert.Null(settings.KeyVerification);
         }

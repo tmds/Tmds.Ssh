@@ -109,13 +109,13 @@ namespace Tmds.Ssh
             {
                 ssh_options_set(_ssh, SshOption.GlobalKnownHosts, invalidFilePath);
             }
-            if (string.IsNullOrEmpty(_clientSettings.KnownHostsFile))
+            if (string.IsNullOrEmpty(_clientSettings.KnownHostsFilePath))
             {
                 ssh_options_set(_ssh, SshOption.KnownHosts, invalidFilePath);
             }
             else
             {
-                ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostsFile);
+                ssh_options_set(_ssh, SshOption.KnownHosts, _clientSettings.KnownHostsFilePath);
             }
 
             _connectionInfo.Host = _clientSettings.Host;
@@ -193,7 +193,7 @@ namespace Tmds.Ssh
                 _state = SessionState.VerifyServer;
 
                 bool checkKnownHosts = _clientSettings.CheckGlobalKnownHostsFile ||
-                                        !string.IsNullOrEmpty(_clientSettings.KnownHostsFile);
+                                        !string.IsNullOrEmpty(_clientSettings.KnownHostsFilePath);
                 if (checkKnownHosts)
                 {
                     result = ssh_session_is_known_server(_ssh) switch
