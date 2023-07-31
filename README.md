@@ -42,7 +42,7 @@ class SshClient : IDisposable
   Task ConnectAsync(CancellationToken cancellationToken) { }
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken) { }
-  Task<RemoteProcess> ExecuteAsync(string command, Action<ExecuteOptions>? configure = null, CancellationToken cancellationToken = default) { }
+  Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default) { }
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
