@@ -1,6 +1,28 @@
 # Tmds.Ssh
 
-.NET SSH client library that uses [libssh](https://www.libssh.org/).
+.NET SSH client library that wraps [libssh](https://www.libssh.org/).
+
+# Trying the library
+
+You can obtain `Tmds.Ssh` from the CI NuGet feed:
+```
+dotnet add package Tmds.Ssh --prerelease --source https://www.myget.org/F/tmds/api/v3/index.json
+```
+
+`Tmds.Ssh` requires the native `libssh` library.
+
+`libssh` is available on most FOSS operating systems.
+
+Unfortunately `Tmds.Ssh` requires features that are not yet in a released version of `libssh`.
+To try `Tmds.Ssh` you must build the `libssh` from source. You can find the source code and build instructions at [libssh INSTALL](https://gitlab.com/libssh/libssh-mirror/-/blob/master/INSTALL).
+When the library is built you can use it with `Tmds.Ssh` by setting the `LIBSSH_PATH` environment variable to the `libssh.so`/`libssh.dll` file path.
+
+If you are using Windows on x64, you can obtain a prebuilt `libssh` by using the following package:
+```
+dotnet add package libssh.win-x64 --prerelease --source https://www.myget.org/F/tmds/api/v3/index.json
+```
+
+**Important!**: The `libssh.win-x64` is built to enable running the `Tmds.Ssh` tests on Windows. You must **not** use it in production.
 
 # Getting Started
 
