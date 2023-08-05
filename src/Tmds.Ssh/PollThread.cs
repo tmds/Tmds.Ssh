@@ -145,7 +145,7 @@ namespace Tmds.Ssh
         {
             using Socket s = Platform.IsWindows ? new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) :
                                                   new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            EndPoint ep = Platform.IsWindows ? new IPEndPoint(IPAddress.Any, 0) :
+            EndPoint ep = Platform.IsWindows ? new IPEndPoint(IPAddress.Loopback, 0) :
                                                new UnixDomainSocketEndPoint("\0" + Guid.NewGuid().ToString());
             s.Bind(ep);
             s.Listen(1);

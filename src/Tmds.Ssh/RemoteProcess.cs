@@ -299,7 +299,7 @@ namespace Tmds.Ssh
             => StandardInputWriter.BaseStream;
 
         public StreamWriter StandardInputWriter
-            => (_stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding) { AutoFlush = true });
+            => (_stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding) { AutoFlush = true, NewLine = "\n" });
 
         public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
         {

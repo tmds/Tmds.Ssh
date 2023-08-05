@@ -157,7 +157,7 @@ namespace Tmds.Ssh
                 CompleteOpen(success: false);
                 return;
             }
-            Debug.Assert(rv == SSH_AGAIN);
+            Debug.Assert(rv == SSH_AGAIN || rv == SSH_OK, $"Open failed with {rv}");
         }
 
         private void HandleCallback(Callback callback, bool isSuccess = true, bool isStdout = true, int length = 0)

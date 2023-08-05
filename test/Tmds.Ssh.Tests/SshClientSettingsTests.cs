@@ -21,7 +21,7 @@ namespace Tmds.Ssh.Tests
         }
 
         private static string DefaultKnownHostsFile
-            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify),
+            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
                             ".ssh",
                             "known_hosts");
     }
