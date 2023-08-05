@@ -92,12 +92,15 @@ public ref struct SftpFileEntry
         => _path ??= new string(Path);
 
     public UnixFileType FileType => (UnixFileType)(FileMode & (PosixFileMode)0xf000);
+#if NET7_0_OR_GREATER
     public UnixFileMode Permissions => (UnixFileMode)(FileMode & (PosixFileMode)0x0fff);
-
+#endif
     internal ReadOnlySpan<byte> NameBytes => _entry.Slice(4, _nameByteLength);
 
     internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength)
     {
+        _attributes = default;
+        _path = default;
         _directoryPath = directoryPath;
         _entry = entry;
         _nameBuffer = nameBuffer;
