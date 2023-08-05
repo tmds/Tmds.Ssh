@@ -13,6 +13,7 @@ namespace Tmds.Ssh.Tests
 {
     public class SshServer : IDisposable
     {
+        private const string ContainerImageName = "test_sshd:latest";
         private const string ContainerBuildContext = "sshd_container";
 
         public string TestUser => "testuser";
@@ -23,7 +24,6 @@ namespace Tmds.Ssh.Tests
         public string KnownHostsFilePath => _knownHostsFile;
         public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
-        private readonly string _imageId;
         private readonly string _containerId;
         private readonly string _host;
         private readonly int _port;
@@ -39,11 +39,11 @@ namespace Tmds.Ssh.Tests
 
             try
             {
-                _imageId = LastWord(Run("podman", "build", ContainerBuildContext));
+                Run("podman", "build", "-t", ContainerImageName, ContainerBuildContext);
                 IPAddress interfaceAddress = IPAddress.Loopback;
                 _host = interfaceAddress.ToString();
                 _port = PickFreePort(interfaceAddress);
-                _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", _imageId));
+                _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", ContainerImageName));
                 do
                 {
                     string[] log = Run("podman", "logs", _containerId);
@@ -67,7 +67,10 @@ namespace Tmds.Ssh.Tests
 
                 _knownHostsFile = WriteKnownHostsFile(_host, _port);
 
-                Run("chmod", "600", TestUserIdentityFile);
+                if (!OperatingSystem.IsWindows())
+                {
+                    Run("chmod", "600", TestUserIdentityFile);
+                }
 
                 VerifyServerWorks();
 
@@ -118,7 +121,7 @@ namespace Tmds.Ssh.Tests
             }
         }
 
-        private static string LastWord(string[] lines)
+        private static string LastWord(IEnumerable<string> lines)
             => lines.Last().Split(' ').Last();
 
         public void Dispose()
@@ -135,10 +138,7 @@ namespace Tmds.Ssh.Tests
                     Run("podman", "rm", "-f", _containerId);
                 }
                 // Don't remove the image to make the next test run faster.
-                // if (_imageId != null)
-                // {
-                //     Run("podman", "rmi", "-f", _imageId);
-                // }
+                // Run("podman", "rmi", "-f", ContainerImageName);
             }
             catch
             { }

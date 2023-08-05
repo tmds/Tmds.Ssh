@@ -20,6 +20,7 @@ ref partial struct ValueStringBuilder
     private void AppendPathAndConvertSeparators(ReadOnlySpan<char> value)
     {
         Span<char> span = AppendSpan(value.Length);
+        value.CopyTo(span);
         for (int i = 0; i < span.Length; i++)
         {
             if (span[i] == Path.DirectorySeparatorChar)
