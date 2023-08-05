@@ -1,10 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(LibTargetFrameworks)</TargetFrameworks>
-    <PackageDescription>SSH client based on libssh.</PackageDescription>
+    <TargetFrameworks>net6.0</TargetFrameworks>
+
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
+
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <PackageDescription>SSH client based on libssh.</PackageDescription>
+    <Copyright>Copyright (C) Tom Deseyn</Copyright>
+    <RequireLicenseAcceptance>false</RequireLicenseAcceptance>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

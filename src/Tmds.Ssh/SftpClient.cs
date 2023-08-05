@@ -537,7 +537,12 @@ namespace Tmds.Ssh
 
         private async ValueTask DownloadLinkAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
         {
-            bool exists = Path.Exists(localPath);
+            bool exists =
+#if NET7_0_OR_GREATER
+             Path.Exists(localPath);
+#else
+             File.Exists(localPath) || Directory.Exists(localPath);
+#endif
             if (!overwrite && exists)
             {
                 throw new IOException($"The file '{localPath}' already exists.");

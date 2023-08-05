@@ -18,6 +18,8 @@ namespace Tmds.Ssh
         public Dictionary<string, string>? ExtendedAttributes { get; set; }
 
         public UnixFileType? FileType => (UnixFileType?)(FileMode & (PosixFileMode)0xf000);
+#if NET7_0_OR_GREATER
         public UnixFileMode? Permissions => (UnixFileMode?)(FileMode & (PosixFileMode)0x0fff);
+#endif
     }
 }
