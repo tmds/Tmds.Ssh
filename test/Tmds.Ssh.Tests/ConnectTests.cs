@@ -97,6 +97,28 @@ namespace Tmds.Ssh.Tests
                 ));
         }
 
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task PasswordCredential(bool correctPassword)
+        {
+            var settings = new SshClientSettings(_sshServer.Destination)
+            {
+                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
+                Credentials = { new PasswordCredential(correctPassword ? _sshServer.TestUserPassword : "invalid" ) },
+            };
+            using var client = new SshClient(settings);
+
+            if (correctPassword)
+            {
+                await client.ConnectAsync();
+            }
+            else
+            {
+                await Assert.ThrowsAsync<SshSessionException>(() => client.ConnectAsync());
+            }
+        }
+
         [Theory]
         [InlineData(0)]
         [InlineData(1000)]

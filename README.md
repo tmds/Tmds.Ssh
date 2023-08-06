@@ -36,18 +36,18 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination) { }
-  SshClient(SshClientSettings clientSettings) { }
+  SshClient(string destination);
+  SshClient(SshClientSettings clientSettings);
 
-  Task ConnectAsync(CancellationToken cancellationToken) { }
+  Task ConnectAsync(CancellationToken cancellationToken);
 
-  Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken) { }
-  Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default) { }
+  Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
+  Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
 
-  Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default) { }
+  Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default);
 }
 class ExecuteOptions
 {
@@ -58,24 +58,24 @@ class ExecuteOptions
 class RemoteProcess : IDisposable
 {
   // Read from the remote process.
-  ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default) { }
-  ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken) { }
-  ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default) { }
-  ValueTask ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken) { }
+  ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken);
+  ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default);
+  ValueTask ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken);
 
   // Write to the remote process.
-  ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) { }
-  ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  ValueTask WriteAsync(string value, CancellationToken cancellationToken = default) { }
-  ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default) { }
-  ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default) { }
+  ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default);
+  ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default);
+  ValueTask WriteAsync(string value, CancellationToken cancellationToken = default);
+  ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default);
+  ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default);
   Stream StandardInputStream { get; }
   StreamWriter StandardInputWriter { get; }
 
   // Wait for the remote process to exit.
-  ValueTask WaitForExitAsync(CancellationToken cancellationToken) { }
+  ValueTask WaitForExitAsync(CancellationToken cancellationToken);
 
   // CancellationToken that cancels when remote process terminates.
   CancellationToken ExecutionAborted { get; }
@@ -146,8 +146,8 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  SshClientSettings() { }
-  SshClientSettings(string destination) { }
+  SshClientSettings();
+  SshClientSettings(string destination);
   string? KnownHostsFilePath { get; set; }
   TimeSpan ConnectTimeout { get; set; }
   string UserName { get; set; }
@@ -282,8 +282,13 @@ abstract class Credential
 { }
 class PrivateKeyFileCredential : Credential
 {
-  PrivateKeyFileCredential(string filePath) { }
+  PrivateKeyFileCredential(string filePath);
   string FilePath { get; }
+}
+class PasswordCredential : Credential
+{
+  PasswordCredential(string password);
+  PasswordCredential(Func<string?> prompt);
 }
 // Base class.
 class SshException : Exception

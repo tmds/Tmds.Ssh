@@ -83,7 +83,15 @@ namespace Tmds.Ssh
         public static extern int ssh_disconnect(SessionHandle session);
 
         [DllImport(Library)]
-        public static extern AuthResult ssh_userauth_password(SessionHandle session, string username, string password);
+        private static extern AuthResult ssh_userauth_password(SessionHandle session, string? username, IntPtr password);
+
+        public unsafe static AuthResult ssh_userauth_password(SessionHandle session, string? username, string password)
+        {
+            fixed (byte* p = Encoding.UTF8.GetBytes(password))
+            {
+                return ssh_userauth_password(session, username, new IntPtr(p));
+            }
+        }
 
         [DllImport(Library, EntryPoint = "ssh_get_error")]
         public static extern IntPtr ssh_get_error_(SessionHandle session);
