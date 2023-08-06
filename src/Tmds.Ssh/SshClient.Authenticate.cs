@@ -30,7 +30,10 @@ namespace Tmds.Ssh
 
             // Steps for PrivateKeyFileCredential.
             IdentityFileKeyImported,
-            IdentityFilePubKeyAccepted
+            IdentityFilePubKeyAccepted,
+
+            // Steps for PasswordCredential
+            PasswordObtained
         }
 
         class AuthState
@@ -43,6 +46,8 @@ namespace Tmds.Ssh
             public SshKeyHandle? PublicKey;
             public SshKeyHandle? PrivateKey;
 
+            public string? Password;
+
             public void Reset()
             {
                 PublicKey?.Dispose();
@@ -51,6 +56,7 @@ namespace Tmds.Ssh
                 Step = AuthStep.Initial;
                 PublicKey = null;
                 PrivateKey = null;
+                Password = null;
             }
         }
 
@@ -92,11 +98,23 @@ namespace Tmds.Ssh
                 Credential credential = credentials[credentialIndex];
 
                 string? errorMessage = null;
-                CredentialAuthResult result = credential switch
+                CredentialAuthResult result;
+                
+                try
                 {
-                    PrivateKeyFileCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
-                    _ => throw new IndexOutOfRangeException($"Unexpected credential type: {credential.GetType().FullName}")
-                };
+                    result = credential switch
+                    {
+                        PrivateKeyFileCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
+                        PasswordCredential pc => Authenticate(pc, out errorMessage),
+                        _ => throw new IndexOutOfRangeException($"Unexpected credential type: {credential.GetType().FullName}")
+                    };
+                }
+                catch (Exception ex) // Unexpected exception
+                {
+                    _authState.Reset();
+                    CompleteConnectStep(ex);
+                    return;
+                }
 
                 if (result != CredentialAuthResult.Again)
                 {
@@ -217,6 +235,39 @@ namespace Tmds.Ssh
 
                 return CredentialAuthResult.NextCredential;
             }
+        }
+
+        private CredentialAuthResult Authenticate(PasswordCredential credential, out string? errorMessage)
+        {
+            errorMessage = null;
+
+            if (_authState.Step == AuthStep.Initial)
+            {
+                _authState.Password = credential.GetPassword();
+
+                if (_authState.Password is null)
+                {
+                    return CredentialAuthResult.NextCredential;
+                }
+
+                _authState.Step = AuthStep.PasswordObtained;
+            }
+
+            AuthResult rv = ssh_userauth_password(_ssh, null, _authState.Password);
+            if (rv == AuthResult.Success)
+            {
+                return CredentialAuthResult.Success;
+            }
+            else if (rv == AuthResult.Again)
+            {
+                return CredentialAuthResult.Again;
+            }
+            else if (rv == AuthResult.Error)
+            {
+                return CredentialAuthResult.Error;
+            }
+
+            return CredentialAuthResult.NextCredential;
         }
     }
 }
