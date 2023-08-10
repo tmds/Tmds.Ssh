@@ -46,7 +46,7 @@ namespace Tmds.Ssh
         private readonly SshChannelOptions _options;
 
         private ChannelState _state = ChannelState.Initial;
-        private ChannelHandle? _handle;
+        private ChannelHandle _handle = null!;
         private TaskCompletionSource<object?>? _openTcs;
         private TaskCompletionSource<object?>? _readableTcs;
         private TaskCompletionSource<object?>? _windowReadyTcs;
@@ -283,20 +283,20 @@ namespace Tmds.Ssh
                 // dispose the channel handle immediately.
                 // https://gitlab.com/libssh/libssh-mirror/-/issues/171
                 ThreadPool.QueueUserWorkItem(
-                    o =>
+                    static o =>
                     {
-                        SshChannel channel = (SshChannel)o;
+                        SshChannel channel = (SshChannel)o!;
                         SshClient client = channel._client;
 
                         lock (client.Gate)
                         {
-                            var tcs = _openTcs;
-                            _openTcs = null;
+                            var tcs = channel._openTcs;
+                            channel._openTcs = null;
 
                             // may cause change to ChannelState.SessionClosed
-                            var exception = _client.GetErrorException();
+                            var exception = client.GetErrorException();
 
-                            Close(ChannelState.Disposed);
+                            channel.Close(ChannelState.Disposed);
 
                             tcs?.SetException(exception);
                         }

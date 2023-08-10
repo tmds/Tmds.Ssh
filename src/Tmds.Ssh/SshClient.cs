@@ -538,7 +538,7 @@ namespace Tmds.Ssh
             return sftpClient;
         }
 
-        private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken = default)
+        private async Task<SshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken)
         {
             SshChannel? channel = null;
             try

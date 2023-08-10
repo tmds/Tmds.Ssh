@@ -26,6 +26,19 @@ namespace Tmds.Ssh
         // An onGoing ValueTask may allocate multiple buffers.
         const int MaxConcurrentBuffers = 64;
 
+        const PosixFileMode OwnershipPermissions =
+                PosixFileMode.UserRead | PosixFileMode.UserWrite | PosixFileMode.UserExecute |
+                PosixFileMode.GroupRead | PosixFileMode.GroupWrite | PosixFileMode.GroupExecute |
+                PosixFileMode.OtherRead | PosixFileMode.OtherWrite | PosixFileMode.OtherExecute;
+        const PosixFileMode DefaultCreateDirectoryPermissions = OwnershipPermissions;
+        const PosixFileMode DefaultCreateFilePermissions =
+                PosixFileMode.UserRead | PosixFileMode.UserWrite |
+                PosixFileMode.GroupRead | PosixFileMode.GroupWrite |
+                PosixFileMode.OtherRead | PosixFileMode.OtherWrite;
+        const PosixFileMode CreateFilePermissionMask = OwnershipPermissions;
+        const PosixFileMode CreateDirectoryPermissionMask = OwnershipPermissions | PosixFileMode.StickyBit;
+        const PosixFileMode PretendUMask = PosixFileMode.OtherWrite;
+
         private static readonly EnumerationOptions DefaultEnumerationOptions = new();
         private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
         private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
@@ -66,21 +79,37 @@ namespace Tmds.Ssh
             => OpenOrCreateFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
             => CreateNewFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken)
                 ?? throw new SftpException(SftpError.NoSuchFile);
+
+#if NET7_0_OR_GREATER
+        public ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFileMode createPermissions, CancellationToken cancellationToken = default)
+            => OpenOrCreateFileAsync(path, access, OpenMode.None, createPermissions, cancellationToken);
+
+        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFileMode createPermissions, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), permissions: (PosixFileMode)createPermissions, cancellationToken)
+                ?? throw new SftpException(SftpError.NoSuchFile);
+
+        public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFileMode permissions, CancellationToken cancellationToken = default)
+            => CreateNewFileAsync(path, access, OpenMode.None, permissions, cancellationToken);
+
+        public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFileMode permissions, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions: (PosixFileMode)permissions, cancellationToken)
+                ?? throw new SftpException(SftpError.NoSuchFile);
+#endif
 
         public ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
             => OpenFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), cancellationToken);
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken);
 
         private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode mode)
         {
@@ -96,7 +125,7 @@ namespace Tmds.Ssh
             return flags;
         }
 
-        private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, CancellationToken cancellationToken = default)
+        private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, PosixFileMode permissions, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
@@ -107,7 +136,7 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
             packet.WriteUInt((uint)flags);
-            packet.WriteAttributes(null);
+            packet.WriteAttributes(fileMode: (permissions & CreateFilePermissionMask) | PosixFileMode.RegularFile);
 
             return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
         }
@@ -140,7 +169,7 @@ namespace Tmds.Ssh
             return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
 
-        public ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default)
+        public ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RENAME;
 
@@ -149,8 +178,8 @@ namespace Tmds.Ssh
 
             Packet packet = new Packet(packetType);
             packet.WriteInt(id);
-            packet.WriteString(oldpath);
-            packet.WriteString(newpath);
+            packet.WriteString(oldPath);
+            packet.WriteString(newPath);
 
             return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
@@ -186,7 +215,7 @@ namespace Tmds.Ssh
         public ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
             => CreateSymbolicLinkAsync(linkPath, targetPath, overwrite: false, cancellationToken);
 
-        private ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken = default)
+        private ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken)
         {
             int id;
             Packet packet;
@@ -239,7 +268,18 @@ namespace Tmds.Ssh
         public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
             => CreateDirectoryAsync(path, createParents: false, cancellationToken);
 
-        public async ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
+        public ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
+            => CreateDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
+
+#if NET7_0_OR_GREATER
+        public ValueTask CreateDirectoryAsync(string path, UnixFileMode createPermissions, CancellationToken cancellationToken = default)
+            => CreateDirectoryAsync(path, createParents: false, createPermissions, cancellationToken);
+
+        public ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFileMode createPermissions, CancellationToken cancellationToken = default)
+            => CreateDirectoryAsync(path, createParents, permissions: (PosixFileMode)createPermissions, cancellationToken);
+#endif
+
+        private async ValueTask CreateDirectoryAsync(string path, bool createParents, PosixFileMode permissions, CancellationToken cancellationToken)
         {
             // This method doesn't throw if the target directory already exists.
             // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
@@ -278,7 +318,18 @@ namespace Tmds.Ssh
         public ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default)
             => CreateNewDirectoryAsync(path, createParents: false, cancellationToken);
 
+#if NET7_0_OR_GREATER
+        public ValueTask CreateNewDirectoryAsync(string path, UnixFileMode permissions, CancellationToken cancellationToken = default)
+            => CreateNewDirectoryAsync(path, createParents: false, permissions: (PosixFileMode)permissions, cancellationToken);
+
+        public ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFileMode permissions, CancellationToken cancellationToken = default)
+            => CreateNewDirectoryAsync(path, createParents, permissions: (PosixFileMode)permissions, cancellationToken);
+#endif
+
         public ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
+            => CreateNewDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
+
+        private ValueTask CreateNewDirectoryAsync(string path, bool createParents, PosixFileMode permissions, CancellationToken cancellationToken)
         {
             if (createParents)
             {
@@ -288,12 +339,13 @@ namespace Tmds.Ssh
                 while ((idx = span.Slice(offset).IndexOf(RemotePath.DirectorySeparatorChar)) != -1)
                 {
                     offset += idx;
-                    _ = CreateNewDirectoryAsync(span.Slice(0, offset), awaitable: false);
+                    // note: parent directories are created using the default permissions, not the permissions arg.
+                    _ = CreateNewDirectoryAsync(span.Slice(0, offset), awaitable: false, permissions: DefaultCreateDirectoryPermissions, cancellationToken: default);
                     offset++;
                 }
             }
 
-            return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, cancellationToken);
+            return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, permissions, cancellationToken);
         }
 
         public ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default)
@@ -348,15 +400,15 @@ namespace Tmds.Ssh
                         case UnixFileType.Directory:
                             if (overwrite)
                             {
-                                onGoing.Enqueue(CreateDirectoryAsync(item.RemotePath, cancellationToken));
+                                onGoing.Enqueue(CreateDirectoryAsync(item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
                             }
                             else
                             {
-                                onGoing.Enqueue(CreateNewDirectoryAsync(item.RemotePath, cancellationToken));
+                                onGoing.Enqueue(CreateNewDirectoryAsync(item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
                             }
                             break;
                         case UnixFileType.RegularFile:
-                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, cancellationToken));
+                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
                             FileInfo file = new FileInfo(item.LocalPath);
@@ -399,14 +451,51 @@ namespace Tmds.Ssh
             => UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, cancellationToken);
 
         public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, CancellationToken cancellationToken = default)
-            => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, cancellationToken);
+            => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, permissions: null, cancellationToken);
 
-        private async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, CancellationToken cancellationToken)
+#if NET7_0_OR_GREATER
+        public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, UnixFileMode permissions, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, permissions, cancellationToken);
+
+        public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, UnixFileMode createPermissions, CancellationToken cancellationToken = default)
+            => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, permissions: (PosixFileMode)createPermissions, cancellationToken);
+#endif
+
+        private static PosixFileMode GetPermissionsForDirectory(string directoryPath)
         {
-            using SftpFile remoteFile = overwrite ? await OpenOrCreateFileAsync(remotePath, FileAccess.Write, OpenMode.Truncate, cancellationToken)
-                                                    : await CreateNewFileAsync(remotePath, FileAccess.Write, cancellationToken);
+            const PosixFileMode Default = DefaultCreateDirectoryPermissions & ~PretendUMask;
+#if NET7_0_OR_GREATER
+            if (!OperatingSystem.IsWindows())
+            {
+                return (PosixFileMode)File.GetUnixFileMode(directoryPath);
+            }
+            return Default; // TODO: do something better on Windows?
+#else
+            return Default;
+#endif
+        }
 
+        private static PosixFileMode GetPermissionsForFile(SafeFileHandle fileHandle)
+        {
+            const PosixFileMode Default = DefaultCreateFilePermissions & ~PretendUMask;
+#if NET7_0_OR_GREATER
+            if (!OperatingSystem.IsWindows())
+            {
+                return (PosixFileMode)File.GetUnixFileMode(fileHandle);
+            }
+            return Default; // TODO: do something better on Windows?
+#else
+            return Default;
+#endif
+        }
+
+        private async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, PosixFileMode? permissions, CancellationToken cancellationToken)
+        {
             using SafeFileHandle localFile = File.OpenHandle(localPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            permissions ??= GetPermissionsForFile(localFile);
+
+            using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, cancellationToken))!;
 
             length ??= RandomAccess.GetLength(localFile);
 
@@ -472,14 +561,14 @@ namespace Tmds.Ssh
             localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
 
             char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
-            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(remoteDirPath,
+            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, PosixFileMode Mode, long Length)>(remoteDirPath,
                 (ref SftpFileEntry entry) =>
                 {
                     string remotePath = entry.ToPath();
                     using ValueStringBuilder localPathBuilder = new(pathBuffer);
                     localPathBuilder.Append(localDirPath);
                     localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
-                    return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Length);
+                    return (localPathBuilder.ToString(), remotePath, entry.FileMode, entry.Length);
                 },
                 new EnumerationOptions() { RecurseSubdirectories = recurse });
 
@@ -492,9 +581,11 @@ namespace Tmds.Ssh
                     {
                         await onGoing.Dequeue();
                     }
-                    switch (item.Type)
+                    PosixFileMode type = item.Mode & (PosixFileMode)0xf000;
+                    PosixFileMode permissions = item.Mode & (PosixFileMode)0x0fff;
+                    switch (type)
                     {
-                        case UnixFileType.Directory:
+                        case PosixFileMode.Directory:
                             bool exists = Directory.Exists(item.LocalPath);
                             if (!overwrite && exists)
                             {
@@ -502,13 +593,13 @@ namespace Tmds.Ssh
                             }
                             if (!exists)
                             {
-                                Directory.CreateDirectory(item.LocalPath);
+                                CreateLocalDirectory(item.LocalPath, permissions);
                             }
                             break;
-                        case UnixFileType.RegularFile:
-                            onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, cancellationToken));
+                        case PosixFileMode.RegularFile:
+                            onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, permissions, cancellationToken));
                             break;
-                        case UnixFileType.SymbolicLink:
+                        case PosixFileMode.SymbolicLink:
                             onGoing.Enqueue(DownloadLinkAsync(item.RemotePath, item.LocalPath, overwrite, cancellationToken));
                             break;
                         default:
@@ -533,6 +624,40 @@ namespace Tmds.Ssh
                 }
                 ArrayPool<char>.Shared.Return(pathBuffer);
             }
+        }
+
+        private static void CreateLocalDirectory(string path, PosixFileMode permissions)
+        {
+#if NET7_0_OR_GREATER
+            if (OperatingSystem.IsWindows())
+            {
+                Directory.CreateDirectory(path);
+            }
+            else
+            {
+                Directory.CreateDirectory(path, (UnixFileMode)(permissions & CreateDirectoryPermissionMask));
+            }
+#else
+            Directory.CreateDirectory(path);
+#endif
+        }
+
+        private static FileStream OpenFileStream(string path, FileMode mode, FileAccess access, FileShare share, PosixFileMode permissions)
+        {
+            var options = new FileStreamOptions()
+            {
+                Mode = mode,
+                BufferSize = 0,
+                Access = access,
+                Share = share
+            };
+#if NET7_0_OR_GREATER
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = (UnixFileMode)(permissions & CreateFilePermissionMask);
+            }
+#endif
+            return new FileStream(path, options);
         }
 
         private async ValueTask DownloadLinkAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
@@ -561,27 +686,34 @@ namespace Tmds.Ssh
             => DownloadFileAsync(remoteFilePath, localFilePath, overwrite: false, cancellationToken);
 
         public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite, CancellationToken cancellationToken = default)
-            => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, cancellationToken);
+            => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, cancellationToken);
 
-        private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, CancellationToken cancellationToken)
+        private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, PosixFileMode? permissions, CancellationToken cancellationToken)
         {
+            ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(remotePath, followLinks: true) : default;
+
             using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken);
             if (remoteFile is null)
             {
                 return;
             }
 
-            using SafeFileHandle localFile = File.OpenHandle(localPath, overwrite ? FileMode.Create : FileMode.CreateNew,
-                                                                FileAccess.Write, FileShare.None);
+            if (length == null || permissions == null)
+            {
+                FileEntryAttributes? attributes = await getAttributes;
+                if (attributes is null)
+                {
+                    throw new SftpException(SftpError.NoSuchFile);
+                }
+                length = attributes.Length;
+                permissions = attributes.FileMode;
+            }
 
-            ValueTask<FileEntryAttributes> getAttributes = length == null ? remoteFile.GetAttributesAsync() : default;
+            using FileStream localFile = OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions!.Value);
 
-            await s_downloadBufferSemaphore.WaitAsync(cancellationToken);
-            ValueTask previous = CopyBuffer(default, offset: 0, MaxReadPayload);
+            ValueTask previous = default;
 
-            length ??= (await getAttributes).Length;
-
-            for (long offset = MaxReadPayload; offset < length; offset += MaxReadPayload)
+            for (long offset = 0; offset < length; offset += MaxReadPayload)
             {
                 // Obtain a buffer before starting the copy to ensure we're not competing
                 // for buffers with the previous copy.
@@ -606,7 +738,7 @@ namespace Tmds.Ssh
                         {
                             break;
                         }
-                        RandomAccess.Write(localFile, buffer.AsSpan(0, bytesRead), offset);
+                        RandomAccess.Write(localFile.SafeFileHandle, buffer.AsSpan(0, bytesRead), offset);
                         length -= bytesRead;
                         offset += bytesRead;
                     } while (length > 0);
@@ -624,7 +756,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private ValueTask CreateNewDirectoryAsync(ReadOnlySpan<char> path, bool awaitable, CancellationToken cancellationToken = default)
+        private ValueTask CreateNewDirectoryAsync(ReadOnlySpan<char> path, bool awaitable, PosixFileMode permissions, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_MKDIR;
 
@@ -634,7 +766,7 @@ namespace Tmds.Ssh
             Packet packet = new Packet(packetType);
             packet.WriteInt(id);
             packet.WriteString(path);
-            packet.WriteAttributes(null);
+            packet.WriteAttributes(fileMode: (permissions & CreateDirectoryPermissionMask) | PosixFileMode.Directory);
 
             return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
         }
@@ -673,7 +805,7 @@ namespace Tmds.Ssh
             return packetBuffer;
         }
 
-        private async ValueTask<ReadOnlyMemory<byte>> ReadPacketAsync(CancellationToken cancellationToken = default)
+        private async ValueTask<ReadOnlyMemory<byte>> ReadPacketAsync(CancellationToken cancellationToken)
         {
             if (_packetBuffer is null)
             {
@@ -736,7 +868,7 @@ namespace Tmds.Ssh
             {
                 do
                 {
-                    ReadOnlyMemory<byte> packet = await ReadPacketAsync();
+                    ReadOnlyMemory<byte> packet = await ReadPacketAsync(cancellationToken: default);
                     if (packet.Length == 0)
                     {
                         break;

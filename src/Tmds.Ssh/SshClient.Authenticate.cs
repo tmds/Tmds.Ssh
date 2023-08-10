@@ -253,7 +253,7 @@ namespace Tmds.Ssh
                 _authState.Step = AuthStep.PasswordObtained;
             }
 
-            AuthResult rv = ssh_userauth_password(_ssh, null, _authState.Password);
+            AuthResult rv = ssh_userauth_password(_ssh, null, _authState.Password!);
             if (rv == AuthResult.Success)
             {
                 return CredentialAuthResult.Success;
