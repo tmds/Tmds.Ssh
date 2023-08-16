@@ -212,6 +212,20 @@ namespace Tmds.Ssh
             return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
         }
 
+        public ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+        {
+            PacketType packetType = PacketType.SSH_FXP_REALPATH;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(path);
+
+            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+        }
+
         public ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
             => CreateSymbolicLinkAsync(linkPath, targetPath, overwrite: false, cancellationToken);
 

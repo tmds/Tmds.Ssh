@@ -492,5 +492,15 @@ namespace Tmds.Ssh.Tests
 
             Assert.Equal(contentOfLink, new FileInfo(Path.Combine(dstDir, linkName)).LinkTarget);
         }
+
+        [Fact]
+        public async Task FullPath()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string fullPath = await sftpClient.GetFullPathAsync(".");
+            Assert.StartsWith(_sshServer.TestUserHome, fullPath);
+        }
     }
 }
