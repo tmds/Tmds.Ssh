@@ -111,8 +111,6 @@ class SshDataStream : Stream
 }
 class SftpClient : IDisposable
 {
-  CancellationToken ClientAborted { get; }
-
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
@@ -120,7 +118,6 @@ class SftpClient : IDisposable
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFileMode permissions, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFileMode permissions, CancellationToken cancellationToken = default);
-
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
 
   // Returns null if the file does not exist.
@@ -166,6 +163,10 @@ class SftpClient : IDisposable
 
   ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default);
   ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default);
+
+  ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default);
+
+  CancellationToken ClientAborted { get; }
 }
 class SftpFile : Stream
 {

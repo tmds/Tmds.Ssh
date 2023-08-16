@@ -17,6 +17,7 @@ namespace Tmds.Ssh.Tests
         private const string ContainerBuildContext = "sshd_container";
 
         public string TestUser => "testuser";
+        public string TestUserHome => $"/home/{TestUser}";
         public string TestUserPassword => "secret";
         public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
         public string ServerHost => _host;
