@@ -97,9 +97,9 @@ public ref struct SftpFileEntry
 #endif
     internal ReadOnlySpan<byte> NameBytes => _entry.Slice(4, _nameByteLength);
 
-    internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength)
+    internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength, FileEntryAttributes? linkTargetAttributes = null)
     {
-        _attributes = default;
+        _attributes = linkTargetAttributes;
         _path = default;
         _directoryPath = directoryPath;
         _entry = entry;
@@ -107,39 +107,51 @@ public ref struct SftpFileEntry
         _pathBuffer = pathBuffer;
 
         SftpClient.PacketReader reader = new(entry);
-
         int nameLength;
         reader.SkipString(out nameLength);
         _nameByteLength = nameLength;
 
-        // Long name.
-        reader.SkipString();
-
-        FileAttributeFlags attrFlags = (FileAttributeFlags)reader.ReadUInt();
-
-        // Should have full attributes.
-        if ((attrFlags & ExpectedAttributes) != ExpectedAttributes)
+        if (linkTargetAttributes is null)
         {
-            throw new InvalidOperationException();
-        }
+            // Long name.
+            reader.SkipString();
 
-        Length = reader.ReadInt64();
-        Uid = reader.ReadInt();
-        Gid = reader.ReadInt();
-        FileMode = (PosixFileMode)reader.ReadInt();
-        LastAccessTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
-        LastWriteTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
+            FileAttributeFlags attrFlags = (FileAttributeFlags)reader.ReadUInt();
 
-        if ((attrFlags & FileAttributeFlags.SSH_FILEXFER_ATTR_EXTENDED) != 0)
-        {
-            uint count = reader.ReadUInt();
-            for (int i = 0; i < count; i++)
+            // Should have full attributes.
+            if ((attrFlags & ExpectedAttributes) != ExpectedAttributes)
             {
-                reader.SkipString();
-                reader.SkipString();
+                throw new InvalidOperationException();
             }
-        }
 
-        entryLength = entry.Length - reader.Remainder.Length;
+            Length = reader.ReadInt64();
+            Uid = reader.ReadInt();
+            Gid = reader.ReadInt();
+            FileMode = (PosixFileMode)reader.ReadInt();
+            LastAccessTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
+            LastWriteTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
+
+            if ((attrFlags & FileAttributeFlags.SSH_FILEXFER_ATTR_EXTENDED) != 0)
+            {
+                uint count = reader.ReadUInt();
+                for (int i = 0; i < count; i++)
+                {
+                    reader.SkipString();
+                    reader.SkipString();
+                }
+            }
+
+            entryLength = entry.Length - reader.Remainder.Length;
+        }
+        else
+        {
+            Length = linkTargetAttributes.Length!.Value;
+            Uid = linkTargetAttributes.Uid!.Value;
+            Gid = linkTargetAttributes.Gid!.Value;
+            FileMode = linkTargetAttributes.FileMode!.Value;
+            LastAccessTime = linkTargetAttributes.LastAccessTime!.Value;
+            LastWriteTime = linkTargetAttributes.LastWriteTime!.Value;
+            entryLength = -1;
+        }
     }
 }

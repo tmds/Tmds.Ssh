@@ -328,6 +328,110 @@ namespace Tmds.Ssh.Tests
             }
         }
 
+        [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(false, false)]
+        [Theory]
+        public async Task EnumerateDirectoryFollowFileLinks(bool follow, bool broken)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync(directoryPath);
+
+            const int FileLength = 1024;
+
+            if (!broken)
+            {
+                using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file", FileAccess.Write);
+                await file.WriteAsync(new byte[FileLength]);
+                await file.CloseAsync();
+            }
+
+            await sftpClient.CreateSymbolicLinkAsync($"{directoryPath}/link", $"{directoryPath}/file");
+
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath, new EnumerationOptions() { FollowFileLinks = follow }).ToListAsync();
+
+            if (broken)
+            {
+                Assert.Single(entries);
+
+                var entry = entries[0];
+                Assert.Equal(UnixFileType.SymbolicLink, entry.Attributes.FileType);
+                Assert.Equal($"{directoryPath}/link", entry.Path);
+            }
+            else
+            {
+                Assert.Equal(2, entries.Count);
+                Assert.Equal(
+                    new HashSet<string>(new[] { $"{directoryPath}/file", $"{directoryPath}/link" }),
+                    entries.Select(entry => entry.Path).ToHashSet()
+                );
+                var fileEntry = entries[0];
+                var linkEntry = entries[1];
+                if (fileEntry.Path.EndsWith("link"))
+                {
+                    (fileEntry, linkEntry) = (linkEntry, fileEntry);
+                }
+
+                Assert.Equal(UnixFileType.RegularFile, fileEntry.Attributes.FileType);
+                Assert.Equal(FileLength, fileEntry.Attributes.Length);
+
+                if (follow)
+                {
+                    Assert.Equal(fileEntry.Attributes.FileType, linkEntry.Attributes.FileType);
+                    Assert.Equal(fileEntry.Attributes.Length, linkEntry.Attributes.Length);
+                }
+                else
+                {
+                    Assert.Equal(UnixFileType.SymbolicLink, linkEntry.Attributes.FileType);
+                    Assert.NotEqual(FileLength, linkEntry.Attributes.Length);
+                }
+            }
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task EnumerateDirectoryFollowDirectoryLinks(bool follow)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync(directoryPath);
+
+            await sftpClient.CreateDirectoryAsync($"{directoryPath}/dir");
+
+            await sftpClient.CreateSymbolicLinkAsync($"{directoryPath}/link", $"{directoryPath}/dir");
+
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath, new EnumerationOptions() { FollowDirectoryLinks = follow }).ToListAsync();
+
+            Assert.Equal(2, entries.Count);
+            Assert.Equal(
+                new HashSet<string>(new[] { $"{directoryPath}/dir", $"{directoryPath}/link" }),
+                entries.Select(entry => entry.Path).ToHashSet()
+            );
+            var dirEntry = entries[0];
+            var linkEntry = entries[1];
+            if (dirEntry.Path.EndsWith("link"))
+            {
+                (dirEntry, linkEntry) = (linkEntry, dirEntry);
+            }
+
+            Assert.Equal(UnixFileType.Directory, dirEntry.Attributes.FileType);
+
+            if (follow)
+            {
+                Assert.Equal(dirEntry.Attributes.FileType, linkEntry.Attributes.FileType);
+            }
+            else
+            {
+                Assert.Equal(UnixFileType.SymbolicLink, linkEntry.Attributes.FileType);
+            }
+        }
+
         [Fact]
         public void DefaultEnumerationOptions()
         {
@@ -468,8 +572,10 @@ namespace Tmds.Ssh.Tests
             Assert.Equal(contentOfLink, await sftpClient.GetLinkTargetAsync(linkPath));
         }
 
-        [Fact]
-        public async Task DownloadUploadLink()
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task DownloadUploadBrokenLink(bool follow)
         {
             using var client = await _sshServer.CreateClientAsync();
             using var sftpClient = await client.CreateSftpClientAsync();
@@ -482,7 +588,7 @@ namespace Tmds.Ssh.Tests
 
             string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
             await sftpClient.CreateNewDirectoryAsync(remoteDir);
-            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir);
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowDirectoryLinks = follow, FollowFileLinks = follow });
 
             Assert.Equal(contentOfLink, await sftpClient.GetLinkTargetAsync($"{remoteDir}/{linkName}"));
 
@@ -491,6 +597,64 @@ namespace Tmds.Ssh.Tests
             await sftpClient.DownloadDirectoryEntriesAsync(remoteDir, dstDir);
 
             Assert.Equal(contentOfLink, new FileInfo(Path.Combine(dstDir, linkName)).LinkTarget);
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task UploadFollowFileLinks(bool follow)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(sourceDir);
+            File.OpenWrite($"{sourceDir}/file").Dispose();
+            File.CreateSymbolicLink(Path.Combine(sourceDir, "link"), "file");
+
+            string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.CreateNewDirectoryAsync(remoteDir);
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowFileLinks = follow });
+
+            if (follow)
+            {
+                var attributes = await sftpClient.GetAttributesAsync($"{remoteDir}/link", followLinks: false);
+                Assert.NotNull(attributes);
+                Assert.Equal(UnixFileType.RegularFile, attributes.FileType);
+            }
+            else
+            {
+                Assert.Equal("file", await sftpClient.GetLinkTargetAsync($"{remoteDir}/link"));
+            }
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task UploadFollowDirectoryLinks(bool follow)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+
+            string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(sourceDir);
+            Directory.CreateDirectory($"{sourceDir}/dir");
+            File.CreateSymbolicLink(Path.Combine(sourceDir, "link"), "dir");
+
+            string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.CreateNewDirectoryAsync(remoteDir);
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowDirectoryLinks = follow });
+
+            if (follow)
+            {
+                var attributes = await sftpClient.GetAttributesAsync($"{remoteDir}/link", followLinks: false);
+                Assert.NotNull(attributes);
+                Assert.Equal(UnixFileType.Directory, attributes.FileType);
+            }
+            else
+            {
+                Assert.Equal("dir", await sftpClient.GetLinkTargetAsync($"{remoteDir}/link"));
+            }
         }
 
         [Fact]

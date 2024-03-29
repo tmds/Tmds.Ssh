@@ -6,4 +6,6 @@ namespace Tmds.Ssh;
 public sealed class EnumerationOptions
 {
     public bool RecurseSubdirectories { get; set; }
+    public bool FollowFileLinks { get; set; } = true;
+    public bool FollowDirectoryLinks { get; set; } = true;
 }

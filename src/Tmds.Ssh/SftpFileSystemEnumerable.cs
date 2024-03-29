@@ -42,6 +42,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private string _path;
     private readonly bool _recurseSubdirectories;
+    private readonly bool _followFileLinks;
+    private readonly bool _followDirectoryLinks;
 
     private Queue<string>? _pending;
 
@@ -60,6 +62,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _transform = transform;
         _cancellationToken = cancellationToken;
         _recurseSubdirectories = options.RecurseSubdirectories;
+        _followDirectoryLinks = options.FollowDirectoryLinks;
+        _followFileLinks = options.FollowFileLinks;
     }
 
     public T Current => _current!;
@@ -95,8 +99,13 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             while (_entriesRemaining > 0)
             {
-                if (ReadNextEntry())
+                if (ReadNextEntry(followLink: _followDirectoryLinks || _followFileLinks, out string? linkPath, out Memory<byte> linkEntry))
                 {
+                    return true;
+                }
+                if (linkPath is not null)
+                {
+                    await ReadLinkTargetEntry(linkPath, linkEntry);
                     return true;
                 }
             }
@@ -115,7 +124,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
             if (_pending?.TryDequeue(out string? path) == true)
             {
-
                 _path = path;
             }
             else
@@ -152,12 +160,22 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
     }
 
-    private bool ReadNextEntry()
+    private bool ReadNextEntry(bool followLink, out string? linkPath, out Memory<byte> linkEntry)
     {
-        SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(_bufferOffset), _pathBuffer, _nameBuffer, out int entryLength);
+        int startOffset = _bufferOffset;
+        SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(startOffset), _pathBuffer, _nameBuffer, out int entryLength);
 
         _bufferOffset += entryLength;
         _entriesRemaining--;
+
+        if (followLink && entry.FileType == UnixFileType.SymbolicLink)
+        {
+            linkPath = entry.ToPath();
+            linkEntry = _readDirPacket.AsMemory(startOffset, entryLength);
+            return false;
+        }
+        linkPath = default;
+        linkEntry = default;
 
         // Don't return "." and "..".
         ReadOnlySpan<byte> entryName = entry.NameBytes;
@@ -166,6 +184,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             return false;
         }
 
+        SetCurrent(ref entry);
+        return true;
+    }
+
+    private void SetCurrent(ref SftpFileEntry entry)
+    {
         if (_recurseSubdirectories && entry.FileType == UnixFileType.Directory)
         {
             _pending ??= new();
@@ -173,6 +197,25 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
 
         _current = _transform(ref entry);
-        return true;
+    }
+
+    private async Task ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
+    {
+        FileEntryAttributes? attributes = await _client.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken);
+        if (attributes is not null)
+        {
+            if ((!_followDirectoryLinks && attributes.FileType == UnixFileType.Directory) ||
+                (!_followFileLinks && attributes.FileType != UnixFileType.Directory))
+            {
+                attributes = null;
+            }
+        }
+        SetCurrentEntry();
+
+        void SetCurrentEntry()
+        {
+            SftpFileEntry entry = new SftpFileEntry(_path, linkEntry.Span, _pathBuffer, _nameBuffer, out int _, attributes);
+            SetCurrent(ref entry);
+        }
     }
 }

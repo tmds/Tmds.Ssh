@@ -7,4 +7,6 @@ public sealed class UploadEntriesOptions
 {
     public bool Overwrite { get; set; } = false;
     public bool RecurseSubdirectories { get; set; } = true;
+    public bool FollowFileLinks { get; set; } = true;
+    public bool FollowDirectoryLinks { get; set; } = true;
 }
