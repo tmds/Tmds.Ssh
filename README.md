@@ -238,16 +238,22 @@ class FileEntryAttributes
 class EnumerationOptions
 {
     bool RecurseSubdirectories { get; set; } = false;
+    bool FollowFileLinks { get; set; } = true;
+    bool FollowDirectoryLinks { get; set; } = true;
 }
 class DownloadEntriesOptions
 {
     bool Overwrite { get; set; } = false;
     bool RecurseSubdirectories { get; set; } = true;
+    bool FollowFileLinks { get; set; } = true;
+    bool FollowDirectoryLinks { get; set; } = true;
 }
 class UploadEntriesOptions
 {
     bool Overwrite { get; set; } = false;
     bool RecurseSubdirectories { get; set; } = true;
+    bool FollowFileLinks { get; set; } = true;
+    bool FollowDirectoryLinks { get; set; } = true;
 }
 delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
 ref struct SftpFileEntry

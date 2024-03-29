@@ -379,6 +379,9 @@ namespace Tmds.Ssh
             }
             remoteDirPath = RemotePath.EnsureTrailingSeparator(remoteDirPath);
 
+            bool followFileLinks = options.FollowFileLinks;
+            bool followDirectoryLinks = options.FollowDirectoryLinks;
+
             char[] pathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
             var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirPath,
                             (ref FileSystemEntry entry) =>
@@ -388,9 +391,19 @@ namespace Tmds.Ssh
                                 remotePathBuilder.Append(remoteDirPath);
                                 remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
                                 var attributes = entry.Attributes;
-                                UnixFileType mode = (attributes & FileAttributes.ReparsePoint) != 0 ? UnixFileType.SymbolicLink :
-                                                    (attributes & FileAttributes.Directory) != 0    ? UnixFileType.Directory :
-                                                                                                                UnixFileType.RegularFile;
+                                bool isLink = (attributes & FileAttributes.ReparsePoint) != 0;
+                                UnixFileType mode;
+                                if ((attributes & FileAttributes.Directory) != 0)
+                                {
+                                    mode = (isLink && !followDirectoryLinks) ? UnixFileType.SymbolicLink
+                                                                             : UnixFileType.Directory;
+                                }
+                                else
+                                {
+                                    mode = isLink ? UnixFileType.SymbolicLink
+                                                  : UnixFileType.RegularFile;
+                                }
+
                                 long length = entry.Length;
                                 return (localPath, remotePathBuilder.ToString(), mode, length);
                             },
@@ -426,16 +439,24 @@ namespace Tmds.Ssh
                             break;
                         case UnixFileType.SymbolicLink:
                             FileInfo file = new FileInfo(item.LocalPath);
-                            string? targetPath = file.LinkTarget;
-                            if (targetPath is null)
+                            if (followFileLinks &&
+                                file.ResolveLinkTarget(returnFinalTarget: true)?.Exists == true)
                             {
-                                throw new IOException($"Can not determine link target path of '{item.LocalPath}'.");
+                                onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
                             }
-                            if (OperatingSystem.IsWindows())
+                            else
                             {
-                                targetPath = targetPath.Replace('\\', '/');
+                                string? targetPath = file.LinkTarget;
+                                if (targetPath is null)
+                                {
+                                    throw new IOException($"Can not determine link target path of '{item.LocalPath}'.");
+                                }
+                                if (OperatingSystem.IsWindows())
+                                {
+                                    targetPath = targetPath.Replace('\\', '/');
+                                }
+                                onGoing.Enqueue(CreateSymbolicLinkAsync(item.RemotePath, targetPath, overwrite, cancellationToken));
                             }
-                            onGoing.Enqueue(CreateSymbolicLinkAsync(item.RemotePath, targetPath, overwrite, cancellationToken));
                             break;
                         default:
                             break;
@@ -584,7 +605,7 @@ namespace Tmds.Ssh
                     localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
                     return (localPathBuilder.ToString(), remotePath, entry.FileMode, entry.Length);
                 },
-                new EnumerationOptions() { RecurseSubdirectories = recurse });
+                new EnumerationOptions() { RecurseSubdirectories = recurse, FollowDirectoryLinks = options.FollowDirectoryLinks, FollowFileLinks = options.FollowFileLinks });
 
             var onGoing = new Queue<ValueTask>();
             try
