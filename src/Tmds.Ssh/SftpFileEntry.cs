@@ -32,7 +32,8 @@ public ref struct SftpFileEntry
     public long Length { get; }
     public int Uid { get; }
     public int Gid { get; }
-    public PosixFileMode FileMode { get; }
+    public UnixFileType FileType { get; }
+    public UnixFilePermissions Permissions { get; }
     public DateTimeOffset LastAccessTime { get; }
     public DateTimeOffset LastWriteTime { get; }
     public ReadOnlySpan<char> Path
@@ -76,7 +77,8 @@ public ref struct SftpFileEntry
                 Length = this.Length,
                 Uid = this.Uid,
                 Gid = this.Gid,
-                FileMode = this.FileMode,
+                Permissions = this.Permissions,
+                FileType = this.FileType,
                 LastAccessTime = this.LastAccessTime,
                 LastWriteTime = this.LastWriteTime,
                 ExtendedAttributes = GetExtendedAttributes()
@@ -91,10 +93,6 @@ public ref struct SftpFileEntry
     public string ToPath()
         => _path ??= new string(Path);
 
-    public UnixFileType FileType => (UnixFileType)(FileMode & (PosixFileMode)0xf000);
-#if NET7_0_OR_GREATER
-    public UnixFileMode Permissions => (UnixFileMode)(FileMode & (PosixFileMode)0x0fff);
-#endif
     internal ReadOnlySpan<byte> NameBytes => _entry.Slice(4, _nameByteLength);
 
     internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength, FileEntryAttributes? linkTargetAttributes = null)
@@ -127,7 +125,7 @@ public ref struct SftpFileEntry
             Length = reader.ReadInt64();
             Uid = reader.ReadInt();
             Gid = reader.ReadInt();
-            FileMode = (PosixFileMode)reader.ReadInt();
+            (Permissions, FileType) = reader.ReadFileMode();
             LastAccessTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
             LastWriteTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
 
@@ -148,7 +146,8 @@ public ref struct SftpFileEntry
             Length = linkTargetAttributes.Length!.Value;
             Uid = linkTargetAttributes.Uid!.Value;
             Gid = linkTargetAttributes.Gid!.Value;
-            FileMode = linkTargetAttributes.FileMode!.Value;
+            Permissions = linkTargetAttributes.Permissions!.Value;
+            FileType = linkTargetAttributes.FileType!.Value;
             LastAccessTime = linkTargetAttributes.LastAccessTime!.Value;
             LastWriteTime = linkTargetAttributes.LastWriteTime!.Value;
             entryLength = -1;

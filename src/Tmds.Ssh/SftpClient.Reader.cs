@@ -4,6 +4,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Tmds.Ssh
 {
@@ -85,7 +86,8 @@ namespace Tmds.Ssh
                 long? length = default;
                 int? uid = default;
                 int? gid = default;
-                PosixFileMode? fileMode = default;
+                UnixFileType? fileType = default;
+                UnixFilePermissions? permissions = default;
                 DateTimeOffset? lastAccessTime = default;
                 DateTimeOffset? lastWriteTime = default;
                 Dictionary<string, string>? extendedAttributes = default;
@@ -102,7 +104,7 @@ namespace Tmds.Ssh
                 }
                 if ((flags & 4) != 0)
                 {
-                    fileMode = (PosixFileMode)ReadInt();
+                    (permissions, fileType) = ReadFileMode();
                 }
                 if ((flags & 8) != 0)
                 {
@@ -125,7 +127,8 @@ namespace Tmds.Ssh
                 attributes.Length = length;
                 attributes.Uid = uid;
                 attributes.Gid = gid;
-                attributes.FileMode = fileMode;
+                attributes.Permissions = permissions;
+                attributes.FileType = fileType;
                 attributes.LastAccessTime = lastAccessTime;
                 attributes.LastWriteTime = lastWriteTime;
                 attributes.ExtendedAttributes = extendedAttributes;
@@ -136,6 +139,24 @@ namespace Tmds.Ssh
             public PacketType ReadPacketType()
             {
                 return (PacketType)ReadByte();
+            }
+
+            public (UnixFilePermissions, UnixFileType) ReadFileMode()
+            {
+                int mode = ReadInt();
+                UnixFilePermissions permissions = (UnixFilePermissions)(mode & 0xfff);
+                UnixFileType fileType = ((UnixFileTypeByte)(mode >> 12)) switch
+                {
+                    UnixFileTypeByte.RegularFile => UnixFileType.RegularFile,
+                    UnixFileTypeByte.Directory => UnixFileType.Directory,
+                    UnixFileTypeByte.SymbolicLink => UnixFileType.SymbolicLink,
+                    UnixFileTypeByte.CharacterDevice => UnixFileType.CharacterDevice,
+                    UnixFileTypeByte.BlockDevice => UnixFileType.BlockDevice,
+                    UnixFileTypeByte.Socket => UnixFileType.Socket,
+                    UnixFileTypeByte.Fifo => UnixFileType.Fifo,
+                    _ => throw new InvalidDataException($"Invalid mode: {mode}.")
+                };
+                return (permissions, fileType);
             }
         }
     }

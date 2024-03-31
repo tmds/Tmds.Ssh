@@ -112,12 +112,12 @@ class SshDataStream : Stream
 class SftpClient : IDisposable
 {
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFileMode permissions, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFileMode permissions, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
 
   // Returns null if the file does not exist.
@@ -130,14 +130,14 @@ class SftpClient : IDisposable
 
   // Does not throw if the path is an existing directory, or a link to one.
   ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateDirectoryAsync(string path, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
+  ValueTask CreateDirectoryAsync(string path, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
-  ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
+  ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   // Throws if the path exists.
   ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateNewDirectoryAsync(string path, UnixFileMode permissions, CancellationToken cancellationToken = default);
+  ValueTask CreateNewDirectoryAsync(string path, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
   ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
-  ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFileMode permissions, CancellationToken cancellationToken = default);
+  ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
@@ -150,9 +150,9 @@ class SftpClient : IDisposable
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default);
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, UnixFileMode permissions, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, CancellationToken cancellationToken = default);
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, UnixFileMode createPermissions, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default);
 
@@ -227,13 +227,14 @@ class FileEntryAttributes
     long? Length { get; set; }
     int? Uid { get; set; }
     int? Gid { get; set; }
-    PosixFileMode? FileMode { get; set; }
+    public UnixFileType? FileType { get; set; }
+    public UnixFilePermissions? Permissions { get; set; }
     DateTimeOffset? LastAccessTime { get; set; }
     DateTimeOffset? LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
 
     UnixFileType? FileType { get; }
-    UnixFileMode? Permissions { get; }
+    UnixFilePermissions? Permissions { get; }
 }
 class EnumerationOptions
 {
@@ -261,9 +262,8 @@ ref struct SftpFileEntry
     long Length { get; }
     int Uid { get; }
     int Gid { get; }
-    PosixFileMode FileMode { get; }
     UnixFileType FileType { get; }
-    UnixFileMode Permissions { get; }
+    UnixFilePermissions Permissions { get; }
     DateTimeOffset LastAccessTime { get; }
     DateTimeOffset LastWriteTime { get; }
     ReadOnlySpan<char> Path { get; }
@@ -273,7 +273,7 @@ ref struct SftpFileEntry
     string ToPath()
 }
 [Flags]
-enum PosixFileMode
+enum UnixFilePermissions // values match System.IO.UnixFileMode.
 {
     None,
     OtherExecute,
@@ -288,7 +288,14 @@ enum PosixFileMode
     StickyBit,
     SetGroup,
     SetUser,
-
+}
+static class UnixFilePemissionExtensions
+{
+    static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
+    static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
+}
+enum UnixFileType
+{
     RegularFile,
     Directory,
     SymbolicLink,
