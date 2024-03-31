@@ -74,7 +74,7 @@ namespace Tmds.Ssh.Tests
 
             var attributes = await sftpClient.GetAttributesAsync(path);
             Assert.NotNull(attributes);
-            Assert.True((attributes.FileMode & PosixFileMode.Directory) != 0);
+            Assert.Equal(UnixFileType.Directory, attributes.FileType);
 
             await sftpClient.DeleteDirectoryAsync(path);
             attributes = await sftpClient.GetAttributesAsync(path);
@@ -140,7 +140,7 @@ namespace Tmds.Ssh.Tests
 
             var attributes = await sftpClient.GetAttributesAsync(path);
             Assert.NotNull(attributes);
-            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+            Assert.Equal(UnixFileType.RegularFile, attributes.FileType);
 
             await sftpClient.DeleteFileAsync(path);
             attributes = await sftpClient.GetAttributesAsync(path);
@@ -159,7 +159,7 @@ namespace Tmds.Ssh.Tests
 
             var attributes = await sftpClient.GetAttributesAsync(path);
             Assert.NotNull(attributes);
-            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+            Assert.Equal(UnixFileType.RegularFile, attributes.FileType);
 
             string newpath = $"/tmp/{Path.GetRandomFileName()}";
             await sftpClient.RenameAsync(path, newpath);
@@ -169,7 +169,7 @@ namespace Tmds.Ssh.Tests
 
             attributes = await sftpClient.GetAttributesAsync(newpath);
             Assert.NotNull(attributes);
-            Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+            Assert.Equal(UnixFileType.RegularFile, attributes.FileType);
         }
 
         [Fact]
@@ -196,7 +196,7 @@ namespace Tmds.Ssh.Tests
             void CheckFileAttributes(FileEntryAttributes? attributes)
             {
                 Assert.NotNull(attributes);
-                Assert.True((attributes.FileMode & PosixFileMode.RegularFile) != 0);
+                Assert.Equal(UnixFileType.RegularFile, attributes.FileType);
                 Assert.Equal(fileLength, attributes.Length);
                 Assert.True(attributes.Uid >= 1000);
                 Assert.True(attributes.Gid >= 1000);

@@ -3,14 +3,20 @@
 
 namespace Tmds.Ssh
 {
-    public enum UnixFileType
+    public enum UnixFileType : short
     {
-        RegularFile = 0x8000,
-        Directory = 0x4000,
-        SymbolicLink = 0xa000,
-        CharacterDevice = 0x2000,
-        BlockDevice = 0x6000,
-        Socket = 0xc000,
-        Fifo = 0x1000,
+        RegularFile = UnixFileTypeFilter.RegularFile << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.RegularFile,
+        Directory = UnixFileTypeFilter.Directory << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.Directory,
+        SymbolicLink = UnixFileTypeFilter.SymbolicLink << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.SymbolicLink,
+        CharacterDevice = UnixFileTypeFilter.CharacterDevice << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.CharacterDevice,
+        BlockDevice = UnixFileTypeFilter.BlockDevice << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.BlockDevice,
+        Socket = UnixFileTypeFilter.Socket << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.Socket,
+        Fifo = UnixFileTypeFilter.Fifo << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.Fifo,
+    }
+
+    static class UnixFileTypeExtensions
+    {
+        public static int GetMode(this UnixFileType type)
+            => ((int)type & 0xff) << 12;
     }
 }

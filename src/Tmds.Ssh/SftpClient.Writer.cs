@@ -81,7 +81,7 @@ namespace Tmds.Ssh
                 }
                 else
                 {
-                    WriteAttributes(attributes.Length, attributes.Uid, attributes.Gid, attributes.FileMode, attributes.LastAccessTime, attributes.LastWriteTime, attributes.ExtendedAttributes);
+                    WriteAttributes(attributes.Length, attributes.Uid, attributes.Gid, attributes.Permissions, attributes.FileType, attributes.LastAccessTime, attributes.LastWriteTime, attributes.ExtendedAttributes);
                 }
             }
 
@@ -89,12 +89,14 @@ namespace Tmds.Ssh
                 long? length = default,
                 int? uid = default,
                 int? gid = default,
-                PosixFileMode? fileMode = default,
+                UnixFilePermissions? permissions = default,
+                UnixFileType? fileType = default,
                 DateTimeOffset? lastAccessTime = default,
                 DateTimeOffset? lastWriteTime = default,
                 Dictionary<string, string>? extendedAttributes = default
             )
             {
+                bool setMode = permissions.HasValue;
                 uint flags = 0;
                 if (length.HasValue)
                 {
@@ -112,7 +114,7 @@ namespace Tmds.Ssh
                     }
                     flags |= 2;
                 }
-                if (fileMode.HasValue)
+                if (setMode)
                 {
                     flags |= 4;
                 }
@@ -145,9 +147,9 @@ namespace Tmds.Ssh
                 {
                     WriteInt(gid.Value);
                 }
-                if (fileMode.HasValue)
+                if (setMode)
                 {
-                    WriteInt((int)fileMode.Value);
+                    WriteFileMode(permissions, fileType);
                 }
                 if (lastAccessTime.HasValue)
                 {
@@ -166,6 +168,20 @@ namespace Tmds.Ssh
                         WriteString(pair.Value);
                     }
                 }
+            }
+
+            private void WriteFileMode(UnixFilePermissions? permissions, UnixFileType? fileType)
+            {
+                int mode = 0;
+                if (permissions.HasValue)
+                {
+                    mode |= permissions.Value.GetMode();
+                }
+                if (fileType.HasValue)
+                {
+                    mode |= fileType.Value.GetMode();
+                }
+                WriteInt(mode);
             }
 
             public unsafe void WriteString(ReadOnlySpan<char> value)
