@@ -9,4 +9,8 @@ public sealed class DownloadEntriesOptions
     public bool RecurseSubdirectories { get; set; } = true;
     public bool FollowFileLinks { get; set; } = true;
     public bool FollowDirectoryLinks { get; set; } = true;
+    public UnixFileTypeFilter FileTypeFilter { get; set; } =
+        UnixFileTypeFilter.RegularFile |
+        UnixFileTypeFilter.Directory |
+        UnixFileTypeFilter.SymbolicLink;
 }

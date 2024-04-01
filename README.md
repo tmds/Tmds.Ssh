@@ -222,25 +222,34 @@ enum UnixFileType
     Socket,
     Fifo,
 }
+[Flags]
+enum UnixFileTypeFilter
+{
+    RegularFile,
+    Directory,
+    SymbolicLink,
+    CharacterDevice,
+    BlockDevice,
+    Socket,
+    Fifo,
+}
 class FileEntryAttributes
 {
     long? Length { get; set; }
     int? Uid { get; set; }
     int? Gid { get; set; }
-    public UnixFileType? FileType { get; set; }
-    public UnixFilePermissions? Permissions { get; set; }
+    UnixFileType? FileType { get; set; }
+    UnixFilePermissions? Permissions { get; set; }
     DateTimeOffset? LastAccessTime { get; set; }
     DateTimeOffset? LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
-
-    UnixFileType? FileType { get; }
-    UnixFilePermissions? Permissions { get; }
 }
 class EnumerationOptions
 {
     bool RecurseSubdirectories { get; set; } = false;
     bool FollowFileLinks { get; set; } = true;
     bool FollowDirectoryLinks { get; set; } = true;
+    UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
 }
 class DownloadEntriesOptions
 {
@@ -248,6 +257,7 @@ class DownloadEntriesOptions
     bool RecurseSubdirectories { get; set; } = true;
     bool FollowFileLinks { get; set; } = true;
     bool FollowDirectoryLinks { get; set; } = true;
+    UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
 }
 class UploadEntriesOptions
 {

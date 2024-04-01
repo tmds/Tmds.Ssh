@@ -44,6 +44,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly bool _recurseSubdirectories;
     private readonly bool _followFileLinks;
     private readonly bool _followDirectoryLinks;
+    private readonly UnixFileTypeFilter _fileTypeFilter;
 
     private Queue<string>? _pending;
 
@@ -64,6 +65,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _recurseSubdirectories = options.RecurseSubdirectories;
         _followDirectoryLinks = options.FollowDirectoryLinks;
         _followFileLinks = options.FollowFileLinks;
+        _fileTypeFilter = options.FileTypeFilter;
     }
 
     public T Current => _current!;
@@ -103,9 +105,9 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
                 {
                     return true;
                 }
-                if (linkPath is not null)
+                if (linkPath is not null &&
+                    await ReadLinkTargetEntry(linkPath, linkEntry))
                 {
-                    await ReadLinkTargetEntry(linkPath, linkEntry);
                     return true;
                 }
             }
@@ -184,11 +186,10 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             return false;
         }
 
-        SetCurrent(ref entry);
-        return true;
+        return SetCurrent(ref entry);
     }
 
-    private void SetCurrent(ref SftpFileEntry entry)
+    private bool SetCurrent(ref SftpFileEntry entry)
     {
         if (_recurseSubdirectories && entry.FileType == UnixFileType.Directory)
         {
@@ -196,10 +197,16 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             _pending.Enqueue(entry.ToPath());
         }
 
+        if (!_fileTypeFilter.Matches(entry.FileType))
+        {
+            return false;
+        }
+
         _current = _transform(ref entry);
+        return true;
     }
 
-    private async Task ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
+    private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
         FileEntryAttributes? attributes = await _client.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken);
         if (attributes is not null)
@@ -210,12 +217,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
                 attributes = null;
             }
         }
-        SetCurrentEntry();
+        return SetCurrentEntry();
 
-        void SetCurrentEntry()
+        bool SetCurrentEntry()
         {
             SftpFileEntry entry = new SftpFileEntry(_path, linkEntry.Span, _pathBuffer, _nameBuffer, out int _, attributes);
-            SetCurrent(ref entry);
+            return SetCurrent(ref entry);
         }
     }
 }

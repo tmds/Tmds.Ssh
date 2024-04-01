@@ -326,6 +326,28 @@ namespace Tmds.Ssh.Tests
                     entries.Select(entry => entry.Path).ToHashSet()
                 );
             }
+
+        }
+
+        [Fact]
+        public async Task EnumerateDirectoryFileTypeFilter()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/child1/child2/", createParents: true);
+
+            using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/child1/child2/file", FileAccess.Write);
+            await file.CloseAsync();
+
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath,
+                new EnumerationOptions() { RecurseSubdirectories = true, FileTypeFilter = UnixFileTypeFilter.RegularFile }).ToListAsync();
+
+            Assert.Single(entries);
+            var entry = entries[0];
+            Assert.Equal(UnixFileType.RegularFile, entry.Attributes.FileType);
+            Assert.Equal($"{directoryPath}/child1/child2/file", entry.Path);
         }
 
         [InlineData(true, true)]
