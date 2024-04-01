@@ -571,8 +571,18 @@ namespace Tmds.Ssh
         public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
         {
             options ??= DefaultDownloadEntriesOptions;
+
+            const UnixFileTypeFilter SupportedFileTypes =
+                UnixFileTypeFilter.RegularFile |
+                UnixFileTypeFilter.Directory |
+                UnixFileTypeFilter.SymbolicLink;
+            UnixFileTypeFilter unsupportedFileTypes = options.FileTypeFilter & ~SupportedFileTypes;
+            if (unsupportedFileTypes != 0)
+            {
+                throw new NotSupportedException($"{nameof(options.FileTypeFilter)} includes unsupported file types: {unsupportedFileTypes}. {nameof(options.FileTypeFilter)} may only include {SupportedFileTypes}.");
+            }
+
             bool overwrite = options.Overwrite;
-            bool recurse = options.RecurseSubdirectories;
 
             int trimRemoteDirectory = remoteDirPath.Length;
             if (!LocalPath.EndsInDirectorySeparator(remoteDirPath))
@@ -591,7 +601,11 @@ namespace Tmds.Ssh
                     localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
                     return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Permissions, entry.Length);
                 },
-                new EnumerationOptions() { RecurseSubdirectories = recurse, FollowDirectoryLinks = options.FollowDirectoryLinks, FollowFileLinks = options.FollowFileLinks });
+                new EnumerationOptions() {
+                        RecurseSubdirectories = options.RecurseSubdirectories,
+                        FollowDirectoryLinks = options.FollowDirectoryLinks,
+                        FollowFileLinks = options.FollowFileLinks,
+                        FileTypeFilter = options.FileTypeFilter });
 
             var onGoing = new Queue<ValueTask>();
             try
@@ -622,7 +636,7 @@ namespace Tmds.Ssh
                             onGoing.Enqueue(DownloadLinkAsync(item.RemotePath, item.LocalPath, overwrite, cancellationToken));
                             break;
                         default:
-                            break;
+                            throw new NotSupportedException($"Downloading file type '{item.Type}' is not supported.");
                     }
                 }
                 while (onGoing.TryDequeue(out ValueTask pending))

@@ -6,7 +6,7 @@ using System;
 namespace Tmds.Ssh
 {
     [Flags]
-    enum UnixFileTypeFilter : byte
+    public enum UnixFileTypeFilter : byte
     {
         RegularFile = 1,
         Directory = 2,
