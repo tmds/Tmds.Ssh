@@ -22,7 +22,7 @@ static class LocalPath
     public static bool EndsInDirectorySeparator(ReadOnlySpan<char> path) =>
         path.Length > 0 && IsDirectorySeparator(path[path.Length - 1]);
 
-    private static bool IsDirectorySeparator(char c)
+    public static bool IsDirectorySeparator(char c)
     {
         return c == DirectorySeparatorChar || c == AltDirectorySeparatorChar;
     }

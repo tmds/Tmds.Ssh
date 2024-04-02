@@ -590,6 +590,12 @@ namespace Tmds.Ssh
                 trimRemoteDirectory++;
             }
             localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
+            if (!Directory.Exists(localDirPath))
+            {
+                throw new DirectoryNotFoundException($"Directory not found: {localDirPath}.");
+            }
+            // Track the last directory that is known to exist to avoid calling Directory.CreateDirectory for each item in the same directory.
+            string lastDirectory = localDirPath;
 
             char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
             var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(remoteDirPath,
@@ -628,11 +634,14 @@ namespace Tmds.Ssh
                             {
                                 CreateLocalDirectory(item.LocalPath, item.Permissions);
                             }
+                            lastDirectory = item.LocalPath;
                             break;
                         case UnixFileType.RegularFile:
+                            lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
                             onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, item.Permissions, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
+                            lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
                             onGoing.Enqueue(DownloadLinkAsync(item.RemotePath, item.LocalPath, overwrite, cancellationToken));
                             break;
                         default:
@@ -656,6 +665,20 @@ namespace Tmds.Ssh
                     { }
                 }
                 ArrayPool<char>.Shared.Return(pathBuffer);
+            }
+
+            static string EnsureParentDirectory(string lastDirectory, string itemPath)
+            {
+                ReadOnlySpan<char> parentPath = Path.GetDirectoryName(itemPath.AsSpan());
+                bool isSameOrParentOfCurrent =
+                    lastDirectory.AsSpan().StartsWith(parentPath) &&
+                    (lastDirectory.Length == parentPath.Length || LocalPath.IsDirectorySeparator(lastDirectory[parentPath.Length]));
+                if (!isSameOrParentOfCurrent)
+                {
+                    lastDirectory = new string(parentPath);
+                    Directory.CreateDirectory(lastDirectory);
+                }
+                return lastDirectory;
             }
         }
 

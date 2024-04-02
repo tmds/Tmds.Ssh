@@ -621,6 +621,26 @@ namespace Tmds.Ssh.Tests
             Assert.Equal(contentOfLink, new FileInfo(Path.Combine(dstDir, linkName)).LinkTarget);
         }
 
+        [Fact]
+        public async Task DownloadFileTypeFilterCreatesParentDirs()
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/child1/child2/", createParents: true);
+
+            using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/child1/child2/file", FileAccess.Write);
+            await file.CloseAsync();
+
+            string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(dstDir);
+            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir,
+                new DownloadEntriesOptions() { FileTypeFilter = UnixFileTypeFilter.RegularFile } );
+
+            Assert.True(File.Exists($"{dstDir}/child1/child2/file"));
+        }
+
         [InlineData(true)]
         [InlineData(false)]
         [Theory]
