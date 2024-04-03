@@ -326,7 +326,66 @@ namespace Tmds.Ssh.Tests
                     entries.Select(entry => entry.Path).ToHashSet()
                 );
             }
+        }
 
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task EnumerateDirectoryShouldInclude(bool value)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync(directoryPath);
+
+            for (int i = 0; i < 2; i++)
+            {
+                using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file{i}", FileAccess.Write);
+                await file.CloseAsync();
+            }
+
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath,
+                new EnumerationOptions() { ShouldInclude = (ref SftpFileEntry entry) => value }).ToListAsync();
+
+            if (value == true)
+            {
+                Assert.Equal(2, entries.Count);
+            }
+            else
+            {
+                Assert.Empty(entries);
+            }
+        }
+
+        [InlineData(true)]
+        [InlineData(false)]
+        [Theory]
+        public async Task EnumerateDirectoryShouldRecurse(bool value)
+        {
+            using var client = await _sshServer.CreateClientAsync();
+            using var sftpClient = await client.CreateSftpClientAsync();
+            string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+            await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/dir", createParents: true);
+
+            for (int i = 0; i < 2; i++)
+            {
+                using var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/dir/file{i}", FileAccess.Write);
+                await file.CloseAsync();
+            }
+
+            List<(string Path, FileEntryAttributes Attributes)> entries = await sftpClient.GetDirectoryEntriesAsync(directoryPath,
+                new EnumerationOptions() { ShouldRecurse = (ref SftpFileEntry entry) => value, RecurseSubdirectories = true }).ToListAsync();
+
+            if (value == true)
+            {
+                Assert.Equal(3, entries.Count);
+            }
+            else
+            {
+                Assert.Single(entries);
+            }
         }
 
         [Fact]

@@ -13,4 +13,6 @@ public sealed class DownloadEntriesOptions
         UnixFileTypeFilter.RegularFile |
         UnixFileTypeFilter.Directory |
         UnixFileTypeFilter.SymbolicLink;
+    public SftpFileEntryPredicate? ShouldRecurse { get; set; }
+    public SftpFileEntryPredicate? ShouldInclude { get; set; }
 }

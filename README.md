@@ -250,6 +250,8 @@ class EnumerationOptions
     bool FollowFileLinks { get; set; } = true;
     bool FollowDirectoryLinks { get; set; } = true;
     UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
+    SftpFileEntryPredicate? ShouldRecurse { get; set; }
+    SftpFileEntryPredicate? ShouldInclude { get; set; }
 }
 class DownloadEntriesOptions
 {
@@ -258,6 +260,8 @@ class DownloadEntriesOptions
     bool FollowFileLinks { get; set; } = true;
     bool FollowDirectoryLinks { get; set; } = true;
     UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
+    SftpFileEntryPredicate? ShouldRecurse { get; set; }
+    SftpFileEntryPredicate? ShouldInclude { get; set; }   
 }
 class UploadEntriesOptions
 {
@@ -267,6 +271,7 @@ class UploadEntriesOptions
     bool FollowDirectoryLinks { get; set; } = true;
 }
 delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
+delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
 ref struct SftpFileEntry
 {
     long Length { get; }

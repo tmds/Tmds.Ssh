@@ -9,6 +9,7 @@ using System.Text;
 namespace Tmds.Ssh;
 
 public delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
+public delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
 
 public ref struct SftpFileEntry
 {

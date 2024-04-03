@@ -45,6 +45,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly bool _followFileLinks;
     private readonly bool _followDirectoryLinks;
     private readonly UnixFileTypeFilter _fileTypeFilter;
+    private readonly SftpFileEntryPredicate? _shouldRecurse;
+    private readonly SftpFileEntryPredicate? _shouldInclude;
 
     private Queue<string>? _pending;
 
@@ -66,6 +68,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _followDirectoryLinks = options.FollowDirectoryLinks;
         _followFileLinks = options.FollowFileLinks;
         _fileTypeFilter = options.FileTypeFilter;
+        _shouldInclude = options.ShouldInclude;
+        _shouldRecurse = options.ShouldRecurse;
     }
 
     public T Current => _current!;
@@ -191,7 +195,9 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private bool SetCurrent(ref SftpFileEntry entry)
     {
-        if (_recurseSubdirectories && entry.FileType == UnixFileType.Directory)
+        if (_recurseSubdirectories &&
+            entry.FileType == UnixFileType.Directory &&
+            (_shouldRecurse?.Invoke(ref entry) ?? true))
         {
             _pending ??= new();
             _pending.Enqueue(entry.ToPath());
@@ -202,6 +208,10 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             return false;
         }
 
+        if (!(_shouldInclude?.Invoke(ref entry) ?? true))
+        {
+            return false;
+        }
         _current = _transform(ref entry);
         return true;
     }
