@@ -16,4 +16,6 @@ public sealed class EnumerationOptions
         UnixFileTypeFilter.BlockDevice |
         UnixFileTypeFilter.Socket |
         UnixFileTypeFilter.Fifo;
+    public SftpFileEntryPredicate? ShouldRecurse { get; set; }
+    public SftpFileEntryPredicate? ShouldInclude { get; set; }
 }

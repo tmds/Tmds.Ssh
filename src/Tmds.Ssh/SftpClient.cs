@@ -611,7 +611,9 @@ namespace Tmds.Ssh
                         RecurseSubdirectories = options.RecurseSubdirectories,
                         FollowDirectoryLinks = options.FollowDirectoryLinks,
                         FollowFileLinks = options.FollowFileLinks,
-                        FileTypeFilter = options.FileTypeFilter });
+                        FileTypeFilter = options.FileTypeFilter,
+                        ShouldInclude = options.ShouldInclude,
+                        ShouldRecurse = options.ShouldRecurse });
 
             var onGoing = new Queue<ValueTask>();
             try
