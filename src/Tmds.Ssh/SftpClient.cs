@@ -265,7 +265,7 @@ namespace Tmds.Ssh
         public IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null)
             => new SftpFileSystemEnumerable<T>(this, path, transform, options ?? DefaultEnumerationOptions);
 
-        internal ValueTask<byte[]> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        internal ValueTask<SftpFile> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_OPENDIR;
 
@@ -276,7 +276,8 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
+            // note: Return as 'SftpFile' so it gets Disposed in case the open is cancelled.
+            return ExecuteAsync<SftpFile>(packet, id, pendingOperation, cancellationToken);
         }
 
         public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
@@ -849,7 +850,7 @@ namespace Tmds.Ssh
             _ = SendPacketsAsync();
         }
 
-        internal ValueTask<byte[]> ReadDirAsync(byte[] handle, CancellationToken cancellationToken)
+        internal ValueTask<byte[]> ReadDirAsync(SftpFile file, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_READDIR;
 
@@ -858,7 +859,7 @@ namespace Tmds.Ssh
 
             Packet packet = new Packet(packetType);
             packet.WriteInt(id);
-            packet.WriteString(handle);
+            packet.WriteString(file.Handle);
 
             return ExecuteAsync<byte[]>(packet, id, pendingOperation, cancellationToken);
         }
