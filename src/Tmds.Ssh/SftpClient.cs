@@ -81,35 +81,35 @@ namespace Tmds.Ssh
             => OpenOrCreateFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
             => CreateNewFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
             => OpenOrCreateFileAsync(path, access, OpenMode.None, createPermissions, cancellationToken);
 
         public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), createPermissions, cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), createPermissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
             => CreateNewFileAsync(path, access, OpenMode.None, permissions, cancellationToken);
 
         public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions, cancellationToken)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
             => OpenFileAsync(path, access, OpenMode.None, cancellationToken);
 
         public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken);
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false);
 
         private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode mode)
         {
@@ -141,7 +141,7 @@ namespace Tmds.Ssh
             return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
         }
 
-        public ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_REMOVE;
 
@@ -152,10 +152,10 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+            await ExecuteAsync(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RMDIR;
 
@@ -166,10 +166,10 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+            await ExecuteAsync(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
+        public async ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_RENAME;
 
@@ -181,10 +181,10 @@ namespace Tmds.Ssh
             packet.WriteString(oldPath);
             packet.WriteString(newPath);
 
-            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+            await ExecuteAsync(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+        public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
         {
             PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT;
 
@@ -195,10 +195,10 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken);
+            return await ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)
+        public async ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_READLINK;
 
@@ -209,10 +209,10 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(linkPath);
 
-            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+            return await ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+        public async ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
         {
             PacketType packetType = PacketType.SSH_FXP_REALPATH;
 
@@ -223,13 +223,13 @@ namespace Tmds.Ssh
             packet.WriteInt(id);
             packet.WriteString(path);
 
-            return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
+            return await ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
         public ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
             => CreateSymbolicLinkAsync(linkPath, targetPath, overwrite: false, cancellationToken);
 
-        private ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken)
+        private async ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken)
         {
             int id;
             Packet packet;
@@ -256,7 +256,7 @@ namespace Tmds.Ssh
             packet.WriteString(targetPath);
             packet.WriteString(linkPath);
 
-            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+            await ExecuteAsync(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
         public IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null)
@@ -297,12 +297,12 @@ namespace Tmds.Ssh
 
             try
             {
-                await mkdir;
-                await IsDirectory(checkExists);
+                await mkdir.ConfigureAwait(false);
+                await IsDirectory(checkExists).ConfigureAwait(false);
             }
             catch (SftpException ex) when (ex.Error == SftpError.Failure)
             {
-                if (await IsDirectory(checkExists))
+                if (await IsDirectory(checkExists).ConfigureAwait(false))
                 {
                     return;
                 }
@@ -314,7 +314,7 @@ namespace Tmds.Ssh
             {
                 try
                 {
-                    FileEntryAttributes? attributes = await checkExists;
+                    FileEntryAttributes? attributes = await checkExists.ConfigureAwait(false);
                     return attributes?.FileType == UnixFileType.Directory;
                 }
                 catch
@@ -333,23 +333,28 @@ namespace Tmds.Ssh
         public ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
             => CreateNewDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
 
-        public ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
+        public async ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
         {
             if (createParents)
             {
+                CreateParents(path);
+            }
+
+            await CreateNewDirectory(path.AsSpan(), awaitable: true, permissions, cancellationToken).ConfigureAwait(false);
+
+            void CreateParents(string path)
+            {
                 ReadOnlySpan<char> span = RemotePath.TrimEndingDirectorySeparators(path);
                 int offset = 1;
-                int idx = 0;
+                int idx;
                 while ((idx = span.Slice(offset).IndexOf(RemotePath.DirectorySeparatorChar)) != -1)
                 {
                     offset += idx;
                     // note: parent directories are created using the default permissions, not the permissions arg.
-                    _ = CreateNewDirectoryAsync(span.Slice(0, offset), awaitable: false, permissions: DefaultCreateDirectoryPermissions, cancellationToken: default);
+                    _ = CreateNewDirectory(span.Slice(0, offset), awaitable: false, permissions: DefaultCreateDirectoryPermissions, cancellationToken: default);
                     offset++;
                 }
             }
-
-            return CreateNewDirectoryAsync(path.AsSpan(), awaitable: true, permissions, cancellationToken);
         }
 
         public ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default)
@@ -410,7 +415,7 @@ namespace Tmds.Ssh
                 {
                     if (onGoing.Count == MaxConcurrentOperations)
                     {
-                        await onGoing.Dequeue();
+                        await onGoing.Dequeue().ConfigureAwait(false);
                     }
                     switch (item.Type)
                     {
@@ -454,7 +459,7 @@ namespace Tmds.Ssh
                 }
                 while (onGoing.TryDequeue(out ValueTask pending))
                 {
-                    await pending;
+                    await pending.ConfigureAwait(false);
                 }
             }
             finally
@@ -463,7 +468,7 @@ namespace Tmds.Ssh
                 {
                     try
                     {
-                        await pending;
+                        await pending.ConfigureAwait(false);
                     }
                     catch
                     { }
@@ -518,7 +523,7 @@ namespace Tmds.Ssh
 
             permissions ??= GetPermissionsForFile(localFile);
 
-            using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, cancellationToken))!;
+            using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, cancellationToken).ConfigureAwait(false))!;
 
             length ??= RandomAccess.GetLength(localFile);
 
@@ -528,13 +533,13 @@ namespace Tmds.Ssh
             {
                 // Obtain a buffer before starting the copy to ensure we're not competing
                 // for buffers with the previous copy.
-                await s_uploadBufferSemaphore.WaitAsync(cancellationToken);
+                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
             }
 
-            await previous;
+            await previous.ConfigureAwait(false);
 
-            await remoteFile.CloseAsync(cancellationToken);
+            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
 
             async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
             {
@@ -549,12 +554,12 @@ namespace Tmds.Ssh
                         {
                             break;
                         }
-                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken);
+                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken).ConfigureAwait(false);
                         length -= bytesRead;
                         offset += bytesRead;
                     } while (length > 0);
 
-                    await previousCopy;
+                    await previousCopy.ConfigureAwait(false);
                 }
                 finally
                 {
@@ -620,11 +625,11 @@ namespace Tmds.Ssh
             var onGoing = new Queue<ValueTask>();
             try
             {
-                await foreach (var item in fse.WithCancellation(cancellationToken))
+                await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
                 {
                     if (onGoing.Count == MaxConcurrentOperations)
                     {
-                        await onGoing.Dequeue();
+                        await onGoing.Dequeue().ConfigureAwait(false);
                     }
                     switch (item.Type)
                     {
@@ -654,7 +659,7 @@ namespace Tmds.Ssh
                 }
                 while (onGoing.TryDequeue(out ValueTask pending))
                 {
-                    await pending;
+                    await pending.ConfigureAwait(false);
                 }
             }
             finally
@@ -663,7 +668,7 @@ namespace Tmds.Ssh
                 {
                     try
                     {
-                        await pending;
+                        await pending.ConfigureAwait(false);
                     }
                     catch
                     { }
@@ -734,7 +739,7 @@ namespace Tmds.Ssh
             }
 
             // note: the remote server is expected to return a path that has forward slashes, also when that server runs on Windows.
-            string targetPath = await GetLinkTargetAsync(remotePath, cancellationToken);
+            string targetPath = await GetLinkTargetAsync(remotePath, cancellationToken).ConfigureAwait(false);
             if (exists)
             {
                 File.Delete(localPath);
@@ -752,7 +757,7 @@ namespace Tmds.Ssh
         {
             ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(remotePath, followLinks: true) : default;
 
-            using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken);
+            using SftpFile? remoteFile = await OpenFileAsync(remotePath, FileAccess.Read, cancellationToken).ConfigureAwait(false);
             if (remoteFile is null)
             {
                 return;
@@ -760,7 +765,7 @@ namespace Tmds.Ssh
 
             if (length == null || permissions == null)
             {
-                FileEntryAttributes? attributes = await getAttributes;
+                FileEntryAttributes? attributes = await getAttributes.ConfigureAwait(false);
                 if (attributes is null)
                 {
                     throw new SftpException(SftpError.NoSuchFile);
@@ -777,13 +782,13 @@ namespace Tmds.Ssh
             {
                 // Obtain a buffer before starting the copy to ensure we're not competing
                 // for buffers with the previous copy.
-                await s_downloadBufferSemaphore.WaitAsync(cancellationToken);
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 previous = CopyBuffer(previous, offset, MaxReadPayload);
             }
 
-            await previous;
+            await previous.ConfigureAwait(false);
 
-            await remoteFile.CloseAsync(cancellationToken);
+            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
 
             async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
             {
@@ -793,7 +798,7 @@ namespace Tmds.Ssh
                     buffer = ArrayPool<byte>.Shared.Rent(length);
                     do
                     {
-                        int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken);
+                        int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken).ConfigureAwait(false);
                         if (bytesRead == 0)
                         {
                             break;
@@ -803,7 +808,7 @@ namespace Tmds.Ssh
                         offset += bytesRead;
                     } while (length > 0);
 
-                    await previousCopy;
+                    await previousCopy.ConfigureAwait(false);
                 }
                 finally
                 {
@@ -816,7 +821,7 @@ namespace Tmds.Ssh
             }
         }
 
-        private ValueTask CreateNewDirectoryAsync(ReadOnlySpan<char> path, bool awaitable, UnixFilePermissions permissions, CancellationToken cancellationToken)
+        private ValueTask CreateNewDirectory(ReadOnlySpan<char> path, bool awaitable, UnixFilePermissions permissions, CancellationToken cancellationToken)
         {
             PacketType packetType = PacketType.SSH_FXP_MKDIR;
 
@@ -835,9 +840,9 @@ namespace Tmds.Ssh
         {
             using Packet packet = new Packet(PacketType.SSH_FXP_INIT);
             packet.WriteUInt(ProtocolVersion);
-            await _channel.WriteAsync(packet.Data, cancellationToken);
+            await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
 
-            ReadOnlyMemory<byte> versionPacket = await ReadPacketAsync(cancellationToken);
+            ReadOnlyMemory<byte> versionPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
             HandleVersionPacket(versionPacket.Span);
 
             _ = ReadAllPacketsAsync();
@@ -877,7 +882,7 @@ namespace Tmds.Ssh
             do
             {
                 Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, 4 - totalReceived);
-                (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
+                (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken).ConfigureAwait(false);
                 if (type != ChannelReadType.StandardOutput)
                 {
                     throw new InvalidDataException($"Unexpected data type: {type}");
@@ -904,7 +909,7 @@ namespace Tmds.Ssh
             while (totalReceived < totalReceiveLength)
             {
                 Memory<byte> readBuffer = new Memory<byte>(_packetBuffer, totalReceived, totalReceiveLength - totalReceived);
-                (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
+                (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken).ConfigureAwait(false);
                 if (type != ChannelReadType.StandardOutput)
                 {
                     throw new InvalidDataException($"Unexpected data type: {type}");
@@ -917,13 +922,13 @@ namespace Tmds.Ssh
         private async Task SendPacketsAsync()
         {
             bool sendPackets = true;
-            await foreach (Packet packet in _pendingSends.Reader.ReadAllAsync())
+            await foreach (Packet packet in _pendingSends.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 if (sendPackets)
                 {
                     try
                     {
-                        await _channel.WriteAsync(packet.Data);
+                        await _channel.WriteAsync(packet.Data).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -941,7 +946,7 @@ namespace Tmds.Ssh
             {
                 do
                 {
-                    ReadOnlyMemory<byte> packet = await ReadPacketAsync(cancellationToken: default);
+                    ReadOnlyMemory<byte> packet = await ReadPacketAsync(cancellationToken: default).ConfigureAwait(false);
                     if (packet.Length == 0)
                     {
                         break;
@@ -1044,7 +1049,7 @@ namespace Tmds.Ssh
             {
                 int writeLength = Math.Min(buffer.Length, GetMaxWritePayload(handle));
 
-                await WriteFileSingleAsync(handle, offset, buffer.Slice(0, writeLength), cancellationToken);
+                await WriteFileSingleAsync(handle, offset, buffer.Slice(0, writeLength), cancellationToken).ConfigureAwait(false);
 
                 buffer = buffer.Slice(writeLength);
                 offset += writeLength;

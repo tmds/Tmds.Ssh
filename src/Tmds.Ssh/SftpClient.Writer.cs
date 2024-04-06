@@ -232,7 +232,7 @@ namespace Tmds.Ssh
             PendingOperation? pendingOperation,
             CancellationToken cancellationToken)
         {
-            await ExecuteAsync<object?>(packet, id, pendingOperation, cancellationToken);
+            await ExecuteAsync<object?>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
         }
 
         private async ValueTask<T> ExecuteAsync<T>(
@@ -270,12 +270,12 @@ namespace Tmds.Ssh
 
             if (typeof(T) == typeof(int))
             {
-                int result = await new ValueTask<int>(pendingOperation, pendingOperation.Token);
+                int result = await new ValueTask<int>(pendingOperation, pendingOperation.Token).ConfigureAwait(false);
                 return (T)(object)result;
             }
             else
             {
-                object? result = await new ValueTask<object?>(pendingOperation, pendingOperation.Token);
+                object? result = await new ValueTask<object?>(pendingOperation, pendingOperation.Token).ConfigureAwait(false);
                 return (T)result!;
             }
         }

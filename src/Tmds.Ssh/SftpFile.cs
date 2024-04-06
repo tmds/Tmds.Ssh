@@ -68,7 +68,7 @@ namespace Tmds.Ssh
             int bytesRead = 0;
             try
             {
-                bytesRead = await _client.ReadFileAsync(Handle, readOffset, buffer, cancellationToken);
+                bytesRead = await _client.ReadFileAsync(Handle, readOffset, buffer, cancellationToken).ConfigureAwait(false);
 
                 return bytesRead;
             }
@@ -78,11 +78,11 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
+        public async ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
-            return _client.ReadFileAsync(Handle, offset, buffer, cancellationToken);
+            return await _client.ReadFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
@@ -98,7 +98,7 @@ namespace Tmds.Ssh
             long writeOffset = Interlocked.Add(ref _position, buffer.Length) - buffer.Length;
             try
             {
-                await _client.WriteFileAsync(Handle, writeOffset, buffer, cancellationToken);
+                await _client.WriteFileAsync(Handle, writeOffset, buffer, cancellationToken).ConfigureAwait(false);
             }
             catch
             {
@@ -107,18 +107,18 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
-            return _client.WriteFileAsync(Handle, offset, buffer, cancellationToken);
+            await _client.WriteFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
-            return _client.GetAttributesForHandleAsync(Handle, cancellationToken);
+            return await _client.GetAttributesForHandleAsync(Handle, cancellationToken).ConfigureAwait(false);
         }
 
         private void ThrowIfDisposed()
@@ -129,12 +129,12 @@ namespace Tmds.Ssh
             }
         }
 
-        public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+        public async ValueTask CloseAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             _disposed = true;
 
-            return _client.CloseFileAsync(Handle, cancellationToken);
+            await _client.CloseFileAsync(Handle, cancellationToken).ConfigureAwait(false);
         }
 
         protected override void Dispose(bool disposing)
