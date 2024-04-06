@@ -50,7 +50,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private Queue<string>? _pending;
 
-    private byte[]? _directoryHandle;
+    private SftpFile? _fileHandle;
 
     private byte[]? _readDirPacket;
     private int _bufferOffset;
@@ -80,9 +80,9 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             _entriesRemaining = Disposed;
 
-            if (_directoryHandle is not null)
+            if (_fileHandle is not null)
             {
-                _client.CloseFile(_directoryHandle);
+                _fileHandle.Dispose();
             }
         }
 
@@ -125,8 +125,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     {
         if (_entriesRemaining == DirectoryEof)
         {
-            _client.CloseFile(_directoryHandle!);
-            _directoryHandle = null;
+            _fileHandle!.Dispose();
+            _fileHandle = null;
 
             if (_pending?.TryDequeue(out string? path) == true)
             {
@@ -144,10 +144,10 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async ValueTask ReadNewBufferAsync()
     {
-        if (_directoryHandle is null)
+        if (_fileHandle is null)
         {
-            _directoryHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
-            _readAhead = _client.ReadDirAsync(_directoryHandle, _cancellationToken);
+            _fileHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
+            _readAhead = _client.ReadDirAsync(_fileHandle, _cancellationToken);
         }
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
@@ -160,7 +160,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
         else
         {
-            _readAhead = _client.ReadDirAsync(_directoryHandle, _cancellationToken);
+            _readAhead = _client.ReadDirAsync(_fileHandle, _cancellationToken);
             _entriesRemaining = BinaryPrimitives.ReadInt32BigEndian(_readDirPacket.AsSpan(CountIndex));
             _bufferOffset = CountIndex + 4;
         }

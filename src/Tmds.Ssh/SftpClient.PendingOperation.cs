@@ -52,6 +52,7 @@ namespace Tmds.Ssh
                 }
                 else if (previousState == Canceled)
                 {
+                    // Dispose file/dir handles.
                     if (value is SftpFile file)
                     {
                         file.Dispose();
@@ -140,7 +141,7 @@ namespace Tmds.Ssh
                         SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes()));
                         return;
                     case (PacketType.SSH_FXP_OPENDIR, _):
-                        SetResult(reader.ReadStringAsBytes());
+                        SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes()));
                         return;
                     case (PacketType.SSH_FXP_STAT, _):
                     case (PacketType.SSH_FXP_LSTAT, _):
