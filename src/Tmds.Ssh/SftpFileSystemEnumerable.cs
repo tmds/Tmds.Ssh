@@ -110,12 +110,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
                     return true;
                 }
                 if (linkPath is not null &&
-                    await ReadLinkTargetEntry(linkPath, linkEntry))
+                    await ReadLinkTargetEntry(linkPath, linkEntry).ConfigureAwait(false))
                 {
                     return true;
                 }
             }
-        } while (await TryReadNewBufferAsync());
+        } while (await TryReadNewBufferAsync().ConfigureAwait(false));
 
         _entriesRemaining = Complete;
         return false;
@@ -138,7 +138,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             }
         }
 
-        await ReadNewBufferAsync();
+        await ReadNewBufferAsync().ConfigureAwait(false);
         return true;
     }
 
@@ -146,13 +146,13 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     {
         if (_directoryHandle is null)
         {
-            _directoryHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken);
+            _directoryHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
             _readAhead = _client.ReadDirAsync(_directoryHandle, _cancellationToken);
         }
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
 
-        _readDirPacket = await _readAhead;
+        _readDirPacket = await _readAhead.ConfigureAwait(false);
 
         if (_readDirPacket.Length < CountIndex + 4)
         {
@@ -218,7 +218,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
-        FileEntryAttributes? attributes = await _client.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken);
+        FileEntryAttributes? attributes = await _client.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
             if ((!_followDirectoryLinks && attributes.FileType == UnixFileType.Directory) ||

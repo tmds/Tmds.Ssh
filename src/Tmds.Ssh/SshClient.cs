@@ -535,7 +535,7 @@ namespace Tmds.Ssh
 
             try
             {
-                await sftpClient.ProtocolInitAsync(cancellationToken);
+                await sftpClient.ProtocolInitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch
             {
