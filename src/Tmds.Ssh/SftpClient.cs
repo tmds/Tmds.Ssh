@@ -52,10 +52,12 @@ namespace Tmds.Ssh
         private byte[]? _packetBuffer;
         private int _nextId = 5;
         private int GetNextId() => Interlocked.Increment(ref _nextId);
+        private int _receivePacketSize;
 
         internal SftpClient(SshChannel channel)
         {
             _channel = channel;
+            _receivePacketSize = _channel.ReceiveMaxPacket;
         }
 
         internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
@@ -867,7 +869,7 @@ namespace Tmds.Ssh
         {
             if (_packetBuffer is null)
             {
-                _packetBuffer = new byte[_channel.ReceiveMaxPacket]; // TODO: rent from shared pool.
+                _packetBuffer = new byte[_receivePacketSize]; // TODO: rent from shared pool.
             }
             int totalReceived = 0;
 
@@ -878,13 +880,25 @@ namespace Tmds.Ssh
                 (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
                 if (type != ChannelReadType.StandardOutput)
                 {
-                    return default;
+                    throw new InvalidDataException($"Unexpected data type: {type}");
                 }
                 totalReceived += bytesRead;
             } while (totalReceived < 4);
 
             int packetLength = BinaryPrimitives.ReadInt32BigEndian(_packetBuffer);
             int totalReceiveLength = packetLength + 4;
+
+            if (totalReceiveLength > _packetBuffer.Length)
+            {
+                // OpenSSH sends packets that are larger than ReceiveMaxPacket.
+                // Increase the size to two times the ReceiveMaxPacket size.
+                if (totalReceiveLength > 2 * _channel.ReceiveMaxPacket)
+                {
+                    throw new InvalidDataException($"SFTP packet is {totalReceiveLength} bytes on channel with {_channel.ReceiveMaxPacket} packet size.");
+                }
+                _receivePacketSize = 2 * _channel.ReceiveMaxPacket;
+                _packetBuffer = new byte[_receivePacketSize];
+            }
 
             // Read packet.
             while (totalReceived < totalReceiveLength)
@@ -893,7 +907,7 @@ namespace Tmds.Ssh
                 (ChannelReadType type, int bytesRead) = await _channel.ReadAsync(readBuffer, default, cancellationToken);
                 if (type != ChannelReadType.StandardOutput)
                 {
-                    return default;
+                    throw new InvalidDataException($"Unexpected data type: {type}");
                 }
                 totalReceived += bytesRead;
             }
@@ -922,6 +936,7 @@ namespace Tmds.Ssh
 
         private async Task ReadAllPacketsAsync()
         {
+            Exception? exception = null;
             try
             {
                 do
@@ -938,13 +953,19 @@ namespace Tmds.Ssh
                     }
                 } while (true);
             }
-            catch
-            { }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
             finally
             {
-                // Ensure the channel is closed
-                // and CreatePendingOperationCloseException will return an appropriate exception.
-                _channel.Cancel();
+                // Ensure the channel is closed.
+                if (!_channel.IsClosed)
+                {
+                    exception ??= new InvalidDataException("Unexpected end of packets.");
+                    _channel.Abort(exception);
+                }
+
 
                 // No additional sends can be queued.
                 _pendingSends.Writer.Complete();
@@ -958,12 +979,6 @@ namespace Tmds.Ssh
                     }
                 }
             }
-        }
-
-        internal Exception CreatePendingOperationCloseException()
-        {
-            return _channel.CreateCloseException(
-                createCancelException: () => new SshOperationException("Unexpected reply or eof."));
         }
 
         private void HandleVersionPacket(ReadOnlySpan<byte> packet)

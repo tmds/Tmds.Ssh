@@ -38,6 +38,7 @@ namespace Tmds.Ssh
             Closed, // Channel closed by peer
             SessionClosed, // Session closed
             Canceled, // Canceled by user
+            Aborted, // Channel closed due to an error
 
             Disposed // By user
         }
@@ -58,6 +59,7 @@ namespace Tmds.Ssh
         private bool _remoteClosed;
         private int _stdoutLength;
         private int _stderrLength;
+        private Exception? _abortReason;
 
         public int? ExitCode { get; private set; }
 
@@ -353,6 +355,18 @@ namespace Tmds.Ssh
             }
         }
 
+        internal bool IsClosed
+        {
+            get
+            {
+                // Take the lock so that if we return true _abortReason is set too (when closed due to abort).
+                lock (_client.Gate)
+                {
+                    return _state >= ChannelState.Closed;
+                }
+            }
+        }
+
         internal void Cancel()
         {
             using (_client.GateWithPollCheck()) // TODO: poll check still needed?
@@ -361,7 +375,16 @@ namespace Tmds.Ssh
             }
         }
 
-        private unsafe void Close(ChannelState targetState)
+        internal void Abort(Exception abortReason)
+        {
+            Debug.Assert(abortReason is not null);
+            using (_client.GateWithPollCheck()) // TODO: poll check still needed?
+            {
+                Close(ChannelState.Aborted, abortReason);
+            }
+        }
+
+        private unsafe void Close(ChannelState targetState, Exception? abortReason = null)
         {
             Debug.Assert(targetState >= ChannelState.Closed);
             Debug.Assert(Monitor.IsEntered(_client.Gate));
@@ -376,6 +399,7 @@ namespace Tmds.Ssh
                 return;
             }
             _state = targetState;
+            _abortReason = abortReason;
 
             _client.RemoveChannel(this);
 
@@ -419,11 +443,12 @@ namespace Tmds.Ssh
            _handle?.Dispose();
         }
 
-        internal Exception CreateCloseException(Func<Exception>? createCancelException = null)
+        internal Exception CreateCloseException()
         => _state switch
             {
-                ChannelState.SessionClosed => _client.GetErrorException(),
-                ChannelState.Canceled => createCancelException is null ? new OperationCanceledException() : createCancelException(),
+                ChannelState.SessionClosed => _client.GetErrorExceptionGated(),
+                ChannelState.Canceled => new OperationCanceledException(),
+                ChannelState.Aborted => new SshOperationException("Channel closed due to an unexpected error.", _abortReason),
                 ChannelState.Closed => new SshOperationException("Channel closed."),
                 ChannelState.Disposed => new SshOperationException("Channel disposed."),
                 _ => throw new IndexOutOfRangeException($"Unhandled state: {_state}."),
@@ -766,6 +791,7 @@ namespace Tmds.Ssh
 
         private void ThrowNotOpen(bool closedIsInvalid, CancellationToken cancellationToken)
         {
+            Debug.Assert(Monitor.IsEntered(_client.Gate));
             Debug.Assert(_state >= ChannelState.Closed);
             switch (_state)
             {
@@ -777,6 +803,8 @@ namespace Tmds.Ssh
                 case ChannelState.Canceled:
                     cancellationToken.ThrowIfCancellationRequested();
                     throw new SshOperationException("Channel closed due to canceled operation.");
+                case ChannelState.Aborted:
+                    throw new SshOperationException("Channel closed due to an unexpected error.", _abortReason);
                 case ChannelState.Disposed:
                     ThrowNewObjectDisposedException();
                     break;
