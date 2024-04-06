@@ -93,7 +93,7 @@ namespace Tmds.Ssh
 
             internal void HandleClose()
             {
-                SetException(_client.CreatePendingOperationCloseException());
+                SetException(_client._channel.CreateCloseException());
             }
 
             public void Reset()

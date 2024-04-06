@@ -427,6 +427,14 @@ namespace Tmds.Ssh
             }
         }
 
+        internal SshException GetErrorExceptionGated()
+        {
+            lock (Gate)
+            {
+                return GetErrorException();
+            }
+        }
+
         internal SshException GetErrorException()
         {
             Debug.Assert(Monitor.IsEntered(Gate));
@@ -468,6 +476,7 @@ namespace Tmds.Ssh
 
         private void ThrowNotConnectedState()
         {
+            Debug.Assert(Monitor.IsEntered(Gate));
             Debug.Assert(_state != SessionState.Connected);
 
             if (_state == SessionState.Disposed)
@@ -636,7 +645,7 @@ namespace Tmds.Ssh
                 {
                     // Different callers of FlushAsync can share the
                     // Task, but they need an Exception of their own.
-                    throw GetErrorException();
+                    throw GetErrorExceptionGated();
                 }
             }
         }
