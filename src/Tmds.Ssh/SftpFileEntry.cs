@@ -20,16 +20,15 @@ public ref struct SftpFileEntry
         FileAttributeFlags.SSH_FILEXFER_ATTR_ACMODTIME;
 
     private readonly string _directoryPath;
-    private readonly ReadOnlySpan<byte> _entry;
     private readonly char[] _pathBuffer;
     private readonly char[] _nameBuffer;
 
-    private int _nameByteLength;
     private int _pathLength = 0;
     private int _nameLength = 0;
     private FileEntryAttributes? _attributes;
     private string? _path;
 
+    internal ReadOnlySpan<byte> NameBytes { get; set; }
     public long Length { get; }
     public int Uid { get; }
     public int Gid { get; }
@@ -65,7 +64,7 @@ public ref struct SftpFileEntry
         {
             if (_nameLength == 0)
             {
-                _nameLength = Encoding.UTF8.GetChars(_entry.Slice(4, _nameByteLength), _nameBuffer);
+                _nameLength = Encoding.UTF8.GetChars(NameBytes, _nameBuffer);
             }
 
             return _nameBuffer.AsSpan(0, _nameLength);
@@ -94,21 +93,22 @@ public ref struct SftpFileEntry
     public string ToPath()
         => _path ??= new string(Path);
 
-    internal ReadOnlySpan<byte> NameBytes => _entry.Slice(4, _nameByteLength);
-
     internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength, FileEntryAttributes? linkTargetAttributes = null)
     {
         _attributes = linkTargetAttributes;
         _path = default;
         _directoryPath = directoryPath;
-        _entry = entry;
         _nameBuffer = nameBuffer;
         _pathBuffer = pathBuffer;
 
         SftpClient.PacketReader reader = new(entry);
         int nameLength;
         reader.SkipString(out nameLength);
-        _nameByteLength = nameLength;
+        NameBytes = entry.Slice(4, nameLength);
+        if (!RemotePath.IsValidFileName(NameBytes))
+        {
+            throw new InvalidDataException($"Filename '{Encoding.UTF8.GetString(NameBytes)}' is not a valid SFTP filename.");
+        }
 
         if (linkTargetAttributes is null)
         {

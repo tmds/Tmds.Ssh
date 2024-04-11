@@ -2,28 +2,35 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 
 namespace Tmds.Ssh;
 
 static class LocalPath
 {
-    public const char DirectorySeparatorChar = '\\';
-    public const char AltDirectorySeparatorChar = '\\';
-    private const string DirectorySeparatorCharAsString = "/";
+    public static char[] InvalidLocalPathChars =
+        OperatingSystem.IsWindows() ? Path.GetInvalidFileNameChars().Where(c => c != RemotePath.DirectorySeparatorChar).ToArray()
+                                    : Array.Empty<char>();
 
     public const int MaxPathLength = 4096;
     public const int MaxNameLength = 256;
 
     public static string EnsureTrailingSeparator(string path)
-        => EndsInDirectorySeparator(path.AsSpan()) ? path : path + DirectorySeparatorCharAsString;
+        => EndsInDirectorySeparator(path.AsSpan()) ? path : path + Path.DirectorySeparatorChar;
 
     public static bool EndsInDirectorySeparator(ReadOnlySpan<char> path) =>
         path.Length > 0 && IsDirectorySeparator(path[path.Length - 1]);
 
     public static bool IsDirectorySeparator(char c)
+        => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;
+
+    public static bool IsRemotePathValidLocalSubPath(ReadOnlySpan<char> validRemotePath)
     {
-        return c == DirectorySeparatorChar || c == AltDirectorySeparatorChar;
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+        return validRemotePath.IndexOfAny(InvalidLocalPathChars) < 0;
     }
 }

@@ -41,6 +41,9 @@ namespace System.Text
             }
         }
 
+        public void SetLength(int length)
+            => Length = length;
+
         public int Capacity => _chars.Length;
 
         public void EnsureCapacity(int capacity)

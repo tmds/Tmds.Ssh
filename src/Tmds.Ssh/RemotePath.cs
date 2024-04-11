@@ -9,6 +9,7 @@ namespace Tmds.Ssh;
 static class RemotePath
 {
     public const char DirectorySeparatorChar = '/';
+    private const char NullChar = '\0';
     private const string DirectorySeparatorCharAsString = "/";
 
     public const int MaxPathLength = 4096;
@@ -44,7 +45,10 @@ static class RemotePath
         => path.Length == GetRootLength(path);
 
     private static int GetRootLength(ReadOnlySpan<char> path)
-    {
-        return path.Length > 0 && IsDirectorySeparator(path[0]) ? 1 : 0;
-    }
+        => path.Length > 0 && IsDirectorySeparator(path[0]) ? 1 : 0;
+
+    public static bool IsValidFileName(ReadOnlySpan<byte> filename)
+        => filename.Length > 0 &&
+           filename.IndexOf((byte)DirectorySeparatorChar) == -1 &&
+           filename.IndexOf((byte)NullChar) == -1;
 }
