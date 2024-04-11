@@ -255,13 +255,16 @@ class EnumerationOptions
 }
 class DownloadEntriesOptions
 {
+    delegate ReadOnlySpan<char> ReplaceCharacters(Span<char> buffer, int pathLength, ReadOnlySpan<char> invalidChars);
+
     bool Overwrite { get; set; } = false;
     bool RecurseSubdirectories { get; set; } = true;
     bool FollowFileLinks { get; set; } = true;
     bool FollowDirectoryLinks { get; set; } = true;
     UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
     SftpFileEntryPredicate? ShouldRecurse { get; set; }
-    SftpFileEntryPredicate? ShouldInclude { get; set; }   
+    SftpFileEntryPredicate? ShouldInclude { get; set; }
+    ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
 }
 class UploadEntriesOptions
 {

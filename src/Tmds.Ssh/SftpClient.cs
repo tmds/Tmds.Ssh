@@ -591,6 +591,7 @@ namespace Tmds.Ssh
             }
 
             bool overwrite = options.Overwrite;
+            DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
 
             int trimRemoteDirectory = remoteDirPath.Length;
             if (!LocalPath.EndsInDirectorySeparator(remoteDirPath))
@@ -609,10 +610,19 @@ namespace Tmds.Ssh
             var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(remoteDirPath,
                 (ref SftpFileEntry entry) =>
                 {
-                    string remotePath = entry.ToPath();
                     using ValueStringBuilder localPathBuilder = new(pathBuffer);
                     localPathBuilder.Append(localDirPath);
-                    localPathBuilder.Append(remotePath.Substring(trimRemoteDirectory));
+
+                    string remotePath = entry.ToPath();
+                    ReadOnlySpan<char> relativePath = remotePath.AsSpan(trimRemoteDirectory);
+                    localPathBuilder.Append(relativePath);
+                    if (!LocalPath.IsRemotePathValidLocalSubPath(relativePath))
+                    {
+                        relativePath = replaceInvalidCharacters(localPathBuilder.RawChars.Slice(localDirPath.Length), relativePath.Length, LocalPath.InvalidLocalPathChars);
+                        localPathBuilder.SetLength(localDirPath.Length);
+                        localPathBuilder.Append(relativePath);
+                    }
+
                     return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Permissions, entry.Length);
                 },
                 new EnumerationOptions() {
