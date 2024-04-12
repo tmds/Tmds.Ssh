@@ -610,20 +610,28 @@ namespace Tmds.Ssh
             var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(remoteDirPath,
                 (ref SftpFileEntry entry) =>
                 {
-                    using ValueStringBuilder localPathBuilder = new(pathBuffer);
-                    localPathBuilder.Append(localDirPath);
-
                     string remotePath = entry.ToPath();
+                    string localPath;
                     ReadOnlySpan<char> relativePath = remotePath.AsSpan(trimRemoteDirectory);
-                    localPathBuilder.Append(relativePath);
                     if (!LocalPath.IsRemotePathValidLocalSubPath(relativePath))
                     {
-                        relativePath = replaceInvalidCharacters(localPathBuilder.RawChars.Slice(localDirPath.Length), relativePath.Length, LocalPath.InvalidLocalPathChars);
-                        localPathBuilder.SetLength(localDirPath.Length);
+                        relativePath = replaceInvalidCharacters(relativePath, pathBuffer, LocalPath.InvalidLocalPathChars);
+                        using ValueStringBuilder localPathBuilder = new(pathBuffer);
+                        // relativePath may used pathBuffer for storage
+                        // append it first so we don't overwrite it with localDirPath.
                         localPathBuilder.Append(relativePath);
+                        localPathBuilder.Insert(0, localDirPath);
+                        localPath = localPathBuilder.ToString();
+                    }
+                    else
+                    {
+                        using ValueStringBuilder localPathBuilder = new(pathBuffer);
+                        localPathBuilder.Append(localDirPath);
+                        localPathBuilder.Append(relativePath);
+                        localPath = localPathBuilder.ToString();
                     }
 
-                    return (localPathBuilder.ToString(), remotePath, entry.FileType, entry.Permissions, entry.Length);
+                    return (localPath, remotePath, entry.FileType, entry.Permissions, entry.Length);
                 },
                 new EnumerationOptions() {
                         RecurseSubdirectories = options.RecurseSubdirectories,

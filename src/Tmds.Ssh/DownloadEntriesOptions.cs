@@ -7,7 +7,7 @@ namespace Tmds.Ssh;
 
 public sealed class DownloadEntriesOptions
 {
-    public delegate ReadOnlySpan<char> ReplaceCharacters(Span<char> buffer, int pathLength, ReadOnlySpan<char> invalidChars);
+    public delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
     public bool Overwrite { get; set; } = false;
     public bool RecurseSubdirectories { get; set; } = true;
@@ -21,9 +21,13 @@ public sealed class DownloadEntriesOptions
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
     public ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
 
-    private static ReadOnlySpan<char> ReplaceInvalidCharactersWithUnderscore(Span<char> buffer, int pathLength, ReadOnlySpan<char> invalidChars)
+    private static ReadOnlySpan<char> ReplaceInvalidCharactersWithUnderscore(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer)
     {
-        Span<char> remainder = buffer.Slice(0, pathLength);
+        Span<char> path = buffer.Length >= invalidPath.Length ? buffer.Slice(0, invalidPath.Length)
+                                                              : new char[invalidPath.Length];
+
+        invalidPath.CopyTo(path);
+        Span<char> remainder = path;
         do
         {
             int idx = remainder.IndexOfAny(invalidChars);
@@ -34,6 +38,7 @@ public sealed class DownloadEntriesOptions
             remainder[idx] = '_';
             remainder = remainder.Slice(idx + 1);
         } while (true);
-        return buffer.Slice(0, pathLength);
+
+        return path;
     }
 }

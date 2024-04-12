@@ -212,27 +212,6 @@ enum OpenMode
     Append,
     Truncate
 }
-enum UnixFileType
-{
-    RegularFile,
-    Directory,
-    SymbolicLink,
-    CharacterDevice,
-    BlockDevice,
-    Socket,
-    Fifo,
-}
-[Flags]
-enum UnixFileTypeFilter
-{
-    RegularFile,
-    Directory,
-    SymbolicLink,
-    CharacterDevice,
-    BlockDevice,
-    Socket,
-    Fifo,
-}
 class FileEntryAttributes
 {
     long? Length { get; set; }
@@ -255,7 +234,7 @@ class EnumerationOptions
 }
 class DownloadEntriesOptions
 {
-    delegate ReadOnlySpan<char> ReplaceCharacters(Span<char> buffer, int pathLength, ReadOnlySpan<char> invalidChars);
+    delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
     bool Overwrite { get; set; } = false;
     bool RecurseSubdirectories { get; set; } = true;
@@ -290,6 +269,27 @@ ref struct SftpFileEntry
     FileEntryAttributes ToAttributes();
     string ToPath()
 }
+enum UnixFileType
+{
+    RegularFile,
+    Directory,
+    SymbolicLink,
+    CharacterDevice,
+    BlockDevice,
+    Socket,
+    Fifo,
+}
+[Flags]
+enum UnixFileTypeFilter
+{
+    RegularFile,
+    Directory,
+    SymbolicLink,
+    CharacterDevice,
+    BlockDevice,
+    Socket,
+    Fifo,
+}
 [Flags]
 enum UnixFilePermissions // values match System.IO.UnixFileMode.
 {
@@ -311,16 +311,6 @@ static class UnixFilePemissionExtensions
 {
     static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
     static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
-}
-enum UnixFileType
-{
-    RegularFile,
-    Directory,
-    SymbolicLink,
-    CharacterDevice,
-    BlockDevice,
-    Socket,
-    Fifo,
 }
 class PublicKey
 {
