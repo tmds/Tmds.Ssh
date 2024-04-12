@@ -41,9 +41,6 @@ namespace System.Text
             }
         }
 
-        public void SetLength(int length)
-            => Length = length;
-
         public int Capacity => _chars.Length;
 
         public void EnsureCapacity(int capacity)
@@ -147,9 +144,9 @@ namespace System.Text
             _pos += count;
         }
 
-        public void Insert(int index, string? s)
+        public void Insert(int index, ReadOnlySpan<char> s)
         {
-            if (s == null)
+            if (s.IsEmpty)
             {
                 return;
             }
@@ -163,11 +160,7 @@ namespace System.Text
 
             int remaining = _pos - index;
             _chars.Slice(index, remaining).CopyTo(_chars.Slice(index + count));
-            s
-#if !NETCOREAPP
-                .AsSpan()
-#endif
-                .CopyTo(_chars.Slice(index));
+            s.CopyTo(_chars.Slice(index));
             _pos += count;
         }
 
