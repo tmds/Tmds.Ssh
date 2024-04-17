@@ -214,13 +214,13 @@ enum OpenMode
 }
 class FileEntryAttributes
 {
-    long? Length { get; set; }
-    int? Uid { get; set; }
-    int? Gid { get; set; }
-    UnixFileType? FileType { get; set; }
-    UnixFilePermissions? Permissions { get; set; }
-    DateTimeOffset? LastAccessTime { get; set; }
-    DateTimeOffset? LastWriteTime { get; set; }
+    long Length { get; set; }
+    int Uid { get; set; }
+    int Gid { get; set; }
+    UnixFileType FileType { get; set; }
+    UnixFilePermissions Permissions { get; set; }
+    DateTimeOffset LastAccessTime { get; set; }
+    DateTimeOffset LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
 }
 class EnumerationOptions
