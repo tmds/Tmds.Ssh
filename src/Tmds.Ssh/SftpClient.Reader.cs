@@ -83,13 +83,15 @@ namespace Tmds.Ssh
 
             public FileEntryAttributes ReadFileAttributes(FileEntryAttributes attributes)
             {
-                long? length = default;
-                int? uid = default;
-                int? gid = default;
-                UnixFileType? fileType = default;
-                UnixFilePermissions? permissions = default;
-                DateTimeOffset? lastAccessTime = default;
-                DateTimeOffset? lastWriteTime = default;
+                // In practice, most servers will include all these values.
+                // So in case it doesn't, we use sentinel value instead of forcing a user to deal with nullable properties.
+                long length = -1;
+                int uid = -1;
+                int gid = -1;
+                UnixFileType fileType = 0;
+                UnixFilePermissions permissions = 0;
+                DateTimeOffset lastAccessTime = DateTimeOffset.MinValue;
+                DateTimeOffset lastWriteTime = DateTimeOffset.MinValue;
                 Dictionary<string, string>? extendedAttributes = default;
 
                 uint flags = ReadUInt();

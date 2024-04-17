@@ -73,18 +73,6 @@ namespace Tmds.Ssh
                 _length += 8;
             }
 
-            public void WriteAttributes(FileEntryAttributes? attributes)
-            {
-                if (attributes is null)
-                {
-                    WriteUInt(0);
-                }
-                else
-                {
-                    WriteAttributes(attributes.Length, attributes.Uid, attributes.Gid, attributes.Permissions, attributes.FileType, attributes.LastAccessTime, attributes.LastWriteTime, attributes.ExtendedAttributes);
-                }
-            }
-
             public void WriteAttributes(
                 long? length = default,
                 int? uid = default,

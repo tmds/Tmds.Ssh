@@ -200,8 +200,8 @@ namespace Tmds.Ssh.Tests
                 Assert.Equal(fileLength, attributes.Length);
                 Assert.True(attributes.Uid >= 1000);
                 Assert.True(attributes.Gid >= 1000);
-                Assert.True(attributes.LastAccessTime!.Value >= someTimeAgo);
-                Assert.True(attributes.LastWriteTime!.Value >= someTimeAgo);
+                Assert.True(attributes.LastAccessTime >= someTimeAgo);
+                Assert.True(attributes.LastWriteTime >= someTimeAgo);
             }
         }
 

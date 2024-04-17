@@ -144,13 +144,14 @@ public ref struct SftpFileEntry
         }
         else
         {
-            Length = linkTargetAttributes.Length!.Value;
-            Uid = linkTargetAttributes.Uid!.Value;
-            Gid = linkTargetAttributes.Gid!.Value;
-            Permissions = linkTargetAttributes.Permissions!.Value;
-            FileType = linkTargetAttributes.FileType!.Value;
-            LastAccessTime = linkTargetAttributes.LastAccessTime!.Value;
-            LastWriteTime = linkTargetAttributes.LastWriteTime!.Value;
+            Length = linkTargetAttributes.Length;
+            Uid = linkTargetAttributes.Uid;
+            Gid = linkTargetAttributes.Gid;
+            Permissions = linkTargetAttributes.Permissions;
+            FileType = linkTargetAttributes.FileType;
+            LastAccessTime = linkTargetAttributes.LastAccessTime;
+            LastWriteTime = linkTargetAttributes.LastWriteTime;
+
             entryLength = -1;
         }
     }
