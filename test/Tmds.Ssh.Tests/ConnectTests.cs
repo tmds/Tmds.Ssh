@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Net;
 using System.Net.Sockets;
+using System.IO;
 
 namespace Tmds.Ssh.Tests
 {
@@ -86,6 +87,69 @@ namespace Tmds.Ssh.Tests
                     };
                 }
             ));
+        }
+
+        [Fact]
+        public async Task AddKnownHost()
+        {
+            string knownHostsFileName = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            try
+            {
+                Assert.False(File.Exists(knownHostsFileName));
+
+                bool keyVerified = false;
+                SshClient client = await _sshServer.CreateClientAsync(settings =>
+                    {
+                        settings.KnownHostsFilePath = knownHostsFileName;
+                        settings.KeyVerification =
+                        (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                        {
+                            keyVerified = true;
+                            Assert.Equal(KeyVerificationResult.Unknown, knownHostResult);
+                            return ValueTask.FromResult(KeyVerificationResult.AddKnownHost);
+                        };
+                    });
+                client.Dispose();
+                Assert.True(keyVerified);
+                Assert.True(File.Exists(knownHostsFileName));
+
+                client = await _sshServer.CreateClientAsync(settings =>
+                {
+                    settings.KnownHostsFilePath = knownHostsFileName;
+                    settings.KeyVerification =
+                    (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                    {
+                        Assert.True(false);
+                        return ValueTask.FromResult(knownHostResult);
+                    };
+                });
+                client.Dispose();
+            }
+            finally
+            {
+                try
+                {
+                    File.Delete(knownHostsFileName);
+                }
+                catch
+                { }
+            }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public async Task AddKnownHostDoesNotErrorWithEmptyPath(string? path)
+        {
+            using SshClient client = await _sshServer.CreateClientAsync(settings =>
+            {
+                settings.KnownHostsFilePath = path;
+                settings.KeyVerification =
+                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                {
+                    return ValueTask.FromResult(KeyVerificationResult.AddKnownHost);
+                };
+            });
         }
 
         [Fact]
