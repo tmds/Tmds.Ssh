@@ -234,12 +234,26 @@ namespace Tmds.Ssh
                         // Wrap the exception
                         throw new SshSessionException($"Key verification failed: {e.Message}.", e);
                     }
+
+                    if (result == KeyVerificationResult.AddKnownHost)
+                    {
+                        lock (Gate)
+                        {
+                            if (_state != SessionState.VerifyServer)
+                            {
+                                throw GetErrorException();
+                            }
+                            if (!string.IsNullOrEmpty(_clientSettings.KnownHostsFilePath))
+                            {
+                                if (ssh_session_update_known_hosts(_ssh) != SSH_OK)
+                                {
+                                    throw GetErrorException();
+                                }
+                            }
+                        }
+                        result = KeyVerificationResult.Trusted;
+                    }
                 }
-            }
-            if (result == KeyVerificationResult.AddKnownHost)
-            {
-                throw new NotImplementedException(); // TODO: add key
-                // result = KeyVerificationResult.Trusted;
             }
             if (result != KeyVerificationResult.Trusted)
             {

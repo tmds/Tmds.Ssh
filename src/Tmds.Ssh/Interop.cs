@@ -212,6 +212,9 @@ namespace Tmds.Ssh
         [DllImport(Library)]
         public static extern KnownHostResult ssh_session_is_known_server(SessionHandle session);
 
+        [DllImport(Library)]
+        public static extern int ssh_session_update_known_hosts(SessionHandle session);
+
         [DllImport(Library, EntryPoint="ssh_is_connected")]
         private static extern int ssh_is_connected_(SessionHandle session);
 

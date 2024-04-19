@@ -319,7 +319,7 @@ class PublicKey
 enum KeyVerificationResult
 {
   Trusted,
-  AddKnownHost,
+  AddKnownHost, // Trusted and append to KnownHostsFilePath (when not null).
   Revoked,
   Error,
   Changed,
