@@ -25,13 +25,21 @@ namespace Tmds.Ssh
             Handle = handle;
         }
 
-        public override bool CanRead => throw new NotImplementedException();
+        public override bool CanRead => true;
 
-        public override bool CanSeek => throw new NotImplementedException();
+        public override bool CanSeek => false;
 
-        public override bool CanWrite => throw new NotImplementedException();
+        public override bool CanWrite => true;
 
-        public override long Length => throw new NotImplementedException();
+        public override long Length
+        {
+            get
+            {
+                ThrowSeekNotSupported();
+
+                return 0;
+            }
+        }
 
         public override long Position
         {
@@ -43,9 +51,7 @@ namespace Tmds.Ssh
             }
             set
             {
-                ThrowIfDisposed();
-
-                _position = value;
+                ThrowSeekNotSupported();
             }
         }
 
@@ -153,12 +159,17 @@ namespace Tmds.Ssh
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            throw new NotImplementedException();
+            ThrowSeekNotSupported();
+
+            return 0;
         }
 
         public override void SetLength(long value)
         {
-            throw new NotImplementedException();
+            ThrowSeekNotSupported();
         }
+
+        private void ThrowSeekNotSupported()
+            => throw new NotSupportedException("This stream does not support seek operations.");
     }
 }
