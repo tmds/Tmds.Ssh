@@ -19,6 +19,7 @@ namespace Tmds.Ssh
     public sealed partial class SftpClient : IDisposable
     {
         // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
+        // This is the version implemented by OpenSSH.
         const uint ProtocolVersion = 3;
 
         const int MaxConcurrentOperations = 64;
@@ -196,6 +197,89 @@ namespace Tmds.Ssh
             packet.WriteString(path);
 
             return await ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask SetAttributesAsync(
+            string path,
+            UnixFilePermissions? permissions = default,
+            (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
+            long? length = default,
+            (int Uid, int Gid)? ids = default,
+            Dictionary<string, string>? extendedAttributes = default,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureAttributesHasValue(
+                length: length,
+                ids: ids,
+                permissions: permissions,
+                times: times,
+                extendedAttributes: extendedAttributes);
+
+            PacketType packetType = PacketType.SSH_FXP_SETSTAT;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(path);
+            packet.WriteAttributes(length: length,
+                                   ids: ids,
+                                   permissions: permissions,
+                                   times: times,
+                                   extendedAttributes: extendedAttributes);
+
+            await ExecuteAsync(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
+        }
+
+        internal ValueTask SetAttributesForHandleAsync(
+            byte[] handle,
+            long? length = default,
+            (int Uid, int Gid)? ids = default,
+            UnixFilePermissions? permissions = default,
+            (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
+            Dictionary<string, string>? extendedAttributes = default,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureAttributesHasValue(
+                length: length,
+                ids: ids,
+                permissions: permissions,
+                times: times,
+                extendedAttributes: extendedAttributes);
+
+            PacketType packetType = PacketType.SSH_FXP_FSETSTAT;
+
+            int id = GetNextId();
+            PendingOperation pendingOperation = CreatePendingOperation(packetType);
+
+            Packet packet = new Packet(packetType);
+            packet.WriteInt(id);
+            packet.WriteString(handle);
+            packet.WriteAttributes(length: length,
+                                   ids: ids,
+                                   permissions: permissions,
+                                   times: times,
+                                   extendedAttributes: extendedAttributes);
+
+            return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+        }
+
+        private void EnsureAttributesHasValue(
+            long? length,
+            (int Uid, int Gid)? ids,
+            UnixFilePermissions? permissions,
+            (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times,
+            Dictionary<string, string>? extendedAttributes)
+        {
+            if (!length.HasValue &&
+                !ids.HasValue &&
+                !permissions.HasValue &&
+                !times.HasValue &&
+                (extendedAttributes is null || extendedAttributes.Count == 0))
+            {
+                throw new ArgumentException("No value specified.");
+            }
         }
 
         public async ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)

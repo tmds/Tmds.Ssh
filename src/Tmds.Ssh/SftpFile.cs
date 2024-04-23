@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
@@ -125,6 +126,43 @@ namespace Tmds.Ssh
             ThrowIfDisposed();
 
             return await _client.GetAttributesForHandleAsync(Handle, cancellationToken).ConfigureAwait(false);
+        }
+
+        public ValueTask SetLengthAsync(long length, CancellationToken cancellationToken = default)
+            => SetAttributesAsync(length: length, cancellationToken: cancellationToken);
+
+        public async ValueTask<long> GetLengthAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+
+            FileEntryAttributes attributes = await GetAttributesAsync(cancellationToken).ConfigureAwait(false);
+
+            return attributes.Length;
+        }
+
+        public async ValueTask SetAttributesAsync(
+            UnixFilePermissions? permissions = default,
+            (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
+            long? length = default,
+            (int Uid, int Gid)? ids = default,
+            Dictionary<string, string>? extendedAttributes = default,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+
+            await _client.SetAttributesForHandleAsync(
+                handle: Handle,
+                length: length,
+                ids: ids,
+                permissions: permissions,
+                times: times,
+                extendedAttributes: extendedAttributes,
+                cancellationToken).ConfigureAwait(false);
+
+            if (_position > length)
+            {
+                _position = length.Value;
+            }
         }
 
         private void ThrowIfDisposed()
