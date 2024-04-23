@@ -75,12 +75,10 @@ namespace Tmds.Ssh
 
             public void WriteAttributes(
                 long? length = default,
-                int? uid = default,
-                int? gid = default,
+                (int Uid, int Gid)? ids = default,
                 UnixFilePermissions? permissions = default,
                 UnixFileType? fileType = default,
-                DateTimeOffset? lastAccessTime = default,
-                DateTimeOffset? lastWriteTime = default,
+                (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
                 Dictionary<string, string>? extendedAttributes = default
             )
             {
@@ -90,32 +88,16 @@ namespace Tmds.Ssh
                 {
                     flags |= 1;
                 }
-                if (uid.HasValue || gid.HasValue)
+                if (ids.HasValue)
                 {
-                    if (!uid.HasValue)
-                    {
-                        throw new ArgumentException(nameof(uid));
-                    }
-                    if (!gid.HasValue)
-                    {
-                        throw new ArgumentException(nameof(gid));
-                    }
                     flags |= 2;
                 }
                 if (setMode)
                 {
                     flags |= 4;
                 }
-                if (lastAccessTime.HasValue || lastWriteTime.HasValue)
+                if (times.HasValue)
                 {
-                    if (!lastAccessTime.HasValue)
-                    {
-                        throw new ArgumentException(nameof(lastAccessTime));
-                    }
-                    if (!lastWriteTime.HasValue)
-                    {
-                        throw new ArgumentException(nameof(lastWriteTime));
-                    }
                     flags |= 8;
                 }
                 if (extendedAttributes is not null && extendedAttributes.Count > 0)
@@ -127,25 +109,19 @@ namespace Tmds.Ssh
                 {
                     WriteInt64(length.Value);
                 }
-                if (uid.HasValue)
+                if (ids.HasValue)
                 {
-                    WriteInt(uid.Value);
-                }
-                if (gid.HasValue)
-                {
-                    WriteInt(gid.Value);
+                    WriteInt(ids.Value.Uid);
+                    WriteInt(ids.Value.Gid);
                 }
                 if (setMode)
                 {
                     WriteFileMode(permissions, fileType);
                 }
-                if (lastAccessTime.HasValue)
+                if (times.HasValue)
                 {
-                    WriteInt((int)lastAccessTime.Value.ToUnixTimeSeconds());
-                }
-                if (lastWriteTime.HasValue)
-                {
-                    WriteInt((int)lastWriteTime.Value.ToUnixTimeSeconds());
+                    WriteUInt(checked((uint)times.Value.LastAccess.ToUnixTimeSeconds()));
+                    WriteUInt(checked((uint)times.Value.LastWrite.ToUnixTimeSeconds()));
                 }
                 if (extendedAttributes is not null && extendedAttributes.Count > 0)
                 {

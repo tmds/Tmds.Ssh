@@ -145,7 +145,15 @@ class SftpClient : IDisposable
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
   ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
-  
+  ValueTask SetAttributesAsync(
+    string path,
+    UnixFilePermissions? permissions = default,
+    (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
+    long? length = default,
+    (int Uid, int Gid)? ids = default,
+    Dictionary<string, string>? extendedAttributes = default,
+    CancellationToken cancellationToken = default);
+
   IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
@@ -171,10 +179,20 @@ class SftpClient : IDisposable
 class SftpFile : Stream
 {
   ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
+  ValueTask SetAttributesAsync(
+    UnixFilePermissions? permissions = default,
+    (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
+    long? length = default,
+    (int Uid, int Gid)? ids = default,
+    Dictionary<string, string>? extendedAttributes = default,
+    CancellationToken cancellationToken = default);
 
   // Read/write at an offset. This does NOT update the offset tracked by the instance.
   ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default);
   ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default);
+
+  ValueTask<long> GetLengthAsync(CancellationToken cancellationToken = default);
+  ValueTask SetLengthAsync(long length, CancellationToken cancellationToken = default);
 
   ValueTask CloseAsync(CancellationToken cancellationToken = default);
 }
