@@ -4,7 +4,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
     class SshKeyHandle : SafeHandle
     {

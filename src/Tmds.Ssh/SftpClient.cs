@@ -44,7 +44,7 @@ namespace Tmds.Ssh
         private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
         private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
 
-        private readonly SshChannel _channel;
+        private readonly ISshChannel _channel;
 
         // Limits the number of buffers concurrently used for uploading/downloading.
         private readonly SemaphoreSlim s_downloadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
@@ -55,7 +55,7 @@ namespace Tmds.Ssh
         private int GetNextId() => Interlocked.Increment(ref _nextId);
         private int _receivePacketSize;
 
-        internal SftpClient(SshChannel channel)
+        internal SftpClient(ISshChannel channel)
         {
             _channel = channel;
             _receivePacketSize = _channel.ReceiveMaxPacket;
@@ -1073,7 +1073,6 @@ namespace Tmds.Ssh
                     exception ??= new InvalidDataException("Unexpected end of packets.");
                     _channel.Abort(exception);
                 }
-
 
                 // No additional sends can be queued.
                 _pendingSends.Writer.Complete();

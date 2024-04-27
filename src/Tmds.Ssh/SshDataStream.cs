@@ -10,9 +10,9 @@ namespace Tmds.Ssh
 {
     public sealed class SshDataStream : Stream
     {
-        private readonly SshChannel _channel;
+        private readonly ISshChannel _channel;
 
-        internal SshDataStream(SshChannel channel)
+        internal SshDataStream(ISshChannel channel)
         {
             _channel = channel;
         }

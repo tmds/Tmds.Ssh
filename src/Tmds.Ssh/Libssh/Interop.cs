@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
     static class Interop
     {

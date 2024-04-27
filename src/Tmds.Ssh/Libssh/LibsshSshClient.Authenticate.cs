@@ -5,14 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Sockets;
 using System.Threading;
-using System.Threading.Tasks;
-using static Tmds.Ssh.Interop;
+using static Tmds.Ssh.Libssh.Interop;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
-    public sealed partial class SshClient : IDisposable
+    sealed partial class LibsshSshClient
     {
         enum CredentialAuthResult
         {

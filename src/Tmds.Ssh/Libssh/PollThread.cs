@@ -5,19 +5,18 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using static Tmds.Ssh.Interop;
+using static Tmds.Ssh.Libssh.Interop;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
     class PollThread
     {
-        // TODO: weak reference SshClient, and finalizers.
+        // TODO: weak reference LibsshSshClient, and finalizers.
         // TODO: stop thread when there are no more SshClients.
-        private readonly ConcurrentDictionary<Socket, SshClient> Sessions = new();
+        private readonly ConcurrentDictionary<Socket, LibsshSshClient> Sessions = new();
         private Socket _interruptSocket;
         private Socket _readSocket;
         private int _blocked;
@@ -44,7 +43,7 @@ namespace Tmds.Ssh
 
         private void ThreadFunction()
         {
-            SshClient.EnableDebugLogging();
+            LibsshSshClient.EnableDebugLogging();
 
             using EventHandle ev = ssh_event_new();
             List<Socket> readList = new List<Socket>();
@@ -63,7 +62,7 @@ namespace Tmds.Ssh
                     readList.Add(_readSocket);
                     foreach (var kv in Sessions)
                     {
-                        SshClient session = kv.Value;
+                        LibsshSshClient session = kv.Value;
                         PollFlags pollFlags;
                         lock (session.Gate)
                         {
@@ -114,7 +113,7 @@ namespace Tmds.Ssh
 
                 foreach (var socket in socketsWithEvent)
                 {
-                    if (Sessions.TryGetValue(socket, out SshClient? session))
+                    if (Sessions.TryGetValue(socket, out LibsshSshClient? session))
                     {
                         lock (session.Gate)
                         {
@@ -172,7 +171,7 @@ namespace Tmds.Ssh
             s_instance!.Interrupt();
         }
 
-        internal static void AddSession(Socket pollSocket, SshClient session)
+        internal static void AddSession(Socket pollSocket, LibsshSshClient session)
         {
             PollThread? pollThread = s_instance;
             bool isNewThread = false;
