@@ -3,13 +3,14 @@
 
 using System;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
     [Flags]
-    enum PollEvents
+    enum StatusFlags
     {
-        PollIn = 1 << 0,
-        PollOut = 1 << 1,
-        PollErr = 1 << 2,
+        Closed = 1,
+        ReadPending = 2,
+        ClosedError = 4,
+        WritePending = 8
     }
 }

@@ -15,9 +15,16 @@ namespace Tmds.Ssh
 {
     public sealed class RemoteProcess : IDisposable
     {
+        enum ProcessReadType
+        {
+            StandardOutput = 1,
+            StandardError = 2,
+            ProcessExit = 3,
+        }
+
         private const int BufferSize = 1024;
 
-        private readonly SshChannel _channel;
+        private readonly ISshChannel _channel;
         private readonly Encoding _standardInputEncoding;
         private readonly Encoding _standardErrorEncoding;
         private readonly Encoding _standardOutputEncoding;
@@ -184,7 +191,7 @@ namespace Tmds.Ssh
         private CharBuffer _stdoutBuffer;
         private CharBuffer _stderrBuffer;
 
-        internal RemoteProcess(SshChannel channel,
+        internal RemoteProcess(ISshChannel channel,
                                 Encoding standardInputEncoding,
                                 Encoding standardErrorEncoding,
                                 Encoding standardOutputEncoding

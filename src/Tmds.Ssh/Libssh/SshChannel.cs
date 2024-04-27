@@ -7,11 +7,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using static Tmds.Ssh.Interop;
+using static Tmds.Ssh.Libssh.Interop;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh.Libssh
 {
-    class SshChannel : IDisposable
+    class SshChannel : ISshChannel
     {
         private const int MinPacketLength = 32768;
 
@@ -43,7 +43,7 @@ namespace Tmds.Ssh
             Disposed // By user
         }
 
-        private readonly SshClient _client;
+        private readonly LibsshSshClient _client;
         private readonly SshChannelOptions _options;
 
         private ChannelState _state = ChannelState.Initial;
@@ -67,7 +67,7 @@ namespace Tmds.Ssh
         public int ReceiveMaxPacket => MinPacketLength;
         public int SendMaxPacket => MinPacketLength - 10; // https://gitlab.com/libssh/libssh-mirror/-/merge_requests/393
 
-        internal SshChannel(SshClient session, SshChannelOptions options)
+        internal SshChannel(LibsshSshClient session, SshChannelOptions options)
         {
             // TODO: validate options
 
@@ -77,7 +77,7 @@ namespace Tmds.Ssh
 
         internal unsafe Task OpenAsync()
         {
-            SshClient.EnableDebugLogging();
+            LibsshSshClient.EnableDebugLogging();
             Debug.Assert(Monitor.IsEntered(_client.Gate));
             Debug.Assert(_state == ChannelState.Initial);
 
@@ -288,7 +288,7 @@ namespace Tmds.Ssh
                     static o =>
                     {
                         SshChannel channel = (SshChannel)o!;
-                        SshClient client = channel._client;
+                        LibsshSshClient client = channel._client;
 
                         lock (client.Gate)
                         {
@@ -355,7 +355,7 @@ namespace Tmds.Ssh
             }
         }
 
-        internal bool IsClosed
+        public bool IsClosed
         {
             get
             {
@@ -375,7 +375,7 @@ namespace Tmds.Ssh
             }
         }
 
-        internal void Abort(Exception abortReason)
+        public void Abort(Exception abortReason)
         {
             Debug.Assert(abortReason is not null);
             using (_client.GateWithPollCheck()) // TODO: poll check still needed?
@@ -443,7 +443,7 @@ namespace Tmds.Ssh
            _handle?.Dispose();
         }
 
-        internal Exception CreateCloseException()
+        public Exception CreateCloseException()
         => _state switch
             {
                 ChannelState.SessionClosed => _client.GetErrorExceptionGated(),
@@ -500,7 +500,7 @@ namespace Tmds.Ssh
                         }
                     }
 
-                    SshClient.EnableDebugLogging();
+                    LibsshSshClient.EnableDebugLogging();
                     using (_client.GateWithPollCheck()) // TODO: poll check still needed?
                     {
                         if (windowReady == null && _windowReadyTcs != null)
@@ -595,7 +595,7 @@ namespace Tmds.Ssh
                         }
                     }
 
-                    SshClient.EnableDebugLogging();
+                    LibsshSshClient.EnableDebugLogging();
                     using (_client.GateWithPollCheck()) // TODO: poll check still needed?
                     {
                         if (readable == null && _readableTcs != null)
