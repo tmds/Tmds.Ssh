@@ -21,14 +21,14 @@ jobs:
 
     - name: Run tests
       run: |
-        LIBSSH_PATH=runtimes/ubuntu.22.04-x64/native/libssh-ubuntu.22.04-x64.so dotnet test test/Tmds.Ssh.Tests
+        LIBSSH_PATH=runtimes/ubuntu.22.04-x64/native/libssh-ubuntu.22.04-x64.so dotnet test test/Tmds.Ssh.Libssh.Tests
 
     - name: Build packages
       run: |
         VERSION_SUFFIX="${{ github.run_number }}-${{ github.sha }}"
-        dotnet pack src/Tmds.Ssh --configuration Release --output src/Tmds.Ssh /p:VersionSuffix="$VERSION_SUFFIX"
+        dotnet pack src/Tmds.Ssh.Libssh --configuration Release --output src/Tmds.Ssh.Libssh /p:VersionSuffix="$VERSION_SUFFIX"
 
     - name: Publish packages
       run: |
-        dotnet nuget push -s https://www.myget.org/F/tmds/api/v2/package -k "${{ secrets.NUGET_APIKEY }}" src/Tmds.Ssh/*.nupkg
+        dotnet nuget push -s https://www.myget.org/F/tmds/api/v2/package -k "${{ secrets.NUGET_APIKEY }}" src/Tmds.Ssh.Libssh/*.nupkg
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
