@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Tmds.Ssh\Tmds.Ssh.csproj" />
+    <ProjectReference Include="..\..\src\Tmds.Ssh.Libssh\Tmds.Ssh.Libssh.csproj" />
   </ItemGroup>
 
 </Project>
