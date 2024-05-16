@@ -14,19 +14,20 @@ Create a new Console application:
 ```sh
 dotnet new console -o example
 cd example
-dotnet add package Tmds.Ssh --version "*-*" --source https://www.myget.org/F/tmds
+dotnet new nugetconfig
+dotnet nuget add source https://www.myget.org/F/tmds
+dotnet add package --prerelease Tmds.Ssh
 ```
 
 Update `Program.cs`:
 ```cs
-static async Task Main(string[] args)
-{
-  using var sshClient = new SshClient("localhost");
-  await sshClient.ConnectAsync();
-  using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
-  (_, string line) = await process.ReadLineAsync();
-  Console.WriteLine(line);
-}
+using Tmds.Ssh;
+
+using var sshClient = new SshClient("localhost");
+await sshClient.ConnectAsync();
+using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
+(_, string? line) = await process.ReadLineAsync();
+Console.WriteLine(line);
 ```
 
 Now run the application:
@@ -370,10 +371,10 @@ Supported private key formats:
 Supported private key encryption cyphers:
 - none
 
-Supported client public key algorithms:
+Supported client key algorithms:
 - rsa-sha2-256
 
-Supported server public key algorithms:
+Supported server key algorithms:
 - ecdsa-sha2-nistp256
 
 Supported key exchange methods:
