@@ -7,9 +7,9 @@ namespace Tmds.Ssh
 {
     public sealed class PrivateKeyCredential : Credential
     {
-        public PrivateKeyCredential(string filePath)
+        public PrivateKeyCredential(string path)
         {
-            FilePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
+            FilePath = path ?? throw new ArgumentNullException(nameof(path));
         }
 
         internal string FilePath { get; }
