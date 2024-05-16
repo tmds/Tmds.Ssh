@@ -68,12 +68,6 @@ namespace Tmds.Ssh.Managed
 
         private static Dictionary<Name, EncryptionAlgorithm> _algorithms = new()
         {
-            { AlgorithmNames.Aes256Cbc,
-                new EncryptionAlgorithm(keyLength: 256 / 8, ivLength: 128 / 8,
-                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => CreatePacketEncoder(CreateAesTransform(key, iv, encryptorNotDecryptor: true), hmac!.Create(hmacKey)),
-                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => CreatePacketDecoder(sequencePool, CreateAesTransform(key, iv, encryptorNotDecryptor: false), hmac!.Create(hmacKey))) },
             { AlgorithmNames.Aes128Gcm,
                 new EncryptionAlgorithm(keyLength: 128 / 8, ivLength: 12,
                     (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
@@ -89,17 +83,5 @@ namespace Tmds.Ssh.Managed
 
         private static IPacketDecoder CreatePacketDecoder(SequencePool sequencePool, IDisposableCryptoTransform encodeTransform, IHMac hmac)
             => new TransformAndHMacPacketDecoder(sequencePool, encodeTransform, hmac);
-
-        private static IDisposableCryptoTransform CreateAesTransform(byte[] key, byte[] iv, bool encryptorNotDecryptor)
-        {
-            var aes = Aes.Create();
-            aes.KeySize = 256;
-            aes.Mode = CipherMode.CBC;
-            aes.Padding = PaddingMode.None;
-            aes.Key = key;
-            aes.IV = iv;
-            ICryptoTransform transform = encryptorNotDecryptor ? aes.CreateEncryptor() : aes.CreateDecryptor();
-            return new EncryptionCryptoTransform(aes, transform, encryptorNotDecryptor);
-        }
     }
 }

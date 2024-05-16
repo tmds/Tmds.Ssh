@@ -18,7 +18,6 @@ namespace Tmds.Ssh.Managed
         public static Name EcdsaSha2Nistp256 => new Name("ecdsa-sha2-nistp256");
 
         // Encryption algorithms.
-        public static Name Aes256Cbc => new Name("aes256-cbc");
         public static Name Aes128Gcm => new Name("aes128-gcm@openssh.com");
 
         // Mac algorithms.
