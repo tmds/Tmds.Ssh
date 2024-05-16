@@ -97,30 +97,23 @@ class SshDataStream : Stream
 class SftpClient : IDisposable
 {
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
-
+  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
   ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
-  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
   // Does not throw if the path is an existing directory, or a link to one.
   ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateDirectoryAsync(string path, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
   ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
   // Throws if the path exists.
   ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateNewDirectoryAsync(string path, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
   ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
   ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
 
@@ -211,7 +204,7 @@ enum SftpError
 [Flags]
 enum OpenMode
 {
-    None,
+    Default = 0,
     Append,
     Truncate
 }
@@ -225,6 +218,11 @@ class FileEntryAttributes
     DateTimeOffset LastAccessTime { get; set; }
     DateTimeOffset LastWriteTime { get; set; }
     Dictionary<string, string>? ExtendedAttributes { get; set; }
+}
+class FileOpenOptions
+{
+    OpenMode OpenMode { get; set; } = OpenMode.Default;
+    UnixFilePermissions CreatePermissions { get; set; }; // = '-rw-rw-rw-.'. Note: umask is applied on the server.
 }
 class EnumerationOptions
 {
