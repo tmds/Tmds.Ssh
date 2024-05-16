@@ -97,13 +97,13 @@ class SshDataStream : Stream
 class SftpClient : IDisposable
 {
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
   ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
-  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
