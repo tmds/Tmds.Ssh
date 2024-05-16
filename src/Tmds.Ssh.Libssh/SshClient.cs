@@ -5,7 +5,7 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LibsshSshClient = Tmds.Ssh.Libssh.LibsshSshClient;
+using SshClientImplementation = Tmds.Ssh.Libssh.LibsshSshClient;
 
 namespace Tmds.Ssh
 {
@@ -15,7 +15,7 @@ namespace Tmds.Ssh
 #if DEBUG
             ISshClientImplementation
 #else
-            LibsshSshClient
+            SshClientImplementation
 #endif
             _implementation;
 
@@ -25,7 +25,7 @@ namespace Tmds.Ssh
 
         public SshClient(SshClientSettings clientSettings)
         {
-            _implementation = new LibsshSshClient(clientSettings ?? throw new ArgumentNullException(nameof(clientSettings)));
+            _implementation = new SshClientImplementation(clientSettings ?? throw new ArgumentNullException(nameof(clientSettings)));
         }
 
         public async Task ConnectAsync(CancellationToken cancellationToken = default)

@@ -1,24 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>SSH Client</Description>
-    <Authors>Tom Deseyn</Authors>
-    <PackageTags>ssh</PackageTags>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/tmds/Tmds.Ssh</RepositoryUrl>
+    <Nullable>enable</Nullable>
+
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <PackageDescription>SSH client.</PackageDescription>
+    <Copyright>Copyright (C) Tom Deseyn</Copyright>
+    <RequireLicenseAcceptance>false</RequireLicenseAcceptance>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Copyright>Tom Deseyn</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Portable.BouncyCastle" Version="1.8.5.2" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="3.0.0" />
-    <PackageReference Include="System.Threading.Channels" Version="4.6.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildProjectDirectory)/../Common/*.cs" />
   </ItemGroup>
 
 </Project>

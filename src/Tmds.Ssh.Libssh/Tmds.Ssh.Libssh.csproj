@@ -17,4 +17,8 @@
     <PackageReference Include="System.IO.Pipelines" Version="7.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="$(MSBuildProjectDirectory)/../Common/*.cs" />
+  </ItemGroup>
+
 </Project>

@@ -36,6 +36,8 @@ namespace Tmds.Ssh.Libssh
             SessionDisconnected
         }
 
+        private static readonly Exception DisposedException = NewObjectDisposedException();
+
         private readonly object _gate = new();
         private readonly List<SshChannel> _channels = new();
         private readonly SessionHandle _ssh;
@@ -168,7 +170,7 @@ namespace Tmds.Ssh.Libssh
             }
             {
                 TimerCallback timerCallback =
-                    static o => AbortConnect((LibsshSshClient)o!, new SshSessionException("The operation has timed out.", new TimeoutException()));
+                    static o => AbortConnect((LibsshSshClient)o!, new SshConnectionException("The operation has timed out.", new TimeoutException()));
                 using var timer = new Timer(timerCallback, this, dueTime: (int)_clientSettings.ConnectTimeout.TotalMilliseconds, period: -1);
                 using CancellationTokenRegistration ctr = RegisterConnectCancellation(this, cancellationToken);
                 await tcs.Task.ConfigureAwait(false); // await so the timer doesn't dispose.
@@ -210,9 +212,10 @@ namespace Tmds.Ssh.Libssh
                 int rv = ssh_get_publickey_hash(key!, Interop.PublicKeyHashType.SSH_PUBLICKEY_HASH_SHA256, out byte[] hash);
                 if (rv != SSH_OK)
                 {
-                    throw new SshSessionException("Could not obtain public key.");
+                    throw new SshConnectionException("Could not obtain public key.");
                 }
-                _connectionInfo.ServerKey = new PublicKey(hash);
+                string sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
+                _connectionInfo.ServerKey = new SshKey(sha256FingerPrint);
             }
 
             if (result != KeyVerificationResult.Trusted)
@@ -224,10 +227,10 @@ namespace Tmds.Ssh.Libssh
                     {
                         result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
                     }
-                    catch (Exception e) when (e is not SshSessionException && e is not OperationCanceledException)
+                    catch (Exception e) when (e is not SshConnectionException && e is not OperationCanceledException)
                     {
                         // Wrap the exception
-                        throw new SshSessionException($"Key verification failed: {e.Message}.", e);
+                        throw new SshConnectionException($"Key verification failed: {e.Message}.", e);
                     }
 
                     if (result == KeyVerificationResult.AddKnownHost)
@@ -252,7 +255,7 @@ namespace Tmds.Ssh.Libssh
             }
             if (result != KeyVerificationResult.Trusted)
             {
-                throw new SshSessionException("Server not trusted.");
+                throw new SshConnectionException("Server not trusted.");
             }
         }
 
@@ -313,7 +316,7 @@ namespace Tmds.Ssh.Libssh
         {
             lock (Gate)
             {
-                Disconnect(closeReason: null);
+                Disconnect(DisposedException);
                 _state = SessionState.Disposed;
             }
         }
@@ -329,7 +332,7 @@ namespace Tmds.Ssh.Libssh
             }
 
             _state = SessionState.Disconnected;
-            _closeReason = closeReason;
+            _closeReason ??= closeReason;
 
             _authState.Reset();
 
@@ -398,7 +401,7 @@ namespace Tmds.Ssh.Libssh
             }
             else if (!ssh_is_connected(_ssh))
             {
-                Disconnect(new SshSessionException("Connection closed."));
+                Disconnect(new SshConnectionException("Connection closed."));
                 return;
             }
             if (_flushedTcs != null)
@@ -432,11 +435,11 @@ namespace Tmds.Ssh.Libssh
             }
             else
             {
-                CompleteConnectStep(new SshSessionException(ssh_get_error(_ssh)));
+                CompleteConnectStep(new SshConnectionException(ssh_get_error(_ssh)));
             }
         }
 
-        internal SshException GetErrorExceptionGated()
+        internal SshException CreateCloseExceptionGated()
         {
             lock (Gate)
             {
@@ -450,13 +453,25 @@ namespace Tmds.Ssh.Libssh
 
             if (_state >= SessionState.Disconnected)
             {
-                return new SshSessionClosedException(_closeReason);
+                Exception? closeReason = _closeReason;
+                if (closeReason is null)
+                {
+                    return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByPeer);
+                }
+                else if (closeReason == DisposedException)
+                {
+                    return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByDispose, DisposedException);
+                }
+                else
+                {
+                    return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByAbort, closeReason);
+                }
             }
             else
             {
                 string message = ssh_get_error(SshHandle);
                 bool isFatal = ssh_get_error_is_fatal(SshHandle);
-                SshException exception = isFatal ? new SshSessionException(message) : new SshOperationException(message);
+                SshException exception = isFatal ? new SshConnectionException(message) : new SshChannelException(message);
                 if (isFatal)
                 {
                     Disconnect(exception);
@@ -490,7 +505,7 @@ namespace Tmds.Ssh.Libssh
 
             if (_state == SessionState.Disposed)
             {
-                throw new ObjectDisposedException(typeof(SshClient).FullName);
+                throw NewObjectDisposedException();
             }
             else if (_state >= SessionState.Disconnected)
             {
@@ -612,9 +627,14 @@ namespace Tmds.Ssh.Libssh
                 {
                     // Different callers of FlushAsync can share the
                     // Task, but they need an Exception of their own.
-                    throw GetErrorExceptionGated();
+                    throw CreateCloseExceptionGated();
                 }
             }
+        }
+
+        private static Exception NewObjectDisposedException()
+        {
+            return new ObjectDisposedException(typeof(SshClient).FullName);
         }
     }
 }
