@@ -26,7 +26,7 @@ namespace Tmds.Ssh.Libssh
         {
             Initial,
 
-            // Steps for PrivateKeyFileCredential.
+            // Steps for PrivateKeyCredential.
             IdentityFileKeyImported,
             IdentityFilePubKeyAccepted,
 
@@ -58,39 +58,18 @@ namespace Tmds.Ssh.Libssh
             }
         }
 
-        static volatile List<Credential>? s_defaultCredentials;
-
-        private static List<Credential> GetDefaultCredentials()
-        {
-            if (s_defaultCredentials == null)
-            {
-                List<Credential> credentials = new();
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-                credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_ed25519")));
-                credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_ecdsa")));
-                credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_rsa")));
-                credentials.Add(new PrivateKeyFileCredential(Path.Combine(home, ".ssh", "id_dsa")));
-                s_defaultCredentials = credentials;
-            }
-            return s_defaultCredentials;
-        }
-
         private void Authenticate()
         {
             Debug.Assert(Monitor.IsEntered(Gate));
 
-            var credentials = _clientSettings.Credentials;
-            if (credentials == null || credentials.Count == 0)
-            {
-                credentials = GetDefaultCredentials();
-            }
+            var credentials = _clientSettings.GetCredentialsOrDefault();
             bool ignoreErrors = credentials.Count > 1;
             while (true)
             {
                 int credentialIndex = _authState.CredentialIndex;
                 if (credentialIndex >= credentials.Count)
                 {
-                    CompleteConnectStep(new SshSessionException("Client authentication failed."));
+                    CompleteConnectStep(new SshConnectionException("Client authentication failed."));
                     return;
                 }
                 Credential credential = credentials[credentialIndex];
@@ -102,7 +81,7 @@ namespace Tmds.Ssh.Libssh
                 {
                     result = credential switch
                     {
-                        PrivateKeyFileCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
+                        PrivateKeyCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
                         PasswordCredential pc => Authenticate(pc, out errorMessage),
                         _ => throw new IndexOutOfRangeException($"Unexpected credential type: {credential.GetType().FullName}")
                     };
@@ -127,7 +106,7 @@ namespace Tmds.Ssh.Libssh
                 }
                 else if (result == CredentialAuthResult.Error)
                 {
-                    CompleteConnectStep(new SshSessionException(errorMessage ?? ssh_get_error(_ssh)));
+                    CompleteConnectStep(new SshConnectionException(errorMessage ?? ssh_get_error(_ssh)));
                     return;
                 }
                 else if (result == CredentialAuthResult.NextCredential)
@@ -142,7 +121,7 @@ namespace Tmds.Ssh.Libssh
             }
         }
 
-        private CredentialAuthResult Authenticate(PrivateKeyFileCredential credential, bool ignoreErrors, out string? errorMessage)
+        private CredentialAuthResult Authenticate(PrivateKeyCredential credential, bool ignoreErrors, out string? errorMessage)
         {
             errorMessage = null;
 
