@@ -27,7 +27,7 @@ namespace Tmds.Ssh.Managed
 
         // Internal.
         internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };
-        internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.SshRsa, AlgorithmNames.EcdsaSha2Nistp256 };
+        internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp256 };
         internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes128Gcm };
         internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes128Gcm };
         internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };

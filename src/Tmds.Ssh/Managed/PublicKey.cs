@@ -12,11 +12,7 @@ namespace Tmds.Ssh.Managed
         public static PublicKey CreateFromSshKey(SshKey key)
         {
             Name name = new Name(key.Type);
-            if (name == AlgorithmNames.SshRsa)
-            {
-                return RsaPublicKey.CreateFromSshKey(key.RawKey);
-            }
-            else if (name == AlgorithmNames.EcdsaSha2Nistp256)
+            if (name == AlgorithmNames.EcdsaSha2Nistp256)
             {
                 return ECDsaPublicKey.CreateFromSshKey(key.RawKey);
             }
