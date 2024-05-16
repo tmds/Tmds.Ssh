@@ -97,13 +97,13 @@ class SshDataStream : Stream
 class SftpClient : IDisposable
 {
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
-  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
   ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   // Returns null if the file does not exist.
-  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options = null, CancellationToken cancellationToken = default);
+  ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
@@ -313,9 +313,9 @@ static class UnixFilePemissionExtensions
     static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
     static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
 }
-class PublicKey
+class SshKey
 {
-  ReadOnlyMemory<byte> SHA256Hash { get; }
+  string SHA256FingerPrint { get; }
 }
 enum KeyVerificationResult
 {
@@ -329,17 +329,16 @@ enum KeyVerificationResult
 delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 class SshConnectionInfo
 {
-  PublicKey ServerKey { get; }
+  SshKey ServerKey { get; }
   string Host { get; }
   int Port { get; }
 }
 // Base class for all credentials.
 abstract class Credential
 { }
-class PrivateKeyFileCredential : Credential
+class PrivateKeyCredential : Credential
 {
-  PrivateKeyFileCredential(string filePath);
-  string FilePath { get; }
+  PrivateKeyCredential(string path);
 }
 class PasswordCredential : Credential
 {
@@ -349,14 +348,17 @@ class PasswordCredential : Credential
 // Base class.
 class SshException : Exception
 { }
-// Operation on SshClient failed.
-class SshOperationException : SshException
+// Channel operation failed, channel is closed.
+class SshChannelException : SshException
+{ }
+// Channel already closed. InnerException contains reason.
+class SshChannelClosedException : SshChannelException
 { }
 // SshClient encountered an error, connection is closed.
-class SshSessionException : SshException
+class SshConnectionException : SshException
 { }
 // Connection already closed. InnerException contains reason when closed due to failure.
-class SshSessionClosedException : SshSessionException
+class SshConnectionClosedException : SshConnectionException
 { }
 ```
 
