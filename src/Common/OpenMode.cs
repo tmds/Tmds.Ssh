@@ -8,7 +8,7 @@ namespace Tmds.Ssh
     [Flags]
     public enum OpenMode
     {
-        None = 0,
+        Default = 0,
         Append = 1,
         Truncate = 2
     }

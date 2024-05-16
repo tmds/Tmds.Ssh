@@ -32,7 +32,7 @@ namespace Tmds.Ssh
                 UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite | UnixFilePermissions.GroupExecute |
                 UnixFilePermissions.OtherRead | UnixFilePermissions.OtherWrite | UnixFilePermissions.OtherExecute;
         const UnixFilePermissions DefaultCreateDirectoryPermissions = OwnershipPermissions;
-        const UnixFilePermissions DefaultCreateFilePermissions =
+        internal const UnixFilePermissions DefaultCreateFilePermissions =
                 UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite |
                 UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite |
                 UnixFilePermissions.OtherRead | UnixFilePermissions.OtherWrite;
@@ -79,41 +79,28 @@ namespace Tmds.Ssh
         }
 
         public ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
-            => OpenOrCreateFileAsync(path, access, OpenMode.None, cancellationToken);
+            => OpenOrCreateFileAsync(path, access, options: null, cancellationToken);
 
-        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false)
+        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
-            => CreateNewFileAsync(path, access, OpenMode.None, cancellationToken);
+            => CreateNewFileAsync(path, access, options: null, cancellationToken);
 
-        public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false)
-                ?? throw new SftpException(SftpError.NoSuchFile);
-
-        public ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
-            => OpenOrCreateFileAsync(path, access, OpenMode.None, createPermissions, cancellationToken);
-
-        public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, mode), createPermissions, cancellationToken).ConfigureAwait(false)
-                ?? throw new SftpException(SftpError.NoSuchFile);
-
-        public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
-            => CreateNewFileAsync(path, access, OpenMode.None, permissions, cancellationToken);
-
-        public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, OpenMode mode, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, mode), permissions, cancellationToken).ConfigureAwait(false)
+        public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false)
                 ?? throw new SftpException(SftpError.NoSuchFile);
 
         public ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
-            => OpenFileAsync(path, access, OpenMode.None, cancellationToken);
+            => OpenFileAsync(path, access, options: null, cancellationToken);
 
-        public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, OpenMode mode, CancellationToken cancellationToken = default)
-            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, mode), permissions: DefaultCreateFilePermissions, cancellationToken).ConfigureAwait(false);
+        public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
+            => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false);
 
-        private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode mode)
+        private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode? mode)
         {
+            mode ??= OpenMode.Default;
             if ((mode & OpenMode.Truncate) != 0)
             {
                 flags |= SftpOpenFlags.Truncate;
@@ -126,8 +113,10 @@ namespace Tmds.Ssh
             return flags;
         }
 
-        private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, UnixFilePermissions permissions, CancellationToken cancellationToken)
+        private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, UnixFilePermissions? permissions, CancellationToken cancellationToken)
         {
+            permissions ??= DefaultCreateFilePermissions;
+
             PacketType packetType = PacketType.SSH_FXP_OPEN;
 
             int id = GetNextId();
@@ -370,9 +359,6 @@ namespace Tmds.Ssh
         public ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
             => CreateDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
 
-        public ValueTask CreateDirectoryAsync(string path, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
-            => CreateDirectoryAsync(path, createParents: false, createPermissions, cancellationToken);
-
         public async ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
         {
             // This method doesn't throw if the target directory already exists.
@@ -411,9 +397,6 @@ namespace Tmds.Ssh
 
         public ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default)
             => CreateNewDirectoryAsync(path, createParents: false, cancellationToken);
-
-        public ValueTask CreateNewDirectoryAsync(string path, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
-            => CreateNewDirectoryAsync(path, createParents: false, permissions, cancellationToken);
 
         public ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
             => CreateNewDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
