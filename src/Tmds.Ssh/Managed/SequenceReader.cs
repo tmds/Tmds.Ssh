@@ -145,11 +145,11 @@ namespace Tmds.Ssh.Managed
             return data;
         }
 
-        public SshKey ReadSshKey(IReadOnlyList<Name> allowedFormats)
+        public SshKey ReadSshKey()
         {
             ReadOnlySequence<byte> key = ReadStringAsBytes(Constants.MaxKeyLength);
             SequenceReader keyReader = new SequenceReader(key);
-            Name type = keyReader.ReadName(allowedFormats);
+            Name type = keyReader.ReadName();
             return new SshKey(type.ToString(), key.ToArray());
         }
 
@@ -195,6 +195,15 @@ namespace Tmds.Ssh.Managed
         {
             // MAYDO: implement without allocating.
             if (ReadName() != expected)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
+        }
+
+        public void ReadName(Name expected, IReadOnlyList<Name> allowedNames)
+        {
+            var name = ReadName();
+            if (name != expected || !allowedNames.Contains(name))
             {
                 ThrowHelper.ThrowProtocolUnexpectedValue();
             }

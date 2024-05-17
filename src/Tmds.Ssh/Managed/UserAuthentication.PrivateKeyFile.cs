@@ -3,18 +3,17 @@
 
 using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Numerics;
 using System.Security.Cryptography;
-using System.Text;
-using static System.Environment;
 
 namespace Tmds.Ssh.Managed
 {
     sealed partial class UserAuthentication
     {
         // TODO: move some place else?
-        internal static bool TryParsePrivateKeyFile(string filename, out PrivateKey? privateKey)
+        internal static bool TryParsePrivateKeyFile(string filename, [NotNullWhen(true)]out PrivateKey? privateKey)
         {
             privateKey = null;
 

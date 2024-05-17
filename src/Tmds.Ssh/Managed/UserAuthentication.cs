@@ -38,9 +38,16 @@ namespace Tmds.Ssh.Managed
                     string? password = passwordCredential.GetPassword();
                     if (password is not null)
                     {
-                        using var userAuthMsg = CreatePasswordRequestMessage(connection.SequencePool,
-                                                    settings.UserName, password);
-                        await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                        {
+                            using var userAuthMsg = CreatePasswordRequestMessage(connection.SequencePool,
+                                                        settings.UserName, password);
+                            await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                        }
+                        bool isAuthSuccesfull = await ReceiveAuthIsSuccesfullAsync(connection, logger, ct).ConfigureAwait(false);
+                        if (isAuthSuccesfull)
+                        {
+                            return;
+                        }
                     }
                 }
                 else if (credential is PrivateKeyCredential ifCredential)
@@ -49,11 +56,22 @@ namespace Tmds.Ssh.Managed
                     {
                         using (pk)
                         {
-                            logger.AuthenticationMethodPublicKey(ifCredential.FilePath);
+                            foreach (var keyAlgorithm in pk.Algorithms)
+                            {
+                                logger.AuthenticationMethodPublicKey(ifCredential.FilePath);
 
-                            using var userAuthMsg = CreatePublicKeyRequestMessage(connection.SequencePool,
-                                                        settings.UserName, connectionInfo.SessionId!, pk!);
-                            await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                                {
+                                    using var userAuthMsg = CreatePublicKeyRequestMessage(keyAlgorithm, connection.SequencePool,
+                                                                settings.UserName, connectionInfo.SessionId!, pk!);
+                                    await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                                }
+
+                                bool isAuthSuccesfull = await ReceiveAuthIsSuccesfullAsync(connection, logger, ct).ConfigureAwait(false);
+                                if (isAuthSuccesfull)
+                                {
+                                    return;
+                                }
+                            }
                         }
                     }
                     else
@@ -65,35 +83,39 @@ namespace Tmds.Ssh.Managed
                 {
                     throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
                 }
-
-                /*
-                    The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
-                    time after this authentication protocol starts and before
-                    authentication is successful.
-                */
-                bool is_banner;
-                do
-                {
-                    using Packet response = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
-
-                    // TODO: return banner to the user.
-                    is_banner = response.MessageId == MessageId.SSH_MSG_USERAUTH_BANNER;
-
-                    if (!is_banner)
-                    {
-                        if (IsAuthSuccesfull(response))
-                        {
-                            logger.AuthenticationSucceeded();
-                            return;
-                        }
-                    }
-                } while (is_banner);
             }
 
             throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", connectionInfo);
         }
 
-        private static Packet CreatePublicKeyRequestMessage(SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)
+        private async static Task<bool> ReceiveAuthIsSuccesfullAsync(SshConnection connection, ILogger logger, CancellationToken ct)
+        {
+            /*
+                The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
+                time after this authentication protocol starts and before
+                authentication is successful.
+            */
+            bool is_banner;
+            do
+            {
+                using Packet response = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+
+                // TODO: return banner to the user.
+                is_banner = response.MessageId == MessageId.SSH_MSG_USERAUTH_BANNER;
+
+                if (!is_banner)
+                {
+                    bool isSuccess = IsAuthSuccesfull(response);
+                    if (isSuccess)
+                    {
+                        logger.AuthenticationSucceeded();
+                    }
+                    return isSuccess;
+                }
+            } while (true);
+        }
+
+        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)
         {
             /*
                 byte      SSH_MSG_USERAUTH_REQUEST
@@ -112,7 +134,7 @@ namespace Tmds.Ssh.Managed
             writer.WriteString("ssh-connection");
             writer.WriteString("publickey");
             writer.WriteBoolean(true);
-            writer.WriteString(privateKey.Format);
+            writer.WriteString(algorithm);
             privateKey.AppendPublicKey(ref writer);
             {
                 /*
@@ -133,9 +155,9 @@ namespace Tmds.Ssh.Managed
                 signatureWriter.WriteString("ssh-connection");
                 signatureWriter.WriteString("publickey");
                 signatureWriter.WriteBoolean(true);
-                signatureWriter.WriteString(privateKey.Format);
+                signatureWriter.WriteString(algorithm);
                 privateKey.AppendPublicKey(ref signatureWriter);
-                privateKey.AppendSignature(ref writer, signatureData.AsReadOnlySequence());
+                privateKey.AppendSignature(algorithm, ref writer, signatureData.AsReadOnlySequence());
             }
 
             return packet.Move();

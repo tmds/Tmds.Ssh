@@ -37,7 +37,7 @@ namespace Tmds.Ssh
             Type = type ?? throw new ArgumentNullException(nameof(type));
             RawKey = key ?? throw new ArgumentNullException(nameof(key));
         }
-        internal string Type { get; }
+        internal string Type { get; } // TODO: type as 'Name'?
         internal byte[] RawKey { get; }
     }
 }
