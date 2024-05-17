@@ -16,8 +16,6 @@ namespace Tmds.Ssh.Managed
 
         public AesGcmPacketEncoder(byte[] key, byte[] iv, int tagLength)
         {
-            Debug.Assert(key.Length == AesBlockSize);
-
             _iv = iv;
             _tagLength = tagLength;
             _aesGcm = new AesGcm(key, tagLength);

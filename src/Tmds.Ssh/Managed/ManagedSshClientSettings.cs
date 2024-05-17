@@ -26,10 +26,11 @@ namespace Tmds.Ssh.Managed
         // MAYDO: add property for default window size.
 
         // Internal.
+        // Algorithms are in **order of preference**.
         internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };
-        internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp256 };
-        internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes128Gcm };
-        internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes128Gcm };
+        internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.RsaSshSha2_512 , AlgorithmNames.RsaSshSha2_256, AlgorithmNames.EcdsaSha2Nistp256 };
+        internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
+        internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
         internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
         internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
         internal List<Name> CompressionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.None };

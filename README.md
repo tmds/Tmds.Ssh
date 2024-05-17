@@ -372,15 +372,19 @@ Supported private key encryption cyphers:
 - none
 
 Supported client key algorithms:
+- rsa-sha2-512
 - rsa-sha2-256
 
 Supported server key algorithms:
+- rsa-sha2-512
+- rsa-sha2-256
 - ecdsa-sha2-nistp256
 
 Supported key exchange methods:
 - ecdh-sha2-nistp256
 
 Supported encryption algorithms:
+- aes256-gcm@openssh.com
 - aes128-gcm@openssh.com
 
 Supported compression algorithms:

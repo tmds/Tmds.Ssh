@@ -14,7 +14,7 @@ namespace Tmds.Ssh.Managed
         // By design, we treat _name == null the same as _name == byte[0] {}.
         private readonly byte[] _name;
 
-        private Name(byte[] name)
+        internal Name(byte[] name)
         {
             _name = name;
         }

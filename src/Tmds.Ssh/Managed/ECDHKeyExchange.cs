@@ -49,7 +49,7 @@ namespace Tmds.Ssh.Managed
             {
                 exchangeInitMsg = exchangeInitMsgDispose;
             }
-            var ecdhReply = ParceEcdhReply(exchangeInitMsg, input.HostKeyAlgorithms);
+            var ecdhReply = ParceEcdhReply(exchangeInitMsg);
 
             // Verify received key is valid.
             connectionInfo.ServerKey = ecdhReply.public_host_key;
@@ -77,7 +77,7 @@ namespace Tmds.Ssh.Managed
             byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawKey, q_c, ecdhReply.q_s, sharedSecret);
 
             // Verify the server's signature.
-            if (!publicHostKey.VerifySignature(exchangeHash, ecdhReply.exchange_hash_signature))
+            if (!publicHostKey.VerifySignature(input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature))
             {
                 throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Signature does not match host key.", connectionInfo);
             }
@@ -198,11 +198,11 @@ namespace Tmds.Ssh.Managed
             SshKey public_host_key,
             ECPoint q_s,
             ReadOnlySequence<byte> exchange_hash_signature)
-            ParceEcdhReply(ReadOnlyPacket packet, IReadOnlyList<Name> allowedKeyTypes)
+            ParceEcdhReply(ReadOnlyPacket packet)
         {
             var reader = packet.GetReader();
             reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-            SshKey public_host_key = reader.ReadSshKey(allowedKeyTypes);
+            SshKey public_host_key = reader.ReadSshKey();
             ECPoint q_s = reader.ReadStringAsECPoint();
             ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
             reader.ReadEnd();

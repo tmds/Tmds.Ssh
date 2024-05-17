@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Formats.Asn1;
+using System.Collections.Generic;
 
 namespace Tmds.Ssh.Managed
 {
@@ -39,10 +40,10 @@ namespace Tmds.Ssh.Managed
             return null!;
         }
 
-        internal override bool VerifySignature(Span<byte> data, ReadOnlySequence<byte> signature)
+        internal override bool VerifySignature(IReadOnlyList<Name> allowedAlgorithms, Span<byte> data, ReadOnlySequence<byte> signature)
         {
             var reader = new SequenceReader(signature);
-            reader.ReadName(_name);
+            reader.ReadName(_name, allowedAlgorithms);
             ReadOnlySequence<byte> ecdsa_signature_blob = reader.ReadStringAsBytes();
             reader.ReadEnd();
             reader = new SequenceReader(ecdsa_signature_blob);

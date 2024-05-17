@@ -12,7 +12,7 @@ namespace Tmds.Ssh.Managed
         private readonly RSA _rsa;
 
         public RsaPrivateKey(RSA rsa) :
-            base(AlgorithmNames.SshSha2_256)
+            base(AlgorithmNames.SshRsaAlgorithms)
         {
             _rsa = rsa ?? throw new ArgumentNullException(nameof(rsa));
         }
@@ -34,14 +34,28 @@ namespace Tmds.Ssh.Managed
             writer.WriteString(innerData.AsReadOnlySequence());
         }
 
-        public override void AppendSignature(ref SequenceWriter writer, ReadOnlySequence<byte> data)
+        public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)
         {
+            HashAlgorithmName hashAlgorithmName;
+            if (algorithm == AlgorithmNames.RsaSshSha2_256)
+            {
+                hashAlgorithmName = HashAlgorithmName.SHA256;
+            }
+            else if (algorithm == AlgorithmNames.RsaSshSha2_512)
+            {
+                hashAlgorithmName = HashAlgorithmName.SHA512;
+            }
+            else
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+                return;
+            }
             using var innerData = writer.SequencePool.RentSequence();
             var innerWriter = new SequenceWriter(innerData);
-            innerWriter.WriteString(AlgorithmNames.SshSha2_256);
+            innerWriter.WriteString(algorithm);
             int signatureLength = _rsa.KeySize / 8;
             byte[] signature = new byte[signatureLength];
-            if (!_rsa.TrySignData(data.ToArray(), signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1, out int bytesWritten) ||
+            if (!_rsa.TrySignData(data.ToArray(), signature, hashAlgorithmName, RSASignaturePadding.Pkcs1, out int bytesWritten) ||
                 bytesWritten != signatureLength)
             {
                 throw new InvalidOperationException("Unable to sign data.");

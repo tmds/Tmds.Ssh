@@ -75,7 +75,15 @@ namespace Tmds.Ssh.Managed
                     (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
                         => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
                         isAuthenticated: true,
-                        tagLength: 16) }
+                        tagLength: 16) },
+            { AlgorithmNames.Aes256Gcm,
+                new EncryptionAlgorithm(keyLength: 256 / 8, ivLength: 12,
+                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                        => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
+                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                        => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
+                        isAuthenticated: true,
+                        tagLength: 16) },
         };
 
         private static IPacketEncoder CreatePacketEncoder(IDisposableCryptoTransform encodeTransform, IHMac hmac)
