@@ -12,7 +12,7 @@ namespace Tmds.Ssh.Managed
         public const int MaxDataPacketSize = 32 * 1024;
         public const int DefaultWindowSize = 64 * MaxDataPacketSize;
         public const int MaxNameLength = 128;        // Arbitrary limit, may be increased.
-        public const int MaxECPointLength = 128 + 1; // Arbitrary limit, may be increased.
+        public const int MaxECPointLength = 256 + 1; // Arbitrary limit, may be increased.
         public const int MaxKeyLength = 1024;        // Arbitrary limit, may be increased.
     }
 }
