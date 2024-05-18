@@ -4,12 +4,11 @@
 using System;
 using System.Buffers;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+interface IDisposableCryptoTransform : IDisposable
 {
-    interface IDisposableCryptoTransform : IDisposable
-    {
-        // Input length must be a multiple.
-        int BlockSize { get; }
-        void Transform(ReadOnlySequence<byte> data, Sequence output);
-    }
+    // Input length must be a multiple.
+    int BlockSize { get; }
+    void Transform(ReadOnlySequence<byte> data, Sequence output);
 }

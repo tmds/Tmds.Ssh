@@ -4,18 +4,17 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Tmds.Ssh.Libssh
+namespace Tmds.Ssh.Libssh;
+
+class EventHandle : SafeHandle
 {
-    class EventHandle : SafeHandle
+    private EventHandle() : base(IntPtr.Zero, ownsHandle: true) { }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle()
     {
-        private EventHandle() : base(IntPtr.Zero, ownsHandle: true) {}
-
-        public override bool IsInvalid => handle == IntPtr.Zero;
-
-        protected override bool ReleaseHandle()
-        {
-            Interop.ssh_event_free(handle);
-            return true;
-        }
+        Interop.ssh_event_free(handle);
+        return true;
     }
 }

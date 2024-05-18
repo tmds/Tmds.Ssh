@@ -3,30 +3,28 @@
 
 using System;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+// Thrown when the ManagedSshClient.ConnectAsync operation fails.
+class ConnectFailedException : SshConnectionException
 {
-    // Thrown when the ManagedSshClient.ConnectAsync operation fails.
-    [Serializable]
-    class ConnectFailedException : SshConnectionException
+    public SshConnectionInfo ConnectionInfo { get; }
+    public ConnectFailedReason Reason { get; }
+
+    public ConnectFailedException(ConnectFailedReason reason, string description, SshConnectionInfo connectionInfo, Exception inner)
+        : base(FormatMessage(reason, description), inner)
     {
-        public SshConnectionInfo ConnectionInfo { get; }
-        public ConnectFailedReason Reason { get; }
-
-        public ConnectFailedException(ConnectFailedReason reason, string description, SshConnectionInfo connectionInfo, Exception inner)
-            : base(FormatMessage(reason, description), inner)
-        {
-            ConnectionInfo = connectionInfo;
-            Reason = reason;
-        }
-
-        public ConnectFailedException(ConnectFailedReason reason, string description, SshConnectionInfo connectionInfo)
-            : base(FormatMessage(reason, description))
-        {
-            ConnectionInfo = connectionInfo;
-            Reason = reason;
-        }
-
-        private static string FormatMessage(ConnectFailedReason reason, string description)
-            => $"The connection could not be established - {reason} - {description}";
+        ConnectionInfo = connectionInfo;
+        Reason = reason;
     }
+
+    public ConnectFailedException(ConnectFailedReason reason, string description, SshConnectionInfo connectionInfo)
+        : base(FormatMessage(reason, description))
+    {
+        ConnectionInfo = connectionInfo;
+        Reason = reason;
+    }
+
+    private static string FormatMessage(ConnectFailedReason reason, string description)
+        => $"The connection could not be established - {reason} - {description}";
 }

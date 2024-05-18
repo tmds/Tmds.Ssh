@@ -3,10 +3,9 @@
 
 using System;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+interface IPacketDecoder : IDisposable
 {
-    interface IPacketDecoder : IDisposable
-    {
-        bool TryDecodePacket(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet);
-    }
+    bool TryDecodePacket(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet);
 }

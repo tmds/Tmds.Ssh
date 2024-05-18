@@ -3,22 +3,21 @@
 
 using System;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+public partial class SftpClient
 {
-    public partial class SftpClient
+    [Flags]
+    enum SftpOpenFlags : uint
     {
-        [Flags]
-        enum SftpOpenFlags : uint
-        {
-            Read = 1,
-            Write = 2,
+        Read = 1,
+        Write = 2,
 
-            Append = 4,
-            Truncate = 16,
+        Append = 4,
+        Truncate = 16,
 
-            Open = 0,
-            OpenOrCreate = 8,
-            CreateNew = 8 | 32,
-        }
+        Open = 0,
+        OpenOrCreate = 8,
+        CreateNew = 8 | 32,
     }
 }

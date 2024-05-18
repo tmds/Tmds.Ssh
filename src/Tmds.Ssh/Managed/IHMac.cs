@@ -4,31 +4,30 @@
 using System;
 using System.Buffers;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+static class HMacExtensions
 {
-    static class HMacExtensions
+    public static void AppendData(this IHMac mac, ReadOnlySequence<byte> sequence)
     {
-        public static void AppendData(this IHMac mac, ReadOnlySequence<byte> sequence)
+        if (sequence.IsSingleSegment)
         {
-            if (sequence.IsSingleSegment)
+            mac.AppendData(sequence.FirstSpan);
+        }
+        else
+        {
+            foreach (var segment in sequence)
             {
-                mac.AppendData(sequence.FirstSpan);
-            }
-            else
-            {
-                foreach (var segment in sequence)
-                {
-                    mac.AppendData(segment.Span);
-                }
+                mac.AppendData(segment.Span);
             }
         }
     }
+}
 
-    interface IHMac : IDisposable
-    {
-        int HashSize { get; }
-        void AppendData(ReadOnlySpan<byte> data);
-        void AppendHashToSequenceAndReset(Sequence output);
-        bool CheckHashAndReset(ReadOnlySpan<byte> hash);
-    }
+interface IHMac : IDisposable
+{
+    int HashSize { get; }
+    void AppendData(ReadOnlySpan<byte> data);
+    void AppendHashToSequenceAndReset(Sequence output);
+    bool CheckHashAndReset(ReadOnlySpan<byte> hash);
 }

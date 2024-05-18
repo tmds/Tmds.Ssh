@@ -1,13 +1,12 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-namespace Tmds.Ssh.Libssh
+namespace Tmds.Ssh.Libssh;
+
+enum SshChannelType
 {
-    enum SshChannelType
-    {
-        Execute,
-        TcpStream,
-        UnixStream,
-        Sftp
-    }
+    Execute,
+    TcpStream,
+    UnixStream,
+    Sftp
 }

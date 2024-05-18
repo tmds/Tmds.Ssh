@@ -6,130 +6,129 @@ using System.Buffers;
 using System.Globalization;
 using System.Text;
 
-namespace Tmds.Ssh.Managed
-{
-    static class PrettyBytePrinter
-    {
-        internal const int BytesPerLine = 32;
+namespace Tmds.Ssh.Managed;
 
-        public static string ToHexString(ReadOnlySpan<byte> span)
+static class PrettyBytePrinter
+{
+    internal const int BytesPerLine = 32;
+
+    public static string ToHexString(ReadOnlySpan<byte> span)
+    {
+        StringBuilder sb = new StringBuilder();
+        Append(sb, span, offset: 0);
+        return sb.ToString();
+    }
+
+    public static string ToHexString(byte[] array)
+        => ToHexString(array.AsSpan());
+
+    public static string ToHexString(ArraySegment<byte> segment)
+        => ToHexString(segment.AsSpan());
+
+    public static string ToHexString(ReadOnlySequence<byte> sequence)
+    {
+        if (sequence.IsSingleSegment)
+        {
+            return ToHexString(sequence.FirstSpan);
+        }
+        else
         {
             StringBuilder sb = new StringBuilder();
-            Append(sb, span, offset: 0);
+            long offset = 0;
+            foreach (var segment in sequence)
+            {
+                Append(sb, segment.Span, offset);
+                offset += segment.Length;
+            }
             return sb.ToString();
         }
+    }
 
-        public static string ToHexString(byte[] array)
-            => ToHexString(array.AsSpan());
+    public static string ToMultiLineString(ReadOnlySequence<byte> sequence)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine();
 
-        public static string ToHexString(ArraySegment<byte> segment)
-            => ToHexString(segment.AsSpan());
+        Span<byte> lineBuffer = stackalloc byte[BytesPerLine];
 
-        public static string ToHexString(ReadOnlySequence<byte> sequence)
+        do
         {
+            ReadOnlySpan<byte> firstSpan = sequence.FirstSpan;
             if (sequence.IsSingleSegment)
             {
-                return ToHexString(sequence.FirstSpan);
-            }
-            else
-            {
-                StringBuilder sb = new StringBuilder();
-                long offset = 0;
-                foreach (var segment in sequence)
-                {
-                    Append(sb, segment.Span, offset);
-                    offset += segment.Length;
-                }
+                AppendLines(sb, firstSpan, true);
                 return sb.ToString();
             }
-        }
 
-        public static string ToMultiLineString(ReadOnlySequence<byte> sequence)
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine();
-
-            Span<byte> lineBuffer = stackalloc byte[BytesPerLine];
-
-            do
+            int useLength = firstSpan.Length;
+            if (useLength < BytesPerLine)
             {
-                ReadOnlySpan<byte> firstSpan = sequence.FirstSpan;
-                if (sequence.IsSingleSegment)
-                {
-                    AppendLines(sb, firstSpan, true);
-                    return sb.ToString();
-                }
-
-                int useLength = firstSpan.Length;
-                if (useLength < BytesPerLine)
-                {
-                    firstSpan.CopyTo(lineBuffer);
-                    AppendLine(sb, lineBuffer.Slice(0, useLength), useLength == sequence.Length);
-                }
-                else
-                {
-                    useLength -= (useLength % BytesPerLine);
-                    AppendLines(sb, firstSpan.Slice(0, useLength), useLength == sequence.Length);
-                }
-                sequence = sequence.Slice(useLength);
-            } while (true);
-        }
-
-        public static string ToHexString(Sequence sequence)
-            => ToHexString(sequence.AsReadOnlySequence());
-
-        private static void Append(StringBuilder sb, ReadOnlySpan<byte> span, long offset)
-        {
-            foreach (var b in span)
-            {
-                sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-            }
-        }
-
-        private static void AppendLines(StringBuilder sb, ReadOnlySpan<byte> span, bool final)
-        {
-            while (!span.IsEmpty)
-            {
-                ReadOnlySpan<byte> line = span;
-                if (line.Length > BytesPerLine)
-                {
-                    line = line.Slice(0, BytesPerLine);
-                }
-                AppendLine(sb, line, final && line.Length == span.Length);
-
-                span = span.Slice(line.Length);
-            }
-        }
-
-        private static void AppendLine(StringBuilder sb, ReadOnlySpan<byte> line, bool final)
-        {
-            foreach (var b in line)
-            {
-                sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-            }
-
-            for (int i = line.Length; i < BytesPerLine; i++)
-            {
-                sb.Append("  ");
-            }
-
-            sb.Append("  |");
-
-            foreach (var b in line)
-            {
-                char c = (char)b;
-                bool printable = c < 127 && c >= 32;
-                sb.Append(printable ? c : '.');
-            }
-
-            if (final)
-            {
-                sb.Append("|");
+                firstSpan.CopyTo(lineBuffer);
+                AppendLine(sb, lineBuffer.Slice(0, useLength), useLength == sequence.Length);
             }
             else
             {
-                sb.AppendLine("|");
+                useLength -= (useLength % BytesPerLine);
+                AppendLines(sb, firstSpan.Slice(0, useLength), useLength == sequence.Length);
             }
+            sequence = sequence.Slice(useLength);
+        } while (true);
+    }
+
+    public static string ToHexString(Sequence sequence)
+        => ToHexString(sequence.AsReadOnlySequence());
+
+    private static void Append(StringBuilder sb, ReadOnlySpan<byte> span, long offset)
+    {
+        foreach (var b in span)
+        {
+            sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+        }
+    }
+
+    private static void AppendLines(StringBuilder sb, ReadOnlySpan<byte> span, bool final)
+    {
+        while (!span.IsEmpty)
+        {
+            ReadOnlySpan<byte> line = span;
+            if (line.Length > BytesPerLine)
+            {
+                line = line.Slice(0, BytesPerLine);
+            }
+            AppendLine(sb, line, final && line.Length == span.Length);
+
+            span = span.Slice(line.Length);
+        }
+    }
+
+    private static void AppendLine(StringBuilder sb, ReadOnlySpan<byte> line, bool final)
+    {
+        foreach (var b in line)
+        {
+            sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+        }
+
+        for (int i = line.Length; i < BytesPerLine; i++)
+        {
+            sb.Append("  ");
+        }
+
+        sb.Append("  |");
+
+        foreach (var b in line)
+        {
+            char c = (char)b;
+            bool printable = c < 127 && c >= 32;
+            sb.Append(printable ? c : '.');
+        }
+
+        if (final)
+        {
+            sb.Append("|");
+        }
+        else
+        {
+            sb.AppendLine("|");
         }
     }
 }

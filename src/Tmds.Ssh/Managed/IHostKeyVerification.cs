@@ -4,10 +4,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+interface IHostKeyVerification
 {
-    interface IHostKeyVerification
-    {
-        ValueTask<KeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
-    }
+    ValueTask<KeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
 }

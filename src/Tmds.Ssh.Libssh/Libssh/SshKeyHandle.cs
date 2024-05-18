@@ -4,20 +4,19 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Tmds.Ssh.Libssh
+namespace Tmds.Ssh.Libssh;
+
+class SshKeyHandle : SafeHandle
 {
-    class SshKeyHandle : SafeHandle
+    private SshKeyHandle() : base(IntPtr.Zero, ownsHandle: true) { }
+
+    public SshKeyHandle(IntPtr handle, bool ownsHandle) : base(handle, ownsHandle) { }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle()
     {
-        private SshKeyHandle() : base(IntPtr.Zero, ownsHandle: true) {}
-
-        public SshKeyHandle(IntPtr handle, bool ownsHandle) : base(handle, ownsHandle) {}
-
-        public override bool IsInvalid => handle == IntPtr.Zero;
-
-        protected override bool ReleaseHandle()
-        {
-            Interop.ssh_key_free(handle);
-            return true;
-        }
+        Interop.ssh_key_free(handle);
+        return true;
     }
 }

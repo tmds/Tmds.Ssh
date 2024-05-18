@@ -3,25 +3,24 @@
 
 using System;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+[Flags]
+public enum UnixFileTypeFilter : byte
 {
-    [Flags]
-    public enum UnixFileTypeFilter : byte
-    {
-        RegularFile = 1,
-        Directory = 2,
-        SymbolicLink = 4,
-        CharacterDevice = 8,
-        BlockDevice = 16,
-        Socket = 32,
-        Fifo = 64,
-    }
+    RegularFile = 1,
+    Directory = 2,
+    SymbolicLink = 4,
+    CharacterDevice = 8,
+    BlockDevice = 16,
+    Socket = 32,
+    Fifo = 64,
+}
 
-    static class UnixFileTypeFilterExtensions
-    {
-        internal const int TypeShift = 8;
+static class UnixFileTypeFilterExtensions
+{
+    internal const int TypeShift = 8;
 
-        public static bool Matches(this UnixFileTypeFilter filter, UnixFileType type)
-            => (((int)type >> TypeShift) & (int)filter) != 0;
-    }
+    public static bool Matches(this UnixFileTypeFilter filter, UnixFileType type)
+        => (((int)type >> TypeShift) & (int)filter) != 0;
 }

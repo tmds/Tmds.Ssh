@@ -7,248 +7,247 @@ using System.Threading.Tasks.Sources;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+public partial class SftpClient
 {
-    public partial class SftpClient
+    private readonly Channel<Packet> _pendingSends = Channel.CreateUnbounded<Packet>();
+    private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
+    private readonly ConcurrentBag<PendingOperation> _pendingOperationPool = new();
+
+    sealed class PendingOperation : IValueTaskSource<object?>, IValueTaskSource<int>
     {
-        private readonly Channel<Packet> _pendingSends = Channel.CreateUnbounded<Packet>();
-        private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
-        private readonly ConcurrentBag<PendingOperation> _pendingOperationPool = new();
+        const int NotCompleted = 0;
+        const int Completed = 1;
+        const int Canceled = 2;
 
-        sealed class PendingOperation : IValueTaskSource<object?>, IValueTaskSource<int>
+        private readonly SftpClient _client;
+        private ManualResetValueTaskSourceCore<object?> _core;
+        private int IntResult;
+        private CancellationTokenRegistration _ctr;
+        private int _state = NotCompleted;
+
+        private void SetIntResult(int value)
         {
-            const int NotCompleted = 0;
-            const int Completed = 1;
-            const int Canceled = 2;
+            // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
+            _ctr.Dispose();
 
-            private readonly SftpClient _client;
-            private ManualResetValueTaskSourceCore<object?> _core;
-            private int IntResult;
-            private CancellationTokenRegistration _ctr;
-            private int _state = NotCompleted;
-
-            private void SetIntResult(int value)
+            int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
+            if (previousState == NotCompleted)
             {
-                // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
-                _ctr.Dispose();
+                IntResult = value;
+                _core.SetResult(null!);
+            }
+        }
 
-                int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
-                if (previousState == NotCompleted)
+        private void SetResult(object? value)
+        {
+            // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
+            _ctr.Dispose();
+
+            int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
+            if (previousState == NotCompleted)
+            {
+                _core.SetResult(value);
+            }
+            else if (previousState == Canceled)
+            {
+                // Dispose file/dir handles.
+                if (value is SftpFile file)
                 {
-                    IntResult = value;
-                    _core.SetResult(null!);
+                    file.Dispose();
                 }
             }
+        }
 
-            private void SetResult(object? value)
+        private void SetException(Exception exception)
+        {
+            // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
+            _ctr.Dispose();
+
+            int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
+            if (previousState == NotCompleted)
             {
-                // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
-                _ctr.Dispose();
+                _core.SetException(exception);
+            }
+        }
 
-                int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
-                if (previousState == NotCompleted)
-                {
-                    _core.SetResult(value);
-                }
-                else if (previousState == Canceled)
-                {
-                    // Dispose file/dir handles.
-                    if (value is SftpFile file)
-                    {
-                        file.Dispose();
-                    }
-                }
+        private void Cancel()
+        {
+            // note: do NOT dispose the CancellationTokenRegistration so the Set* methods can synchronize.
+            if (Interlocked.CompareExchange(ref _state, Canceled, NotCompleted) == NotCompleted)
+            {
+                _core.SetException(new OperationCanceledException());
+            }
+        }
+
+        public short Token => _core.Version;
+
+        public Memory<byte> Buffer { get; set; }
+        public PacketType RequestType { get; set; }
+
+        public PendingOperation(SftpClient client)
+        {
+            _client = client;
+            _core.RunContinuationsAsynchronously = true;
+        }
+
+        internal void HandleClose()
+        {
+            SetException(_client._channel.CreateCloseException());
+        }
+
+        public void Reset()
+        {
+            // Don't root objects.
+            Buffer = default;
+
+            // Reset ValueTask state.
+            _state = NotCompleted;
+            _core.Reset();
+        }
+
+        internal void HandleReply(SftpClient client, ReadOnlySpan<byte> reply)
+        {
+            PacketReader reader = new(reply);
+
+            PacketType responseType = reader.ReadPacketType();
+            reader.ReadInt(); // id
+
+            SftpError error = SftpError.None;
+            if (responseType == PacketType.SSH_FXP_STATUS)
+            {
+                error = (SftpError)reader.ReadUInt();
             }
 
-            private void SetException(Exception exception)
+            if (error != SftpError.None &&
+                !((error, RequestType) is (SftpError.Eof, PacketType.SSH_FXP_READ              // Read: return 0
+                                                           or PacketType.SSH_FXP_READDIR        // Read: return Array.Empty<byte>
+                                           )
+                                        or (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT       // GetAttributes: return null
+                                                                  or PacketType.SSH_FXP_LSTAT   // GetAttributes: return null
+                                                                  or PacketType.SSH_FXP_OPEN    // OpenFile: return null
+                                                                  or PacketType.SSH_FXP_REMOVE  // DeleteFile: don't throw
+                                                                  or PacketType.SSH_FXP_RMDIR   // DeleteDirectory: don't throw
+                                           )
+                ))
             {
-                // Synchronize with Cancel to ensure a recycled instance can not be canceled by a previous registration.
-                _ctr.Dispose();
-
-                int previousState = Interlocked.CompareExchange(ref _state, Completed, NotCompleted);
-                if (previousState == NotCompleted)
-                {
-                    _core.SetException(exception);
-                }
+                SetException(new SftpException(error));
+                return;
             }
-
-            private void Cancel()
+            switch (RequestType, responseType)
             {
-                // note: do NOT dispose the CancellationTokenRegistration so the Set* methods can synchronize.
-                if (Interlocked.CompareExchange(ref _state, Canceled, NotCompleted) == NotCompleted)
-                {
-                    _core.SetException(new OperationCanceledException());
-                }
-            }
-
-            public short Token => _core.Version;
-
-            public Memory<byte> Buffer { get; set; }
-            public PacketType RequestType { get; set; }
-
-            public PendingOperation(SftpClient client)
-            {
-                _client = client;
-                _core.RunContinuationsAsynchronously = true;
-            }
-
-            internal void HandleClose()
-            {
-                SetException(_client._channel.CreateCloseException());
-            }
-
-            public void Reset()
-            {
-                // Don't root objects.
-                Buffer = default;
-
-                // Reset ValueTask state.
-                _state = NotCompleted;
-                _core.Reset();
-            }
-
-            internal void HandleReply(SftpClient client, ReadOnlySpan<byte> reply)
-            {
-                PacketReader reader = new(reply);
-
-                PacketType responseType = reader.ReadPacketType();
-                reader.ReadInt(); // id
-
-                SftpError error = SftpError.None;
-                if (responseType == PacketType.SSH_FXP_STATUS)
-                {
-                    error = (SftpError)reader.ReadUInt();
-                }
-
-                if (error != SftpError.None &&
-                    !( (error, RequestType) is (SftpError.Eof, PacketType.SSH_FXP_READ              // Read: return 0
-                                                               or PacketType.SSH_FXP_READDIR        // Read: return Array.Empty<byte>
-                                               )
-                                            or (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT       // GetAttributes: return null
-                                                                      or PacketType.SSH_FXP_LSTAT   // GetAttributes: return null
-                                                                      or PacketType.SSH_FXP_OPEN    // OpenFile: return null
-                                                                      or PacketType.SSH_FXP_REMOVE  // DeleteFile: don't throw
-                                                                      or PacketType.SSH_FXP_RMDIR   // DeleteDirectory: don't throw
-                                               )
-                    ))
-                {
-                    SetException(new SftpException(error));
+                case (PacketType.SSH_FXP_OPEN, _):
+                    SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes()));
                     return;
-                }
-                switch (RequestType, responseType)
-                {
-                    case (PacketType.SSH_FXP_OPEN, _):
-                        SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes()));
-                        return;
-                    case (PacketType.SSH_FXP_OPENDIR, _):
-                        SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes()));
-                        return;
-                    case (PacketType.SSH_FXP_STAT, _):
-                    case (PacketType.SSH_FXP_LSTAT, _):
-                    case (PacketType.SSH_FXP_FSTAT, _):
-                        SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
-                        return;
-                    case (PacketType.SSH_FXP_READ, _):
-                        int count;
-                        if (error == SftpError.Eof)
-                        {
-                            count = 0;
-                        }
-                        else
-                        {
-                            count = reader.ReadInt();
-                            reader.Remainder.Slice(0, count).CopyTo(Buffer.Span);
-                        }
+                case (PacketType.SSH_FXP_OPENDIR, _):
+                    SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes()));
+                    return;
+                case (PacketType.SSH_FXP_STAT, _):
+                case (PacketType.SSH_FXP_LSTAT, _):
+                case (PacketType.SSH_FXP_FSTAT, _):
+                    SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
+                    return;
+                case (PacketType.SSH_FXP_READ, _):
+                    int count;
+                    if (error == SftpError.Eof)
+                    {
+                        count = 0;
+                    }
+                    else
+                    {
+                        count = reader.ReadInt();
+                        reader.Remainder.Slice(0, count).CopyTo(Buffer.Span);
+                    }
 
-                        SetIntResult(count);
-                        return;
-                    case (PacketType.SSH_FXP_READLINK, _):
-                    case (PacketType.SSH_FXP_REALPATH, _):
-                        reader.ReadInt(); // skip count, which should be '1'
-                        SetResult(reader.ReadString());
-                        return;
-                    case (PacketType.SSH_FXP_REMOVE, _):
-                    case (PacketType.SSH_FXP_RMDIR, _):
-                        SetResult(null!);
-                        return;
-                    case (PacketType.SSH_FXP_READDIR, _):
-                        SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _client.StealPacketBuffer());
-                        return;
-                }
-                if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
-                {
+                    SetIntResult(count);
+                    return;
+                case (PacketType.SSH_FXP_READLINK, _):
+                case (PacketType.SSH_FXP_REALPATH, _):
+                    reader.ReadInt(); // skip count, which should be '1'
+                    SetResult(reader.ReadString());
+                    return;
+                case (PacketType.SSH_FXP_REMOVE, _):
+                case (PacketType.SSH_FXP_RMDIR, _):
                     SetResult(null!);
-                }
-                else
-                {
-                    SetException(new NotImplementedException($"Cannot handle {responseType} for {RequestType}."));
-                }
+                    return;
+                case (PacketType.SSH_FXP_READDIR, _):
+                    SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _client.StealPacketBuffer());
+                    return;
             }
-
-            public object? GetResult(short token)
+            if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
             {
-                bool recycle = CanRecycle;
-                try
-                {
-                    var result = _core.GetResult(token);
-                    return result;
-                }
-                finally
-                {
-                    if (recycle)
-                    {
-                        _client.ReturnPendingOperation(this);
-                    }
-                }
+                SetResult(null!);
             }
-
-            int IValueTaskSource<int>.GetResult(short token)
+            else
             {
-                bool recycle = CanRecycle;
-                var result = IntResult;
-                try
-                {
-                    _core.GetResult(token);
-                    return result;
-                }
-                finally
-                {
-                    if (recycle)
-                    {
-                        _client.ReturnPendingOperation(this);
-                    }
-                }
-            }
-
-            // Don't recycle Canceled operations as they are only canceled by returning
-            // OperationCanceledException. We still expect a reply for the on-going operation.
-            private bool CanRecycle => _state == Completed;
-
-            public ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
-
-            public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
-                => _core.OnCompleted(continuation, state, token, flags);
-
-            internal CancellationTokenRegistration RegisterForCancellation(CancellationToken cancellationToken)
-            {
-                 return _ctr = cancellationToken.Register(pending => ((PendingOperation)pending!).Cancel(), this);
+                SetException(new NotImplementedException($"Cannot handle {responseType} for {RequestType}."));
             }
         }
 
-        private PendingOperation CreatePendingOperation(PacketType type)
+        public object? GetResult(short token)
         {
-            PendingOperation operation = _pendingOperationPool.TryTake(out PendingOperation? item)
-                                                ? item
-                                                : new PendingOperation(this);
-            operation.RequestType = type;
-            return operation;
+            bool recycle = CanRecycle;
+            try
+            {
+                var result = _core.GetResult(token);
+                return result;
+            }
+            finally
+            {
+                if (recycle)
+                {
+                    _client.ReturnPendingOperation(this);
+                }
+            }
         }
 
-        private void ReturnPendingOperation(PendingOperation operation)
+        int IValueTaskSource<int>.GetResult(short token)
         {
-            operation.Reset();
-
-            _pendingOperationPool.Add(operation);
+            bool recycle = CanRecycle;
+            var result = IntResult;
+            try
+            {
+                _core.GetResult(token);
+                return result;
+            }
+            finally
+            {
+                if (recycle)
+                {
+                    _client.ReturnPendingOperation(this);
+                }
+            }
         }
+
+        // Don't recycle Canceled operations as they are only canceled by returning
+        // OperationCanceledException. We still expect a reply for the on-going operation.
+        private bool CanRecycle => _state == Completed;
+
+        public ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
+
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            => _core.OnCompleted(continuation, state, token, flags);
+
+        internal CancellationTokenRegistration RegisterForCancellation(CancellationToken cancellationToken)
+        {
+            return _ctr = cancellationToken.Register(pending => ((PendingOperation)pending!).Cancel(), this);
+        }
+    }
+
+    private PendingOperation CreatePendingOperation(PacketType type)
+    {
+        PendingOperation operation = _pendingOperationPool.TryTake(out PendingOperation? item)
+                                            ? item
+                                            : new PendingOperation(this);
+        operation.RequestType = type;
+        return operation;
+    }
+
+    private void ReturnPendingOperation(PendingOperation operation)
+    {
+        operation.Reset();
+
+        _pendingOperationPool.Add(operation);
     }
 }

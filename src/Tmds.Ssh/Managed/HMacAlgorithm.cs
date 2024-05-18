@@ -5,35 +5,34 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+sealed class HMacAlgorithm
 {
-    sealed class HMacAlgorithm
+    private readonly Func<HMacAlgorithm, byte[], IHMac> _create;
+
+    private HMacAlgorithm(int keyLength, Func<HMacAlgorithm, byte[], IHMac> create)
     {
-        private readonly Func<HMacAlgorithm, byte[], IHMac> _create;
+        KeyLength = keyLength;
+        _create = create;
+    }
 
-        private HMacAlgorithm(int keyLength, Func<HMacAlgorithm, byte[], IHMac> create)
+    public int KeyLength { get; }
+
+    public IHMac Create(byte[] key)
+    {
+        if (key.Length != KeyLength)
         {
-            KeyLength = keyLength;
-            _create = create;
+            throw new ArgumentException(nameof(key));
         }
+        return _create(this, key);
+    }
 
-        public int KeyLength { get; }
+    public static HMacAlgorithm Find(Name name)
+        => _algorithms[name];
 
-        public IHMac Create(byte[] key)
-        {
-            if (key.Length != KeyLength)
-            {
-                throw new ArgumentException(nameof(key));
-            }
-            return _create(this, key);
-        }
-
-        public static HMacAlgorithm Find(Name name)
-            => _algorithms[name];
-
-        private static Dictionary<Name, HMacAlgorithm> _algorithms = new()
+    private static Dictionary<Name, HMacAlgorithm> _algorithms = new()
         {
             { AlgorithmNames.HMacSha2_256, new HMacAlgorithm(256 / 8, (algorithm, key) => new HMac(HashAlgorithmName.SHA256, 256 / 8, 256 / 8, key)) }
         };
-    }
 }

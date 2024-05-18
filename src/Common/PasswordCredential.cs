@@ -3,20 +3,20 @@
 
 using System;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+public sealed class PasswordCredential : Credential
 {
-    public sealed class PasswordCredential : Credential
+    private readonly Func<string?> _getPassword;
+
+    internal string? GetPassword() => _getPassword();
+
+    public PasswordCredential(string password) : this(() => password)
+    { }
+
+    public PasswordCredential(Func<string?> passwordPrompt)
     {
-        private readonly Func<string?> _getPassword;
-
-        internal string? GetPassword() => _getPassword();
-
-        public PasswordCredential(string password) : this(() => password)
-        { }
-
-        public PasswordCredential(Func<string?> passwordPrompt)
-        {
-            _getPassword = passwordPrompt;
-        }
+        _getPassword = passwordPrompt;
     }
 }
+

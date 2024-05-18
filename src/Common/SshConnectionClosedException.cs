@@ -3,14 +3,13 @@
 
 using System;
 
-namespace Tmds.Ssh
-{
-    public class SshConnectionClosedException : SshConnectionException
-    {
-        internal const string ConnectionClosedByPeer = "Connection closed by peer.";
-        internal const string ConnectionClosedByAbort = "Connection closed due to an unexpected error.";
-        internal const string ConnectionClosedByDispose = "Connection closed by dispose.";
+namespace Tmds.Ssh;
 
-        internal SshConnectionClosedException(string message, System.Exception? inner = null) : base(message, inner) { }
-     }
+public class SshConnectionClosedException : SshConnectionException
+{
+    internal const string ConnectionClosedByPeer = "Connection closed by peer.";
+    internal const string ConnectionClosedByAbort = "Connection closed due to an unexpected error.";
+    internal const string ConnectionClosedByDispose = "Connection closed by dispose.";
+
+    internal SshConnectionClosedException(string message, System.Exception? inner = null) : base(message, inner) { }
 }

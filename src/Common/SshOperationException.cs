@@ -1,11 +1,10 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+public class SshOperationException : SshException
 {
-    public class SshOperationException : SshException
-    {
-        internal SshOperationException(string message) : base(message) { }
-        internal SshOperationException(string message, System.Exception? inner) : base(message, inner) { }
-    }
+    internal SshOperationException(string message) : base(message) { }
+    internal SshOperationException(string message, System.Exception? inner) : base(message, inner) { }
 }
