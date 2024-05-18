@@ -3,13 +3,11 @@
 
 using System;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+// Unexpected input.
+class ProtocolException : SshConnectionException
 {
-    // Unexpected input.
-    [Serializable]
-    class ProtocolException : SshConnectionException
-    {
-        public ProtocolException(string message) : base(message) { }
-        public ProtocolException(string message, Exception inner) : base(message, inner) { }
-    }
+    public ProtocolException(string message) : base(message) { }
+    public ProtocolException(string message, Exception inner) : base(message, inner) { }
 }

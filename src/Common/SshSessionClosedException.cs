@@ -3,13 +3,12 @@
 
 using System;
 
-namespace Tmds.Ssh
-{
-    public class SshSessionClosedException : SshSessionException
-    {
-        internal SshSessionClosedException(Exception? closeReason = null) : base(GetMessage(closeReason), inner: closeReason) { }
+namespace Tmds.Ssh;
 
-        static string GetMessage(Exception? closeReason)
-            => closeReason == null ? "Session closed." : $"Session closed ({closeReason.Message}).";
-     }
+public class SshSessionClosedException : SshSessionException
+{
+    internal SshSessionClosedException(Exception? closeReason = null) : base(GetMessage(closeReason), inner: closeReason) { }
+
+    static string GetMessage(Exception? closeReason)
+        => closeReason == null ? "Session closed." : $"Session closed ({closeReason.Message}).";
 }

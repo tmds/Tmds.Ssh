@@ -3,14 +3,13 @@
 
 using System;
 
-namespace Tmds.Ssh.Libssh
+namespace Tmds.Ssh.Libssh;
+
+[Flags]
+enum StatusFlags
 {
-    [Flags]
-    enum StatusFlags
-    {
-        Closed = 1,
-        ReadPending = 2,
-        ClosedError = 4,
-        WritePending = 8
-    }
+    Closed = 1,
+    ReadPending = 2,
+    ClosedError = 4,
+    WritePending = 8
 }

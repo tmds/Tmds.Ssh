@@ -3,19 +3,18 @@
 
 using System;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+interface IPacketEncoder : IDisposable
 {
-    interface IPacketEncoder : IDisposable
+    public void Encode(uint sequenceNumber, Packet packet, Sequence buffer);
+
+    protected static byte DeterminePaddingLength(uint length, uint multipleOf)
     {
-        public void Encode(uint sequenceNumber, Packet packet, Sequence buffer);
+        uint mask = multipleOf - 1;
 
-        protected static byte DeterminePaddingLength(uint length, uint multipleOf)
-        {
-            uint mask = multipleOf - 1;
-
-            // note: OpenSSH requires padlength to be higher than 4: https://github.com/openssh/openssh-portable/blob/084682786d9275552ee93857cb36e43c446ce92c/packet.c#L1613-L1615
-            //       performing an | with multipleOf takes care of that.
-            return (byte)((multipleOf - (length & mask)) | multipleOf);
-        }
+        // note: OpenSSH requires padlength to be higher than 4: https://github.com/openssh/openssh-portable/blob/084682786d9275552ee93857cb36e43c446ce92c/packet.c#L1613-L1615
+        //       performing an | with multipleOf takes care of that.
+        return (byte)((multipleOf - (length & mask)) | multipleOf);
     }
 }

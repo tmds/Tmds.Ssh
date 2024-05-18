@@ -8,229 +8,195 @@ using System.IO;
 using System.Threading;
 using static Tmds.Ssh.Libssh.Interop;
 
-namespace Tmds.Ssh.Libssh
+namespace Tmds.Ssh.Libssh;
+
+sealed partial class LibsshSshClient
 {
-    sealed partial class LibsshSshClient
+    enum CredentialAuthResult
     {
-        enum CredentialAuthResult
+        Success,
+        Error,
+
+        Again,
+
+        NextCredential
+    }
+
+    enum AuthStep
+    {
+        Initial,
+
+        // Steps for PrivateKeyCredential.
+        IdentityFileKeyImported,
+        IdentityFilePubKeyAccepted,
+
+        // Steps for PasswordCredential
+        PasswordObtained
+    }
+
+    class AuthState
+    {
+        // Index in settings Credentials.
+        public int CredentialIndex;
+
+        public AuthStep Step;
+
+        public SshKeyHandle? PublicKey;
+        public SshKeyHandle? PrivateKey;
+
+        public string? Password;
+
+        public void Reset()
         {
-            Success,
-            Error,
+            PublicKey?.Dispose();
+            PrivateKey?.Dispose();
 
-            Again,
-
-            NextCredential
+            Step = AuthStep.Initial;
+            PublicKey = null;
+            PrivateKey = null;
+            Password = null;
         }
+    }
 
-        enum AuthStep
+    private void Authenticate()
+    {
+        Debug.Assert(Monitor.IsEntered(Gate));
+
+        var credentials = _clientSettings.GetCredentialsOrDefault();
+        bool ignoreErrors = credentials.Count > 1;
+        while (true)
         {
-            Initial,
-
-            // Steps for PrivateKeyCredential.
-            IdentityFileKeyImported,
-            IdentityFilePubKeyAccepted,
-
-            // Steps for PasswordCredential
-            PasswordObtained
-        }
-
-        class AuthState
-        {
-            // Index in settings Credentials.
-            public int CredentialIndex;
-
-            public AuthStep Step;
-
-            public SshKeyHandle? PublicKey;
-            public SshKeyHandle? PrivateKey;
-
-            public string? Password;
-
-            public void Reset()
+            int credentialIndex = _authState.CredentialIndex;
+            if (credentialIndex >= credentials.Count)
             {
-                PublicKey?.Dispose();
-                PrivateKey?.Dispose();
-
-                Step = AuthStep.Initial;
-                PublicKey = null;
-                PrivateKey = null;
-                Password = null;
+                CompleteConnectStep(new SshConnectionException("Client authentication failed."));
+                return;
             }
-        }
+            Credential credential = credentials[credentialIndex];
 
-        private void Authenticate()
-        {
-            Debug.Assert(Monitor.IsEntered(Gate));
+            string? errorMessage = null;
+            CredentialAuthResult result;
 
-            var credentials = _clientSettings.GetCredentialsOrDefault();
-            bool ignoreErrors = credentials.Count > 1;
-            while (true)
+            try
             {
-                int credentialIndex = _authState.CredentialIndex;
-                if (credentialIndex >= credentials.Count)
+                result = credential switch
                 {
-                    CompleteConnectStep(new SshConnectionException("Client authentication failed."));
-                    return;
-                }
-                Credential credential = credentials[credentialIndex];
+                    PrivateKeyCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
+                    PasswordCredential pc => Authenticate(pc, out errorMessage),
+                    _ => throw new IndexOutOfRangeException($"Unexpected credential type: {credential.GetType().FullName}")
+                };
+            }
+            catch (Exception ex) // Unexpected exception
+            {
+                _authState.Reset();
+                CompleteConnectStep(ex);
+                return;
+            }
 
-                string? errorMessage = null;
-                CredentialAuthResult result;
-                
-                try
-                {
-                    result = credential switch
-                    {
-                        PrivateKeyCredential ifc => Authenticate(ifc, ignoreErrors, out errorMessage),
-                        PasswordCredential pc => Authenticate(pc, out errorMessage),
-                        _ => throw new IndexOutOfRangeException($"Unexpected credential type: {credential.GetType().FullName}")
-                    };
-                }
-                catch (Exception ex) // Unexpected exception
-                {
-                    _authState.Reset();
-                    CompleteConnectStep(ex);
-                    return;
-                }
+            if (result != CredentialAuthResult.Again)
+            {
+                _authState.Reset();
+            }
 
-                if (result != CredentialAuthResult.Again)
-                {
-                    _authState.Reset();
-                }
-
-                if (result == CredentialAuthResult.Success)
-                {
-                    _state = SessionState.Connected;
-                    CompleteConnectStep(null);
-                    return;
-                }
-                else if (result == CredentialAuthResult.Error)
-                {
-                    CompleteConnectStep(new SshConnectionException(errorMessage ?? ssh_get_error(_ssh)));
-                    return;
-                }
-                else if (result == CredentialAuthResult.NextCredential)
-                {
-                    _authState.CredentialIndex = credentialIndex + 1;
-                }
-                else
-                {
-                    Debug.Assert(result == CredentialAuthResult.Again);
-                    return;
-                }
+            if (result == CredentialAuthResult.Success)
+            {
+                _state = SessionState.Connected;
+                CompleteConnectStep(null);
+                return;
+            }
+            else if (result == CredentialAuthResult.Error)
+            {
+                CompleteConnectStep(new SshConnectionException(errorMessage ?? ssh_get_error(_ssh)));
+                return;
+            }
+            else if (result == CredentialAuthResult.NextCredential)
+            {
+                _authState.CredentialIndex = credentialIndex + 1;
+            }
+            else
+            {
+                Debug.Assert(result == CredentialAuthResult.Again);
+                return;
             }
         }
+    }
 
-        private CredentialAuthResult Authenticate(PrivateKeyCredential credential, bool ignoreErrors, out string? errorMessage)
+    private CredentialAuthResult Authenticate(PrivateKeyCredential credential, bool ignoreErrors, out string? errorMessage)
+    {
+        errorMessage = null;
+
+        string privateKeyFile = credential.FilePath;
+        if (_authState.Step == AuthStep.Initial)
         {
-            errorMessage = null;
+            Debug.Assert(_authState.PublicKey == null);
+            Debug.Assert(_authState.PrivateKey == null);
 
-            string privateKeyFile = credential.FilePath;
-            if (_authState.Step == AuthStep.Initial)
+            string publicKeyFile = $"{privateKeyFile}.pub";
+
+            int rv = ssh_pki_import_pubkey_file(publicKeyFile, out _authState.PublicKey);
+            if (rv == SSH_ERROR)
             {
-                Debug.Assert(_authState.PublicKey == null);
-                Debug.Assert(_authState.PrivateKey == null);
-
-                string publicKeyFile = $"{privateKeyFile}.pub";
-
-                int rv = ssh_pki_import_pubkey_file(publicKeyFile, out _authState.PublicKey);
-                if (rv == SSH_ERROR)
-                {
-                    return CredentialAuthResult.NextCredential;
-                }
-                else if (rv == SSH_EOF) // File not found.
-                {
-                    // TODO: Read the private key and save the public key to file
-                    if (!ignoreErrors)
-                    {
-                        errorMessage = $"Failed to read public key file: {publicKeyFile}.";
-                        return CredentialAuthResult.Error;
-                    }
-                    return CredentialAuthResult.NextCredential;
-                }
-                Debug.Assert(rv == SSH_OK);
-                _authState.Step = AuthStep.IdentityFileKeyImported;
-            }
-
-            if (_authState.Step == AuthStep.IdentityFileKeyImported)
-            {
-                AuthResult rv = ssh_userauth_try_publickey(_ssh, null, _authState.PublicKey!);
-                if (rv == AuthResult.Error)
-                {
-                    return CredentialAuthResult.Error;
-                }
-                else if (rv == AuthResult.Again)
-                {
-                    return CredentialAuthResult.Again;
-                }
-                else if (rv != AuthResult.Success)
-                {
-                    return CredentialAuthResult.NextCredential;
-                }
-                _authState.Step = AuthStep.IdentityFilePubKeyAccepted;
-            }
-
-            Debug.Assert(_authState.Step == AuthStep.IdentityFilePubKeyAccepted);
-            if (_authState.PrivateKey == null)
-            {
-                int rv = ssh_pki_import_privkey_file(privateKeyFile, null, out _authState.PrivateKey);
-                if (rv == SSH_ERROR)
-                {
-                    if (!ignoreErrors)
-                    {
-                        errorMessage = $"Failed to read private key file: {privateKeyFile}.";
-                        return CredentialAuthResult.Error;
-                    }
-                    return CredentialAuthResult.NextCredential;
-                }
-                else if (rv == SSH_EOF)
-                {
-                    if (!ignoreErrors)
-                    {
-                        errorMessage = $"Private key file is missing: {privateKeyFile}.";
-                        return CredentialAuthResult.Error;
-                    }
-                    return CredentialAuthResult.NextCredential;
-                }
-                Debug.Assert(rv == SSH_OK);
-            }
-
-            {
-                AuthResult rv = ssh_userauth_publickey(_ssh, null, _authState.PrivateKey!);
-                if (rv == AuthResult.Success)
-                {
-                    return CredentialAuthResult.Success;
-                }
-                else if (rv == AuthResult.Again)
-                {
-                    return CredentialAuthResult.Again;
-                }
-                else if (rv == AuthResult.Error)
-                {
-                    return CredentialAuthResult.Error;
-                }
-
                 return CredentialAuthResult.NextCredential;
             }
+            else if (rv == SSH_EOF) // File not found.
+            {
+                // TODO: Read the private key and save the public key to file
+                if (!ignoreErrors)
+                {
+                    errorMessage = $"Failed to read public key file: {publicKeyFile}.";
+                    return CredentialAuthResult.Error;
+                }
+                return CredentialAuthResult.NextCredential;
+            }
+            Debug.Assert(rv == SSH_OK);
+            _authState.Step = AuthStep.IdentityFileKeyImported;
         }
 
-        private CredentialAuthResult Authenticate(PasswordCredential credential, out string? errorMessage)
+        if (_authState.Step == AuthStep.IdentityFileKeyImported)
         {
-            errorMessage = null;
-
-            if (_authState.Step == AuthStep.Initial)
+            AuthResult rv = ssh_userauth_try_publickey(_ssh, null, _authState.PublicKey!);
+            if (rv == AuthResult.Error)
             {
-                _authState.Password = credential.GetPassword();
-
-                if (_authState.Password is null)
-                {
-                    return CredentialAuthResult.NextCredential;
-                }
-
-                _authState.Step = AuthStep.PasswordObtained;
+                return CredentialAuthResult.Error;
             }
+            else if (rv == AuthResult.Again)
+            {
+                return CredentialAuthResult.Again;
+            }
+            else if (rv != AuthResult.Success)
+            {
+                return CredentialAuthResult.NextCredential;
+            }
+            _authState.Step = AuthStep.IdentityFilePubKeyAccepted;
+        }
 
-            AuthResult rv = ssh_userauth_password(_ssh, null, _authState.Password!);
+        Debug.Assert(_authState.Step == AuthStep.IdentityFilePubKeyAccepted);
+        if (_authState.PrivateKey == null)
+        {
+            int rv = ssh_pki_import_privkey_file(privateKeyFile, null, out _authState.PrivateKey);
+            if (rv == SSH_ERROR)
+            {
+                if (!ignoreErrors)
+                {
+                    errorMessage = $"Failed to read private key file: {privateKeyFile}.";
+                    return CredentialAuthResult.Error;
+                }
+                return CredentialAuthResult.NextCredential;
+            }
+            else if (rv == SSH_EOF)
+            {
+                if (!ignoreErrors)
+                {
+                    errorMessage = $"Private key file is missing: {privateKeyFile}.";
+                    return CredentialAuthResult.Error;
+                }
+                return CredentialAuthResult.NextCredential;
+            }
+            Debug.Assert(rv == SSH_OK);
+        }
+
+        {
+            AuthResult rv = ssh_userauth_publickey(_ssh, null, _authState.PrivateKey!);
             if (rv == AuthResult.Success)
             {
                 return CredentialAuthResult.Success;
@@ -246,5 +212,38 @@ namespace Tmds.Ssh.Libssh
 
             return CredentialAuthResult.NextCredential;
         }
+    }
+
+    private CredentialAuthResult Authenticate(PasswordCredential credential, out string? errorMessage)
+    {
+        errorMessage = null;
+
+        if (_authState.Step == AuthStep.Initial)
+        {
+            _authState.Password = credential.GetPassword();
+
+            if (_authState.Password is null)
+            {
+                return CredentialAuthResult.NextCredential;
+            }
+
+            _authState.Step = AuthStep.PasswordObtained;
+        }
+
+        AuthResult rv = ssh_userauth_password(_ssh, null, _authState.Password!);
+        if (rv == AuthResult.Success)
+        {
+            return CredentialAuthResult.Success;
+        }
+        else if (rv == AuthResult.Again)
+        {
+            return CredentialAuthResult.Again;
+        }
+        else if (rv == AuthResult.Error)
+        {
+            return CredentialAuthResult.Error;
+        }
+
+        return CredentialAuthResult.NextCredential;
     }
 }

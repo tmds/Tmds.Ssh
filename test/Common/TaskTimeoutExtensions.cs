@@ -2,37 +2,36 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Tmds.Ssh.Tests
+namespace Tmds.Ssh.Tests;
+
+static class TaskTimeoutExtensions
 {
-    static class TaskTimeoutExtensions
+    private const int DefaultTimeout = 30_000;
+
+    public static Task WithTimeout(this Task task)
+        => task.TimeoutAfter(DefaultTimeout);
+
+    public static Task TimeoutAfter(this Task task, int millisecondsTimeout)
+        => task.TimeoutAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+
+    public static async Task TimeoutAfter(this Task task, TimeSpan timeout)
     {
-        private const int DefaultTimeout = 30_000;
+        var cts = new CancellationTokenSource();
 
-        public static Task WithTimeout(this Task task)
-            => task.TimeoutAfter(DefaultTimeout);
-
-        public static Task TimeoutAfter(this Task task, int millisecondsTimeout)
-            => task.TimeoutAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
-
-        public static async Task TimeoutAfter(this Task task, TimeSpan timeout)
+        if (task == await Task.WhenAny(task, Task.Delay(timeout, cts.Token)).ConfigureAwait(false))
         {
-            var cts = new CancellationTokenSource();
-
-            if (task == await Task.WhenAny(task, Task.Delay(timeout, cts.Token)).ConfigureAwait(false))
-            {
-                cts.Cancel();
-                await task.ConfigureAwait(false);
-            }
-            else
-            {
-                throw new TimeoutException($"Task timed out after {timeout}");
-            }
+            cts.Cancel();
+            await task.ConfigureAwait(false);
         }
-
-        public static Task TimeoutAfter(this ValueTask task, int millisecondsTimeout)
-            => task.AsTask().TimeoutAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
-
-        public static Task TimeoutAfter(this ValueTask task, TimeSpan timeout)
-            => task.AsTask().TimeoutAfter(timeout);
+        else
+        {
+            throw new TimeoutException($"Task timed out after {timeout}");
+        }
     }
+
+    public static Task TimeoutAfter(this ValueTask task, int millisecondsTimeout)
+        => task.AsTask().TimeoutAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+
+    public static Task TimeoutAfter(this ValueTask task, TimeSpan timeout)
+        => task.AsTask().TimeoutAfter(timeout);
 }

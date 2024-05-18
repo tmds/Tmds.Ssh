@@ -5,13 +5,12 @@ using System;
 using System.Buffers;
 using System.Security.Cryptography;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+static class RandomBytes
 {
-    static class RandomBytes
+    public static void Fill(Span<byte> data)
     {
-        public static void Fill(Span<byte> data)
-        {
-            RandomNumberGenerator.Fill(data);
-        }
+        RandomNumberGenerator.Fill(data);
     }
 }

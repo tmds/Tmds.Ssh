@@ -3,15 +3,14 @@
 
 using System;
 
-namespace Tmds.Ssh
-{
-    public sealed class PrivateKeyCredential : Credential
-    {
-        public PrivateKeyCredential(string path)
-        {
-            FilePath = path ?? throw new ArgumentNullException(nameof(path));
-        }
+namespace Tmds.Ssh;
 
-        internal string FilePath { get; }
+public sealed class PrivateKeyCredential : Credential
+{
+    public PrivateKeyCredential(string path)
+    {
+        FilePath = path ?? throw new ArgumentNullException(nameof(path));
     }
+
+    internal string FilePath { get; }
 }

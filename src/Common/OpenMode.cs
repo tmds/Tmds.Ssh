@@ -3,13 +3,12 @@
 
 using System;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+[Flags]
+public enum OpenMode
 {
-    [Flags]
-    public enum OpenMode
-    {
-        Default = 0,
-        Append = 1,
-        Truncate = 2
-    }
+    Default = 0,
+    Append = 1,
+    Truncate = 2
 }

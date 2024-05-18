@@ -9,97 +9,96 @@ using System.Threading;
 using System.Threading.Tasks;
 using static System.Environment;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+sealed class HostKeyVerification : IHostKeyVerification
 {
-    sealed class HostKeyVerification : IHostKeyVerification
+    private readonly SshClientSettings _sshClientSettings;
+
+    public HostKeyVerification(SshClientSettings sshClientSettings)
     {
-        private readonly SshClientSettings _sshClientSettings;
+        _sshClientSettings = sshClientSettings;
+    }
 
-        public HostKeyVerification(SshClientSettings sshClientSettings)
+    public static string UserKnownHostsFile
+        => Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "known_hosts");
+
+    public static string SystemKnownHostsFile
+    {
+        get
         {
-            _sshClientSettings = sshClientSettings;
-        }
-
-        public static string UserKnownHostsFile
-            => Path.Combine(Environment.GetFolderPath(SpecialFolder.UserProfile, SpecialFolderOption.DoNotVerify), ".ssh", "known_hosts");
-
-        public static string SystemKnownHostsFile
-        {
-            get
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    return Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
-                }
-                else
-                {
-                    return "/etc/ssh/known_hosts";
-                }
+                return Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
+            }
+            else
+            {
+                return "/etc/ssh/known_hosts";
             }
         }
+    }
 
-        public async ValueTask<KeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
+    public async ValueTask<KeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
+    {
+        SshKey key = connectionInfo.ServerKey!;
+
+        var result = KeyVerificationResult.Unknown;
+
+        string? ip = connectionInfo.IPAddress?.ToString();
+
+        string? settingsKnownHostsFile = _sshClientSettings.KnownHostsFilePath;
+        string? globalKnownHostsFile = _sshClientSettings.CheckGlobalKnownHostsFile ? SystemKnownHostsFile : null;
+
+        foreach (var knownHostFile in new string?[] { settingsKnownHostsFile, globalKnownHostsFile })
         {
-            SshKey key = connectionInfo.ServerKey!;
-
-            var result = KeyVerificationResult.Unknown;
-
-            string? ip = connectionInfo.IPAddress?.ToString();
-
-            string? settingsKnownHostsFile = _sshClientSettings.KnownHostsFilePath;
-            string? globalKnownHostsFile = _sshClientSettings.CheckGlobalKnownHostsFile ? SystemKnownHostsFile : null;
-
-            foreach (var knownHostFile in new string?[] { settingsKnownHostsFile,  globalKnownHostsFile })
+            if (string.IsNullOrEmpty(knownHostFile))
             {
-                if (string.IsNullOrEmpty(knownHostFile))
-                {
-                    continue;
-                }
-
-                KeyVerificationResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
-                if (knownHostResult == KeyVerificationResult.Revoked)
-                {
-                    result = KeyVerificationResult.Revoked;
-                    break;
-                }
-                if (knownHostResult == KeyVerificationResult.Unknown)
-                {
-                    continue;
-                }
-
-                if (knownHostResult == KeyVerificationResult.Trusted ||
-                    result == KeyVerificationResult.Unknown)
-                {
-                    result = knownHostResult;
-                }
+                continue;
             }
 
-            if (result == KeyVerificationResult.Changed ||
+            KeyVerificationResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
+            if (knownHostResult == KeyVerificationResult.Revoked)
+            {
+                result = KeyVerificationResult.Revoked;
+                break;
+            }
+            if (knownHostResult == KeyVerificationResult.Unknown)
+            {
+                continue;
+            }
+
+            if (knownHostResult == KeyVerificationResult.Trusted ||
                 result == KeyVerificationResult.Unknown)
             {
-                KeyVerification? keyVerification = _sshClientSettings.KeyVerification;
-                if (keyVerification is not null)
+                result = knownHostResult;
+            }
+        }
+
+        if (result == KeyVerificationResult.Changed ||
+            result == KeyVerificationResult.Unknown)
+        {
+            KeyVerification? keyVerification = _sshClientSettings.KeyVerification;
+            if (keyVerification is not null)
+            {
+                result = await keyVerification(result, connectionInfo, ct);
+                if (result == KeyVerificationResult.AddKnownHost)
                 {
-                    result = await keyVerification(result, connectionInfo, ct);
-                    if (result == KeyVerificationResult.AddKnownHost)
+                    if (!string.IsNullOrEmpty(settingsKnownHostsFile))
                     {
-                        if (!string.IsNullOrEmpty(settingsKnownHostsFile))
+                        try
                         {
-                            try
-                            {
-                                KnownHostsFile.AddKnownHost(settingsKnownHostsFile, connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
-                            }
-                            catch
-                            {
-                                /* Ignore errors */
-                            }
+                            KnownHostsFile.AddKnownHost(settingsKnownHostsFile, connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
                         }
-                        result = KeyVerificationResult.Trusted;
+                        catch
+                        {
+                            /* Ignore errors */
+                        }
                     }
+                    result = KeyVerificationResult.Trusted;
                 }
             }
-
-            return result;
         }
+
+        return result;
     }
 }

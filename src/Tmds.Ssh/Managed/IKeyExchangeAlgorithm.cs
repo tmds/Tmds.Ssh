@@ -7,10 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+interface IKeyExchangeAlgorithm : IDisposable
 {
-    interface IKeyExchangeAlgorithm : IDisposable
-    {
-        Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, IHostKeyVerification hostKeyVerification, KeyExchangeInput input, ILogger logger, CancellationToken ct);
-    }
+    Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, IHostKeyVerification hostKeyVerification, KeyExchangeInput input, ILogger logger, CancellationToken ct);
 }

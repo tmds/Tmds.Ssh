@@ -2,61 +2,60 @@
 using System.Threading.Tasks;
 using System.IO;
 
-namespace Tmds.Ssh
+namespace Tmds.Ssh;
+
+class Program
 {
-    class Program
+    static async Task Main(string[] args)
     {
-        static async Task Main(string[] args)
+        string destination = args.Length >= 1 ? args[0] : "localhost";
+        string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
+
+        using SshClient client = new SshClient(destination);
+        await client.ConnectAsync();
+
+        using var process = await client.ExecuteAsync(command);
+        Task[] tasks = new[]
         {
-            string destination = args.Length >= 1 ? args[0] : "localhost";
-            string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
-
-            using SshClient client = new SshClient(destination);
-            await client.ConnectAsync();
-
-            using var process = await client.ExecuteAsync(command);
-            Task[] tasks = new[]
-            {
                 PrintToConsole(process),
                 ReadInputFromConsole(process)
             };
-            Task.WaitAny(tasks);
-            PrintExceptions(tasks);
+        Task.WaitAny(tasks);
+        PrintExceptions(tasks);
 
-            static async Task PrintToConsole(RemoteProcess process)
+        static async Task PrintToConsole(RemoteProcess process)
+        {
+            await foreach ((bool isError, string line) in process.ReadAllLinesAsync())
             {
-                await foreach ((bool isError, string line) in process.ReadAllLinesAsync())
-                {
-                    Console.WriteLine(line);
-                }
+                Console.WriteLine(line);
             }
+        }
 
-            static async Task ReadInputFromConsole(RemoteProcess process)
+        static async Task ReadInputFromConsole(RemoteProcess process)
+        {
+            // note: Console doesn't have an async ReadLine that accepts a CancellationToken...
+            await Task.Yield();
+            var cancellationToken = process.ExecutionAborted;
+            while (!cancellationToken.IsCancellationRequested)
             {
-                // note: Console doesn't have an async ReadLine that accepts a CancellationToken...
-                await Task.Yield();
-                var cancellationToken = process.ExecutionAborted;
-                while (!cancellationToken.IsCancellationRequested)
+                string? line = Console.ReadLine();
+                if (line == null)
                 {
-                    string? line = Console.ReadLine();
-                    if (line == null)
-                    {
-                        break;
-                    }
-                    await process.WriteLineAsync(line);
+                    break;
                 }
+                await process.WriteLineAsync(line);
             }
+        }
 
-            static void PrintExceptions(Task[] tasks)
+        static void PrintExceptions(Task[] tasks)
+        {
+            foreach (var task in tasks)
             {
-                foreach (var task in tasks)
+                Exception? innerException = task.Exception?.InnerException;
+                if (innerException is not null)
                 {
-                    Exception? innerException = task.Exception?.InnerException;
-                    if (innerException is not null)
-                    {
-                        System.Console.WriteLine("Exception:");
-                        Console.WriteLine(innerException);
-                    }
+                    System.Console.WriteLine("Exception:");
+                    Console.WriteLine(innerException);
                 }
             }
         }

@@ -8,25 +8,24 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Tmds.Ssh.Managed
+namespace Tmds.Ssh.Managed;
+
+sealed class KeyExchangeAlgorithmFactory
 {
-    sealed class KeyExchangeAlgorithmFactory
+    private readonly Dictionary<Name, Func<Name, IKeyExchangeAlgorithm>> _algorithms;
+
+    public static KeyExchangeAlgorithmFactory Default = new KeyExchangeAlgorithmFactory();
+
+    public KeyExchangeAlgorithmFactory()
     {
-        private readonly Dictionary<Name, Func<Name, IKeyExchangeAlgorithm>> _algorithms;
+        _algorithms = new Dictionary<Name, Func<Name, IKeyExchangeAlgorithm>>();
+        _algorithms.Add(AlgorithmNames.EcdhSha2Nistp256, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP256, HashAlgorithmName.SHA256));
+        _algorithms.Add(AlgorithmNames.EcdhSha2Nistp384, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP384, HashAlgorithmName.SHA384));
+        _algorithms.Add(AlgorithmNames.EcdhSha2Nistp521, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP521, HashAlgorithmName.SHA512));
+    }
 
-        public static KeyExchangeAlgorithmFactory Default = new KeyExchangeAlgorithmFactory();
-
-        public KeyExchangeAlgorithmFactory()
-        {
-            _algorithms = new Dictionary<Name, Func<Name, IKeyExchangeAlgorithm>>();
-            _algorithms.Add(AlgorithmNames.EcdhSha2Nistp256, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP256, HashAlgorithmName.SHA256));
-            _algorithms.Add(AlgorithmNames.EcdhSha2Nistp384, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP384, HashAlgorithmName.SHA384));
-            _algorithms.Add(AlgorithmNames.EcdhSha2Nistp521, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP521, HashAlgorithmName.SHA512));
-        }
-
-        public IKeyExchangeAlgorithm Create(Name name)
-        {
-            return _algorithms[name](name);
-        }
+    public IKeyExchangeAlgorithm Create(Name name)
+    {
+        return _algorithms[name](name);
     }
 }
