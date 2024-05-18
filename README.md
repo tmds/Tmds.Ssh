@@ -382,10 +382,15 @@ Supported server key algorithms:
 
 Supported key exchange methods:
 - ecdh-sha2-nistp256
+- ecdh-sha2-nistp384
+- ecdh-sha2-nistp521
 
 Supported encryption algorithms:
 - aes256-gcm@openssh.com
 - aes128-gcm@openssh.com
+
+Supported message authentication code algorithms:
+- none
 
 Supported compression algorithms:
 - none

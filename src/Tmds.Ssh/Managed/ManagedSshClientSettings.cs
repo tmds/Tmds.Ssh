@@ -27,7 +27,7 @@ namespace Tmds.Ssh.Managed
 
         // Internal.
         // Algorithms are in **order of preference**.
-        internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 };
+        internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256 , AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 };
         internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512 , AlgorithmNames.RsaSshSha2_256 };
         internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
         internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };

@@ -19,16 +19,10 @@ namespace Tmds.Ssh.Managed
         private readonly ECCurve _ecCurve;
         private readonly HashAlgorithmName _hashAlgorithmName;
 
-        public ECDHKeyExchange(Name algorithmName)
+        public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName)
         {
-            if (algorithmName == AlgorithmNames.EcdhSha2Nistp256)
-            {
-                (_ecCurve, _hashAlgorithmName) = (ECCurve.NamedCurves.nistP256, HashAlgorithmName.SHA256);
-            }
-            else
-            {
-                throw new NotSupportedException($"Unknown algorithm name: {algorithmName}");
-            }
+            _ecCurve = ecCurve;
+            _hashAlgorithmName = hashAlgorithmName;
         }
 
         public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, IHostKeyVerification hostKeyVerification, KeyExchangeInput input, ILogger logger, CancellationToken ct)

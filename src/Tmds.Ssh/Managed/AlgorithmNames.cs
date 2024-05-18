@@ -15,6 +15,10 @@ namespace Tmds.Ssh.Managed
         // Key exchange algorithms
         private static readonly byte[] EcdhSha2Nistp256Bytes = "ecdh-sha2-nistp256"u8.ToArray();
         public static Name EcdhSha2Nistp256 => new Name(EcdhSha2Nistp256Bytes);
+        private static readonly byte[] EcdhSha2Nistp384Bytes = "ecdh-sha2-nistp384"u8.ToArray();
+        public static Name EcdhSha2Nistp384 => new Name(EcdhSha2Nistp384Bytes);
+        private static readonly byte[] EcdhSha2Nistp521Bytes = "ecdh-sha2-nistp521"u8.ToArray();
+        public static Name EcdhSha2Nistp521 => new Name(EcdhSha2Nistp521Bytes);
 
         // Host key algorithms.
         private static readonly byte[] SshRsaBytes = "ssh-rsa"u8.ToArray();
