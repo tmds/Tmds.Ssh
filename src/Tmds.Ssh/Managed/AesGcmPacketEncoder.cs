@@ -45,19 +45,28 @@ sealed class AesGcmPacketEncoder : IPacketEncoder
         var unencrypted_packet = pkt.AsReadOnlySequence();
         ReadOnlySpan<byte> associatedData = unencrypted_packet.FirstSpan.Slice(0, 4); // packet_length
         ReadOnlySequence<byte> pt = unencrypted_packet.Slice(4); // PT (Plain Text)
-        ReadOnlySpan<byte> plaintext = pt.IsSingleSegment ? pt.FirstSpan
-                                                          : pt.ToArray(); // TODO: avoid allocation.
-        ReadOnlySpan<byte> nonce = _iv;
-
-        int textLength = plaintext.Length;
+        int textLength = (int)pt.Length;
         int tagLength = _tagLength;
         int encodedLength = 4 + textLength + tagLength;
-        // append packet_length
+        ReadOnlySpan<byte> nonce = _iv;
+
         Span<byte> dst = output.AllocGetSpan(encodedLength);
         associatedData.CopyTo(dst);
-        // append ciphertext and tag
         Span<byte> ciphertext = dst.Slice(4, textLength);
         Span<byte> tag = dst.Slice(4 + textLength, tagLength);
+
+        ReadOnlySpan<byte> plaintext;
+        if (pt.IsSingleSegment)
+        {
+            plaintext = pt.FirstSpan;
+        }
+        else
+        {
+            // Use the ciphertext span for passing the plaintext to the encrypt operation.
+            pt.CopyTo(ciphertext);
+            plaintext = ciphertext;
+        }
+
         _aesGcm.Encrypt(nonce, plaintext, ciphertext, tag, associatedData);
         output.AppendAlloced(encodedLength);
 
