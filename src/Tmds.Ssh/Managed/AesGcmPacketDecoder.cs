@@ -60,18 +60,30 @@ sealed class AesGcmPacketDecoder : IPacketDecoder
 
         ReadOnlySpan<byte> nonce = _iv;
         ReadOnlySequence<byte> receiveBufferROSequence = receiveBuffer.AsReadOnlySequence().Slice(0, total_length);
-        ReadOnlySpan<byte> received = receiveBufferROSequence.IsSingleSegment ? receiveBufferROSequence.FirstSpan :
-                                                                                receiveBufferROSequence.ToArray(); // TODO: avoid allocation.
-        ReadOnlySpan<byte> associatedData = received.Slice(0, 4);
-        ReadOnlySpan<byte> ciphertext = received.Slice(4, packetLength);
-        ReadOnlySpan<byte> tag = received.Slice(4 + packetLength, tagLength);
 
-        Sequence decoded = _sequencePool.RentSequence();
         int decodedLength = total_length - tagLength;
-        Span<byte> span = decoded.AllocGetSpan(decodedLength);
-        Span<byte> plaintext = span.Slice(4, packetLength);
+        Sequence decoded = _sequencePool.RentSequence();
+        Span<byte> dst = decoded.AllocGetSpan(decodedLength);
+        Span<byte> associatedData = dst.Slice(0, 4);
+        Span<byte> plaintext = dst.Slice(4, packetLength);
 
-        associatedData.CopyTo(span); // packet length
+        ReadOnlySpan<byte> ciphertext;
+        Span<byte> tag = stackalloc byte[_tagLength];
+        if (receiveBufferROSequence.IsSingleSegment)
+        {
+            ReadOnlySpan<byte> received = receiveBufferROSequence.FirstSpan;
+            received.Slice(0, 4).CopyTo(associatedData);
+            ciphertext = received.Slice(4, packetLength);
+            received.Slice(4 + packetLength, tagLength).CopyTo(tag);
+        }
+        else
+        {
+            receiveBufferROSequence.Slice(0, 4).CopyTo(associatedData);
+            // Use the plaintext Span to pass the ciphertext.
+            receiveBufferROSequence.Slice(4, packetLength).CopyTo(plaintext);
+            ciphertext = plaintext;
+            receiveBufferROSequence.Slice(4 + packetLength, tagLength).CopyTo(tag);
+        }
         _aesGcm.Decrypt(nonce, ciphertext, tag, plaintext, associatedData); // decrypted text
         decoded.AppendAlloced(decodedLength);
         receiveBuffer.Remove(total_length);
