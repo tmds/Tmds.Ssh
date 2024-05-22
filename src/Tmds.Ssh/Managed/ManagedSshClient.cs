@@ -34,11 +34,13 @@ sealed partial class ManagedSshClient : ISshClientImplementation
 
     public SshConnectionInfo ConnectionInfo { get; }
 
-    public ManagedSshClient(SshClientSettings clientSettings)
-    {
-        _abortCts = new CancellationTokenSource();
+    public ManagedSshClient(SshClientSettings clientSettings) :
+        this(CreateManagedSshSettings(clientSettings))
+    { }
 
-        _settings = new ManagedSshClientSettings()
+    internal static ManagedSshClientSettings CreateManagedSshSettings(SshClientSettings clientSettings)
+    {
+        var settings = new ManagedSshClientSettings()
         {
             ConnectTimeout = clientSettings.ConnectTimeout,
             UserName = clientSettings.UserName,
@@ -48,8 +50,16 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         };
         foreach (var credential in clientSettings.GetCredentialsOrDefault())
         {
-            _settings.Credentials.Add(credential);
+            settings.Credentials.Add(credential);
         }
+        return settings;
+    }
+
+    internal ManagedSshClient(ManagedSshClientSettings clientSettings)
+    {
+        _abortCts = new CancellationTokenSource();
+
+        _settings = clientSettings;
 
         ConnectionInfo = new SshConnectionInfo()
         {

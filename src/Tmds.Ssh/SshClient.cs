@@ -5,6 +5,7 @@ using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Tmds.Ssh.Managed;
 using SshClientImplementation = Tmds.Ssh.Managed.ManagedSshClient;
 
 namespace Tmds.Ssh;
@@ -22,6 +23,12 @@ public sealed partial class SshClient : IDisposable
     public SshClient(string destination)
         : this(new SshClientSettings(destination))
     { }
+
+    // For testing.
+    internal SshClient(ManagedSshClientSettings settings)
+    {
+        _implementation = new SshClientImplementation(settings);
+    }
 
     public SshClient(SshClientSettings clientSettings)
     {
