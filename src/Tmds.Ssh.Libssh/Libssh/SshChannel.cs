@@ -45,6 +45,7 @@ class SshChannel : ISshChannel
 
     private readonly LibsshSshClient _client;
     private readonly SshChannelOptions _options;
+    private readonly Type _channelType;
 
     private ChannelState _state = ChannelState.Initial;
     private ChannelHandle _handle = null!;
@@ -68,12 +69,13 @@ class SshChannel : ISshChannel
     public int ReceiveMaxPacket => MinPacketLength;
     public int SendMaxPacket => MinPacketLength - 10; // https://gitlab.com/libssh/libssh-mirror/-/merge_requests/393
 
-    internal SshChannel(LibsshSshClient session, SshChannelOptions options)
+    internal SshChannel(LibsshSshClient session, SshChannelOptions options, Type channelType)
     {
         // TODO: validate options
 
         _client = session;
         _options = options;
+        _channelType = channelType;
     }
 
     internal unsafe Task OpenAsync()
@@ -803,6 +805,6 @@ class SshChannel : ISshChannel
 
     private void ThrowNewObjectDisposedException()
     {
-        throw new ObjectDisposedException(typeof(SshChannel).FullName);
+        throw new ObjectDisposedException(_channelType.FullName);
     }
 }
