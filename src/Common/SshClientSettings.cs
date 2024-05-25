@@ -14,17 +14,18 @@ public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerification
 // This class gathers settings for SshClient in a separate object.
 public sealed class SshClientSettings
 {
-    static volatile List<Credential>? s_defaultCredentials;
+    private int _port = 22;
+    private string _host = "";
+    private string _userName = "";
+    private IReadOnlyList<Credential> _credentials = DefaultCredentials;
+    private TimeSpan _connectTimeout = TimeSpan.FromSeconds(15);
 
     public SshClientSettings()
     { }
 
     public SshClientSettings(string destination)
     {
-        if (destination is null)
-        {
-            throw new ArgumentNullException(nameof(destination));
-        }
+        ArgumentNullException.ThrowIfNull(destination);
         ConfigureForDestination(destination);
     }
 
@@ -55,45 +56,85 @@ public sealed class SshClientSettings
         Port = port;
     }
 
-    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
-    public string UserName { get; set; } = string.Empty;
-    public string Host { get; set; } = string.Empty;
-    public int Port { get; set; } = 22;
-    public List<Credential> Credentials { get; } = new List<Credential>();
+    public string UserName
+    {
+        get => _userName;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _userName = value;
+        }
+    }
+
+    public string Host
+    {
+        get => _host;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _host = value;
+        }
+    }
+
+    public IReadOnlyList<Credential> Credentials
+    {
+        get => _credentials;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            foreach (var item in value)
+            {
+                ArgumentNullException.ThrowIfNull(item);
+            }
+            _credentials = value;
+        }
+    }
+
+    public TimeSpan ConnectTimeout
+    {
+        get => _connectTimeout;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            _connectTimeout = value;
+        }
+    }
+
+    public int Port
+    {
+        get => _port;
+        set
+        {
+            if (value < 1 || value > 0xFFFF)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+            _port = value;
+        }
+    }
+
     public string? KnownHostsFilePath { get; set; } = DefaultKnownHostsFile;
+
     public bool CheckGlobalKnownHostsFile { get; set; } = true;
+
     public KeyVerification? KeyVerification { get; set; }
+
+    public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
+
+    private static IReadOnlyList<Credential> CreateDefaultCredentials()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+        return
+        [
+            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ed25519")),
+            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")),
+            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa")),
+            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_dsa")),
+        ];
+    }
 
     private static string DefaultKnownHostsFile
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
                         ".ssh",
                         "known_hosts");
-
-    internal List<Credential> GetCredentialsOrDefault()
-    {
-        List<Credential> credentials = Credentials;
-        if (credentials == null || credentials.Count == 0)
-        {
-            credentials = DefaultCredentials;
-        }
-        return credentials;
-    }
-
-    internal List<Credential> DefaultCredentials
-    {
-        get
-        {
-            if (s_defaultCredentials == null)
-            {
-                List<Credential> credentials = new();
-                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-                credentials.Add(new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ed25519")));
-                credentials.Add(new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")));
-                credentials.Add(new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa")));
-                credentials.Add(new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_dsa")));
-                s_defaultCredentials = credentials;
-            }
-            return s_defaultCredentials;
-        }
-    }
 }

@@ -163,7 +163,7 @@ public class ConnectTests
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
-                settings.Credentials.Clear()
+                settings.Credentials = []
             ));
     }
 
@@ -175,7 +175,7 @@ public class ConnectTests
         var settings = new SshClientSettings(_sshServer.Destination)
         {
             KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-            Credentials = { new PasswordCredential(correctPassword ? _sshServer.TestUserPassword : "invalid") },
+            Credentials = [ new PasswordCredential(correctPassword ? _sshServer.TestUserPassword : "invalid") ],
         };
         using var client = new SshClient(settings);
 
@@ -190,7 +190,7 @@ public class ConnectTests
     }
 
     [Theory]
-    [InlineData(0)]
+    [InlineData(1)]
     [InlineData(1000)]
     public async Task Timeout(int msTimeout)
     {

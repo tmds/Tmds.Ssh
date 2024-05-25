@@ -211,7 +211,7 @@ public class SshServer : IDisposable
         var settings = new SshClientSettings(Destination)
         {
             KnownHostsFilePath = KnownHostsFilePath,
-            Credentials = { new PrivateKeyCredential(TestUserIdentityFile) },
+            Credentials = [ new PrivateKeyCredential(TestUserIdentityFile) ],
         };
         configure?.Invoke(settings);
         var client = new SshClient(settings);
