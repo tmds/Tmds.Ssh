@@ -183,9 +183,11 @@ class SshClientSettings
   string UserName { get; set; }
   string Host { get; set; }
   int Port { get; set; }
-  List<Credential> Credentials { get; }
+  IReadOnlyList<Credential> Credentials { get; set; }
   bool CheckGlobalKnownHostsFile { get; set; }
   KeyVerification? KeyVerification { get; set; }
+
+  static IReadOnlyList<Credential> DefaultCredentials { get; }
 }
 class SftpException : IOException
 {

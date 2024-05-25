@@ -48,7 +48,7 @@ sealed partial class ManagedSshClient : ISshClientImplementation
             Port = clientSettings.Port,
             HostKeyVerification = new HostKeyVerification(clientSettings)
         };
-        foreach (var credential in clientSettings.GetCredentialsOrDefault())
+        foreach (var credential in clientSettings.Credentials)
         {
             settings.Credentials.Add(credential);
         }

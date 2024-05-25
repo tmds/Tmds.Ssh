@@ -62,7 +62,7 @@ sealed partial class LibsshSshClient
     {
         Debug.Assert(Monitor.IsEntered(Gate));
 
-        var credentials = _clientSettings.GetCredentialsOrDefault();
+        var credentials = _clientSettings.Credentials;
         bool ignoreErrors = credentials.Count > 1;
         while (true)
         {
