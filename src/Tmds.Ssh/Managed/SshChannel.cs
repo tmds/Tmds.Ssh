@@ -25,12 +25,13 @@ sealed partial class SshChannel : ISshChannel
         Disposed // By user
     }
 
-    public SshChannel(ManagedSshClient client, SequencePool sequencePool, uint channelNumber)
+    public SshChannel(ManagedSshClient client, SequencePool sequencePool, uint channelNumber, Type channelType)
     {
         LocalChannel = channelNumber;
         _client = client;
         _sequencePool = sequencePool;
         _receiveWindow = MaxWindowSize;
+        _channelType = channelType;
     }
 
     public CancellationToken ChannelAborted
@@ -52,6 +53,7 @@ sealed partial class SshChannel : ISshChannel
 
     private readonly ManagedSshClient _client;
     private readonly SequencePool _sequencePool;
+    private readonly Type _channelType;
     private readonly CancellationTokenSource _abortedTcs = new();
     private readonly Channel<Packet> _receiveQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
     {
@@ -533,11 +535,11 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    private static void ThrowObjectDisposedException()
+    private void ThrowObjectDisposedException()
         => throw CreateObjectDisposedException();
 
-    private static Exception CreateObjectDisposedException()
-        => new ObjectDisposedException(typeof(SshChannel).FullName);
+    private Exception CreateObjectDisposedException()
+        => new ObjectDisposedException(_channelType.FullName);
 
     private void TrySendChannelFailureMessage()
         => TrySendPacket(_sequencePool.CreateChannelFailureMessage(RemoteChannel));

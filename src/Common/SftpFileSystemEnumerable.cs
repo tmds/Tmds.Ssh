@@ -91,10 +91,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     public async ValueTask<bool> MoveNextAsync()
     {
-        if (_entriesRemaining == Disposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
+        ObjectDisposedException.ThrowIf(_entriesRemaining == Disposed, this);
 
         if (_entriesRemaining == Complete)
         {

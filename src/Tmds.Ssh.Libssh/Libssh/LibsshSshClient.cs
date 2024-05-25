@@ -517,19 +517,19 @@ sealed partial class LibsshSshClient : ISshClientImplementation
         }
     }
 
-    public Task<ISshChannel> OpenRemoteProcessChannelAsync(string command, CancellationToken cancellationToken = default)
-        => OpenChannelAsync(new SshChannelOptions(SshChannelType.Execute) { Command = command }, cancellationToken);
+    public Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, CancellationToken cancellationToken = default)
+        => OpenChannelAsync(channelType, new SshChannelOptions(SshChannelType.Execute) { Command = command }, cancellationToken);
 
-    public Task<ISshChannel> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken = default)
-        => OpenChannelAsync(new SshChannelOptions(SshChannelType.TcpStream) { Host = host, Port = port }, cancellationToken);
+    public Task<ISshChannel> OpenTcpConnectionChannelAsync(Type channelType, string host, int port, CancellationToken cancellationToken = default)
+        => OpenChannelAsync(channelType, new SshChannelOptions(SshChannelType.TcpStream) { Host = host, Port = port }, cancellationToken);
 
-    public Task<ISshChannel> OpenUnixConnectionChannelAsync(string path, CancellationToken cancellationToken = default)
-        => OpenChannelAsync(new SshChannelOptions(SshChannelType.UnixStream) { Path = path }, cancellationToken);
+    public Task<ISshChannel> OpenUnixConnectionChannelAsync(Type channelType, string path, CancellationToken cancellationToken = default)
+        => OpenChannelAsync(channelType, new SshChannelOptions(SshChannelType.UnixStream) { Path = path }, cancellationToken);
 
-    public Task<ISshChannel> OpenSftpClientChannelAsync(CancellationToken cancellationToken = default)
-        => OpenChannelAsync(new SshChannelOptions(SshChannelType.Sftp), cancellationToken);
+    public Task<ISshChannel> OpenSftpClientChannelAsync(Type channelType, CancellationToken cancellationToken = default)
+        => OpenChannelAsync(channelType, new SshChannelOptions(SshChannelType.Sftp), cancellationToken);
 
-    private async Task<ISshChannel> OpenChannelAsync(SshChannelOptions options, CancellationToken cancellationToken)
+    private async Task<ISshChannel> OpenChannelAsync(Type channelType, SshChannelOptions options, CancellationToken cancellationToken)
     {
         SshChannel? channel = null;
         try
@@ -541,7 +541,7 @@ sealed partial class LibsshSshClient : ISshClientImplementation
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                channel = new SshChannel(this, options);
+                channel = new SshChannel(this, options, channelType);
                 _channels.Add(channel);
 
                 openTask = channel.OpenAsync();

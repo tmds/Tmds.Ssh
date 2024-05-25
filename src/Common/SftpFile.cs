@@ -167,10 +167,7 @@ public sealed class SftpFile : Stream
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
     public async ValueTask CloseAsync(CancellationToken cancellationToken = default)

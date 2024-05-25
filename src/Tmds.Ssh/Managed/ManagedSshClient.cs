@@ -240,14 +240,14 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         }
     }
 
-    private SshChannel CreateChannel()
+    private SshChannel CreateChannel(Type channelType)
     {
         lock (_gate)
         {
             ThrowIfNotConnected();
 
             uint channelNumber = AllocateChannel();
-            var channelContext = new SshChannel(this, _sequencePool, channelNumber);
+            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType);
             _channels[channelNumber] = channelContext;
 
             return channelContext;
@@ -576,9 +576,9 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         _allocatedChannels[i] = _allocatedChannels[i] & ~mask;
     }
 
-    public async Task<ISshChannel> OpenRemoteProcessChannelAsync(string command, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel();
+        SshChannel channel = CreateChannel(channelType);
         try
         {
             // Open the session channel.
@@ -602,9 +602,9 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         }
     }
 
-    public async Task<ISshChannel> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenTcpConnectionChannelAsync(Type channelType, string host, int port, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel();
+        SshChannel channel = CreateChannel(channelType);
         try
         {
             IPAddress originatorIP = IPAddress.Any;
@@ -621,9 +621,9 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         }
     }
 
-    public async Task<ISshChannel> OpenUnixConnectionChannelAsync(string path, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenUnixConnectionChannelAsync(Type channelType, string path, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel();
+        SshChannel channel = CreateChannel(channelType);
         try
         {
             channel.TrySendChannelOpenDirectStreamLocalMessage(path);
@@ -638,9 +638,9 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         }
     }
 
-    public async Task<ISshChannel> OpenSftpClientChannelAsync(CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenSftpClientChannelAsync(Type channelType, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel();
+        SshChannel channel = CreateChannel(channelType);
         try
         {
             // Open the session channel.

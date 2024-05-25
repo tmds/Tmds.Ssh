@@ -540,7 +540,7 @@ public sealed class RemoteProcess : IDisposable
     {
         if (_readMode == ReadMode.Disposed)
         {
-            throw new ObjectDisposedException(typeof(RemoteProcess).FullName);
+            ObjectDisposedException.ThrowIf(true, this);
         }
         else if (_readMode == ReadMode.Exited)
         {
@@ -570,7 +570,7 @@ public sealed class RemoteProcess : IDisposable
 
     private void ThrowObjectDisposedException()
     {
-        throw new ObjectDisposedException(typeof(RemoteProcess).FullName);
+        ObjectDisposedException.ThrowIf(true, this);
     }
 
     sealed class StdInStream : Stream
