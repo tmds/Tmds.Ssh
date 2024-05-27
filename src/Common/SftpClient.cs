@@ -31,11 +31,6 @@ public sealed partial class SftpClient : IDisposable
             UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite | UnixFilePermissions.UserExecute |
             UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite | UnixFilePermissions.GroupExecute |
             UnixFilePermissions.OtherRead | UnixFilePermissions.OtherWrite | UnixFilePermissions.OtherExecute;
-    const UnixFilePermissions DefaultCreateDirectoryPermissions = OwnershipPermissions;
-    internal const UnixFilePermissions DefaultCreateFilePermissions =
-            UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite |
-            UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite |
-            UnixFilePermissions.OtherRead | UnixFilePermissions.OtherWrite;
     const UnixFilePermissions CreateFilePermissionMask = OwnershipPermissions;
     const UnixFilePermissions CreateDirectoryPermissionMask = OwnershipPermissions | UnixFilePermissions.StickyBit;
     const UnixFilePermissions PretendUMask = UnixFilePermissions.OtherWrite;
@@ -54,6 +49,14 @@ public sealed partial class SftpClient : IDisposable
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
+
+    public const UnixFilePermissions DefaultCreateDirectoryPermissions = OwnershipPermissions;
+
+    public const UnixFilePermissions DefaultCreateFilePermissions =
+            UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite |
+            UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite |
+            UnixFilePermissions.OtherRead | UnixFilePermissions.OtherWrite;
+    
 
     internal SftpClient(ISshChannel channel)
     {
@@ -353,18 +356,15 @@ public sealed partial class SftpClient : IDisposable
         return ExecuteAsync<SftpFile>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default)
-        => CreateDirectoryAsync(path, createParents: false, cancellationToken);
+    public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken)
+        => CreateDirectoryAsync(path, createParents: false, DefaultCreateDirectoryPermissions, cancellationToken);
 
-    public ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
-        => CreateDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
-
-    public async ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
+    public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         // This method doesn't throw if the target directory already exists.
         // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
         ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
-        ValueTask mkdir = CreateNewDirectoryAsync(path, createParents, cancellationToken);
+        ValueTask mkdir = CreateNewDirectoryAsync(path, createParents, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
         try
         {
@@ -395,13 +395,10 @@ public sealed partial class SftpClient : IDisposable
         }
     }
 
-    public ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default)
-        => CreateNewDirectoryAsync(path, createParents: false, cancellationToken);
+    public ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken)
+        => CreateNewDirectoryAsync(path, createParents: false, DefaultCreateDirectoryPermissions, cancellationToken);
 
-    public ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default)
-        => CreateNewDirectoryAsync(path, createParents, permissions: DefaultCreateDirectoryPermissions, cancellationToken);
-
-    public async ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default)
+    public async ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         if (createParents)
         {
@@ -545,13 +542,10 @@ public sealed partial class SftpClient : IDisposable
         }
     }
 
-    public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default)
-        => UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, cancellationToken);
+    public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken)
+        => UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, createPermissions: null, cancellationToken);
 
-    public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, CancellationToken cancellationToken = default)
-        => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, permissions: null, cancellationToken);
-
-    public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default)
+    public ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = default, CancellationToken cancellationToken = default)
         => UploadFileAsync(localFilePath, remoteFilePath, length: null, overwrite, createPermissions, cancellationToken);
 
     private static UnixFilePermissions GetPermissionsForDirectory(string directoryPath)
@@ -832,10 +826,10 @@ public sealed partial class SftpClient : IDisposable
         File.CreateSymbolicLink(localPath, targetPath);
     }
 
-    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken = default)
+    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken)
         => DownloadFileAsync(remoteFilePath, localFilePath, overwrite: false, cancellationToken);
 
-    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite, CancellationToken cancellationToken = default)
+    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
         => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, cancellationToken);
 
     private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
