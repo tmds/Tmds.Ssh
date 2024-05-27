@@ -96,6 +96,10 @@ class SshDataStream : Stream
 }
 class SftpClient : IDisposable
 {
+  // Note: umask is applied on the server.
+  const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rw-rw-rw-'. 
+  const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'. 
+
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
@@ -109,13 +113,11 @@ class SftpClient : IDisposable
   ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
   // Does not throw if the path is an existing directory, or a link to one.
-  ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
-  ValueTask CreateDirectoryAsync(string path, bool createParents, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
+  ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken);
+  ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions createPermissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default);
   // Throws if the path exists.
-  ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken = default);
-  ValueTask CreateNewDirectoryAsync(string path, bool createParents, CancellationToken cancellationToken = default);
-  ValueTask CreateNewDirectoryAsync(string path, bool createParents, UnixFilePermissions permissions, CancellationToken cancellationToken = default);
+  ValueTask CreateNewDirectoryAsync(string path, CancellationToken cancellationToken);
+  ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
   ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
@@ -135,14 +137,13 @@ class SftpClient : IDisposable
   IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default);
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, CancellationToken cancellationToken = default);
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite, UnixFilePermissions createPermissions, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken);
+  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default);
 
-  ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken = default);
-  ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite, CancellationToken cancellationToken = default);
+  ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken);
+  ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default);
 
@@ -223,7 +224,7 @@ class FileEntryAttributes
 class FileOpenOptions
 {
     OpenMode OpenMode { get; set; } = OpenMode.Default;
-    UnixFilePermissions CreatePermissions { get; set; }; // = '-rw-rw-rw-.'. Note: umask is applied on the server.
+    UnixFilePermissions CreatePermissions { get; set; }; = SftpClient.DefaultCreateFilePermissions;
 }
 class EnumerationOptions
 {
