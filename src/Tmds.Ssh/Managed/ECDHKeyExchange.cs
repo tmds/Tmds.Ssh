@@ -47,11 +47,11 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
 
         // Verify received key is valid.
         connectionInfo.ServerKey = ecdhReply.public_host_key;
-        connectionInfo.KeyVerificationResult = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
-        if (connectionInfo.KeyVerificationResult != KeyVerificationResult.Trusted)
+        connectionInfo.HostAuthenticationResult = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
+        if (connectionInfo.HostAuthenticationResult != HostAuthenticationResult.Trusted)
         {
             string knownHostsLine = KnownHostsFile.FormatLine(connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
-            string message = $"The host '{knownHostsLine}' is {connectionInfo.KeyVerificationResult}.";
+            string message = $"The host '{knownHostsLine}' is {connectionInfo.HostAuthenticationResult}.";
             throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
         }
 
@@ -189,14 +189,14 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
     }
 
     private static (
-        SshKey public_host_key,
+        HostKey public_host_key,
         ECPoint q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
         ParceEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-        SshKey public_host_key = reader.ReadSshKey();
+        HostKey public_host_key = reader.ReadSshKey();
         ECPoint q_s = reader.ReadStringAsECPoint();
         ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
         reader.ReadEnd();

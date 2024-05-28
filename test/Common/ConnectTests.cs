@@ -40,10 +40,10 @@ public class ConnectTests
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    Assert.Equal(KeyVerificationResult.Unknown, knownHostResult);
+                    Assert.Equal(HostAuthenticationResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.Host);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
                     string[] serverKeyFingerPrints =
@@ -53,7 +53,7 @@ public class ConnectTests
                             _sshServer.EcdsaKeySHA256FingerPrint
                     ];
                     Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
-                    return new ValueTask<KeyVerificationResult>(KeyVerificationResult.Trusted);
+                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
                 };
             }
         );
@@ -66,30 +66,29 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = null;
                 settings.CheckGlobalKnownHostsFile = false;
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    return new ValueTask<KeyVerificationResult>(KeyVerificationResult.Trusted);
+                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
                 };
             }
         );
     }
 
     [Theory]
-    [InlineData(KeyVerificationResult.Revoked)]
-    [InlineData(KeyVerificationResult.Error)]
-    [InlineData(KeyVerificationResult.Changed)]
-    [InlineData(KeyVerificationResult.Unknown)]
-    public async Task UntrustedKeyVerificationThrows(KeyVerificationResult result)
+    [InlineData(HostAuthenticationResult.Revoked)]
+    [InlineData(HostAuthenticationResult.Changed)]
+    [InlineData(HostAuthenticationResult.Unknown)]
+    public async Task UntrustedKeyVerificationThrows(HostAuthenticationResult result)
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    return new ValueTask<KeyVerificationResult>(result);
+                    return new ValueTask<HostAuthenticationResult>(result);
                 };
             }
         ));
@@ -107,12 +106,12 @@ public class ConnectTests
             SshClient client = await _sshServer.CreateClientAsync(settings =>
                 {
                     settings.KnownHostsFilePath = knownHostsFileName;
-                    settings.KeyVerification =
-                    (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                    settings.HostAuthentication =
+                    (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
                         keyVerified = true;
-                        Assert.Equal(KeyVerificationResult.Unknown, knownHostResult);
-                        return ValueTask.FromResult(KeyVerificationResult.AddKnownHost);
+                        Assert.Equal(HostAuthenticationResult.Unknown, knownHostResult);
+                        return ValueTask.FromResult(HostAuthenticationResult.AddKnownHost);
                     };
                 });
             client.Dispose();
@@ -122,8 +121,8 @@ public class ConnectTests
             client = await _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = knownHostsFileName;
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     Assert.True(false);
                     return ValueTask.FromResult(knownHostResult);
@@ -150,10 +149,10 @@ public class ConnectTests
         using SshClient client = await _sshServer.CreateClientAsync(settings =>
         {
             settings.KnownHostsFilePath = path;
-            settings.KeyVerification =
-            (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            settings.HostAuthentication =
+            (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
             {
-                return ValueTask.FromResult(KeyVerificationResult.AddKnownHost);
+                return ValueTask.FromResult(HostAuthenticationResult.AddKnownHost);
             };
         });
     }
@@ -235,13 +234,13 @@ public class ConnectTests
             _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
                     Assert.True(cancellationToken.IsCancellationRequested);
                     cancellationToken.ThrowIfCancellationRequested();
-                    return new ValueTask<KeyVerificationResult>(KeyVerificationResult.Unknown);
+                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Unknown);
                 };
             }, cts.Token
         ));
@@ -255,11 +254,11 @@ public class ConnectTests
             _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
-                    return new ValueTask<KeyVerificationResult>(KeyVerificationResult.Trusted);
+                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
                 };
             }, cts.Token
         ));
@@ -275,8 +274,8 @@ public class ConnectTests
             _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
-                settings.KeyVerification =
-                (KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                settings.HostAuthentication =
+                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     throw exceptionThrown;
                 };

@@ -13,7 +13,7 @@ static class KnownHostsFile
 {
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
-    public static void AddKnownHost(string knownHostsFile, string host, int port, SshKey key)
+    public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key)
     {
         string knownHostLine = FormatLine(host, port, key) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
@@ -33,16 +33,16 @@ static class KnownHostsFile
         fileStream.Write(buffer);
     }
 
-    public static string FormatLine(string host, int port, SshKey key)
+    public static string FormatLine(string host, int port, HostKey key)
     {
         bool nonStandardPort = port != 22;
         return nonStandardPort ? $"[{host}]:{port} {key.Type} {Convert.ToBase64String(key.RawKey)}"
                                : $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
     }
 
-    public static KeyVerificationResult CheckHost(string filename, string host, string? ip, int port, SshKey key)
+    public static HostAuthenticationResult CheckHost(string filename, string host, string? ip, int port, HostKey key)
     {
-        KeyVerificationResult result = KeyVerificationResult.Unknown;
+        HostAuthenticationResult result = HostAuthenticationResult.Unknown;
 
         string[] lines;
         try
@@ -53,12 +53,12 @@ static class KnownHostsFile
             }
             else
             {
-                return KeyVerificationResult.Unknown;
+                return HostAuthenticationResult.Unknown;
             }
         }
         catch (IOException)
         {
-            return KeyVerificationResult.Unknown;
+            return HostAuthenticationResult.Unknown;
         }
 
         host = host.ToLowerInvariant();
@@ -115,9 +115,9 @@ static class KnownHostsFile
 
             if (keytype != key.Type)
             {
-                if (!revoked && result == KeyVerificationResult.Unknown)
+                if (!revoked && result == HostAuthenticationResult.Unknown)
                 {
-                    result = KeyVerificationResult.Changed;
+                    result = HostAuthenticationResult.Changed;
                 }
                 continue;
             }
@@ -129,19 +129,19 @@ static class KnownHostsFile
 
             if (keyDataBase64 != base64key)
             {
-                if (!revoked && result == KeyVerificationResult.Unknown)
+                if (!revoked && result == HostAuthenticationResult.Unknown)
                 {
-                    result = KeyVerificationResult.Changed;
+                    result = HostAuthenticationResult.Changed;
                 }
                 continue;
             }
 
             if (revoked)
             {
-                return KeyVerificationResult.Revoked;
+                return HostAuthenticationResult.Revoked;
             }
 
-            result = KeyVerificationResult.Trusted;
+            result = HostAuthenticationResult.Trusted;
         }
 
         return result;

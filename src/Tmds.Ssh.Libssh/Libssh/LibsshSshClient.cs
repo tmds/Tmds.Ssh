@@ -179,7 +179,7 @@ sealed partial class LibsshSshClient : ISshClientImplementation
 
     private async ValueTask VerifyServerAsync(CancellationToken cancellationToken)
     {
-        KeyVerificationResult result = KeyVerificationResult.Unknown;
+        HostAuthenticationResult result = HostAuthenticationResult.Unknown;
         lock (Gate)
         {
             if (_state != SessionState.ConnectingComplete)
@@ -194,12 +194,12 @@ sealed partial class LibsshSshClient : ISshClientImplementation
             {
                 result = ssh_session_is_known_server(_ssh) switch
                 {
-                    KnownHostResult.Error => KeyVerificationResult.Error,
-                    KnownHostResult.Ok => KeyVerificationResult.Trusted,
-                    KnownHostResult.FileNotFound => KeyVerificationResult.Unknown,
-                    KnownHostResult.Unknown => KeyVerificationResult.Unknown,
-                    KnownHostResult.Changed => KeyVerificationResult.Changed,
-                    KnownHostResult.OtherType => KeyVerificationResult.Error,
+                    KnownHostResult.Error => throw new SshConnectionException("Unexpected error while checking against the known hosts."),
+                    KnownHostResult.Ok => HostAuthenticationResult.Trusted,
+                    KnownHostResult.FileNotFound => HostAuthenticationResult.Unknown,
+                    KnownHostResult.Unknown => HostAuthenticationResult.Unknown,
+                    KnownHostResult.Changed => HostAuthenticationResult.Changed,
+                    KnownHostResult.OtherType => HostAuthenticationResult.Changed,
                     _ => throw new IndexOutOfRangeException($"Unknown KnownHostResult"),
                 };
             }
@@ -215,17 +215,17 @@ sealed partial class LibsshSshClient : ISshClientImplementation
                 throw new SshConnectionException("Could not obtain public key.");
             }
             string sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
-            _connectionInfo.ServerKey = new SshKey(sha256FingerPrint);
+            _connectionInfo.ServerKey = new HostKey(sha256FingerPrint);
         }
 
-        if (result != KeyVerificationResult.Trusted)
+        if (result != HostAuthenticationResult.Trusted)
         {
-            if (_clientSettings.KeyVerification != null &&
-                (result == KeyVerificationResult.Changed || result == KeyVerificationResult.Unknown))
+            if (_clientSettings.HostAuthentication != null &&
+                (result == HostAuthenticationResult.Changed || result == HostAuthenticationResult.Unknown))
             {
                 try
                 {
-                    result = await _clientSettings.KeyVerification(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
+                    result = await _clientSettings.HostAuthentication(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception e) when (e is not SshConnectionException && e is not OperationCanceledException)
                 {
@@ -233,7 +233,7 @@ sealed partial class LibsshSshClient : ISshClientImplementation
                     throw new SshConnectionException($"Key verification failed: {e.Message}.", e);
                 }
 
-                if (result == KeyVerificationResult.AddKnownHost)
+                if (result == HostAuthenticationResult.AddKnownHost)
                 {
                     lock (Gate)
                     {
@@ -249,11 +249,11 @@ sealed partial class LibsshSshClient : ISshClientImplementation
                             }
                         }
                     }
-                    result = KeyVerificationResult.Trusted;
+                    result = HostAuthenticationResult.Trusted;
                 }
             }
         }
-        if (result != KeyVerificationResult.Trusted)
+        if (result != HostAuthenticationResult.Trusted)
         {
             throw new SshConnectionException("Server not trusted.");
         }

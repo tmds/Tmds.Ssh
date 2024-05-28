@@ -9,7 +9,7 @@ namespace Tmds.Ssh.Managed;
 
 abstract class PublicKey
 {
-    public static PublicKey CreateFromSshKey(SshKey key)
+    public static PublicKey CreateFromSshKey(HostKey key)
     {
         Name name = new Name(key.Type);
         if (name == AlgorithmNames.EcdsaSha2Nistp256)

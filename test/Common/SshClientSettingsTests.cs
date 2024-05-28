@@ -17,7 +17,7 @@ public class ClientSettingsTests
         Assert.Equal(SshClientSettings.DefaultCredentials, settings.Credentials);
         Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFilePath);
         Assert.True(settings.CheckGlobalKnownHostsFile);
-        Assert.Null(settings.KeyVerification);
+        Assert.Null(settings.HostAuthentication);
     }
 
     private static string DefaultKnownHostsFile

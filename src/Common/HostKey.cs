@@ -6,11 +6,11 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-public sealed class SshKey
+public sealed class HostKey
 {
     private string? _sha256FingerPrint;
 
-    internal SshKey(string sha256FingerPrint)
+    internal HostKey(string sha256FingerPrint)
     {
         _sha256FingerPrint = sha256FingerPrint;
         Type = "";
@@ -32,7 +32,7 @@ public sealed class SshKey
     }
 
     // Managed
-    internal SshKey(string type, byte[] key)
+    internal HostKey(string type, byte[] key)
     {
         Type = type ?? throw new ArgumentNullException(nameof(type));
         RawKey = key ?? throw new ArgumentNullException(nameof(key));
