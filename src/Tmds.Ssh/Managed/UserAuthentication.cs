@@ -2,7 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Text;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -52,7 +52,13 @@ sealed partial class UserAuthentication
             }
             else if (credential is PrivateKeyCredential ifCredential)
             {
-                if (TryParsePrivateKeyFile(ifCredential.FilePath, out PrivateKey? pk))
+                string filename = ifCredential.FilePath;
+                if (!File.Exists(filename))
+                {
+                    continue;
+                }
+
+                if (TryParsePrivateKeyFile(ifCredential.FilePath, out PrivateKey? pk, out Exception? error))
                 {
                     using (pk)
                     {
@@ -76,7 +82,7 @@ sealed partial class UserAuthentication
                 }
                 else
                 {
-                    continue; // TODO: report issues with parsing the private key.
+                    throw new PrivateKeyLoadException(filename, error);
                 }
             }
             else

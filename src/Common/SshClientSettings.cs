@@ -12,7 +12,7 @@ namespace Tmds.Ssh;
 public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 
 // This class gathers settings for SshClient in a separate object.
-public sealed class SshClientSettings
+public sealed partial class SshClientSettings
 {
     private int _port = 22;
     private string _host = "";
@@ -120,18 +120,6 @@ public sealed class SshClientSettings
     public KeyVerification? KeyVerification { get; set; }
 
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
-
-    private static IReadOnlyList<Credential> CreateDefaultCredentials()
-    {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-        return
-        [
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ed25519")),
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")),
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa")),
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_dsa")),
-        ];
-    }
 
     private static string DefaultKnownHostsFile
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
