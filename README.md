@@ -185,7 +185,7 @@ class SshClientSettings
   int Port { get; set; }
   IReadOnlyList<Credential> Credentials { get; set; }
   bool CheckGlobalKnownHostsFile { get; set; }
-  KeyVerification? KeyVerification { get; set; }
+  HostAuthentication? HostAuthentication { get; set; }
 
   static IReadOnlyList<Credential> DefaultCredentials { get; }
 }
@@ -315,23 +315,22 @@ static class UnixFilePemissionExtensions
     static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
     static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
 }
-class SshKey
+class HostKey
 {
   string SHA256FingerPrint { get; }
 }
-enum KeyVerificationResult
+enum HostAuthenticationResult
 {
   Trusted,
   AddKnownHost, // Trusted and append to KnownHostsFilePath (when not null).
   Revoked,
-  Error,
   Changed,
   Unknown,
 }
-delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+delegate ValueTask<HostAuthenticationResult> HostAuthentication(HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 class SshConnectionInfo
 {
-  SshKey ServerKey { get; }
+  HostKey ServerKey { get; }
   string Host { get; }
   int Port { get; }
 }

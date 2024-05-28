@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh;
 
-public delegate ValueTask<KeyVerificationResult> KeyVerification(KeyVerificationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+public delegate ValueTask<HostAuthenticationResult> HostAuthentication(HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 
 // This class gathers settings for SshClient in a separate object.
 public sealed partial class SshClientSettings
@@ -117,7 +117,7 @@ public sealed partial class SshClientSettings
 
     public bool CheckGlobalKnownHostsFile { get; set; } = true;
 
-    public KeyVerification? KeyVerification { get; set; }
+    public HostAuthentication? HostAuthentication { get; set; }
 
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
 

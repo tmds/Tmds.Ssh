@@ -38,11 +38,11 @@ sealed class HostKeyVerification : IHostKeyVerification
         }
     }
 
-    public async ValueTask<KeyVerificationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
+    public async ValueTask<HostAuthenticationResult> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
     {
-        SshKey key = connectionInfo.ServerKey!;
+        HostKey key = connectionInfo.ServerKey!;
 
-        var result = KeyVerificationResult.Unknown;
+        var result = HostAuthenticationResult.Unknown;
 
         string? ip = connectionInfo.IPAddress?.ToString();
 
@@ -56,32 +56,32 @@ sealed class HostKeyVerification : IHostKeyVerification
                 continue;
             }
 
-            KeyVerificationResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
-            if (knownHostResult == KeyVerificationResult.Revoked)
+            HostAuthenticationResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
+            if (knownHostResult == HostAuthenticationResult.Revoked)
             {
-                result = KeyVerificationResult.Revoked;
+                result = HostAuthenticationResult.Revoked;
                 break;
             }
-            if (knownHostResult == KeyVerificationResult.Unknown)
+            if (knownHostResult == HostAuthenticationResult.Unknown)
             {
                 continue;
             }
 
-            if (knownHostResult == KeyVerificationResult.Trusted ||
-                result == KeyVerificationResult.Unknown)
+            if (knownHostResult == HostAuthenticationResult.Trusted ||
+                result == HostAuthenticationResult.Unknown)
             {
                 result = knownHostResult;
             }
         }
 
-        if (result == KeyVerificationResult.Changed ||
-            result == KeyVerificationResult.Unknown)
+        if (result == HostAuthenticationResult.Changed ||
+            result == HostAuthenticationResult.Unknown)
         {
-            KeyVerification? keyVerification = _sshClientSettings.KeyVerification;
+            HostAuthentication? keyVerification = _sshClientSettings.HostAuthentication;
             if (keyVerification is not null)
             {
                 result = await keyVerification(result, connectionInfo, ct);
-                if (result == KeyVerificationResult.AddKnownHost)
+                if (result == HostAuthenticationResult.AddKnownHost)
                 {
                     if (!string.IsNullOrEmpty(settingsKnownHostsFile))
                     {
@@ -94,7 +94,7 @@ sealed class HostKeyVerification : IHostKeyVerification
                             /* Ignore errors */
                         }
                     }
-                    result = KeyVerificationResult.Trusted;
+                    result = HostAuthenticationResult.Trusted;
                 }
             }
         }

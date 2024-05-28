@@ -34,69 +34,69 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
     [Fact]
     public void UnknownHost()
     {
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "unknown", ip: null, 22, new SshKey("type", Array.Empty<byte>())));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "unknown", ip: null, 22, new HostKey("type", Array.Empty<byte>())));
     }
 
     [Fact]
     public void KnownHost()
     {
-        Assert.Equal(KeyVerificationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "github.com", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "github.com", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void DefaultPort()
     {
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "github.com", ip: null, 1234, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "github.com", ip: null, 1234, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void BracketHostname()
     {
-        Assert.Equal(KeyVerificationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "brackethostname", ip: null, 1234, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "brackethostname", ip: null, 1234, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "brackethostname", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "brackethostname", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void WildcardHostname()
     {
-        Assert.Equal(KeyVerificationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostna.me", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostna.me", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostnaxme", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostnaxme", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "prewildcardhostna.me", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "prewildcardhostna.me", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KeyVerificationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostna.mepost", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Unknown, KnownHostsFile.CheckHost(_knownHostsFilename, "wildcardhostna.mepost", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void KnownIp()
     {
-        Assert.Equal(KeyVerificationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "", ip: "140.82.118.3", 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "", ip: "140.82.118.3", 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void Revoked()
     {
-        Assert.Equal(KeyVerificationResult.Revoked, KnownHostsFile.CheckHost(_knownHostsFilename, "trudy", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Revoked, KnownHostsFile.CheckHost(_knownHostsFilename, "trudy", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void Changed()
     {
-        Assert.Equal(KeyVerificationResult.Changed, KnownHostsFile.CheckHost(_knownHostsFilename, "changed", ip: null, 22, new SshKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(HostAuthenticationResult.Changed, KnownHostsFile.CheckHost(_knownHostsFilename, "changed", ip: null, 22, new HostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void WildcardRevoke()
     {
-        Assert.Equal(KeyVerificationResult.Revoked, KnownHostsFile.CheckHost(_knownHostsFilename, "changed", ip: null, 22, new SshKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey))));
+        Assert.Equal(HostAuthenticationResult.Revoked, KnownHostsFile.CheckHost(_knownHostsFilename, "changed", ip: null, 22, new HostKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey))));
     }
 
     [Fact]
     public void Hashed()
     {
-        Assert.Equal(KeyVerificationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "127.0.0.7", ip: null, 22, new SshKey("ssh-ed25519", Convert.FromBase64String(HashedHostKey))));
+        Assert.Equal(HostAuthenticationResult.Trusted, KnownHostsFile.CheckHost(_knownHostsFilename, "127.0.0.7", ip: null, 22, new HostKey("ssh-ed25519", Convert.FromBase64String(HashedHostKey))));
     }
 
     public KnownHostTests()
