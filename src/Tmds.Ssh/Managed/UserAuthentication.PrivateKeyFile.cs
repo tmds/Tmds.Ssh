@@ -12,46 +12,51 @@ namespace Tmds.Ssh.Managed;
 
 sealed partial class UserAuthentication
 {
-    // TODO: move some place else?
-    internal static bool TryParsePrivateKeyFile(string filename, [NotNullWhen(true)] out PrivateKey? privateKey)
+    internal static bool TryParsePrivateKeyFile(string filename, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
     {
         privateKey = null;
 
         ReadOnlySpan<char> keyFormat;
         ReadOnlySpan<char> keyDataBase64;
-        try
+        // MAYDO verify file doesn't have permissions for group/other.
+        if (!File.Exists(filename))
         {
-            // MAYDO verify file doesn't have permissions for group/other.
-            if (!File.Exists(filename))
-            {
-                return false;
-            }
-
-            string fileContent = File.ReadAllText(filename);
-
-            int formatStart = fileContent.IndexOf("-----BEGIN");
-            if (formatStart == -1)
-            {
-                return false;
-            }
-            int keyStart = fileContent.IndexOf('\n', formatStart);
-            if (keyStart == -1)
-            {
-                return false;
-            }
-            keyStart++;
-            int keyEnd = fileContent.IndexOf("-----END");
-            if (formatStart == -1)
-            {
-                return false;
-            }
-            keyFormat = fileContent.AsSpan(formatStart, keyStart - formatStart - 1).Trim();
-            keyDataBase64 = fileContent.AsSpan(keyStart, keyEnd - keyStart - 1);
-        }
-        catch (IOException)
-        {
+            error = new FileNotFoundException(filename);
             return false;
         }
+
+        string fileContent;
+        try
+        {
+            fileContent = File.ReadAllText(filename);
+        }
+        catch (IOException ex)
+        {
+            error = ex;
+            return false;
+        }
+
+        int formatStart = fileContent.IndexOf("-----BEGIN");
+        if (formatStart == -1)
+        {
+            error = new FormatException($"No start marker.");
+            return false;
+        }
+        int keyStart = fileContent.IndexOf('\n', formatStart);
+        if (keyStart == -1)
+        {
+            error = new FormatException($"No start marker.");
+            return false;
+        }
+        keyStart++;
+        int keyEnd = fileContent.IndexOf("-----END");
+        if (formatStart == -1)
+        {
+            error = new FormatException($"No end marker.");
+            return false;
+        }
+        keyFormat = fileContent.AsSpan(formatStart, keyStart - formatStart - 1).Trim();
+        keyDataBase64 = fileContent.AsSpan(keyStart, keyEnd - keyStart - 1);
 
         byte[] keyData;
         try
@@ -60,21 +65,23 @@ sealed partial class UserAuthentication
         }
         catch (FormatException)
         {
+            error = new FormatException($"Invalid base64 data.");
             return false;
         }
 
         switch (keyFormat)
         {
             case "-----BEGIN RSA PRIVATE KEY-----":
-                return TryParseRsaPemKey(keyData, out privateKey);
+                return TryParseRsaPemKey(keyData, out privateKey, out error);
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                return TryParseOpenSshKey(keyData, out privateKey);
+                return TryParseOpenSshKey(keyData, out privateKey, out error);
             default:
+                error = new NotSupportedException($"Unsupported format: '{keyFormat}'.");
                 return false;
         }
     }
 
-    private static bool TryParseRsaPemKey(byte[] keyData, out PrivateKey? privateKey)
+    private static bool TryParseRsaPemKey(byte[] keyData, out PrivateKey? privateKey, out Exception? error)
     {
         privateKey = null;
         RSA? rsa = RSA.Create();
@@ -84,19 +91,22 @@ sealed partial class UserAuthentication
             if (bytesRead != keyData.Length)
             {
                 rsa.Dispose();
+                error = new FormatException($"There is additional data after the RSA key.");
                 return false;
             }
             privateKey = new RsaPrivateKey(rsa);
+            error = null;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
             rsa?.Dispose();
+            error = new FormatException($"The data can not be parsed into an RSA key.", ex);
             return false;
         }
     }
 
-    private static bool TryParseOpenSshKey(byte[] keyData, out PrivateKey? privateKey)
+    private static bool TryParseOpenSshKey(byte[] keyData, out PrivateKey? privateKey, out Exception? error)
     {
         privateKey = null;
 
@@ -116,6 +126,7 @@ sealed partial class UserAuthentication
         ReadOnlySpan<byte> AUTH_MAGIC = "openssh-key-v1\0"u8;
         if (!keyData.AsSpan().StartsWith(AUTH_MAGIC))
         {
+            error = new FormatException($"Unknown OpenSSH key format.");
             return false;
         }
         ReadOnlySequence<byte> ros = new ReadOnlySequence<byte>(keyData);
@@ -124,6 +135,7 @@ sealed partial class UserAuthentication
         Name cipherName = reader.ReadName();
         if (cipherName != AlgorithmNames.None)
         {
+            error = new NotSupportedException($"Unsupported cipher: '{cipherName}'.");
             return false; // cipherName not supported.
         }
         reader.SkipString(); // kfdname
@@ -131,6 +143,7 @@ sealed partial class UserAuthentication
         uint nrOfKeys = reader.ReadUInt32();
         if (nrOfKeys != 1)
         {
+            error = new FormatException($"The data contains multiple keys.");
             return false; // Multiple keys are not supported.
         }
         reader.SkipString(); // skip the public key
@@ -156,6 +169,7 @@ sealed partial class UserAuthentication
         uint checkint2 = reader.ReadUInt32();
         if (checkInt1 != checkint2)
         {
+            error = new FormatException($"The checkints mismatch. The key is invalid or the passphrase is wrong.");
             return false;
         }
 
@@ -188,13 +202,20 @@ sealed partial class UserAuthentication
             {
                 rsa.ImportParameters(parameters);
                 privateKey = new RsaPrivateKey(rsa);
+                error = null;
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                error = new FormatException($"The data can not be parsed into an RSA key.", ex);
                 rsa?.Dispose();
+                return false;
             }
         }
-        return false;
+        else
+        {
+            error = new NotSupportedException($"The key type is unsupported: '{keyType}'.");
+            return false;
+        }
     }
 }
