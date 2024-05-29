@@ -9,8 +9,6 @@ using System.Threading.Tasks;
 
 namespace Tmds.Ssh;
 
-public delegate ValueTask<HostAuthenticationResult> HostAuthentication(HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
-
 // This class gathers settings for SshClient in a separate object.
 public sealed partial class SshClientSettings
 {
@@ -116,6 +114,8 @@ public sealed partial class SshClientSettings
     public string? KnownHostsFilePath { get; set; } = DefaultKnownHostsFile;
 
     public bool CheckGlobalKnownHostsFile { get; set; } = true;
+
+    public bool UpdateKnownHostsFile { get; set; } = false;
 
     public HostAuthentication? HostAuthentication { get; set; }
 

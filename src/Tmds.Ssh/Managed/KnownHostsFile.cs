@@ -40,9 +40,9 @@ static class KnownHostsFile
                                : $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
     }
 
-    public static HostAuthenticationResult CheckHost(string filename, string host, string? ip, int port, HostKey key)
+    public static KnownHostResult CheckHost(string filename, string host, string? ip, int port, HostKey key)
     {
-        HostAuthenticationResult result = HostAuthenticationResult.Unknown;
+        KnownHostResult result = KnownHostResult.Unknown;
 
         string[] lines;
         try
@@ -53,12 +53,12 @@ static class KnownHostsFile
             }
             else
             {
-                return HostAuthenticationResult.Unknown;
+                return KnownHostResult.Unknown;
             }
         }
         catch (IOException)
         {
-            return HostAuthenticationResult.Unknown;
+            return KnownHostResult.Unknown;
         }
 
         host = host.ToLowerInvariant();
@@ -115,9 +115,9 @@ static class KnownHostsFile
 
             if (keytype != key.Type)
             {
-                if (!revoked && result == HostAuthenticationResult.Unknown)
+                if (!revoked && result == KnownHostResult.Unknown)
                 {
-                    result = HostAuthenticationResult.Changed;
+                    result = KnownHostResult.Changed;
                 }
                 continue;
             }
@@ -129,19 +129,19 @@ static class KnownHostsFile
 
             if (keyDataBase64 != base64key)
             {
-                if (!revoked && result == HostAuthenticationResult.Unknown)
+                if (!revoked && result == KnownHostResult.Unknown)
                 {
-                    result = HostAuthenticationResult.Changed;
+                    result = KnownHostResult.Changed;
                 }
                 continue;
             }
 
             if (revoked)
             {
-                return HostAuthenticationResult.Revoked;
+                return KnownHostResult.Revoked;
             }
 
-            result = HostAuthenticationResult.Trusted;
+            result = KnownHostResult.Trusted;
         }
 
         return result;

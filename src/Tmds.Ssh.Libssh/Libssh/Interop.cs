@@ -210,7 +210,7 @@ static class Interop
     public static extern AuthResult ssh_userauth_publickey_auto(SessionHandle session, string? username, string? passphrase);
 
     [DllImport(Library)]
-    public static extern KnownHostResult ssh_session_is_known_server(SessionHandle session);
+    public static extern LibSshKnownHostResult ssh_session_is_known_server(SessionHandle session);
 
     [DllImport(Library)]
     public static extern int ssh_session_update_known_hosts(SessionHandle session);

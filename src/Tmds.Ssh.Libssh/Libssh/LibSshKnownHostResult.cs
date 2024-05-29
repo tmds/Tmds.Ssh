@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh.Libssh;
 
-enum KnownHostResult : int
+enum LibSshKnownHostResult : int
 {
     Error = -2,
     FileNotFound = -1,

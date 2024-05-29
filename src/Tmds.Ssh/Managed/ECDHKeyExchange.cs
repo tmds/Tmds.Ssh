@@ -47,11 +47,11 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
 
         // Verify received key is valid.
         connectionInfo.ServerKey = ecdhReply.public_host_key;
-        connectionInfo.HostAuthenticationResult = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
-        if (connectionInfo.HostAuthenticationResult != HostAuthenticationResult.Trusted)
+        bool isTrusted = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
+        if (!isTrusted)
         {
             string knownHostsLine = KnownHostsFile.FormatLine(connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
-            string message = $"The host '{knownHostsLine}' is {connectionInfo.HostAuthenticationResult}.";
+            string message = $"The host '{knownHostsLine}' is not trusted.";
             throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
         }
 
