@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
+using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
@@ -19,6 +20,8 @@ public sealed class SftpFile : Stream
     // Tracks the position in the file for the next operation.
     // The position is updated at the start of the operation to support concurrent requests.
     private long _position;
+
+    private int _inProgress;
 
     internal SftpFile(SftpClient client, byte[] handle)
     {
@@ -68,17 +71,16 @@ public sealed class SftpFile : Stream
     {
         ThrowIfDisposed();
 
-        long readOffset = Interlocked.Add(ref _position, buffer.Length) - buffer.Length;
-        int bytesRead = 0;
+        SetInProgress(true);
         try
         {
-            bytesRead = await _client.ReadFileAsync(Handle, readOffset, buffer, cancellationToken).ConfigureAwait(false);
-
+            int bytesRead = await _client.ReadFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
+            _position += bytesRead;
             return bytesRead;
         }
         finally
         {
-            Interlocked.Add(ref _position, bytesRead - buffer.Length);
+            SetInProgress(false);
         }
     }
 
@@ -99,15 +101,15 @@ public sealed class SftpFile : Stream
     {
         ThrowIfDisposed();
 
-        long writeOffset = Interlocked.Add(ref _position, buffer.Length) - buffer.Length;
+        SetInProgress(true);
         try
         {
-            await _client.WriteFileAsync(Handle, writeOffset, buffer, cancellationToken).ConfigureAwait(false);
+            await _client.WriteFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
+            _position += buffer.Length;
         }
-        catch
+        finally
         {
-            Interlocked.Add(ref _position, -buffer.Length);
-            throw;
+            SetInProgress(false);
         }
     }
 
@@ -147,18 +149,32 @@ public sealed class SftpFile : Stream
     {
         ThrowIfDisposed();
 
-        await _client.SetAttributesForHandleAsync(
-            handle: Handle,
-            length: length,
-            ids: ids,
-            permissions: permissions,
-            times: times,
-            extendedAttributes: extendedAttributes,
-            cancellationToken).ConfigureAwait(false);
-
-        if (_position > length)
+        if (length.HasValue)
         {
-            _position = length.Value;
+            SetInProgress(true);
+        }
+        try
+        {
+            await _client.SetAttributesForHandleAsync(
+                handle: Handle,
+                length: length,
+                ids: ids,
+                permissions: permissions,
+                times: times,
+                extendedAttributes: extendedAttributes,
+                cancellationToken).ConfigureAwait(false);
+
+            if (_position > length)
+            {
+                _position = length.Value;
+            }
+        }
+        finally
+        {
+            if (length.HasValue)
+            {
+                SetInProgress(false);
+            }
         }
     }
 
@@ -194,4 +210,25 @@ public sealed class SftpFile : Stream
 
     public override void SetLength(long value)
         => throw new NotSupportedException();
+
+    private void SetInProgress(bool value)
+    {
+        if (value)
+        {
+            if (Interlocked.CompareExchange(ref _inProgress, 1, 0) != 0)
+            {
+                ThrowConcurrentOperations();
+            }
+        }
+        else
+        {
+            Debug.Assert(_inProgress == 1);
+            Volatile.Write(ref _inProgress, 0);
+        }
+    }
+
+    private void ThrowConcurrentOperations()
+    {
+        throw new InvalidOperationException("Concurrent read/write operations are not allowed.");
+    }
 }
