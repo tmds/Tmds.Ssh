@@ -28,19 +28,12 @@ public sealed class SftpFile : Stream
 
     public override bool CanRead => true;
 
-    public override bool CanSeek => false;
+    public override bool CanSeek => true;
 
     public override bool CanWrite => true;
 
     public override long Length
-    {
-        get
-        {
-            ThrowSeekNotSupported();
-
-            return 0;
-        }
-    }
+        => throw new NotSupportedException();
 
     public override long Position
     {
@@ -52,7 +45,11 @@ public sealed class SftpFile : Stream
         }
         set
         {
-            ThrowSeekNotSupported();
+            ThrowIfDisposed();
+
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+
+            _position = value;
         }
     }
 
@@ -193,17 +190,8 @@ public sealed class SftpFile : Stream
     }
 
     public override long Seek(long offset, SeekOrigin origin)
-    {
-        ThrowSeekNotSupported();
-
-        return 0;
-    }
+        => throw new NotSupportedException();
 
     public override void SetLength(long value)
-    {
-        ThrowSeekNotSupported();
-    }
-
-    private void ThrowSeekNotSupported()
-        => throw new NotSupportedException("This stream does not support seek operations.");
+        => throw new NotSupportedException();
 }
