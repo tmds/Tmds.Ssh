@@ -176,18 +176,23 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
+  static IReadOnlyList<Credential> DefaultCredentials { get; }
+
   SshClientSettings();
   SshClientSettings(string destination);
-  string? KnownHostsFilePath { get; set; }
+
   TimeSpan ConnectTimeout { get; set; }
+
   string UserName { get; set; }
   string Host { get; set; }
   int Port { get; set; }
-  IReadOnlyList<Credential> Credentials { get; set; }
-  bool CheckGlobalKnownHostsFile { get; set; }
-  HostAuthentication? HostAuthentication { get; set; }
 
-  static IReadOnlyList<Credential> DefaultCredentials { get; }
+  IReadOnlyList<Credential> Credentials { get; set; }
+
+  bool CheckGlobalKnownHostsFile { get; set; } = true;
+  string? KnownHostsFilePath { get; set; } // = '~/.ssh/known_hosts'.
+  HostAuthentication? HostAuthentication { get; set; }
+  bool UpdateKnownHostsFile { get; set; } = false;
 }
 class SftpException : IOException
 {
@@ -319,15 +324,14 @@ class HostKey
 {
   string SHA256FingerPrint { get; }
 }
-enum HostAuthenticationResult
+enum KnownHostResult
 {
   Trusted,
-  AddKnownHost, // Trusted and append to KnownHostsFilePath (when not null).
   Revoked,
   Changed,
   Unknown,
 }
-delegate ValueTask<HostAuthenticationResult> HostAuthentication(HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+delegate ValueTask<bool> HostAuthentication(KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
 class SshConnectionInfo
 {
   HostKey ServerKey { get; }

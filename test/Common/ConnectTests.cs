@@ -41,9 +41,9 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = "/";
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    Assert.Equal(HostAuthenticationResult.Unknown, knownHostResult);
+                    Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.Host);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
                     string[] serverKeyFingerPrints =
@@ -53,7 +53,7 @@ public class ConnectTests
                             _sshServer.EcdsaKeySHA256FingerPrint
                     ];
                     Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
-                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
+                    return ValueTask.FromResult(true);
                 };
             }
         );
@@ -67,28 +67,25 @@ public class ConnectTests
                 settings.KnownHostsFilePath = null;
                 settings.CheckGlobalKnownHostsFile = false;
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
+                    return ValueTask.FromResult(true);
                 };
             }
         );
     }
 
-    [Theory]
-    [InlineData(HostAuthenticationResult.Revoked)]
-    [InlineData(HostAuthenticationResult.Changed)]
-    [InlineData(HostAuthenticationResult.Unknown)]
-    public async Task UntrustedKeyVerificationThrows(HostAuthenticationResult result)
+    [Fact]
+    public async Task UntrustedKeyVerificationThrows()
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
                 settings.KnownHostsFilePath = "/";
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
-                    return new ValueTask<HostAuthenticationResult>(result);
+                    return ValueTask.FromResult(false);
                 };
             }
         ));
@@ -107,12 +104,13 @@ public class ConnectTests
                 {
                     settings.KnownHostsFilePath = knownHostsFileName;
                     settings.HostAuthentication =
-                    (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
                         keyVerified = true;
-                        Assert.Equal(HostAuthenticationResult.Unknown, knownHostResult);
-                        return ValueTask.FromResult(HostAuthenticationResult.AddKnownHost);
+                        Assert.Equal(KnownHostResult.Unknown, knownHostResult);
+                        return ValueTask.FromResult(true);
                     };
+                    settings.UpdateKnownHostsFile = true;
                 });
             client.Dispose();
             Assert.True(keyVerified);
@@ -122,10 +120,10 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = knownHostsFileName;
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     Assert.True(false);
-                    return ValueTask.FromResult(knownHostResult);
+                    return ValueTask.FromResult(knownHostResult == KnownHostResult.Trusted);
                 };
             });
             client.Dispose();
@@ -150,10 +148,11 @@ public class ConnectTests
         {
             settings.KnownHostsFilePath = path;
             settings.HostAuthentication =
-            (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
             {
-                return ValueTask.FromResult(HostAuthenticationResult.AddKnownHost);
+                return ValueTask.FromResult(true);
             };
+            settings.UpdateKnownHostsFile = true;
         });
     }
 
@@ -235,12 +234,12 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = "/";
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
                     Assert.True(cancellationToken.IsCancellationRequested);
                     cancellationToken.ThrowIfCancellationRequested();
-                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Unknown);
+                    return ValueTask.FromResult(true);
                 };
             }, cts.Token
         ));
@@ -255,10 +254,10 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = "/";
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
-                    return new ValueTask<HostAuthenticationResult>(HostAuthenticationResult.Trusted);
+                    return ValueTask.FromResult(true);
                 };
             }, cts.Token
         ));
@@ -275,7 +274,7 @@ public class ConnectTests
             {
                 settings.KnownHostsFilePath = "/";
                 settings.HostAuthentication =
-                (HostAuthenticationResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     throw exceptionThrown;
                 };

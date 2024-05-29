@@ -3,10 +3,9 @@
 
 namespace Tmds.Ssh;
 
-public enum HostAuthenticationResult
+public enum KnownHostResult
 {
     Trusted,      // Server is known and has not changed.
-    AddKnownHost, // Request to add host to the known hosts file.
 
     Revoked, // Key is revoked.
 

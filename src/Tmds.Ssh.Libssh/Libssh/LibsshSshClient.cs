@@ -179,7 +179,7 @@ sealed partial class LibsshSshClient : ISshClientImplementation
 
     private async ValueTask VerifyServerAsync(CancellationToken cancellationToken)
     {
-        HostAuthenticationResult result = HostAuthenticationResult.Unknown;
+        KnownHostResult result = KnownHostResult.Unknown;
         lock (Gate)
         {
             if (_state != SessionState.ConnectingComplete)
@@ -194,12 +194,12 @@ sealed partial class LibsshSshClient : ISshClientImplementation
             {
                 result = ssh_session_is_known_server(_ssh) switch
                 {
-                    KnownHostResult.Error => throw new SshConnectionException("Unexpected error while checking against the known hosts."),
-                    KnownHostResult.Ok => HostAuthenticationResult.Trusted,
-                    KnownHostResult.FileNotFound => HostAuthenticationResult.Unknown,
-                    KnownHostResult.Unknown => HostAuthenticationResult.Unknown,
-                    KnownHostResult.Changed => HostAuthenticationResult.Changed,
-                    KnownHostResult.OtherType => HostAuthenticationResult.Changed,
+                    LibSshKnownHostResult.Error => throw new SshConnectionException("Unexpected error while checking against the known hosts."),
+                    LibSshKnownHostResult.Ok => KnownHostResult.Trusted,
+                    LibSshKnownHostResult.FileNotFound => KnownHostResult.Unknown,
+                    LibSshKnownHostResult.Unknown => KnownHostResult.Unknown,
+                    LibSshKnownHostResult.Changed => KnownHostResult.Changed,
+                    LibSshKnownHostResult.OtherType => KnownHostResult.Changed,
                     _ => throw new IndexOutOfRangeException($"Unknown KnownHostResult"),
                 };
             }
@@ -218,14 +218,15 @@ sealed partial class LibsshSshClient : ISshClientImplementation
             _connectionInfo.ServerKey = new HostKey(sha256FingerPrint);
         }
 
-        if (result != HostAuthenticationResult.Trusted)
+        bool isTrusted = result == KnownHostResult.Trusted;
+
+        if (!isTrusted)
         {
-            if (_clientSettings.HostAuthentication != null &&
-                (result == HostAuthenticationResult.Changed || result == HostAuthenticationResult.Unknown))
+            if (_clientSettings.HostAuthentication != null)
             {
                 try
                 {
-                    result = await _clientSettings.HostAuthentication(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
+                    isTrusted = await _clientSettings.HostAuthentication(result, _connectionInfo, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception e) when (e is not SshConnectionException && e is not OperationCanceledException)
                 {
@@ -233,7 +234,7 @@ sealed partial class LibsshSshClient : ISshClientImplementation
                     throw new SshConnectionException($"Key verification failed: {e.Message}.", e);
                 }
 
-                if (result == HostAuthenticationResult.AddKnownHost)
+                if (isTrusted && _clientSettings.UpdateKnownHostsFile && !string.IsNullOrEmpty(_clientSettings.KnownHostsFilePath))
                 {
                     lock (Gate)
                     {
@@ -249,11 +250,11 @@ sealed partial class LibsshSshClient : ISshClientImplementation
                             }
                         }
                     }
-                    result = HostAuthenticationResult.Trusted;
+                    result = KnownHostResult.Trusted;
                 }
             }
         }
-        if (result != HostAuthenticationResult.Trusted)
+        if (!isTrusted)
         {
             throw new SshConnectionException("Server not trusted.");
         }

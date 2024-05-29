@@ -16,6 +16,5 @@ public sealed class SshConnectionInfo
     internal byte[]? SessionId { get; set; }
     internal string? ClientIdentificationString { get; set; }
     internal string? ServerIdentificationString { get; set; }
-    internal HostAuthenticationResult? HostAuthenticationResult { get; set; }
     internal IPAddress? IPAddress { get; set; }
 }
