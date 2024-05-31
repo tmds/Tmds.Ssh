@@ -6,7 +6,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
 
-    <VersionPrefix>0.2.0</VersionPrefix>
     <PackageDescription>SSH client.</PackageDescription>
     <Copyright>Copyright (C) Tom Deseyn</Copyright>
     <RequireLicenseAcceptance>false</RequireLicenseAcceptance>
