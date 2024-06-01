@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Tmds.Ssh.Managed.Tests;
+namespace Tmds.Ssh.Tests;
 
 delegate Task SshConnectionHandler(SshConnection connection);
 
