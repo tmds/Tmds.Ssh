@@ -1,12 +1,14 @@
-# .NET SSH client libraries
+# Tmds.Ssh
 
-This repository contains two prototypes .NET SSH client libraries.
+The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
 
-- `Tmds.Ssh` implements an SSH client in managed code and uses only cryptographic algorithms provided by .NET itself. This limits the available algorithms, and limits the library to .NET 8+. For more information, see [Tmds.Ssh](#tmdsssh).
+It has an async [API](#api) and leverages the modern .NET primitives, like `Span`, to minimize allocations.
 
-- `Tmds.Ssh.Libssh` provides an SSH client that wraps [libssh](https://www.libssh.org/). This enables using a range of cryptographic algorithms. It requires the native `libssh` library to be available. `Tmds.Ssh.Libssh` requires the upcoming libssh 0.11+ version. For more information, see [Tmds.Ssh.Libssh](#tmdssshlibssh).
+The library automatically picks up OpenSSH config files, like private keys, and known hosts.
 
-Both libraries provide the same [.NET API](#api).
+The library targets modern .NET (Core). It does not support .NET Framework due to missing BCL APIs to implement the SSH key exchange.
+
+A curated set of secure algorithms are supported. These should enable to connect to (OpenSSH) servers on distributions/operating systems that are still in support. See [Algorithms](#algorithms).
 
 ## Getting Started
 
@@ -14,9 +16,7 @@ Create a new Console application:
 ```sh
 dotnet new console -o example
 cd example
-dotnet new nugetconfig
-dotnet nuget add source https://www.myget.org/F/tmds
-dotnet add package --prerelease Tmds.Ssh
+dotnet add package Tmds.Ssh
 ```
 
 Update `Program.cs`:
@@ -211,114 +211,114 @@ enum SftpError
 [Flags]
 enum OpenMode
 {
-    Default = 0,
-    Append,
-    Truncate
+  Default = 0,
+  Append,
+  Truncate
 }
 class FileEntryAttributes
 {
-    long Length { get; set; }
-    int Uid { get; set; }
-    int Gid { get; set; }
-    UnixFileType FileType { get; set; }
-    UnixFilePermissions Permissions { get; set; }
-    DateTimeOffset LastAccessTime { get; set; }
-    DateTimeOffset LastWriteTime { get; set; }
-    Dictionary<string, string>? ExtendedAttributes { get; set; }
+  long Length { get; set; }
+  int Uid { get; set; }
+  int Gid { get; set; }
+  UnixFileType FileType { get; set; }
+  UnixFilePermissions Permissions { get; set; }
+  DateTimeOffset LastAccessTime { get; set; }
+  DateTimeOffset LastWriteTime { get; set; }
+  Dictionary<string, string>? ExtendedAttributes { get; set; }
 }
 class FileOpenOptions
 {
-    OpenMode OpenMode { get; set; } = OpenMode.Default;
-    UnixFilePermissions CreatePermissions { get; set; }; = SftpClient.DefaultCreateFilePermissions;
+  OpenMode OpenMode { get; set; } = OpenMode.Default;
+  UnixFilePermissions CreatePermissions { get; set; }; = SftpClient.DefaultCreateFilePermissions;
 }
 class EnumerationOptions
 {
-    bool RecurseSubdirectories { get; set; } = false;
-    bool FollowFileLinks { get; set; } = true;
-    bool FollowDirectoryLinks { get; set; } = true;
-    UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
-    SftpFileEntryPredicate? ShouldRecurse { get; set; }
-    SftpFileEntryPredicate? ShouldInclude { get; set; }
+  bool RecurseSubdirectories { get; set; } = false;
+  bool FollowFileLinks { get; set; } = true;
+  bool FollowDirectoryLinks { get; set; } = true;
+  UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
+  SftpFileEntryPredicate? ShouldRecurse { get; set; }
+  SftpFileEntryPredicate? ShouldInclude { get; set; }
 }
 class DownloadEntriesOptions
 {
-    delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
+  delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
-    bool Overwrite { get; set; } = false;
-    bool RecurseSubdirectories { get; set; } = true;
-    bool FollowFileLinks { get; set; } = true;
-    bool FollowDirectoryLinks { get; set; } = true;
-    UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
-    SftpFileEntryPredicate? ShouldRecurse { get; set; }
-    SftpFileEntryPredicate? ShouldInclude { get; set; }
-    ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
+  bool Overwrite { get; set; } = false;
+  bool RecurseSubdirectories { get; set; } = true;
+  bool FollowFileLinks { get; set; } = true;
+  bool FollowDirectoryLinks { get; set; } = true;
+  UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
+  SftpFileEntryPredicate? ShouldRecurse { get; set; }
+  SftpFileEntryPredicate? ShouldInclude { get; set; }
+  ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
 }
 class UploadEntriesOptions
 {
-    bool Overwrite { get; set; } = false;
-    bool RecurseSubdirectories { get; set; } = true;
-    bool FollowFileLinks { get; set; } = true;
-    bool FollowDirectoryLinks { get; set; } = true;
+  bool Overwrite { get; set; } = false;
+  bool RecurseSubdirectories { get; set; } = true;
+  bool FollowFileLinks { get; set; } = true;
+  bool FollowDirectoryLinks { get; set; } = true;
 }
 delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
 delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
 ref struct SftpFileEntry
 {
-    long Length { get; }
-    int Uid { get; }
-    int Gid { get; }
-    UnixFileType FileType { get; }
-    UnixFilePermissions Permissions { get; }
-    DateTimeOffset LastAccessTime { get; }
-    DateTimeOffset LastWriteTime { get; }
-    ReadOnlySpan<char> Path { get; }
-    ReadOnlySpan<char> FileName { get; }
+  long Length { get; }
+  int Uid { get; }
+  int Gid { get; }
+  UnixFileType FileType { get; }
+  UnixFilePermissions Permissions { get; }
+  DateTimeOffset LastAccessTime { get; }
+  DateTimeOffset LastWriteTime { get; }
+  ReadOnlySpan<char> Path { get; }
+  ReadOnlySpan<char> FileName { get; }
 
-    FileEntryAttributes ToAttributes();
-    string ToPath()
+  FileEntryAttributes ToAttributes();
+  string ToPath()
 }
 enum UnixFileType
 {
-    RegularFile,
-    Directory,
-    SymbolicLink,
-    CharacterDevice,
-    BlockDevice,
-    Socket,
-    Fifo,
+  RegularFile,
+  Directory,
+  SymbolicLink,
+  CharacterDevice,
+  BlockDevice,
+  Socket,
+  Fifo,
 }
 [Flags]
 enum UnixFileTypeFilter
 {
-    RegularFile,
-    Directory,
-    SymbolicLink,
-    CharacterDevice,
-    BlockDevice,
-    Socket,
-    Fifo,
+  RegularFile,
+  Directory,
+  SymbolicLink,
+  CharacterDevice,
+  BlockDevice,
+  Socket,
+  Fifo,
 }
 [Flags]
 enum UnixFilePermissions // values match System.IO.UnixFileMode.
 {
-    None,
-    OtherExecute,
-    OtherWrite,
-    OtherRead,
-    GroupExecute,
-    GroupWrite,
-    GroupRead,
-    UserExecute,
-    UserWrite,
-    UserRead,
-    StickyBit,
-    SetGroup,
-    SetUser,
+  None,
+  OtherExecute,
+  OtherWrite,
+  OtherRead,
+  GroupExecute,
+  GroupWrite,
+  GroupRead,
+  UserExecute,
+  UserWrite,
+  UserRead,
+  StickyBit,
+  SetGroup,
+  SetUser,
 }
 static class UnixFilePemissionExtensions
 {
-    static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
-    static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
+  static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
+  static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
 }
 class HostKey
 {
@@ -367,7 +367,9 @@ class SshConnectionClosedException : SshConnectionException
 { }
 ```
 
-## Tmds.Ssh
+## Algorithms
+
+This section lists the currently supported algorithms. If you would like support for other algorithms, you can request it with an issue in the repository. If the requested algorithm is considered insecure by current practice, it is unlikely to be added.
 
 Supported private key formats:
 - RSA in `RSA PRIVATE KEY`
@@ -399,23 +401,6 @@ Supported message authentication code algorithms:
 
 Supported compression algorithms:
 - none
-
-## Tmds.Ssh.Libssh
-
-`Tmds.Ssh.Libssh` requires the native `libssh` library.
-
-`libssh` is available on most FOSS operating systems.
-
-Unfortunately `Tmds.Ssh.Libssh` requires features that are not yet in a released version of `libssh`.
-To try `Tmds.Ssh.Libssh` you must build the `libssh` from source. You can find the source code and build instructions at [libssh INSTALL](https://gitlab.com/libssh/libssh-mirror/-/blob/master/INSTALL).
-When the library is built you can use it with `Tmds.Ssh.Libssh` by setting the `LIBSSH_PATH` environment variable to the `libssh.so`/`libssh.dll` file path.
-
-If you are using Windows on x64, you can obtain a prebuilt `libssh` by using the following package:
-```
-dotnet add package libssh.win-x64 --prerelease --source https://www.myget.org/F/tmds/api/v3/index.json
-```
-
-**Important!**: The `libssh.win-x64` is built to enable running the `Tmds.Ssh.Libssh` tests on Windows. You must **not** use it in production.
 
 ## CI Feed
 
