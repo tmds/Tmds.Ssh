@@ -85,6 +85,7 @@ public partial class SftpClient
 
         public Memory<byte> Buffer { get; set; }
         public PacketType RequestType { get; set; }
+        public Object? Options { get; set; }
 
         public PendingOperation(SftpClient client)
         {
@@ -109,79 +110,88 @@ public partial class SftpClient
 
         internal void HandleReply(SftpClient client, ReadOnlySpan<byte> reply)
         {
-            PacketReader reader = new(reply);
-
-            PacketType responseType = reader.ReadPacketType();
-            reader.ReadInt(); // id
-
-            SftpError error = SftpError.None;
-            if (responseType == PacketType.SSH_FXP_STATUS)
+            try
             {
-                error = (SftpError)reader.ReadUInt();
-            }
+                PacketReader reader = new(reply);
 
-            if (error != SftpError.None &&
-                !((error, RequestType) is (SftpError.Eof, PacketType.SSH_FXP_READ              // Read: return 0
-                                                           or PacketType.SSH_FXP_READDIR        // Read: return Array.Empty<byte>
-                                           )
-                                        or (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT       // GetAttributes: return null
-                                                                  or PacketType.SSH_FXP_LSTAT   // GetAttributes: return null
-                                                                  or PacketType.SSH_FXP_OPEN    // OpenFile: return null
-                                                                  or PacketType.SSH_FXP_REMOVE  // DeleteFile: don't throw
-                                                                  or PacketType.SSH_FXP_RMDIR   // DeleteDirectory: don't throw
-                                           )
-                ))
-            {
-                SetException(new SftpException(error));
-                return;
-            }
-            switch (RequestType, responseType)
-            {
-                case (PacketType.SSH_FXP_OPEN, _):
-                    SetResult(error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes()));
-                    return;
-                case (PacketType.SSH_FXP_OPENDIR, _):
-                    SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes()));
-                    return;
-                case (PacketType.SSH_FXP_STAT, _):
-                case (PacketType.SSH_FXP_LSTAT, _):
-                case (PacketType.SSH_FXP_FSTAT, _):
-                    SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
-                    return;
-                case (PacketType.SSH_FXP_READ, _):
-                    int count;
-                    if (error == SftpError.Eof)
-                    {
-                        count = 0;
-                    }
-                    else
-                    {
-                        count = reader.ReadInt();
-                        reader.Remainder.Slice(0, count).CopyTo(Buffer.Span);
-                    }
+                PacketType responseType = reader.ReadPacketType();
+                reader.ReadInt(); // id
 
-                    SetIntResult(count);
+                SftpError error = SftpError.None;
+                if (responseType == PacketType.SSH_FXP_STATUS)
+                {
+                    error = (SftpError)reader.ReadUInt();
+                }
+
+                if (error != SftpError.None &&
+                    !((error, RequestType) is (SftpError.Eof, PacketType.SSH_FXP_READ              // Read: return 0
+                                                            or PacketType.SSH_FXP_READDIR        // Read: return Array.Empty<byte>
+                                            )
+                                            or (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT       // GetAttributes: return null
+                                                                    or PacketType.SSH_FXP_LSTAT   // GetAttributes: return null
+                                                                    or PacketType.SSH_FXP_OPEN    // OpenFile: return null
+                                                                    or PacketType.SSH_FXP_REMOVE  // DeleteFile: don't throw
+                                                                    or PacketType.SSH_FXP_RMDIR   // DeleteDirectory: don't throw
+                                            )
+                    ))
+                {
+                    SetException(new SftpException(error));
                     return;
-                case (PacketType.SSH_FXP_READLINK, _):
-                case (PacketType.SSH_FXP_REALPATH, _):
-                    reader.ReadInt(); // skip count, which should be '1'
-                    SetResult(reader.ReadString());
-                    return;
-                case (PacketType.SSH_FXP_REMOVE, _):
-                case (PacketType.SSH_FXP_RMDIR, _):
+                }
+                switch (RequestType, responseType)
+                {
+                    case (PacketType.SSH_FXP_OPEN, _):
+                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes(), (FileOpenOptions)Options!);
+                        Options = null;
+                        SetResult(file);
+                        return;
+                    case (PacketType.SSH_FXP_OPENDIR, _):
+                        SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions));
+                        return;
+                    case (PacketType.SSH_FXP_STAT, _):
+                    case (PacketType.SSH_FXP_LSTAT, _):
+                    case (PacketType.SSH_FXP_FSTAT, _):
+                        SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
+                        return;
+                    case (PacketType.SSH_FXP_READ, _):
+                        int count;
+                        if (error == SftpError.Eof)
+                        {
+                            count = 0;
+                        }
+                        else
+                        {
+                            count = reader.ReadInt();
+                            reader.Remainder.Slice(0, count).CopyTo(Buffer.Span);
+                        }
+
+                        SetIntResult(count);
+                        return;
+                    case (PacketType.SSH_FXP_READLINK, _):
+                    case (PacketType.SSH_FXP_REALPATH, _):
+                        reader.ReadInt(); // skip count, which should be '1'
+                        SetResult(reader.ReadString());
+                        return;
+                    case (PacketType.SSH_FXP_REMOVE, _):
+                    case (PacketType.SSH_FXP_RMDIR, _):
+                        SetResult(null!);
+                        return;
+                    case (PacketType.SSH_FXP_READDIR, _):
+                        SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _client.StealPacketBuffer());
+                        return;
+                }
+                if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
+                {
                     SetResult(null!);
-                    return;
-                case (PacketType.SSH_FXP_READDIR, _):
-                    SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _client.StealPacketBuffer());
-                    return;
+                }
+                else
+                {
+                    SetException(new NotImplementedException($"Cannot handle {responseType} for {RequestType}."));
+                }
             }
-            if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
+            catch (Exception ex)
             {
-                SetResult(null!);
-            }
-            else
-            {
-                SetException(new NotImplementedException($"Cannot handle {responseType} for {RequestType}."));
+                SetException(ex); // Unexpected. The code in the try block should never throw.
             }
         }
 
@@ -235,12 +245,13 @@ public partial class SftpClient
         }
     }
 
-    private PendingOperation CreatePendingOperation(PacketType type)
+    private PendingOperation CreatePendingOperation(PacketType type, object? options = null)
     {
         PendingOperation operation = _pendingOperationPool.TryTake(out PendingOperation? item)
                                             ? item
                                             : new PendingOperation(this);
         operation.RequestType = type;
+        operation.Options = options;
         return operation;
     }
 

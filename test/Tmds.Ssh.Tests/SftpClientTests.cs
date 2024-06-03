@@ -852,4 +852,84 @@ public class SftpClientTests
         Assert.Equal(truncatedLength, file.Position);
         Assert.Equal(truncatedLength, await file.GetLengthAsync());
     }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task Seekable(bool value)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var sftpClient = await client.CreateSftpClientAsync();
+        string filename = $"/tmp/{Path.GetRandomFileName()}";
+        using var file = await sftpClient.CreateNewFileAsync(filename, FileAccess.Write, new FileOpenOptions() { Seekable = value });
+        Assert.Equal(value, file.CanSeek);
+    }
+
+    [Fact]
+    public async Task CacheLength()
+    {
+        const int Length = 128;
+        int totalLength = 0;
+        using var client = await _sshServer.CreateClientAsync();
+        using var sftpClient = await client.CreateSftpClientAsync();
+        string filename = $"/tmp/{Path.GetRandomFileName()}";
+
+        {
+            using var file = await sftpClient.CreateNewFileAsync(filename, FileAccess.Write);
+
+            // These throw when CacheLength is false.
+            Assert.Throws<NotSupportedException>(() => file.Length);
+            Assert.Throws<NotSupportedException>(() => file.Seek(0, SeekOrigin.Begin));
+
+            await file.WriteAsync(new byte[Length]);
+            totalLength += Length;
+        }
+
+        {
+            using var file = await sftpClient.OpenFileAsync(filename, FileAccess.Write | FileAccess.Read, new FileOpenOptions() { CacheLength = true });
+            Assert.NotNull(file);
+
+            // Check the cached length.
+            Assert.Equal(Length, file.Length);
+            Assert.Equal(0, file.Position);
+
+            // Read to the end.
+            int bytesRead = await file.ReadAsync(new byte[Length * 2]);
+            Assert.Equal(Length, bytesRead);
+            Assert.Equal(totalLength, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Make the file longer.
+            await file.WriteAsync(new byte[Length]);
+            totalLength += Length;
+            Assert.Equal(totalLength, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Seek from Begin.
+            file.Seek(100, SeekOrigin.Begin);
+            Assert.Equal(100, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Seek from End backwards 100.
+            file.Seek(-100, SeekOrigin.End);
+            Assert.Equal(totalLength - 100, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Seek from End forward 100.
+            file.Seek(100, SeekOrigin.End);
+            Assert.Equal(totalLength + 100, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Move back from current 150.
+            file.Seek(-150, SeekOrigin.Current);
+            Assert.Equal(totalLength - 50, file.Position);
+            Assert.Equal(totalLength, file.Length);
+
+            // Truncate using SetLengthAsync.
+            int truncatedLength = 50;
+            await file.SetLengthAsync(truncatedLength);
+            Assert.Equal(truncatedLength, file.Position);
+            Assert.Equal(truncatedLength, file.Length);
+        }
+    }
 }

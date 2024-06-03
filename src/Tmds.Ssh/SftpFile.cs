@@ -12,31 +12,45 @@ namespace Tmds.Ssh;
 
 public sealed class SftpFile : Stream
 {
+    private const long LengthNotCached = long.MaxValue;
+
     private readonly SftpClient _client;
-    internal byte[] Handle { get; }
+    internal readonly byte[] Handle;
+    private readonly bool _canSeek;
 
     private bool _disposed;
 
     // Tracks the position in the file for the next operation.
     // The position is updated at the start of the operation to support concurrent requests.
     private long _position;
+    private long _cachedLength = LengthNotCached;
 
     private int _inProgress;
 
-    internal SftpFile(SftpClient client, byte[] handle)
+    internal SftpFile(SftpClient client, byte[] handle, FileOpenOptions options)
     {
         _client = client;
         Handle = handle;
+        _canSeek = options.Seekable;
     }
 
     public override bool CanRead => true;
 
-    public override bool CanSeek => true;
+    public override bool CanSeek => _canSeek;
 
     public override bool CanWrite => true;
 
     public override long Length
-        => throw new NotSupportedException();
+    {
+        get
+        {
+            ThrowIfDisposed();
+
+            long length = _cachedLength;
+            ThrowIfNotCachedLength(length);
+            return length;
+        }
+    }
 
     public override long Position
     {
@@ -76,6 +90,10 @@ public sealed class SftpFile : Stream
         {
             int bytesRead = await _client.ReadFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
             _position += bytesRead;
+            if (_position > _cachedLength)
+            {
+                _cachedLength = _position;
+            }
             return bytesRead;
         }
         finally
@@ -106,6 +124,10 @@ public sealed class SftpFile : Stream
         {
             await _client.WriteFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
             _position += buffer.Length;
+            if (_position > _cachedLength)
+            {
+                _cachedLength = _position;
+            }
         }
         finally
         {
@@ -133,6 +155,11 @@ public sealed class SftpFile : Stream
     public async ValueTask<long> GetLengthAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+
+        if (_cachedLength != LengthNotCached)
+        {
+            return _cachedLength;
+        }
 
         FileEntryAttributes attributes = await GetAttributesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -164,9 +191,16 @@ public sealed class SftpFile : Stream
                 extendedAttributes: extendedAttributes,
                 cancellationToken).ConfigureAwait(false);
 
-            if (_position > length)
+            if (length.HasValue)
             {
-                _position = length.Value;
+                if (_position > length)
+                {
+                    _position = length.Value;
+                }
+                if (_cachedLength != LengthNotCached)
+                {
+                    _cachedLength = length.Value;
+                }
             }
         }
         finally
@@ -186,9 +220,19 @@ public sealed class SftpFile : Stream
     public async ValueTask CloseAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+
+        SetInProgress(true);
+
         _disposed = true;
 
-        await _client.CloseFileAsync(Handle, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _client.CloseFileAsync(Handle, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            SetInProgress(false);
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -206,10 +250,33 @@ public sealed class SftpFile : Stream
     }
 
     public override long Seek(long offset, SeekOrigin origin)
-        => throw new NotSupportedException();
+    {
+        ThrowIfDisposed();
+
+        long cachedLength = _cachedLength;
+
+        ThrowIfNotCachedLength(cachedLength);
+
+        long position = origin switch
+        {
+            SeekOrigin.End => cachedLength + offset,
+            SeekOrigin.Current => _position + offset,
+            SeekOrigin.Begin => offset,
+            _ => throw new ArgumentOutOfRangeException(nameof(origin))
+        };
+
+        ArgumentOutOfRangeException.ThrowIfNegative(position, nameof(offset));
+
+        _position = position;
+
+        return position;
+    }
 
     public override void SetLength(long value)
         => throw new NotSupportedException();
+
+    internal void SetCachedLength(long length)
+        => _cachedLength = length;
 
     private void SetInProgress(bool value)
     {
@@ -227,8 +294,21 @@ public sealed class SftpFile : Stream
         }
     }
 
-    private void ThrowConcurrentOperations()
+    private static void ThrowConcurrentOperations()
     {
         throw new InvalidOperationException("Concurrent read/write operations are not allowed.");
+    }
+
+    private static void ThrowIfNotCachedLength(long cachedLength)
+    {
+        if (cachedLength == LengthNotCached)
+        {
+            ThrowNotSupported($"Set '{nameof(FileOpenOptions.CacheLength)}' to support this operation.");
+        }
+    }
+
+    private static void ThrowNotSupported(string message = "Operation not supported.")
+    {
+        throw new NotSupportedException(message);
     }
 }

@@ -229,7 +229,13 @@ class FileEntryAttributes
 class FileOpenOptions
 {
   OpenMode OpenMode { get; set; } = OpenMode.Default;
+
   UnixFilePermissions CreatePermissions { get; set; }; = SftpClient.DefaultCreateFilePermissions;
+
+  // Length is cached. Enables using 'Stream.Length'/'Stream.Seek'.
+  bool CacheLength { get; set; } = false;
+  // Sets FileStream.CanSeek.
+  bool Seekable { get; set; } = false;
 }
 class EnumerationOptions
 {
