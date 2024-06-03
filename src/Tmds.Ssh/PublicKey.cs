@@ -12,7 +12,9 @@ abstract class PublicKey
     public static PublicKey CreateFromSshKey(HostKey key)
     {
         Name name = new Name(key.Type);
-        if (name == AlgorithmNames.EcdsaSha2Nistp256)
+        if (name == AlgorithmNames.EcdsaSha2Nistp256 ||
+            name == AlgorithmNames.EcdsaSha2Nistp384 ||
+            name == AlgorithmNames.EcdsaSha2Nistp521)
         {
             return ECDsaPublicKey.CreateFromSshKey(key.RawKey);
         }

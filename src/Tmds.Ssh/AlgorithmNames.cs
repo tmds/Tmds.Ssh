@@ -29,6 +29,10 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name RsaSshSha2_512 => new Name(RsaSshSha2_512Bytes);
     private static readonly byte[] EcdsaSha2Nistp256Bytes = "ecdsa-sha2-nistp256"u8.ToArray();
     public static Name EcdsaSha2Nistp256 => new Name(EcdsaSha2Nistp256Bytes);
+    private static readonly byte[] EcdsaSha2Nistp384Bytes = "ecdsa-sha2-nistp384"u8.ToArray();
+    public static Name EcdsaSha2Nistp384 => new Name(EcdsaSha2Nistp384Bytes);
+    private static readonly byte[] EcdsaSha2Nistp521Bytes = "ecdsa-sha2-nistp521"u8.ToArray();
+    public static Name EcdsaSha2Nistp521 => new Name(EcdsaSha2Nistp521Bytes);
 
     // Encryption algorithms.
     private static readonly byte[] Aes128GcmBytes = "aes128-gcm@openssh.com"u8.ToArray();
@@ -43,6 +47,10 @@ static class AlgorithmNames // TODO: rename to KnownNames
     // Curve names.
     private static readonly byte[] Nistp265Bytes = "nistp256"u8.ToArray();
     public static Name Nistp265 => new Name(Nistp265Bytes);
+    private static readonly byte[] Nistp384Bytes = "nistp384"u8.ToArray();
+    public static Name Nistp384 => new Name(Nistp384Bytes);
+    private static readonly byte[] Nistp521Bytes = "nistp521"u8.ToArray();
+    public static Name Nistp521 => new Name(Nistp521Bytes);
 
     // These fields are initialized in order, so these list must be created after the names.
     // Algorithms are in **order of preference**.

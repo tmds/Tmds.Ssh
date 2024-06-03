@@ -36,6 +36,20 @@ class ECDsaPublicKey : PublicKey
             reader.ReadEnd();
             return new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp256, ECCurve.NamedCurves.nistP256, q, HashAlgorithmName.SHA256);
         }
+        else if (name == AlgorithmNames.EcdsaSha2Nistp384)
+        {
+            reader.ReadName(AlgorithmNames.Nistp384);
+            ECPoint q = reader.ReadStringAsECPoint();
+            reader.ReadEnd();
+            return new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp384, ECCurve.NamedCurves.nistP384, q, HashAlgorithmName.SHA384);
+        }
+        else if (name == AlgorithmNames.EcdsaSha2Nistp521)
+        {
+            reader.ReadName(AlgorithmNames.Nistp521);
+            ECPoint q = reader.ReadStringAsECPoint();
+            reader.ReadEnd();
+            return new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp521, ECCurve.NamedCurves.nistP521, q, HashAlgorithmName.SHA512);
+        }
         ThrowHelper.ThrowProtocolUnexpectedValue();
         return null!;
     }
