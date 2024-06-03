@@ -15,7 +15,8 @@ public sealed class SftpFile : Stream
     private const long LengthNotCached = long.MaxValue;
 
     private readonly SftpClient _client;
-    internal byte[] Handle { get; }
+    internal readonly byte[] Handle;
+    private readonly bool _canSeek;
 
     private bool _disposed;
 
@@ -23,15 +24,14 @@ public sealed class SftpFile : Stream
     // The position is updated at the start of the operation to support concurrent requests.
     private long _position;
     private long _cachedLength = LengthNotCached;
-    private bool _canSeek;
 
     private int _inProgress;
 
     internal SftpFile(SftpClient client, byte[] handle, FileOpenOptions options)
     {
-        _canSeek = options.Seekable;
         _client = client;
         Handle = handle;
+        _canSeek = options.Seekable;
     }
 
     public override bool CanRead => true;
@@ -307,7 +307,7 @@ public sealed class SftpFile : Stream
         }
     }
 
-    private static void ThrowNotSupported(string message = "Operation not supported")
+    private static void ThrowNotSupported(string message = "Operation not supported.")
     {
         throw new NotSupportedException(message);
     }
