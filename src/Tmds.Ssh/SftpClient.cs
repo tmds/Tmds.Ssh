@@ -38,6 +38,7 @@ public sealed partial class SftpClient : IDisposable
     private static readonly EnumerationOptions DefaultEnumerationOptions = new();
     private static readonly UploadEntriesOptions DefaultUploadEntriesOptions = new();
     private static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
+    private static readonly FileOpenOptions DefaultFileOpenOptions = new();
 
     private readonly ISshChannel _channel;
 
@@ -85,25 +86,24 @@ public sealed partial class SftpClient : IDisposable
         => OpenOrCreateFileAsync(path, access, options: null, cancellationToken);
 
     public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
-        => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.OpenOrCreate, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false)
+        => await OpenFileAsync(path, SftpOpenFlags.OpenOrCreate, access, options, cancellationToken).ConfigureAwait(false)
             ?? throw new SftpException(SftpError.NoSuchFile);
 
     public ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
         => CreateNewFileAsync(path, access, options: null, cancellationToken);
 
     public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
-        => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.CreateNew, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false)
+        => await OpenFileAsync(path, SftpOpenFlags.CreateNew, access, options, cancellationToken).ConfigureAwait(false)
             ?? throw new SftpException(SftpError.NoSuchFile);
 
     public ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default)
         => OpenFileAsync(path, access, options: null, cancellationToken);
 
     public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
-        => await OpenFileCoreAsync(path, GetOpenFlags(SftpOpenFlags.Open, access, options?.OpenMode), options?.CreatePermissions, cancellationToken).ConfigureAwait(false);
+        => await OpenFileAsync(path, SftpOpenFlags.Open, access, options, cancellationToken).ConfigureAwait(false);
 
-    private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode? mode)
+    private SftpOpenFlags GetOpenFlags(SftpOpenFlags flags, FileAccess access, OpenMode mode)
     {
-        mode ??= OpenMode.Default;
         if ((mode & OpenMode.Truncate) != 0)
         {
             flags |= SftpOpenFlags.Truncate;
@@ -116,14 +116,28 @@ public sealed partial class SftpClient : IDisposable
         return flags;
     }
 
-    private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, UnixFilePermissions? permissions, CancellationToken cancellationToken)
+    private ValueTask<SftpFile?> OpenFileAsync(string path, SftpOpenFlags flags, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken)
     {
-        permissions ??= DefaultCreateFilePermissions;
+        options ??= DefaultFileOpenOptions;
 
+        flags = GetOpenFlags(flags, access, options.OpenMode);
+
+        ValueTask<SftpFile?> result = OpenFileCoreAsync(path, flags, options.CreatePermissions, options, cancellationToken);
+
+        if (options.CacheLength)
+        {
+            result = SetCachedLengthAsync(result, cancellationToken);
+        }
+
+        return result;
+    }
+
+    private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, UnixFilePermissions permissions, FileOpenOptions options, CancellationToken cancellationToken)
+    {
         PacketType packetType = PacketType.SSH_FXP_OPEN;
 
         int id = GetNextId();
-        PendingOperation pendingOperation = CreatePendingOperation(packetType);
+        PendingOperation pendingOperation = CreatePendingOperation(packetType, options);
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
@@ -132,6 +146,26 @@ public sealed partial class SftpClient : IDisposable
         packet.WriteAttributes(permissions: permissions & CreateFilePermissionMask, fileType: UnixFileType.RegularFile);
 
         return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
+    }
+
+    private async ValueTask<SftpFile?> SetCachedLengthAsync(ValueTask<SftpFile?> fileOpenTask, CancellationToken cancellationToken)
+    {
+        SftpFile? file = await fileOpenTask.ConfigureAwait(false);
+        if (file is not null)
+        {
+            try
+            {
+                long length = await file.GetLengthAsync(cancellationToken);
+                file.SetCachedLength(length);
+            }
+            catch
+            {
+                file.Dispose();
+
+                throw;
+            }
+        }
+        return file;
     }
 
     public async ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
@@ -582,7 +616,7 @@ public sealed partial class SftpClient : IDisposable
 
         permissions ??= GetPermissionsForFile(localFile);
 
-        using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, cancellationToken).ConfigureAwait(false))!;
+        using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
 
         length ??= RandomAccess.GetLength(localFile);
 
