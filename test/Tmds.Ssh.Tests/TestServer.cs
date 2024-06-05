@@ -23,17 +23,15 @@ sealed class TestServer : IAsyncDisposable
         _handleClientTask = HandleClientAsync();
     }
 
-    public async Task<SshClient> CreateClientAsync(Action<ManagedSshClientSettings>? configure = null)
+    public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null)
     {
         IPEndPoint ipEndPoint = (_serverSocket.LocalEndPoint as IPEndPoint)!;
 
         var clientSettings = new SshClientSettings($"user@{ipEndPoint.Address}:{ipEndPoint.Port}");
 
-        ManagedSshClientSettings managedSettings = ManagedSshClient.CreateManagedSshSettings(clientSettings);
+        configure?.Invoke(clientSettings);
 
-        configure?.Invoke(managedSettings);
-
-        var client = new SshClient(managedSettings);
+        var client = new SshClient(clientSettings);
 
         await client.ConnectAsync();
 

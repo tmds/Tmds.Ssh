@@ -22,7 +22,7 @@ static class SshSequencePoolExtensions
         return packet;
     }
 
-    public static Packet CreateKeyExchangeInitMessage(this SequencePool sequencePool, ManagedSshClientSettings settings)
+    public static Packet CreateKeyExchangeInitMessage(this SequencePool sequencePool, SshClientSettings settings)
     {
         using var packet = sequencePool.RentPacket();
         var writer = packet.GetWriter();

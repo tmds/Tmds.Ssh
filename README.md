@@ -24,7 +24,6 @@ Update `Program.cs`:
 using Tmds.Ssh;
 
 using var sshClient = new SshClient("localhost");
-await sshClient.ConnectAsync();
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (_, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -46,6 +45,7 @@ class SshClient : IDisposable
   SshClient(string destination);
   SshClient(SshClientSettings clientSettings);
 
+  // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
   Task ConnectAsync(CancellationToken cancellationToken);
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
@@ -176,7 +176,7 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  static IReadOnlyList<Credential> DefaultCredentials { get; }
+  static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ "~/.ssh/id_rsa" ]
 
   SshClientSettings();
   SshClientSettings(string destination);
@@ -187,7 +187,10 @@ class SshClientSettings
   string Host { get; set; }
   int Port { get; set; }
 
-  IReadOnlyList<Credential> Credentials { get; set; }
+  IReadOnlyList<Credential> Credentials { get; set; } = DefaultCredentials;
+
+  bool AutoConnect { get; set; } = true;
+  bool AutoReconnect { get; set; }
 
   bool CheckGlobalKnownHostsFile { get; set; } = true;
   string? KnownHostsFilePath { get; set; } // = '~/.ssh/known_hosts'.

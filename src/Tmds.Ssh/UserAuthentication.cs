@@ -9,14 +9,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task AuthenticateUserAsyncDelegate(SshConnection connection, ILogger logger, ManagedSshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken token);
+internal delegate Task AuthenticateUserAsyncDelegate(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken token);
 
 // Authentication Protocol: https://tools.ietf.org/html/rfc4252.
 sealed partial class UserAuthentication
 {
     public static readonly AuthenticateUserAsyncDelegate Default = PerformDefaultAuthentication;
 
-    private async static Task PerformDefaultAuthentication(SshConnection connection, ILogger logger, ManagedSshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+    private async static Task PerformDefaultAuthentication(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         // Request ssh-userauth service
         {

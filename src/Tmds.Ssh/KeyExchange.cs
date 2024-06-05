@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, ManagedSshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
+internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
 sealed class KeyExchange
 {
     public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-    private async static Task PerformDefaultExchange(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, ManagedSshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+    private async static Task PerformDefaultExchange(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
         SequencePool sequencePool = connection.SequencePool;
@@ -99,7 +99,7 @@ sealed class KeyExchange
 
                     using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                     {
-                        keyExchangeOutput = await algorithm.TryExchangeAsync(connection, settings.HostKeyVerification, keyExchangeInput, logger, ct).ConfigureAwait(false);
+                        keyExchangeOutput = await algorithm.TryExchangeAsync(connection, new HostKeyVerification(settings), keyExchangeInput, logger, ct).ConfigureAwait(false);
                     }
                     if (keyExchangeOutput != null)
                     {
