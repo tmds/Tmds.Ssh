@@ -14,9 +14,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh;
 
-sealed partial class ManagedSshClient : ISshClientImplementation
+sealed partial class SshSession : ISshClientImplementation
 {
-    private readonly ManagedSshClientSettings _settings;
+    private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
+    private static readonly ObjectDisposedException DisposedException = SshClient.NewObjectDisposedException();
+
+    private readonly SshClient _client;
+    private readonly SshClientSettings _settings;
     private readonly ILogger _logger;
     private readonly object _gate = new object();
     private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
@@ -24,8 +28,6 @@ sealed partial class ManagedSshClient : ISshClientImplementation
     private Channel<Packet>? _sendQueue;              // Multiple senders push into the queue
     private Task? _runningConnectionTask;                  // Task that encompasses all operations
     private Exception? _abortReason;                       // Reason why the client stopped
-    private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
-    private static readonly Exception DisposedException = NewObjectDisposedException();
     private readonly Dictionary<uint, SshChannel> _channels = new Dictionary<uint, SshChannel>();
     private readonly SequencePool _sequencePool = new SequencePool();
     private SemaphoreSlim? _keyReExchangeSemaphore;
@@ -34,28 +36,7 @@ sealed partial class ManagedSshClient : ISshClientImplementation
 
     public SshConnectionInfo ConnectionInfo { get; }
 
-    public ManagedSshClient(SshClientSettings clientSettings) :
-        this(CreateManagedSshSettings(clientSettings))
-    { }
-
-    internal static ManagedSshClientSettings CreateManagedSshSettings(SshClientSettings clientSettings)
-    {
-        var settings = new ManagedSshClientSettings()
-        {
-            ConnectTimeout = clientSettings.ConnectTimeout,
-            UserName = clientSettings.UserName,
-            Host = clientSettings.Host,
-            Port = clientSettings.Port,
-            HostKeyVerification = new HostKeyVerification(clientSettings)
-        };
-        foreach (var credential in clientSettings.Credentials)
-        {
-            settings.Credentials.Add(credential);
-        }
-        return settings;
-    }
-
-    internal ManagedSshClient(ManagedSshClientSettings clientSettings)
+    internal SshSession(SshClientSettings clientSettings, SshClient client)
     {
         _abortCts = new CancellationTokenSource();
 
@@ -68,6 +49,7 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         };
 
         _logger = NullLogger.Instance;
+        _client = client;
     }
 
     public CancellationToken ConnectionClosed
@@ -84,12 +66,12 @@ sealed partial class ManagedSshClient : ISshClientImplementation
     public async Task ConnectAsync(CancellationToken ct = default)
     {
         Task task;
-        // ConnectAsync can be cancelled by calling DisposeAsync.
+        // ConnectAsync can be cancelled by calling Dispose.
         lock (_gate)
         {
             ThrowIfDisposed();
 
-            // ManagedSshClient allows a single ConnectAsync operation.
+            // SshSession allows a single ConnectAsync operation.
             if (_runningConnectionTask != null)
             {
                 ThrowHelper.ThrowInvalidOperation("Connect may be called once.");
@@ -105,7 +87,7 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         await task;
     }
 
-    internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, ManagedSshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+    internal static async Task<SshConnection> EstablishConnectionAsync(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         Socket? socket = null;
         try
@@ -140,7 +122,7 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         try
         {
             // Cancel when:
-            // * DisposeAsync is called (_abortCts)
+            // * Dispose is called (_abortCts)
             // * CancellationToken parameter from ConnectAsync (connectCt)
             // * Timeout from ConnectionSettings (ConnectTimeout)
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(connectCt, _abortCts.Token);
@@ -460,13 +442,8 @@ sealed partial class ManagedSshClient : ISshClientImplementation
     {
         if (_disposed)
         {
-            throw NewObjectDisposedException();
+            throw SshClient.NewObjectDisposedException();
         }
-    }
-
-    private static Exception NewObjectDisposedException()
-    {
-        return new ObjectDisposedException(typeof(SshClient).FullName);
     }
 
     private void Abort(Exception reason)
@@ -480,11 +457,15 @@ sealed partial class ManagedSshClient : ISshClientImplementation
         // Once we cancel the token, we'll get more Abort calls.
         if (Interlocked.CompareExchange(ref _abortReason, reason, null) == null)
         {
+            // Notify the SshClient about the disconnect before making other changes
+            // that will propagate to the user.
+            // This ensures we'll create a new session when the user retries an operation (when AutoReconnect is set).
+            _client.OnSessionDisconnect(this);
+
             _abortCts.Cancel();
 
             lock (_gate)
             { }
-
         }
     }
 
@@ -662,6 +643,12 @@ sealed partial class ManagedSshClient : ISshClientImplementation
             channel.Dispose();
             throw;
         }
+    }
+
+    // For testing.
+    internal void ForceConnectionClose()
+    {
+        Abort(new Exception("Connection closed by test."));
     }
 
     private bool HasConnected =>

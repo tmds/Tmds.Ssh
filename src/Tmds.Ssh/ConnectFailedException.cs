@@ -5,7 +5,7 @@ using System;
 
 namespace Tmds.Ssh;
 
-// Thrown when the ManagedSshClient.ConnectAsync operation fails.
+// Thrown when the SshClient.ConnectAsync operation fails.
 class ConnectFailedException : SshConnectionException
 {
     public SshConnectionInfo ConnectionInfo { get; }

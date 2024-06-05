@@ -206,7 +206,7 @@ public class SshServer : IDisposable
         Assert.Contains(HelloWorld, output);
     }
 
-    public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default)
+    public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default, bool connect = true)
     {
         var settings = new SshClientSettings(Destination)
         {
@@ -214,8 +214,14 @@ public class SshServer : IDisposable
             Credentials = [ new PrivateKeyCredential(TestUserIdentityFile) ],
         };
         configure?.Invoke(settings);
+
         var client = new SshClient(settings);
-        await client.ConnectAsync(cancellationToken);
+
+        if (connect)
+        {
+            await client.ConnectAsync(cancellationToken);
+        }
+
         return client;
     }
 }

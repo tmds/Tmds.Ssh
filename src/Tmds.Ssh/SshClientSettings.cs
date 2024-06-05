@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -119,6 +120,10 @@ public sealed partial class SshClientSettings
 
     public HostAuthentication? HostAuthentication { get; set; }
 
+    public bool AutoConnect { get; set; } = true;
+
+    public bool AutoReconnect { get; set; } = false;
+
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
 
     private static string DefaultKnownHostsFile
@@ -135,5 +140,29 @@ public sealed partial class SshClientSettings
             // new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")),
             new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa"))
         ];
-    }             
+    }    
+
+
+    // Internal.
+    // Algorithms are in **order of preference**.
+    internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 };
+    internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 };
+    internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
+    internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
+    internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
+    internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
+    internal List<Name> CompressionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.None };
+    internal List<Name> CompressionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.None };
+    internal List<Name> LanguagesClientToServer { get; } = new List<Name>();
+    internal List<Name> LanguagesServerToClient { get; } = new List<Name>();
+
+    // For testing:
+    internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
+    internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshSession.EstablishConnectionAsync;
+    internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
+    internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
+    internal AuthenticateUserAsyncDelegate AuthenticateUserAsync = UserAuthentication.Default;
+    internal bool NoProtocolVersionExchange = false;
+    internal bool NoKeyExchange = false;
+    internal bool NoUserAuthentication = false;         
 }

@@ -9,12 +9,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeProtocolVersionAsyncDelegate(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, ManagedSshClientSettings settings, CancellationToken token);
+internal delegate Task ExchangeProtocolVersionAsyncDelegate(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken token);
 sealed class ProtocolVersionExchange
 {
     public static readonly ExchangeProtocolVersionAsyncDelegate Default = PerformDefaultExchange;
 
-    private static async Task PerformDefaultExchange(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, ManagedSshClientSettings settings, CancellationToken ct)
+    private static async Task PerformDefaultExchange(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken ct)
     {
         // Protocol Version Exchange: https://tools.ietf.org/html/rfc4253#section-4.2.
 
@@ -23,7 +23,7 @@ sealed class ProtocolVersionExchange
         // The server MAY send other lines of data before sending the version string.
         const int MaxLineReads = 20;
 
-        AssemblyInformationalVersionAttribute? versionAttribute = typeof(ManagedSshClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+        AssemblyInformationalVersionAttribute? versionAttribute = typeof(SshSession).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
         string version = versionAttribute?.InformationalVersion ?? "0.0";
         version = version.Replace('-', '_');
         string identificationString = $"SSH-2.0-TmdsSsh_{version}";

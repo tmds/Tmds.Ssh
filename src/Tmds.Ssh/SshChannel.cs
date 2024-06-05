@@ -25,7 +25,7 @@ sealed partial class SshChannel : ISshChannel
         Disposed // By user
     }
 
-    public SshChannel(ManagedSshClient client, SequencePool sequencePool, uint channelNumber, Type channelType)
+    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType)
     {
         LocalChannel = channelNumber;
         _client = client;
@@ -51,13 +51,13 @@ sealed partial class SshChannel : ISshChannel
     internal uint LocalChannel { get; set; }
     private uint RemoteChannel { get; set; }
 
-    private readonly ManagedSshClient _client;
+    private readonly SshSession _client;
     private readonly SequencePool _sequencePool;
     private readonly Type _channelType;
     private readonly CancellationTokenSource _abortedTcs = new();
     private readonly Channel<Packet> _receiveQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
     {
-        AllowSynchronousContinuations = false, // don't block ManagedSshClient.ReceiveLoopAsync.
+        AllowSynchronousContinuations = false, // don't block SshSession.ReceiveLoopAsync.
         SingleWriter = false, // Assume completing concurrently also means different writers.
         SingleReader = false  // We only expect a single caller of ReceivePacketAsync, but Dispose may also read from the queue.
     });
