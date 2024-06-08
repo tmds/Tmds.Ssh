@@ -8,7 +8,7 @@ using System.IO;
 
 namespace Tmds.Ssh;
 
-public partial class SftpClient
+partial class SftpChannel
 {
     internal ref struct PacketReader
     {

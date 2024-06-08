@@ -26,7 +26,7 @@ using SshClient client = new SshClient(sshDestination);
 
 await client.ConnectAsync();
 
-using SftpClient sftpClient = await client.CreateSftpClientAsync();
+using SftpClient sftpClient = await client.OpenSftpClientAsync();
 
 if (source.IsLocal)
 {

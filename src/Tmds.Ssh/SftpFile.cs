@@ -14,7 +14,7 @@ public sealed class SftpFile : Stream
 {
     private const long LengthNotCached = long.MaxValue;
 
-    private readonly SftpClient _client;
+    private readonly SftpChannel _channel;
     internal readonly byte[] Handle;
     private readonly bool _canSeek;
 
@@ -27,9 +27,9 @@ public sealed class SftpFile : Stream
 
     private int _inProgress;
 
-    internal SftpFile(SftpClient client, byte[] handle, FileOpenOptions options)
+    internal SftpFile(SftpChannel channel, byte[] handle, FileOpenOptions options)
     {
-        _client = client;
+        _channel = channel;
         Handle = handle;
         _canSeek = options.Seekable;
     }
@@ -88,7 +88,7 @@ public sealed class SftpFile : Stream
         SetInProgress(true);
         try
         {
-            int bytesRead = await _client.ReadFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
+            int bytesRead = await _channel.ReadFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
             _position += bytesRead;
             if (_position > _cachedLength)
             {
@@ -106,7 +106,7 @@ public sealed class SftpFile : Stream
     {
         ThrowIfDisposed();
 
-        return await _client.ReadFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
+        return await _channel.ReadFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
     }
 
     public override void Write(byte[] buffer, int offset, int count)
@@ -122,7 +122,7 @@ public sealed class SftpFile : Stream
         SetInProgress(true);
         try
         {
-            await _client.WriteFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
+            await _channel.WriteFileAsync(Handle, _position, buffer, cancellationToken).ConfigureAwait(false);
             _position += buffer.Length;
             if (_position > _cachedLength)
             {
@@ -139,14 +139,14 @@ public sealed class SftpFile : Stream
     {
         ThrowIfDisposed();
 
-        await _client.WriteFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
+        await _channel.WriteFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
-        return await _client.GetAttributesForHandleAsync(Handle, cancellationToken).ConfigureAwait(false);
+        return await _channel.GetAttributesForHandleAsync(Handle, cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask SetLengthAsync(long length, CancellationToken cancellationToken = default)
@@ -182,7 +182,7 @@ public sealed class SftpFile : Stream
         }
         try
         {
-            await _client.SetAttributesForHandleAsync(
+            await _channel.SetAttributesForHandleAsync(
                 handle: Handle,
                 length: length,
                 ids: ids,
@@ -227,7 +227,7 @@ public sealed class SftpFile : Stream
 
         try
         {
-            await _client.CloseFileAsync(Handle, cancellationToken).ConfigureAwait(false);
+            await _channel.CloseFileAsync(Handle, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -245,7 +245,7 @@ public sealed class SftpFile : Stream
             }
             _disposed = true;
 
-            _client.CloseFile(Handle);
+            _channel.CloseFile(Handle);
         }
     }
 

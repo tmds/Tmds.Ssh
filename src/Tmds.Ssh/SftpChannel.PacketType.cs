@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh;
 
-public partial class SftpClient
+partial class SftpChannel
 {
     internal enum PacketType : byte
     {

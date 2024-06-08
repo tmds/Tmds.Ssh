@@ -26,11 +26,11 @@ public class SshClientTests
 
         if (autoConnect)
         {
-            using var sftpClient = await client.CreateSftpClientAsync();
+            using var sftpClient = await client.OpenSftpClientAsync();
         }
         else
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateSftpClientAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.OpenSftpClientAsync());
         }
     }
 
@@ -44,7 +44,7 @@ public class SshClientTests
 
         await client.ConnectAsync();
 
-        using var sftpClient = await client.CreateSftpClientAsync();
+        using var sftpClient = await client.OpenSftpClientAsync();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class SshClientTests
             connect: false
         );
 
-        var pending = client.CreateSftpClientAsync();
+        var pending = client.OpenSftpClientAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
     }
@@ -72,17 +72,17 @@ public class SshClientTests
             configure: settings => settings.AutoReconnect = autoReconnect
         );
 
-        using var sftpClient = await client.CreateSftpClientAsync();
+        using var sftpClient = await client.OpenSftpClientAsync();
 
         client.ForceConnectionClose();
 
         if (autoReconnect)
         {
-            using var sftpClient2 = await client.CreateSftpClientAsync();
+            using var sftpClient2 = await client.OpenSftpClientAsync();
         }
         else
         {
-            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.CreateSftpClientAsync());
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.OpenSftpClientAsync());
         }
     }
 }
