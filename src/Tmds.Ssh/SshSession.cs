@@ -222,14 +222,14 @@ sealed partial class SshSession : ISshClientImplementation
         }
     }
 
-    private SshChannel CreateChannel(Type channelType)
+    private SshChannel CreateChannel(Type channelType, Action<SshChannel>? onAbort = null)
     {
         lock (_gate)
         {
             ThrowIfNotConnected();
 
             uint channelNumber = AllocateChannel();
-            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType);
+            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType, onAbort);
             _channels[channelNumber] = channelContext;
 
             return channelContext;
@@ -619,9 +619,9 @@ sealed partial class SshSession : ISshClientImplementation
         }
     }
 
-    public async Task<ISshChannel> OpenSftpClientChannelAsync(Type channelType, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(channelType);
+        SshChannel channel = CreateChannel(typeof(SftpClient), onAbort);
         try
         {
             // Open the session channel.
@@ -648,7 +648,9 @@ sealed partial class SshSession : ISshClientImplementation
     // For testing.
     internal void ForceConnectionClose()
     {
+        Debug.Assert(_runningConnectionTask is not null);
         Abort(new Exception("Connection closed by test."));
+        _runningConnectionTask.WaitAsync(TimeSpan.FromSeconds(30)).GetAwaiter().GetResult();
     }
 
     private bool HasConnected =>

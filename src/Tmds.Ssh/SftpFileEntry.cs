@@ -101,7 +101,7 @@ public ref struct SftpFileEntry
         _nameBuffer = nameBuffer;
         _pathBuffer = pathBuffer;
 
-        SftpClient.PacketReader reader = new(entry);
+        SftpChannel.PacketReader reader = new(entry);
         int nameLength;
         reader.SkipString(out nameLength);
         NameBytes = entry.Slice(4, nameLength);

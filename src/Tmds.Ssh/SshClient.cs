@@ -11,6 +11,8 @@ namespace Tmds.Ssh;
 
 public sealed partial class SshClient : IDisposable
 {
+    internal static readonly SftpClientOptions DefaultSftpClientOptions = new();
+
     private readonly object _gate = new object();
     private SshSession? _session;
     private Task<SshSession>? _connectingTask;
@@ -25,6 +27,9 @@ public sealed partial class SshClient : IDisposable
         Disconnected,
         Disposed
     }
+
+    // For testing.
+    internal bool IsDisposed => _state == State.Disposed;
 
     public SshClient(SshClientSettings clientSettings)
     {
@@ -42,10 +47,10 @@ public sealed partial class SshClient : IDisposable
         {
             throw new InvalidOperationException($"{nameof(ConnectAsync)} may only be called once.");
         }
-        await ConnectCoreAsync(cancellationToken, explicitConnect: true).ConfigureAwait(false);
+        await GetSessionAsync(cancellationToken, explicitConnect: true).ConfigureAwait(false);
     }
 
-    private ValueTask<SshSession> ConnectCoreAsync(CancellationToken cancellationToken, bool explicitConnect = false)
+    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false)
     {
         lock (_gate)
         {
@@ -165,7 +170,7 @@ public sealed partial class SshClient : IDisposable
 
     public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
-        SshSession session = await ConnectCoreAsync(cancellationToken);
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
         var channel = await session.OpenRemoteProcessChannelAsync(typeof(RemoteProcess), command, cancellationToken).ConfigureAwait(false);
 
         Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
@@ -179,7 +184,7 @@ public sealed partial class SshClient : IDisposable
 
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
     {
-        SshSession session = await ConnectCoreAsync(cancellationToken);
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
         var channel = await session.OpenTcpConnectionChannelAsync(typeof(SshDataStream), host, port, cancellationToken).ConfigureAwait(false);
 
         return new SshDataStream(channel);
@@ -187,22 +192,22 @@ public sealed partial class SshClient : IDisposable
 
     public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
     {
-        SshSession session = await ConnectCoreAsync(cancellationToken);
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
         var channel = await session.OpenUnixConnectionChannelAsync(typeof(SshDataStream), path, cancellationToken).ConfigureAwait(false);
 
         return new SshDataStream(channel);
     }
 
-    public async Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default)
+    public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
+        => OpenSftpClientAsync(null, cancellationToken);
+
+    public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? settings = null, CancellationToken cancellationToken = default)
     {
-        SshSession session = await ConnectCoreAsync(cancellationToken);
-        var channel = await session.OpenSftpClientChannelAsync(typeof(SftpClient), cancellationToken).ConfigureAwait(false);
-
-        var sftpClient = new SftpClient(channel);
-
+        SftpClient sftpClient = new SftpClient(this, settings);
         try
         {
-            await sftpClient.ProtocolInitAsync(cancellationToken).ConfigureAwait(false);
+            await sftpClient.OpenAsync(cancellationToken).ConfigureAwait(false);
+            return sftpClient;
         }
         catch
         {
@@ -210,8 +215,28 @@ public sealed partial class SshClient : IDisposable
 
             throw;
         }
+    }
 
-        return sftpClient;
+    internal async Task<SftpChannel> OpenSftpChannelAsync(Action<SshChannel> onAbort, bool explicitConnect, CancellationToken cancellationToken)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken, explicitConnect).ConfigureAwait(false);
+
+        var channel = await session.OpenSftpClientChannelAsync(onAbort, cancellationToken).ConfigureAwait(false);
+
+        var sftpChannel = new SftpChannel(channel);
+
+        try
+        {
+            await sftpChannel.ProtocolInitAsync(cancellationToken).ConfigureAwait(false);
+
+            return sftpChannel;
+        }
+        catch
+        {
+            sftpChannel.Dispose();
+
+            throw;
+        }
     }
 
     internal static ObjectDisposedException NewObjectDisposedException()

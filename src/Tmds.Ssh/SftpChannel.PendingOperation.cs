@@ -9,7 +9,7 @@ using System.Threading.Channels;
 
 namespace Tmds.Ssh;
 
-public partial class SftpClient
+partial class SftpChannel
 {
     private readonly Channel<Packet> _pendingSends = Channel.CreateUnbounded<Packet>();
     private readonly ConcurrentDictionary<int, PendingOperation> _pendingOperations = new();
@@ -21,7 +21,7 @@ public partial class SftpClient
         const int Completed = 1;
         const int Canceled = 2;
 
-        private readonly SftpClient _client;
+        private readonly SftpChannel _channel;
         private ManualResetValueTaskSourceCore<object?> _core;
         private int IntResult;
         private CancellationTokenRegistration _ctr;
@@ -87,15 +87,15 @@ public partial class SftpClient
         public PacketType RequestType { get; set; }
         public Object? Options { get; set; }
 
-        public PendingOperation(SftpClient client)
+        public PendingOperation(SftpChannel channel)
         {
-            _client = client;
+            _channel = channel;
             _core.RunContinuationsAsynchronously = true;
         }
 
         internal void HandleClose()
         {
-            SetException(_client._channel.CreateCloseException());
+            SetException(_channel._channel.CreateCloseException());
         }
 
         public void Reset()
@@ -108,7 +108,7 @@ public partial class SftpClient
             _core.Reset();
         }
 
-        internal void HandleReply(SftpClient client, ReadOnlySpan<byte> reply)
+        internal void HandleReply(SftpChannel channel, ReadOnlySpan<byte> reply)
         {
             try
             {
@@ -141,12 +141,12 @@ public partial class SftpClient
                 switch (RequestType, responseType)
                 {
                     case (PacketType.SSH_FXP_OPEN, _):
-                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(client, handle: reader.ReadStringAsBytes(), (FileOpenOptions)Options!);
+                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsBytes(), (FileOpenOptions)Options!);
                         Options = null;
                         SetResult(file);
                         return;
                     case (PacketType.SSH_FXP_OPENDIR, _):
-                        SetResult(new SftpFile(client, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions));
+                        SetResult(new SftpFile(channel, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions));
                         return;
                     case (PacketType.SSH_FXP_STAT, _):
                     case (PacketType.SSH_FXP_LSTAT, _):
@@ -177,7 +177,7 @@ public partial class SftpClient
                         SetResult(null!);
                         return;
                     case (PacketType.SSH_FXP_READDIR, _):
-                        SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _client.StealPacketBuffer());
+                        SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _channel.StealPacketBuffer());
                         return;
                 }
                 if (responseType == PacketType.SSH_FXP_STATUS && error == SftpError.None)
@@ -207,7 +207,7 @@ public partial class SftpClient
             {
                 if (recycle)
                 {
-                    _client.ReturnPendingOperation(this);
+                    _channel.ReturnPendingOperation(this);
                 }
             }
         }
@@ -225,7 +225,7 @@ public partial class SftpClient
             {
                 if (recycle)
                 {
-                    _client.ReturnPendingOperation(this);
+                    _channel.ReturnPendingOperation(this);
                 }
             }
         }

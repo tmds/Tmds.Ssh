@@ -4,6 +4,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,21 +12,31 @@ namespace Tmds.Ssh;
 
 sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
 {
-    private readonly SftpClient _client;
+    private readonly SftpClient? _client;
     private readonly string _path;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly EnumerationOptions _options;
+    private readonly SftpChannel? _channel;
 
-    public SftpFileSystemEnumerable(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
+    public SftpFileSystemEnumerable(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options) :
+        this(client, channel: null, path, transform, options)
+    { }
+
+    internal SftpFileSystemEnumerable(SftpChannel channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options) :
+        this(client: null, channel, path, transform, options)
+    { }
+
+    private SftpFileSystemEnumerable(SftpClient? client, SftpChannel? channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
     {
         _client = client;
+        _channel = channel;
         _path = path;
         _transform = transform;
         _options = options;
     }
 
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        => new SftpFileSystemEnumerator<T>(_client, _path, _transform, _options, cancellationToken);
+        => new SftpFileSystemEnumerator<T>(_client, _channel, _path, _transform, _options, cancellationToken);
 }
 
 sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
@@ -34,13 +45,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     const int Complete = -2;
     const int Disposed = -3;
 
-    private readonly SftpClient _client;
+    private readonly SftpClient? _client;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
     private readonly char[] _pathBuffer = new char[RemotePath.MaxPathLength]; // TODO: pool alloc
     private readonly char[] _nameBuffer = new char[RemotePath.MaxNameLength]; // TODO: pool alloc
 
-    private string _path;
     private readonly bool _recurseSubdirectories;
     private readonly bool _followFileLinks;
     private readonly bool _followDirectoryLinks;
@@ -49,7 +59,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly SftpFileEntryPredicate? _shouldInclude;
 
     private Queue<string>? _pending;
-
+    private string _path;
+    private SftpChannel? _channel;
     private SftpFile? _fileHandle;
 
     private byte[]? _readDirPacket;
@@ -58,9 +69,19 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private ValueTask<byte[]> _readAhead;
     private T? _current;
 
-    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
+    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
+        this(client, channel: null, path, transform, options, cancellationToken)
+    { }
+
+    internal SftpFileSystemEnumerator(SftpChannel channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
+        this(client: null, channel, path, transform, options, cancellationToken)
+    { }
+
+    internal SftpFileSystemEnumerator(SftpClient? client, SftpChannel? channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken)
     {
+        Debug.Assert(client != null ^ channel != null);
         _client = client;
+        _channel = channel;
         _path = RemotePath.TrimEndingDirectorySeparators(path);
         _transform = transform;
         _cancellationToken = cancellationToken;
@@ -143,9 +164,15 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     {
         if (_fileHandle is null)
         {
-            _fileHandle = await _client.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
-            _readAhead = _client.ReadDirAsync(_fileHandle, _cancellationToken);
+            if (_channel is null)
+            {
+                Debug.Assert(_client is not null);
+                _channel = await _client.GetChannelAsync(_cancellationToken);
+            }
+            _fileHandle = await _channel.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
+            _readAhead = _channel.ReadDirAsync(_fileHandle, _cancellationToken);
         }
+        Debug.Assert(_channel is not null);
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
 
@@ -157,7 +184,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
         else
         {
-            _readAhead = _client.ReadDirAsync(_fileHandle, _cancellationToken);
+            _readAhead = _channel.ReadDirAsync(_fileHandle, _cancellationToken);
             _entriesRemaining = BinaryPrimitives.ReadInt32BigEndian(_readDirPacket.AsSpan(CountIndex));
             _bufferOffset = CountIndex + 4;
         }
@@ -215,7 +242,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
-        FileEntryAttributes? attributes = await _client.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
+        FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
             if ((!_followDirectoryLinks && attributes.FileType == UnixFileType.Directory) ||

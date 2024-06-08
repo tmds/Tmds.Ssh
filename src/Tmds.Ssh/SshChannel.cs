@@ -25,13 +25,14 @@ sealed partial class SshChannel : ISshChannel
         Disposed // By user
     }
 
-    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType)
+    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType, Action<SshChannel>? onAbort = null)
     {
         LocalChannel = channelNumber;
         _client = client;
         _sequencePool = sequencePool;
         _receiveWindow = MaxWindowSize;
         _channelType = channelType;
+        _onAbort = onAbort;
     }
 
     public CancellationToken ChannelAborted
@@ -55,6 +56,7 @@ sealed partial class SshChannel : ISshChannel
     private readonly SequencePool _sequencePool;
     private readonly Type _channelType;
     private readonly CancellationTokenSource _abortedTcs = new();
+    private readonly Action<SshChannel>? _onAbort;
     private readonly Channel<Packet> _receiveQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
     {
         AllowSynchronousContinuations = false, // don't block SshSession.ReceiveLoopAsync.
@@ -226,6 +228,8 @@ sealed partial class SshChannel : ISshChannel
         }
         Abort(AbortState.Disposed);
 
+        // Complete in case there was a concurrent Abort that hasn't completed the writer yet.
+        _receiveQueue.Writer.TryComplete();
         while (_receiveQueue.Reader.TryRead(out Packet packet))
         {
             packet.Dispose();
@@ -271,6 +275,10 @@ sealed partial class SshChannel : ISshChannel
         {
             return; // Already aborted.
         }
+
+        // Notify about the abort before making other changes that will propagate to the user.
+        // This ensures we'll create a new channel when the user retries an operation.
+        _onAbort?.Invoke(this);
 
         _receiveQueue.Writer.TryComplete();
         _sendWindowAvailableEvent.Release();

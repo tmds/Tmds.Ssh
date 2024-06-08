@@ -11,7 +11,7 @@ using System.Collections.Generic;
 
 namespace Tmds.Ssh;
 
-public partial class SftpClient
+partial class SftpChannel
 {
     private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 

@@ -54,7 +54,8 @@ class SshClient : IDisposable
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
 
-  Task<SftpClient> CreateSftpClientAsync(CancellationToken cancellationToken = default);
+  Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
+  Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
 }
 class ExecuteOptions
 {
@@ -97,8 +98,18 @@ class SshDataStream : Stream
 class SftpClient : IDisposable
 {
   // Note: umask is applied on the server.
-  const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rw-rw-rw-'. 
-  const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'. 
+  const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rw-rw-rw-'.
+  const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
+
+  // The SftpClient owns the connection.
+  SftpClient(string destination, SftpClientOptions? settings = null);
+  SftpClient(SshClientSettings sshSettings, SftpClientOptions? sftpSettings = null);
+
+  // The SshClient owns the connection.
+  SftpClient(SshClient client, SftpClientOptions? settings = null);
+
+  // Only usable when the SftpClient was constructed directly using the constructor that accepts a destination/SshClientSettings.
+  Task ConnectAsync(CancellationToken cancellationToken = default);
 
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
@@ -151,8 +162,6 @@ class SftpClient : IDisposable
   ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default);
 
   ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default);
-
-  CancellationToken ClientAborted { get; }
 }
 class SftpFile : Stream
 {
@@ -197,6 +206,8 @@ class SshClientSettings
   HostAuthentication? HostAuthentication { get; set; }
   bool UpdateKnownHostsFile { get; set; } = false;
 }
+class SftpClientOptions
+{ }
 class SftpException : IOException
 {
   SftpError Error { get; }

@@ -208,12 +208,7 @@ public class SshServer : IDisposable
 
     public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default, bool connect = true)
     {
-        var settings = new SshClientSettings(Destination)
-        {
-            KnownHostsFilePath = KnownHostsFilePath,
-            Credentials = [ new PrivateKeyCredential(TestUserIdentityFile) ],
-        };
-        configure?.Invoke(settings);
+        var settings = CreateSshClientSettings(configure);
 
         var client = new SshClient(settings);
 
@@ -223,6 +218,31 @@ public class SshServer : IDisposable
         }
 
         return client;
+    }
+
+    public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, CancellationToken cancellationToken = default, bool connect = true)
+    {
+        var settings = CreateSshClientSettings(configureSsh);
+
+        var client = new SftpClient(settings);
+
+        if (connect)
+        {
+            await client.ConnectAsync(cancellationToken);
+        }
+
+        return client;
+    }
+
+    public SshClientSettings CreateSshClientSettings(Action<SshClientSettings>? configure = null)
+    {
+        var settings = new SshClientSettings(Destination)
+        {
+            KnownHostsFilePath = KnownHostsFilePath,
+            Credentials = [ new PrivateKeyCredential(TestUserIdentityFile) ],
+        };
+        configure?.Invoke(settings);
+        return settings;
     }
 }
 
