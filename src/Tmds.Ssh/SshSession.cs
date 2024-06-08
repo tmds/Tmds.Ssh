@@ -36,11 +36,11 @@ sealed partial class SshSession : ISshClientImplementation
 
     public SshConnectionInfo ConnectionInfo { get; }
 
-    internal SshSession(SshClientSettings clientSettings, SshClient client)
+    internal SshSession(SshClientSettings settings, SshClient client)
     {
         _abortCts = new CancellationTokenSource();
 
-        _settings = clientSettings;
+        _settings = settings;
 
         ConnectionInfo = new SshConnectionInfo()
         {

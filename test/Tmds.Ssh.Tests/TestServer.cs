@@ -27,11 +27,11 @@ sealed class TestServer : IAsyncDisposable
     {
         IPEndPoint ipEndPoint = (_serverSocket.LocalEndPoint as IPEndPoint)!;
 
-        var clientSettings = new SshClientSettings($"user@{ipEndPoint.Address}:{ipEndPoint.Port}");
+        var settings = new SshClientSettings($"user@{ipEndPoint.Address}:{ipEndPoint.Port}");
 
-        configure?.Invoke(clientSettings);
+        configure?.Invoke(settings);
 
-        var client = new SshClient(clientSettings);
+        var client = new SshClient(settings);
 
         await client.ConnectAsync();
 

@@ -43,7 +43,7 @@ namespace Tmds.Ssh;
 class SshClient : IDisposable
 {
   SshClient(string destination);
-  SshClient(SshClientSettings clientSettings);
+  SshClient(SshClientSettings settings);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
   Task ConnectAsync(CancellationToken cancellationToken);
@@ -102,11 +102,11 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SftpClientOptions? settings = null);
-  SftpClient(SshClientSettings sshSettings, SftpClientOptions? sftpSettings = null);
+  SftpClient(string destination, SftpClientOptions? options = null);
+  SftpClient(SshClientSettings settings, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
-  SftpClient(SshClient client, SftpClientOptions? settings = null);
+  SftpClient(SshClient client, SftpClientOptions? options = null);
 
   // Only usable when the SftpClient was constructed directly using the constructor that accepts a destination/SshClientSettings.
   Task ConnectAsync(CancellationToken cancellationToken = default);

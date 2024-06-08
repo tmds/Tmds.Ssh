@@ -31,9 +31,9 @@ public sealed partial class SshClient : IDisposable
     // For testing.
     internal bool IsDisposed => _state == State.Disposed;
 
-    public SshClient(SshClientSettings clientSettings)
+    public SshClient(SshClientSettings settings)
     {
-        _clientSettings = clientSettings ?? throw new ArgumentNullException(nameof(clientSettings));
+        _clientSettings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
     public SshClient(string destination)
@@ -201,9 +201,9 @@ public sealed partial class SshClient : IDisposable
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 
-    public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? settings = null, CancellationToken cancellationToken = default)
+    public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
     {
-        SftpClient sftpClient = new SftpClient(this, settings);
+        SftpClient sftpClient = new SftpClient(this, options);
         try
         {
             await sftpClient.OpenAsync(cancellationToken).ConfigureAwait(false);
