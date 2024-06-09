@@ -25,7 +25,7 @@ using Tmds.Ssh;
 
 using var sshClient = new SshClient("localhost");
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
-(_, string? line) = await process.ReadLineAsync();
+(bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
 ```
 
