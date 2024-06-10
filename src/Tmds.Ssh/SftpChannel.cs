@@ -646,7 +646,7 @@ sealed partial class SftpChannel : IDisposable
                 ReadOnlySpan<char> relativePath = remotePath.AsSpan(trimRemoteDirectory);
                 if (!LocalPath.IsRemotePathValidLocalSubPath(relativePath))
                 {
-                    relativePath = replaceInvalidCharacters(relativePath, pathBuffer, LocalPath.InvalidLocalPathChars);
+                    relativePath = replaceInvalidCharacters(relativePath, LocalPath.InvalidLocalPathChars, pathBuffer);
                     using ValueStringBuilder localPathBuilder = new(pathBuffer);
                     // relativePath may used pathBuffer for storage
                     // append it first so we don't overwrite it with localDirPath.
