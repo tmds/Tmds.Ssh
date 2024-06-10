@@ -9,7 +9,7 @@ RUN useradd -ms /bin/bash testuser
 RUN echo 'secret' | passwd --stdin testuser
 
 # Add test subsystem configuration
-RUN echo 'Subsystem tmds_test /usr/bin/sh' >> /etc/ssh/sshd_config
+RUN echo 'Subsystem test_subsystem /usr/bin/sh' >> /etc/ssh/sshd_config
 
 # Add server keys.
 COPY server_key_rsa /etc/ssh/ssh_host_rsa_key

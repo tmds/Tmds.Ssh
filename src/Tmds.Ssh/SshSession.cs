@@ -623,7 +623,7 @@ sealed partial class SshSession : ISshClientImplementation
     }
 
     public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sft", cancellationToken).ConfigureAwait(false);
+        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", cancellationToken).ConfigureAwait(false);
 
     private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, CancellationToken cancellationToken)
     {
