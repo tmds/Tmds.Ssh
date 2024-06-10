@@ -583,6 +583,9 @@ sealed partial class SshSession : ISshClientImplementation
         }
     }
 
+    public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, CancellationToken cancellationToken)
+        => await OpenSubsystemChannelAsync(channelType, null, subsystem, cancellationToken).ConfigureAwait(false);
+
     public async Task<ISshChannel> OpenTcpConnectionChannelAsync(Type channelType, string host, int port, CancellationToken cancellationToken)
     {
         SshChannel channel = CreateChannel(channelType);
@@ -620,8 +623,11 @@ sealed partial class SshSession : ISshClientImplementation
     }
 
     public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, CancellationToken cancellationToken)
+        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", cancellationToken).ConfigureAwait(false);
+
+    private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(typeof(SftpClient), onAbort);
+        SshChannel channel = CreateChannel(channelType, onAbort);
         try
         {
             // Open the session channel.
@@ -632,8 +638,8 @@ sealed partial class SshSession : ISshClientImplementation
 
             // Request subsystem execution.
             {
-                channel.TrySendExecSubsystemMessage("sftp");
-                await channel.ReceiveChannelRequestSuccessAsync("Failed to execute sftp subsystem.", cancellationToken).ConfigureAwait(false);
+                channel.TrySendExecSubsystemMessage(subsystem);
+                await channel.ReceiveChannelRequestSuccessAsync($"Failed to execute {subsystem} subsystem.", cancellationToken).ConfigureAwait(false);
             }
 
             return channel;

@@ -182,6 +182,23 @@ public sealed partial class SshClient : IDisposable
             standardOutputEncoding);
     }
 
+    public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken)
+        => ExecuteSubsystemAsync(subsystem, null, cancellationToken);
+
+    public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+        var channel = await session.OpenRemoteSubsystemChannelAsync(typeof(RemoteProcess), subsystem, cancellationToken).ConfigureAwait(false);
+
+        Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
+        Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
+        Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
+        return new RemoteProcess(channel,
+            standardInputEncoding,
+            standardErrorEncoding,
+            standardOutputEncoding);
+    }
+
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
