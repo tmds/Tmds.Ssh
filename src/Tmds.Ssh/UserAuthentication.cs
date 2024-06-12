@@ -85,6 +85,20 @@ sealed partial class UserAuthentication
                     throw new PrivateKeyLoadException(filename, error);
                 }
             }
+            else if (credential is GssapiWithMicCredential gssapiCredential)
+            {
+                bool isGssapiSuccessful = await gssapiCredential.TryAuthenticate(connection, logger, settings, connectionInfo, ct).ConfigureAwait(false);
+                if (!isGssapiSuccessful)
+                {
+                    continue;
+                }
+
+                bool isAuthSuccesfull = await ReceiveAuthIsSuccesfullAsync(connection, logger, ct).ConfigureAwait(false);
+                if (isAuthSuccesfull)
+                {
+                    return;
+                }
+            }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);

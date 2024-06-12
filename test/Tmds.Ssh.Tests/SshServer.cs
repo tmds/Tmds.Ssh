@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -16,7 +17,10 @@ public class SshServer : IDisposable
     private const string ContainerImageName = "test_sshd:latest";
     private const string ContainerBuildContext = "sshd_container";
 
+    public static bool HasKerberos = HasExecutable("kinit");
+
     public string TestUser => "testuser";
+    public string TestKerberosUser => $"{TestUser}@REALM.TEST";
     public string TestUserHome => $"/home/{TestUser}";
     public string TestUserPassword => "secret";
     public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
@@ -25,6 +29,7 @@ public class SshServer : IDisposable
     public int ServerPort => _port;
     public string KnownHostsFilePath => _knownHostsFile;
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
+    public string KerberosConfigFile => _kerberosConfigFile;
 
     public string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
     public string Ed25519KeySHA256FingerPrint => "Y/HuDkfhwjCreznEiaX5tshGRPXZJvZ/Nj42hCsw9II";
@@ -33,8 +38,11 @@ public class SshServer : IDisposable
     private readonly string _containerId;
     private readonly string _host;
     private readonly int _port;
+    private readonly int _krb5Port;
     private readonly string _knownHostsFile;
+    private readonly string _kerberosConfigFile;
     private bool _useDockerInstead;
+    private bool _unsetKrb5EnvVar;
 
     public SshServer()
     {
@@ -49,7 +57,8 @@ public class SshServer : IDisposable
             IPAddress interfaceAddress = IPAddress.Loopback;
             _host = interfaceAddress.ToString();
             _port = PickFreePort(interfaceAddress);
-            _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", ContainerImageName));
+            _krb5Port = PickFreePort(interfaceAddress);
+            _containerId = LastWord(Run("podman", "run", "-e", "KRB5_TRACE=/dev/stdout", "-d", "-p", $"{_host}:{_port}:22", "-p", $"{_host}:{_krb5Port}:88/tcp", "-p", $"{_host}:{_krb5Port}:88/udp", "-h", "localhost", ContainerImageName));
             do
             {
                 string[] log = Run("podman", "logs", _containerId);
@@ -79,6 +88,14 @@ public class SshServer : IDisposable
             }
 
             VerifyServerWorks();
+
+            string krb5Config = File.ReadAllText(Path.Combine(ContainerBuildContext, "krb5.conf"));
+            krb5Config = krb5Config.Replace("localhost", $"localhost:{_krb5Port}");
+            _kerberosConfigFile = Path.GetFullPath("krb5.conf");
+
+            File.WriteAllText(_kerberosConfigFile, krb5Config);
+            Libc.setenv("KRB5_CONFIG", _kerberosConfigFile);
+            _unsetKrb5EnvVar = true;
 
             Console.WriteLine("SSH server is running.");
         }
@@ -127,11 +144,43 @@ public class SshServer : IDisposable
         }
     }
 
+    private static bool HasExecutable(string executable)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo()
+            {
+                FileName = "command",
+                ArgumentList = { "-v", executable },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+            };
+            using var process = Process.Start(psi)!;
+            process.WaitForExit();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string LastWord(IEnumerable<string> lines)
         => lines.Last().Split(' ').Last();
 
     public void Dispose()
     {
+        if (File.Exists(KerberosConfigFile))
+        {
+            File.Delete(KerberosConfigFile);
+        }
+
+        if (_unsetKrb5EnvVar)
+        {
+            Libc.unsetenv("KRB5_CONFIG");
+        }
+
         System.Console.WriteLine("Stopping SSH server.");
         try
         {
@@ -245,6 +294,18 @@ public class SshServer : IDisposable
         configure?.Invoke(settings);
         return settings;
     }
+}
+
+internal partial class Libc
+{
+    // .NET on *nix does not set env vars in the process block so we need to
+    // use libc to call setenv instead. This is needed for the Kerberos tests
+    // where we need to set KRB5_CONFIG, KRB5CCNAME for libkrb5 to read.
+    [LibraryImport("libc", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void setenv(string name, string value);
+
+    [LibraryImport("libc", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void unsetenv(string name);
 }
 
 [CollectionDefinition(nameof(SshServerCollection))]
