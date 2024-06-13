@@ -221,7 +221,7 @@ public class ConnectTests
     [SkippableTheory]
     public async Task GssapiWithMicCredential(bool overrideSpn)
     {
-        Skip.IfNot(SshServer.HasKerberos);
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
 
         // Default SPN is derived from the connection hostname. The test server
         // only works when localhost is part of the SPN.
@@ -251,7 +251,7 @@ public class ConnectTests
     [SkippableFact]
     public async Task GssapiWithMicCredentialInvalidCredential()
     {
-        Skip.IfNot(SshServer.HasKerberos);
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
 
         var settings = new SshClientSettings($"localhost:{_sshServer.ServerPort}")
         {
@@ -269,7 +269,7 @@ public class ConnectTests
     [SkippableTheory]
     public async Task GssapiWithMicCredentialFromCache(bool requestDelegate)
     {
-        Skip.IfNot(SshServer.HasKerberos);
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
 
         string tempCCache = Path.GetTempFileName();
         Libc.setenv("KRB5CCNAME", tempCCache);

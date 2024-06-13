@@ -148,10 +148,11 @@ public class SshServer : IDisposable
     {
         try
         {
+            // command is POSIX but is a shell-ism not a binary itself
             var psi = new ProcessStartInfo()
             {
-                FileName = "command",
-                ArgumentList = { "-v", executable },
+                FileName = "sh",
+                ArgumentList = { "-c", $"command -v {executable}" },
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
