@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-public sealed class GssapiWithMicCredential : Credential
+public sealed class KerberosCredential : Credential
 {
     // gssapi-with-mic is defined in https://datatracker.ietf.org/doc/html/rfc4462
     private const string AUTH_METHOD = "gssapi-with-mic";
@@ -33,7 +33,7 @@ public sealed class GssapiWithMicCredential : Credential
 #endif
 
     /// <summary>
-    /// Create a GSSAPI user authentication context.
+    /// Create a Kerberos credential using gssapi-with-mic.
     /// </summary>
     /// <remarks>
     /// If the credential is null, CredentialCache.DefaultNetworkCredentials is used, or the username is an empty
@@ -50,7 +50,7 @@ public sealed class GssapiWithMicCredential : Credential
     /// <param name="credential">The credentials to use for the GSSAPI authentication exchange. Set to null to use the cached credential.</param>
     /// <param name="delegateCredential">Request delegation on the GSSAPI context.</param>
     /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/{connection.HostName}.</c></param>
-    public GssapiWithMicCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
+    public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
         _credential = credential ?? CredentialCache.DefaultNetworkCredentials;
         _delegateCredential = delegateCredential;

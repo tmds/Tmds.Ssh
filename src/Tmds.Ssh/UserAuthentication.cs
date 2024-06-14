@@ -85,10 +85,10 @@ sealed partial class UserAuthentication
                     throw new PrivateKeyLoadException(filename, error);
                 }
             }
-            else if (credential is GssapiWithMicCredential gssapiCredential)
+            else if (credential is KerberosCredential kerberosCredential)
             {
-                bool isGssapiSuccessful = await gssapiCredential.TryAuthenticate(connection, logger, settings, connectionInfo, ct).ConfigureAwait(false);
-                if (!isGssapiSuccessful)
+                bool isKerberosSuccessful = await kerberosCredential.TryAuthenticate(connection, logger, settings, connectionInfo, ct).ConfigureAwait(false);
+                if (!isKerberosSuccessful)
                 {
                     continue;
                 }

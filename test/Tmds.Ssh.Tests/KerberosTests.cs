@@ -12,14 +12,14 @@ using System.Collections.Generic;
 namespace Tmds.Ssh.Tests;
 
 [Collection(nameof(SshServerCollection))]
-public class GssapiTests : IDisposable
+public class KerberosTests : IDisposable
 {
     private readonly SshServer _sshServer;
     private readonly string _tempCCacheFilePath;
     private readonly Dictionary<string, string> _kerberosEnvironment;
     private readonly FunctionExecutor _kerberosExecutor;
 
-    public GssapiTests(SshServer sshServer) : base()
+    public KerberosTests(SshServer sshServer) : base()
     {
         _sshServer = sshServer;
         _tempCCacheFilePath = Path.GetTempFileName();
@@ -88,7 +88,7 @@ public class GssapiTests : IDisposable
                 var settings = new SshClientSettings(args[0])
                 {
                     KnownHostsFilePath = args[2],
-                    Credentials = [ new GssapiWithMicCredential(credential, serviceName: args[1]) ],
+                    Credentials = [ new KerberosCredential(credential, serviceName: args[1]) ],
                 };
                 using var client = new SshClient(settings);
 
@@ -109,7 +109,7 @@ public class GssapiTests : IDisposable
                 var settings = new SshClientSettings(args[0])
                 {
                     KnownHostsFilePath = args[1],
-                    Credentials = [ new GssapiWithMicCredential(new NetworkCredential(args[2], "invalid")) ],
+                    Credentials = [ new KerberosCredential(new NetworkCredential(args[2], "invalid")) ],
                 };
                 using var client = new SshClient(settings);
 
@@ -169,7 +169,7 @@ public class GssapiTests : IDisposable
                 {
                     KnownHostsFilePath = args[1],
                     UserName = userName,
-                    Credentials = [ new GssapiWithMicCredential(delegateCredential: requestDelegate) ],
+                    Credentials = [ new KerberosCredential(delegateCredential: requestDelegate) ],
                 };
                 using var client = new SshClient(settings);
 
