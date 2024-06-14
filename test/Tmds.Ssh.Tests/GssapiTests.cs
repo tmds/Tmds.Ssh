@@ -74,7 +74,7 @@ public class GssapiTests : IDisposable
         if (overrideSpn)
         {
             connectionName = $"127.0.0.1:{_sshServer.ServerPort}";
-            serviceName = "host@localhost";
+            serviceName = "host/localhost";
         }
         else
         {

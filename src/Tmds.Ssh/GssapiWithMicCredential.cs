@@ -59,7 +59,9 @@ public sealed class GssapiWithMicCredential : Credential
 
     internal async Task<bool> TryAuthenticate(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
-        string spn = string.IsNullOrEmpty(_serviceName) ? $"host@{connectionInfo.Host}" : _serviceName;
+        // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
+        // The latter works on both SSPI and GSSAPI so we use that as the default.
+        string spn = string.IsNullOrEmpty(_serviceName) ? $"host/{connectionInfo.Host}" : _serviceName;
 
         // The SSH messages must have a username value. If the credential provided is null or empty then use the
         // username from the connection settings as the target user to login with. The GSSAPI authentication token
@@ -78,7 +80,10 @@ public sealed class GssapiWithMicCredential : Credential
             AllowedImpersonationLevel = _delegateCredential ? TokenImpersonationLevel.Delegation : TokenImpersonationLevel.Impersonation,
             Credential = _credential,
             Package = "Kerberos",
-            RequiredProtectionLevel = ProtectionLevel.Sign,
+            // While only Sign is needed we need to set EncryptAndSign for
+            // Windows client support. Sign only will pass in SECQOP_WRAP_NO_ENCRYPT
+            // to MakeSignature which fails.
+            RequiredProtectionLevel = ProtectionLevel.EncryptAndSign,
             // While RFC states this should be set to "false", Win32-OpenSSH
             // fails if it's not true. I'm unsure if openssh-portable on Linux
             // will fail in the same way or not.
