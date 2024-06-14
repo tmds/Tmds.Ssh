@@ -20,6 +20,25 @@ public class ClientSettingsTests
         Assert.Null(settings.HostAuthentication);
     }
 
+    [Theory]
+    [InlineData("", null, "", 22)]
+    [InlineData("host.com", null, "host.com", 22)]
+    [InlineData("user@host.com", "user", "host.com", 22)]
+    [InlineData("host.com:5000", null, "host.com", 5000)]
+    [InlineData("user@host.com:5000", "user", "host.com", 5000)]
+    [InlineData("user@realm@host.com", "user@realm", "host.com", 22)]
+    [InlineData("user@realm@host.com:5000", "user@realm", "host.com", 5000)]
+    public void Parse(string destination, string? expectedUsername, string expectedHost, int expectedPort)
+    {
+        expectedUsername ??= Environment.UserName;
+
+        var settings = new SshClientSettings(destination);
+
+        Assert.Equal(expectedHost, settings.Host);
+        Assert.Equal(expectedUsername, settings.UserName);
+        Assert.Equal(expectedPort, settings.Port);
+    }
+
     private static string DefaultKnownHostsFile
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
                         ".ssh",
