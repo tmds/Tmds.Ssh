@@ -22,7 +22,7 @@ public sealed class KerberosCredential : Credential
     // Kerberos - 1.2.840.113554.1.2.2
     private static readonly byte[] KRB5_OID = [ 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02 ];
 
-    private readonly NetworkCredential _credential;
+    private readonly NetworkCredential _kerberosCredential;
     private readonly bool _delegateCredential;
     private readonly string? _serviceName;
 
@@ -36,23 +36,32 @@ public sealed class KerberosCredential : Credential
     /// Create a Kerberos credential using gssapi-with-mic.
     /// </summary>
     /// <remarks>
-    /// If the credential is null, CredentialCache.DefaultNetworkCredentials is used, or the username is an empty
-    /// string, the SSH connection string username is the one sent to the SSH server as the login user. The GSSAPI
-    /// authentication stage will not use the connection string username but will rely on the cached credential for
-    /// your environment.
+    /// The credential specified is used for the Kerberos authentication process. This can either be the same or
+    /// different from the username specified through <c>SshClientSettings.UserName</c>. The client settings username
+    /// is the target login user the SSH service is meant to run as, whereas the credential here is the Kerberos
+    /// principal used for authentication. The rules for how a Kerberos principal maps to the target user is defined by
+    /// the SSH service itself. For example on Windows the username should be the same but on Linux the mapping can be
+    /// done through a <c>.k5login</c> file in the target user's home directory.
+    ///
+    /// If the credential is null, the username in the credential is null/empty, or the password is null/empty, the
+    /// Kerberos authentication will be done using the cached credential. For Windows this means the current thread's
+    /// identity (typically logon user) will be used. For *nix this will use the Kerberos CCACHE principal that can
+    /// be managed using the <c>kinit</c> command. If there is no available cache credential, the authentication will
+    /// fail.
     ///
     /// Credentials can only be delegated if the Kerberos ticket retrieved from the KDC is marked as forwardable.
     /// Windows hosts will always retrieve a forwardable ticket but non-Windows hosts may not. When using an explicit
-    /// credential, make sure that 'forwardable = true' is set in the krb5.conf file. When using a cached credential
-    /// make sure that when the ticket was retrieved it was retrieved with the forwardable flag. If the ticket is not
-    /// forwardable, the authentication will still work but the ticket will not be delegated.
+    /// credential, make sure that 'forwardable = true' is set in the krb5.conf file so that .NET will request a
+    /// forwardable ticket required for delegation. When using a cached credential, make sure that when the ticket was
+    /// retrieved it was retrieved with the forwardable flag. If the ticket is not forwardable, the authentication will
+    /// still work but the ticket will not be delegated.
     /// </remarks>
-    /// <param name="credential">The credentials to use for the GSSAPI authentication exchange. Set to null to use the cached credential.</param>
-    /// <param name="delegateCredential">Request delegation on the GSSAPI context.</param>
+    /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use the cached credential.</param>
+    /// <param name="delegateCredential">Request delegation on the Kerberos context.</param>
     /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/{connection.HostName}.</c></param>
     public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
-        _credential = credential ?? CredentialCache.DefaultNetworkCredentials;
+        _kerberosCredential = credential ?? CredentialCache.DefaultNetworkCredentials;
         _delegateCredential = delegateCredential;
         _serviceName = serviceName;
     }
@@ -63,10 +72,10 @@ public sealed class KerberosCredential : Credential
         // The latter works on both SSPI and GSSAPI so we use that as the default.
         string spn = string.IsNullOrEmpty(_serviceName) ? $"host/{connectionInfo.Host}" : _serviceName;
 
-        // The SSH messages must have a username value. If the credential provided is null or empty then use the
-        // username from the connection settings as the target user to login with. The GSSAPI authentication token
-        // will continue to use the cached credential for the environment for authentication though.
-        string userName = string.IsNullOrEmpty(_credential.UserName) ? settings.UserName : _credential.UserName;
+        // The SSH messages must have a username value which maps to the target user we want to login as. We use the
+        // client supplied username as the target user. The Kerberos principal credential is only used for the
+        // authentication stage that happens next.
+        string userName = settings.UserName;
         logger.AuthenticationMethodGssapiWithMic(userName, spn, _delegateCredential);
 
         bool isOidSuccess = await TryStageOid(connection, userName, ct).ConfigureAwait(false);
@@ -78,11 +87,12 @@ public sealed class KerberosCredential : Credential
         var negotiateOptions = new NegotiateAuthenticationClientOptions()
         {
             AllowedImpersonationLevel = _delegateCredential ? TokenImpersonationLevel.Delegation : TokenImpersonationLevel.Impersonation,
-            Credential = _credential,
+            Credential = _kerberosCredential,
             Package = "Kerberos",
             // While only Sign is needed we need to set EncryptAndSign for
             // Windows client support. Sign only will pass in SECQOP_WRAP_NO_ENCRYPT
             // to MakeSignature which fails.
+            // https://github.com/dotnet/runtime/issues/103461
             RequiredProtectionLevel = ProtectionLevel.EncryptAndSign,
             // While RFC states this should be set to "false", Win32-OpenSSH
             // fails if it's not true. I'm unsure if openssh-portable on Linux

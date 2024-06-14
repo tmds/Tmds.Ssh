@@ -60,10 +60,12 @@ public class KerberosTests : IDisposable
         }
     }
 
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     [SkippableTheory]
-    public async Task WithCredential(bool overrideSpn)
+    public async Task ExplicitCredential(bool useLocalUser, bool overrideSpn)
     {
         Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
 
@@ -81,50 +83,39 @@ public class KerberosTests : IDisposable
             connectionName = $"localhost:{_sshServer.ServerPort}";
         }
 
+        string userName = useLocalUser ? _sshServer.TestUser : _sshServer.TestKerberosCredential.UserName;
         await _kerberosExecutor.RunAsync(
             async (string[] args) =>
             {
-                var credential = new NetworkCredential(args[3], args[4]);
+                string userName = args[3];
+                var credential = new NetworkCredential(args[4], args[5]);
                 var settings = new SshClientSettings(args[0])
                 {
                     KnownHostsFilePath = args[2],
+                    UserName = userName,
                     Credentials = [ new KerberosCredential(credential, serviceName: args[1]) ],
                 };
                 using var client = new SshClient(settings);
 
                 await client.ConnectAsync();
-            },
-            [ connectionName, serviceName ?? string.Empty, _sshServer.KnownHostsFilePath, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
-        );
-    }
 
-    [SkippableFact]
-    public async Task WithInvalidCredential()
-    {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
-
-        await _kerberosExecutor.RunAsync(
-            async (string[] args) =>
-            {
-                var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
-                    Credentials = [ new KerberosCredential(new NetworkCredential(args[2], "invalid")) ],
-                };
-                using var client = new SshClient(settings);
-
-                await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
+                    using var process = await client.ExecuteAsync("whoami");
+                    (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync();
+                    Assert.Equal(0, process.ExitCode);
+                    Assert.Equal(userName, stdout?.Trim());
+                }
             },
-            [ $"localhost:{_sshServer.ServerPort}", _sshServer.KnownHostsFilePath, _sshServer.TestKerberosCredential.UserName ]
+            [ connectionName, serviceName ?? string.Empty, _sshServer.KnownHostsFilePath, userName, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
         );
     }
 
     [InlineData(false, false)]
-    [InlineData(true, false)]
     [InlineData(false, true)]
+    [InlineData(true, false)]
     [InlineData(true, true)]
     [SkippableTheory]
-    public async Task WithCachedCredentialAndDelegation(bool useLocalUser, bool requestDelegate)
+    public async Task CachedCredentialAndDelegation(bool useLocalUser, bool requestDelegate)
     {
         Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
 
@@ -200,6 +191,75 @@ public class KerberosTests : IDisposable
                 }
             },
             [ $"localhost:{_sshServer.ServerPort}", _sshServer.KnownHostsFilePath, userName, requestDelegate.ToString() ]
+        );
+    }
+
+    [SkippableFact]
+    public async Task InvalidTargetUser()
+    {
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+
+        await _kerberosExecutor.RunAsync(
+            async (string[] args) =>
+            {
+                var settings = new SshClientSettings(args[0])
+                {
+                    KnownHostsFilePath = args[1],
+                    UserName = "invalid",
+                    Credentials = [ new KerberosCredential(new NetworkCredential(args[2], args[3])) ],
+                };
+                using var client = new SshClient(settings);
+
+                var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
+                Assert.Equal(ConnectFailedReason.AuthenticationFailed, exc.Reason);
+            },
+            [ $"localhost:{_sshServer.ServerPort}", _sshServer.KnownHostsFilePath, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
+        );
+    }
+
+    [SkippableFact]
+    public async Task InvalidKerberosCredential()
+    {
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+
+        await _kerberosExecutor.RunAsync(
+            async (string[] args) =>
+            {
+                var settings = new SshClientSettings(args[0])
+                {
+                    KnownHostsFilePath = args[1],
+                    UserName = args[2],
+                    Credentials = [ new KerberosCredential(new NetworkCredential(args[2], "invalid")) ],
+                };
+                using var client = new SshClient(settings);
+
+                var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
+                Assert.Equal(ConnectFailedReason.AuthenticationFailed, exc.Reason);
+            },
+            [ $"localhost:{_sshServer.ServerPort}", _sshServer.KnownHostsFilePath, _sshServer.TestKerberosCredential.UserName ]
+        );
+    }
+
+    [SkippableFact]
+    public async Task NoCachedCredential()
+    {
+        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+
+        await _kerberosExecutor.RunAsync(
+            async (string[] args) =>
+            {
+                var settings = new SshClientSettings(args[0])
+                {
+                    KnownHostsFilePath = args[1],
+                    UserName = args[2],
+                    Credentials = [ new KerberosCredential() ],
+                };
+                using var client = new SshClient(settings);
+
+                var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
+                Assert.Equal(ConnectFailedReason.AuthenticationFailed, exc.Reason);
+            },
+            [ $"localhost:{_sshServer.ServerPort}", _sshServer.KnownHostsFilePath, _sshServer.TestKerberosCredential.UserName ]
         );
     }
 }
