@@ -49,7 +49,7 @@ public sealed class GssapiWithMicCredential : Credential
     /// </remarks>
     /// <param name="credential">The credentials to use for the GSSAPI authentication exchange. Set to null to use the cached credential.</param>
     /// <param name="delegateCredential">Request delegation on the GSSAPI context.</param>
-    /// <param name="serviceName">Override the service principal name (SPN), default it to use the connection hostname</param>
+    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/{connection.HostName}.</c></param>
     public GssapiWithMicCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
         _credential = credential ?? CredentialCache.DefaultNetworkCredentials;
