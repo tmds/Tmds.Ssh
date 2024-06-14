@@ -19,7 +19,7 @@ static class LoggingExtensions
     private static readonly Action<ILogger, Name, Name, Name, Exception?> _algC2S;
     private static readonly Action<ILogger, string, Exception?> _authMethod;
     private static readonly Action<ILogger, string, Exception?> _authMethodPk;
-    private static readonly Action<ILogger, string, string, bool, Exception?> _authMethodGssapiWithMic;
+    private static readonly Action<ILogger, string, string, string, bool, Exception?> _authMethodGssapiWithMic;
     private static readonly Action<ILogger, Exception?> _authSuccess;
     private static readonly Action<ILogger, Exception?> _authFailed;
     private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _received;
@@ -105,10 +105,10 @@ static class LoggingExtensions
             formatString: "Authentication failed"
         );
 
-        _authMethodGssapiWithMic = LoggerMessage.Define<string, string, bool>(
+        _authMethodGssapiWithMic = LoggerMessage.Define<string, string, string, bool>(
             eventId: 13,
             logLevel: LogLevel.Information,
-            formatString: "Authentication method: gssapi-with-mic userName: {userName} spn: {serviceName} delegation: {delegation}"
+            formatString: "Authentication method: gssapi-with-mic userName: {userName} kerberosPrincipal: '{kerberosPrincipal}' spn: {serviceName} delegation: {delegation}"
         );
     }
 
@@ -157,9 +157,9 @@ static class LoggingExtensions
         _authMethodPk(logger, source, null);
     }
 
-    public static void AuthenticationMethodGssapiWithMic(this ILogger logger, string userName, string serviceName, bool delegation)
+    public static void AuthenticationMethodGssapiWithMic(this ILogger logger, string userName, string kerberosPrincipal, string serviceName, bool delegation)
     {
-        _authMethodGssapiWithMic(logger, userName, serviceName, delegation, null);
+        _authMethodGssapiWithMic(logger, userName, kerberosPrincipal, serviceName, delegation, null);
     }
 
     public static void AuthenticationSucceeded(this ILogger logger)

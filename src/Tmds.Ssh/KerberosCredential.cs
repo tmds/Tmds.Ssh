@@ -33,34 +33,37 @@ public sealed class KerberosCredential : Credential
 #endif
 
     /// <summary>
-    /// Create a Kerberos credential using gssapi-with-mic.
+    /// Create a credential for Kerberos authentication.
     /// </summary>
     /// <remarks>
     /// The credential specified is used for the Kerberos authentication process. This can either be the same or
     /// different from the username specified through <c>SshClientSettings.UserName</c>. The client settings username
-    /// is the target login user the SSH service is meant to run as, whereas the credential here is the Kerberos
+    /// is the target login user the SSH service is meant to run as, whereas the credential is the Kerberos
     /// principal used for authentication. The rules for how a Kerberos principal maps to the target user is defined by
     /// the SSH service itself. For example on Windows the username should be the same but on Linux the mapping can be
     /// done through a <c>.k5login</c> file in the target user's home directory.
     ///
-    /// If the credential is null, the username in the credential is null/empty, or the password is null/empty, the
-    /// Kerberos authentication will be done using the cached credential. For Windows this means the current thread's
-    /// identity (typically logon user) will be used. For *nix this will use the Kerberos CCACHE principal that can
-    /// be managed using the <c>kinit</c> command. If there is no available cache credential, the authentication will
-    /// fail.
+    /// If the credential is <c>null<c>, the Kerberos authentication will be done using a cached ticket.
+    /// For Windows, this is the current thread's identity (typically logon user) will be used.
+    /// For Unix/Linux, this will use the Kerberos credential cache principal, which may be managed using the
+    /// <c>kinit</c> command. If there is no available cache credential, the authentication will fail.
     ///
     /// Credentials can only be delegated if the Kerberos ticket retrieved from the KDC is marked as forwardable.
     /// Windows hosts will always retrieve a forwardable ticket but non-Windows hosts may not. When using an explicit
     /// credential, make sure that 'forwardable = true' is set in the krb5.conf file so that .NET will request a
-    /// forwardable ticket required for delegation. When using a cached credential, make sure that when the ticket was
+    /// forwardable ticket required for delegation. When using a cached ticket, make sure that when the ticket was
     /// retrieved it was retrieved with the forwardable flag. If the ticket is not forwardable, the authentication will
     /// still work but the ticket will not be delegated.
     /// </remarks>
-    /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use the cached credential.</param>
-    /// <param name="delegateCredential">Request delegation on the Kerberos context.</param>
-    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/{connection.HostName}.</c></param>
+    /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use a cached ticket.</param>
+    /// <param name="delegateCredential">Allows the SSH server to delegate the user on remote systems.</param>
+    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/<SshClientSettings.Host>.</c></param>
     public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
+        if (!string.IsNullOrWhiteSpace(credential?.UserName) && string.IsNullOrWhiteSpace(credential?.Password))
+        {
+            throw new ArgumentException("credential Password cannot be null or an empty string.", nameof(credential));
+        }
         _kerberosCredential = credential ?? CredentialCache.DefaultNetworkCredentials;
         _delegateCredential = delegateCredential;
         _serviceName = serviceName;
@@ -76,7 +79,7 @@ public sealed class KerberosCredential : Credential
         // client supplied username as the target user. The Kerberos principal credential is only used for the
         // authentication stage that happens next.
         string userName = settings.UserName;
-        logger.AuthenticationMethodGssapiWithMic(userName, spn, _delegateCredential);
+        logger.AuthenticationMethodGssapiWithMic(userName, _kerberosCredential.UserName, spn, _delegateCredential);
 
         bool isOidSuccess = await TryStageOid(connection, userName, ct).ConfigureAwait(false);
         if (!isOidSuccess)
@@ -108,11 +111,17 @@ public sealed class KerberosCredential : Credential
             return false;
         }
 
+        try
         {
             using var message = authContext.IsSigned
                 ? CreateGssapiMicData(connection.SequencePool, connectionInfo.SessionId!,  userName, authContext)
                 : CreateGssapiCompleteMessage(connection.SequencePool);
             await connection.SendPacketAsync(message.Move(), ct).ConfigureAwait(false);
+        }
+        catch (MissingMethodException)
+        {
+            // Remove once .NET 8 is no longer the minimum and we get rid of reflection.
+            return false;
         }
 
         return true;
@@ -140,7 +149,18 @@ public sealed class KerberosCredential : Credential
 
     private async Task<bool> TryStageAuthentication(SshConnection connection, NegotiateAuthentication authContext, CancellationToken ct)
     {
-        byte[]? outToken = authContext.GetOutgoingBlob(Array.Empty<byte>(), out var statusCode);
+        byte[]? outToken;
+        NegotiateAuthenticationStatusCode statusCode;
+        try
+        {
+            outToken = authContext.GetOutgoingBlob(Array.Empty<byte>(), out statusCode);
+        }
+        catch (InvalidOperationException)
+        {
+            // Raised when the Kerberos library is not available on Linux.
+            return false;
+        }
+        
         while (outToken is not null)
         {
             {
