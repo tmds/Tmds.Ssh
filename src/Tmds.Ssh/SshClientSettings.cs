@@ -32,13 +32,13 @@ public sealed partial class SshClientSettings
     {
         string host = destination;
         int port = 22;
-        int colonPos = host.IndexOf(":");
+        int colonPos = host.LastIndexOf(":");
         if (colonPos != -1)
         {
             port = int.Parse(host.Substring(colonPos + 1));
             host = host.Substring(0, colonPos);
         }
-        int atPos = host.IndexOf("@");
+        int atPos = host.LastIndexOf("@");
         string username;
         if (atPos != -1)
         {
