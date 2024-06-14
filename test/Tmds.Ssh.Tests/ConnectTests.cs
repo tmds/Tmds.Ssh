@@ -6,8 +6,6 @@ using System.Threading.Tasks;
 using System.Net;
 using System.Net.Sockets;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Diagnostics;
 
 namespace Tmds.Ssh.Tests;
 
@@ -213,113 +211,6 @@ public class ConnectTests
         else
         {
             await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
-        }
-    }
-
-    [InlineData(false)]
-    [InlineData(true)]
-    [SkippableTheory]
-    public async Task GssapiWithMicCredential(bool overrideSpn)
-    {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
-
-        // Default SPN is derived from the connection hostname. The test server
-        // only works when localhost is part of the SPN.
-        string connectionName;
-        string? serviceName = null;
-        if (overrideSpn)
-        {
-            connectionName = $"127.0.0.1:{_sshServer.ServerPort}";
-            serviceName = "host@localhost";
-        }
-        else
-        {
-            connectionName = $"localhost:{_sshServer.ServerPort}";
-        }
-
-        var settings = new SshClientSettings(connectionName)
-        {
-            KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-            UserName = _sshServer.TestKerberosUser,
-            Credentials = [ new GssapiWithMicCredential(_sshServer.TestUserPassword, serviceName: serviceName) ],
-        };
-        using var client = new SshClient(settings);
-
-        await client.ConnectAsync();
-    }
-
-    [SkippableFact]
-    public async Task GssapiWithMicCredentialInvalidCredential()
-    {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
-
-        var settings = new SshClientSettings($"localhost:{_sshServer.ServerPort}")
-        {
-            KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-            UserName = _sshServer.TestKerberosUser,
-            Credentials = [ new GssapiWithMicCredential("invalid") ],
-        };
-        using var client = new SshClient(settings);
-
-        await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
-    }
-
-    [InlineData(false)]
-    [InlineData(true)]
-    [SkippableTheory]
-    public async Task GssapiWithMicCredentialFromCache(bool requestDelegate)
-    {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
-
-        string tempCCache = Path.GetTempFileName();
-        Libc.setenv("KRB5CCNAME", tempCCache);
-        try
-        {
-            var kinitStartInfo = new ProcessStartInfo()
-            {
-                FileName = "kinit",
-                Environment =
-                {
-                    ["KRB5CCNAME"] = tempCCache,
-                    ["KRB5_CONFIG"] = _sshServer.KerberosConfigFile,
-                },
-                RedirectStandardInput = true,
-            };
-
-            // macOS and FreeBSD ship with Heimdal which needs this arg to read from stdin.
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.FreeBSD))
-            {
-                kinitStartInfo.ArgumentList.Add("--password-file=STDIN");
-            }
-
-            if (requestDelegate)
-            {
-                kinitStartInfo.ArgumentList.Add("-f");
-            }
-            kinitStartInfo.ArgumentList.Add(_sshServer.TestKerberosUser);
-
-            using (var kinit = Process.Start(kinitStartInfo))
-            {
-                Assert.NotNull(kinit);
-                kinit.StandardInput.WriteLine(_sshServer.TestUserPassword);
-                kinit.WaitForExit();
-                Assert.True(kinit.ExitCode == 0);
-            }
-
-            var settings = new SshClientSettings($"localhost:{_sshServer.ServerPort}")
-            {
-                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-                UserName = _sshServer.TestKerberosUser,
-                Credentials = [ new GssapiWithMicCredential(delegateCredential: requestDelegate) ],
-            };
-            using var client = new SshClient(settings);
-
-            await client.ConnectAsync();
-        }
-        finally
-        {
-            File.Delete(tempCCache);
-            Libc.unsetenv("KRB5CCNAME");
         }
     }
 

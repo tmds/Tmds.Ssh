@@ -6,7 +6,7 @@ using System.Buffers;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
-using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,51 +22,52 @@ public sealed class GssapiWithMicCredential : Credential
     // Kerberos - 1.2.840.113554.1.2.2
     private static readonly byte[] KRB5_OID = [ 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02 ];
 
-    private readonly Func<string?> _getPassword;
+    private readonly NetworkCredential _credential;
     private readonly bool _delegateCredential;
     private readonly string? _serviceName;
 
 #if NET8_0
-    private delegate void GetMICDelegate(ReadOnlySpan<byte> data, IBufferWriter<byte> writer);
-
-    private static readonly Lazy<MethodInfo?> _getMicMethInfo = new Lazy<MethodInfo?>(() =>
-        typeof(NegotiateAuthentication).GetMethod("GetMIC", BindingFlags.NonPublic | BindingFlags.Instance));
-
-    private MethodInfo GetMICMethod { get; }
+    // This API was made public in .NET 9 through ComputeIntegrityCheck.
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "GetMIC")]
+    private extern static void GetMICMethod(NegotiateAuthentication context, ReadOnlySpan<byte> data, IBufferWriter<byte> writer);
 #endif
 
     /// <summary>
-    /// Create a GSSAPI user authentication context with password string.
+    /// Create a GSSAPI user authentication context.
     /// </summary>
-    /// <param name="password">The password to use for the GSSAPI username. Set to null to use a cached credential.</param>
+    /// <remarks>
+    /// If the credential is null, CredentialCache.DefaultNetworkCredentials is used, or the username is an empty
+    /// string, the SSH connection string username is the one sent to the SSH server as the login user. The GSSAPI
+    /// authentication stage will not use the connection string username but will rely on the cached credential for
+    /// your environment.
+    ///
+    /// Credentials can only be delegated if the Kerberos ticket retrieved from the KDC is marked as forwardable.
+    /// Windows hosts will always retrieve a forwardable ticket but non-Windows hosts may not. When using an explicit
+    /// credential, make sure that 'forwardable = true' is set in the krb5.conf file. When using a cached credential
+    /// make sure that when the ticket was retrieved it was retrieved with the forwardable flag. If the ticket is not
+    /// forwardable, the authentication will still work but the ticket will not be delegated.
+    /// </remarks>
+    /// <param name="credential">The credentials to use for the GSSAPI authentication exchange. Set to null to use the cached credential.</param>
     /// <param name="delegateCredential">Request delegation on the GSSAPI context.</param>
     /// <param name="serviceName">Override the service principal name (SPN), default it to use the connection hostname</param>
-    public GssapiWithMicCredential(string? password = null, bool delegateCredential = false, string? serviceName = null) : this(() => password, delegateCredential, serviceName)
-    { }
-
-    /// <summary>
-    /// Create a GSSAPI user authentication context with a password prompt.
-    /// </summary>
-    /// <param name="passwordPrompt">A prompting function that is called to retrieve the password when needed.</param>
-    /// <param name="delegateCredential">Request delegation on the GSSAPI context.</param>
-    /// <param name="serviceName">Override the service principal name (SPN), default it to use the connection hostname</param>
-    public GssapiWithMicCredential(Func<string?> passwordPrompt, bool delegateCredential = false, string? serviceName = null)
+    public GssapiWithMicCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
-        _getPassword = passwordPrompt;
+        _credential = credential ?? CredentialCache.DefaultNetworkCredentials;
         _delegateCredential = delegateCredential;
         _serviceName = serviceName;
-
-#if NET8_0
-        GetMICMethod = _getMicMethInfo.Value ?? throw new InvalidOperationException("Failed to find GetMIC method needed for .NET 8.0.");
-#endif
     }
 
     internal async Task<bool> TryAuthenticate(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
-        string spn = _serviceName ?? $"host@{connectionInfo.Host}";
-        logger.AuthenticationMethodGssapiWithMic(settings.UserName, spn, _delegateCredential);
+        string spn = string.IsNullOrEmpty(_serviceName) ? $"host@{connectionInfo.Host}" : _serviceName;
 
-        bool isOidSuccess = await TryStageOid(connection, settings.UserName, ct).ConfigureAwait(false);
+        // The SSH messages must have a username value. If the credential provided is null or empty then use the
+        // username from the connection settings as the target user to login with. The GSSAPI authentication token
+        // will continue to use the cached credential for the environment for authentication though.
+        string userName = string.IsNullOrEmpty(_credential.UserName) ? settings.UserName : _credential.UserName;
+        logger.AuthenticationMethodGssapiWithMic(userName, spn, _delegateCredential);
+
+        bool isOidSuccess = await TryStageOid(connection, userName, ct).ConfigureAwait(false);
         if (!isOidSuccess)
         {
             return false;
@@ -75,6 +76,7 @@ public sealed class GssapiWithMicCredential : Credential
         var negotiateOptions = new NegotiateAuthenticationClientOptions()
         {
             AllowedImpersonationLevel = _delegateCredential ? TokenImpersonationLevel.Delegation : TokenImpersonationLevel.Impersonation,
+            Credential = _credential,
             Package = "Kerberos",
             RequiredProtectionLevel = ProtectionLevel.Sign,
             // While RFC states this should be set to "false", Win32-OpenSSH
@@ -83,12 +85,6 @@ public sealed class GssapiWithMicCredential : Credential
             RequireMutualAuthentication = true,
             TargetName = spn,
         };
-
-        string? password = _getPassword();
-        if (password is not null)
-        {
-            negotiateOptions.Credential = new NetworkCredential(settings.UserName, password);
-        }
 
         using var authContext = new NegotiateAuthentication(negotiateOptions);
         bool isAuthSuccess = await TryStageAuthentication(connection, authContext, ct).ConfigureAwait(false);
@@ -99,7 +95,7 @@ public sealed class GssapiWithMicCredential : Credential
 
         {
             using var message = authContext.IsSigned
-                ? CreateGssapiMicData(connection.SequencePool, connectionInfo.SessionId!, settings.UserName, authContext)
+                ? CreateGssapiMicData(connection.SequencePool, connectionInfo.SessionId!,  userName, authContext)
                 : CreateGssapiCompleteMessage(connection.SequencePool);
             await connection.SendPacketAsync(message.Move(), ct).ConfigureAwait(false);
         }
@@ -228,7 +224,8 @@ public sealed class GssapiWithMicCredential : Credential
         var signatureWriter = new ArrayBufferWriter<byte>();
 
 #if NET8_0
-        GetMICMethod.CreateDelegate<GetMICDelegate>(authContext)(
+        GetMICMethod(
+            authContext,
             micData.IsSingleSegment ? micData.FirstSpan : micData.ToArray(),
             signatureWriter);
 #else

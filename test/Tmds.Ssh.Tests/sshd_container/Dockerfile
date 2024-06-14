@@ -35,6 +35,7 @@ RUN echo -e "secret\nsecret" | /usr/sbin/kdb5_util create -r REALM.TEST
 RUN kadmin.local -q "addprinc -pw secret testuser"
 RUN kadmin.local -q "addprinc -randkey host/localhost@REALM.TEST"
 RUN kadmin.local -q "ktadd -k /etc/krb5.keytab host/localhost@REALM.TEST"
+RUN echo 'testuser@REALM.TEST' > /home/testuser/.k5login
 RUN echo 'testuser@REALM.TEST' > /home/testuser@REALM.TEST/.k5login
 COPY 90-gssapi.conf /etc/ssh/sshd_config.d/90-gssapi.conf
 
