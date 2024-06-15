@@ -149,8 +149,8 @@ public sealed partial class SshClientSettings
     internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 };
     internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
     internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
-    internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
-    internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.HMacSha2_256 };
+    internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { };
+    internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { };
     internal List<Name> CompressionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.None };
     internal List<Name> CompressionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.None };
     internal List<Name> LanguagesClientToServer { get; } = new List<Name>();
