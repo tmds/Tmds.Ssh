@@ -31,10 +31,22 @@ sealed class KeyExchange
         Name comC2S = ChooseAlgorithm(settings.CompressionAlgorithmsClientToServer, remoteInit.compression_algorithms_client_to_server);
         Name comS2C = ChooseAlgorithm(settings.CompressionAlgorithmsServerToClient, remoteInit.compression_algorithms_server_to_client);
 
-        if (encC2S.IsEmpty || encS2C.IsEmpty || macC2S.IsEmpty || macS2C.IsEmpty || comC2S.IsEmpty || comS2C.IsEmpty)
+        if (encC2S.IsEmpty || encS2C.IsEmpty || comC2S.IsEmpty || comS2C.IsEmpty)
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption/integrity/compression algorithm.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption/compression algorithm.", connectionInfo);
         }
+
+        EncryptionAlgorithm encC2SAlg = EncryptionAlgorithm.Find(encC2S);
+        EncryptionAlgorithm encS2CAlg = EncryptionAlgorithm.Find(encS2C);
+
+        if ((!encC2SAlg.IsAuthenticated && macC2S.IsEmpty) ||
+            (!encS2CAlg.IsAuthenticated && macS2C.IsEmpty))
+        {
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common integrity algorithm.", connectionInfo);
+        }
+
+        HMacAlgorithm? hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
+        HMacAlgorithm? hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
         // Make an ordered list of host key algorithms. The key exchange algorithm will pick a compatible one.
         List<Name> hostKeyAlgorithms = new List<Name>(capacity: settings.ServerHostKeyAlgorithms.Count);
@@ -54,10 +66,6 @@ sealed class KeyExchange
 
         KeyExchangeOutput? keyExchangeOutput = null;
         Packet exchangeInitMsg = default;
-        EncryptionAlgorithm encC2SAlg;
-        EncryptionAlgorithm encS2CAlg;
-        HMacAlgorithm? hmacC2SAlg;
-        HMacAlgorithm? hmacS2CAlg;
         try
         {
             if (remoteInit.first_kex_packet_follows)
