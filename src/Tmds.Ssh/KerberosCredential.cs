@@ -3,6 +3,7 @@
 
 using System;
 using System.Buffers;
+using System.Formats.Asn1;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -72,7 +73,7 @@ public sealed class KerberosCredential : Credential
     internal async Task<bool> TryAuthenticate(SshConnection connection, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
-        // The latter works on both SSPI and GSSAPI so we use that as the default.
+        // .NET converts this format to the hostbased format expected by GSSAPI for us.
         string spn = string.IsNullOrEmpty(_serviceName) ? $"host/{connectionInfo.Host}" : _serviceName;
 
         // The SSH messages must have a username value which maps to the target user we want to login as. We use the
@@ -81,7 +82,7 @@ public sealed class KerberosCredential : Credential
         string userName = settings.UserName;
         logger.AuthenticationMethodGssapiWithMic(userName, _kerberosCredential.UserName, spn, _delegateCredential);
 
-        bool isOidSuccess = await TryStageOid(connection, userName, ct).ConfigureAwait(false);
+        bool isOidSuccess = await TryStageOid(connection, logger, userName, ct).ConfigureAwait(false);
         if (!isOidSuccess)
         {
             return false;
@@ -105,7 +106,7 @@ public sealed class KerberosCredential : Credential
         };
 
         using var authContext = new NegotiateAuthentication(negotiateOptions);
-        bool isAuthSuccess = await TryStageAuthentication(connection, authContext, ct).ConfigureAwait(false);
+        bool isAuthSuccess = await TryStageAuthentication(connection, logger, authContext, ct).ConfigureAwait(false);
         if (!isAuthSuccess)
         {
             return false;
@@ -127,7 +128,7 @@ public sealed class KerberosCredential : Credential
         return true;
     }
 
-    private async Task<bool> TryStageOid(SshConnection connection, string userName, CancellationToken ct)
+    private static async Task<bool> TryStageOid(SshConnection connection, ILogger logger, string userName, CancellationToken ct)
     {
         {
             using var userAuthMsg = CreateOidRequestMessage(connection.SequencePool,
@@ -135,19 +136,44 @@ public sealed class KerberosCredential : Credential
             await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
         }
 
-        using Packet response = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
-        ReadOnlySequence<byte>? oidResponse = GetGssapiOidResponse(response);
-
-        if (oidResponse is null)
+        while (true)
         {
-            return false;
-        }
+            using Packet response = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+            MessageId? mid = response.MessageId;
 
-        return KRB5_OID.AsSpan().SequenceEqual(
-            oidResponse.Value.IsSingleSegment ? oidResponse.Value.FirstSpan : oidResponse.Value.ToArray());
+            if (mid == MessageId.SSH_MSG_USERAUTH_BANNER)
+            {
+                // First message in exchange could be a banner which we ignore
+                // for now.
+                continue;
+            }
+
+            if (mid == MessageId.SSH_MSG_USERAUTH_FAILURE)
+            {
+                logger.AuthenticationKerberosFailed("No OID response received");
+                return false;
+            }
+            else if (mid != MessageId.SSH_MSG_USERAUTH_GSSAPI_RESPONSE)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
+
+            ReadOnlySequence<byte> oidResponse = GetGssapiOidResponse(response);
+            if (KRB5_OID.AsSpan().SequenceEqual(oidResponse.IsSingleSegment ? oidResponse.FirstSpan : oidResponse.ToArray()))
+            {
+                return true;
+            }
+            else
+            {
+                var reader = new AsnReader(oidResponse.ToArray(), AsnEncodingRules.DER);
+                string receivedOid = reader.ReadObjectIdentifier();
+                logger.AuthenticationKerberosFailed($"OID response {receivedOid} did not match expected value");
+                return false;
+            }
+        }
     }
 
-    private async Task<bool> TryStageAuthentication(SshConnection connection, NegotiateAuthentication authContext, CancellationToken ct)
+    private static async Task<bool> TryStageAuthentication(SshConnection connection, ILogger logger, NegotiateAuthentication authContext, CancellationToken ct)
     {
         byte[]? outToken;
         NegotiateAuthenticationStatusCode statusCode;
@@ -157,10 +183,10 @@ public sealed class KerberosCredential : Credential
         }
         catch (InvalidOperationException)
         {
-            // Raised when the Kerberos library is not available on Linux.
+            logger.AuthenticationKerberosFailed("Kerberos library not available");
             return false;
         }
-        
+
         while (outToken is not null)
         {
             {
@@ -187,7 +213,15 @@ public sealed class KerberosCredential : Credential
                 out statusCode);
         }
 
-        return statusCode == NegotiateAuthenticationStatusCode.Completed;
+        if (statusCode == NegotiateAuthenticationStatusCode.Completed)
+        {
+            return true;
+        }
+        else
+        {
+            logger.AuthenticationKerberosFailed($"Kerberos authentication failed with status {statusCode}");
+            return false;
+        }
     }
 
     private static Packet CreateOidRequestMessage(SequencePool sequencePool, string userName, ReadOnlySpan<byte> oid)
@@ -236,7 +270,7 @@ public sealed class KerberosCredential : Credential
         return packet.Move();
     }
 
-    private Packet CreateGssapiMicData(SequencePool sequencePool, ReadOnlySpan<byte> sessionId, string userName, NegotiateAuthentication authContext)
+    private static Packet CreateGssapiMicData(SequencePool sequencePool, ReadOnlySpan<byte> sessionId, string userName, NegotiateAuthentication authContext)
     {
         /*
             string    session identifier
@@ -280,20 +314,11 @@ public sealed class KerberosCredential : Credential
         return micPacket.Move();
     }
 
-    private static ReadOnlySequence<byte>? GetGssapiOidResponse(ReadOnlyPacket packet)
+    private static ReadOnlySequence<byte> GetGssapiOidResponse(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
-        MessageId b = reader.ReadMessageId();
-        switch (b)
-        {
-            case MessageId.SSH_MSG_USERAUTH_GSSAPI_RESPONSE:
-                return reader.ReadStringAsBytes();
-            case MessageId.SSH_MSG_USERAUTH_FAILURE:
-                return null;
-            default:
-                ThrowHelper.ThrowProtocolUnexpectedValue();
-                return null;
-        }
+        reader.ReadMessageId();
+        return reader.ReadStringAsBytes();
     }
 
     private static ReadOnlySequence<byte>? GetGssapiTokenResponse(ReadOnlyPacket packet)
