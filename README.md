@@ -373,10 +373,9 @@ class PasswordCredential : Credential
   PasswordCredential(string password);
   PasswordCredential(Func<string?> prompt);
 }
-class GssapiWithMicCredential : Credential
+class KerberosCredential : Credential
 {
-  GssapiWithMicCredential(string? password = null, bool delegateCredential = false, string? serviceName = null);
-  GssapiWithMicCredential(Func<string?> prompt, bool delegateCredential = false, string? serviceName = null);
+  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null);
 }
 // Base class.
 class SshException : Exception

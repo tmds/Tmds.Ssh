@@ -20,7 +20,7 @@ public sealed class KerberosCredential : Credential
     // gssapi-with-mic is defined in https://datatracker.ietf.org/doc/html/rfc4462
     private const string AUTH_METHOD = "gssapi-with-mic";
 
-    // Kerberos - 1.2.840.113554.1.2.2
+    // Kerberos - 1.2.840.113554.1.2.2 - This is DER encoding of the OID.
     private static readonly byte[] KRB5_OID = [ 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02 ];
 
     private readonly NetworkCredential _kerberosCredential;
@@ -114,6 +114,7 @@ public sealed class KerberosCredential : Credential
 
         try
         {
+            // While we request signing, the server may not so we need to check to see if we need to send a MIC.
             using var message = authContext.IsSigned
                 ? CreateGssapiMicData(connection.SequencePool, connectionInfo.SessionId!,  userName, authContext)
                 : CreateGssapiCompleteMessage(connection.SequencePool);
@@ -175,17 +176,7 @@ public sealed class KerberosCredential : Credential
 
     private static async Task<bool> TryStageAuthentication(SshConnection connection, ILogger logger, NegotiateAuthentication authContext, CancellationToken ct)
     {
-        byte[]? outToken;
-        NegotiateAuthenticationStatusCode statusCode;
-        try
-        {
-            outToken = authContext.GetOutgoingBlob(Array.Empty<byte>(), out statusCode);
-        }
-        catch (InvalidOperationException)
-        {
-            logger.AuthenticationKerberosFailed("Kerberos library not available");
-            return false;
-        }
+        byte[]? outToken = authContext.GetOutgoingBlob(Array.Empty<byte>(), out var statusCode);
 
         while (outToken is not null)
         {
@@ -194,8 +185,8 @@ public sealed class KerberosCredential : Credential
                 await connection.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
             }
 
-            // If the context is complete we don't expect a response.
-            if (statusCode == NegotiateAuthenticationStatusCode.Completed)
+            // Only continue the exchange if we need more tokens.
+            if (statusCode != NegotiateAuthenticationStatusCode.ContinueNeeded)
             {
                 break;
             }
@@ -279,16 +270,15 @@ public sealed class KerberosCredential : Credential
             string    service
             string    "gssapi-with-mic"
         */
-        using var packet = sequencePool.RentPacket();
-        var writer = packet.GetWriter();
+        // The MIC data does not include the header, so we don't need a Packet.
+        using var sequence = sequencePool.RentSequence();
+        var writer = new SequenceWriter(sequence);
         writer.WriteString(sessionId);
         writer.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
         writer.WriteString(userName);
         writer.WriteString("ssh-connection");
         writer.WriteString(AUTH_METHOD);
-
-        // The MIC data does not include the header, so skip the first 5 bytes.
-        ReadOnlySequence<byte> micData = packet.Move().AsReadOnlySequence().Slice(5);
+        ReadOnlySequence<byte> micData = sequence.AsReadOnlySequence();
 
         var signatureWriter = new ArrayBufferWriter<byte>();
 
