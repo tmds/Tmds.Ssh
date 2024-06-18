@@ -10,14 +10,24 @@ jobs:
 
     steps:
     - name: Install .NET
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: |
+          8.0.x
+          9.0.x
+        dotnet-quality: 'preview'
 
     - name: Fetch sources
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+
+    - name: Install Kerberos libs
+      run: |
+        sudo apt-get update
+
+        export DEBIAN_FRONTEND=noninteractive
+        sudo -E apt-get install -y krb5-user
 
     - name: Run tests
       run: |

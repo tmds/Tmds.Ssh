@@ -1,11 +1,15 @@
 FROM quay.io/centos/centos:stream9
 
+EXPOSE 88/tcp
+EXPOSE 88/udp
+
 # Install packages.
-RUN dnf install -y openssh-server passwd socat dos2unix && \
+RUN dnf install -y krb5-{libs,server,workstation} openssh-server passwd socat dos2unix && \
     rm -rf /var/cache/yum/*
 
 # Add a user.
 RUN useradd -ms /bin/bash testuser
+RUN useradd -ms /bin/bash --badname testuser@REALM.TEST
 RUN echo 'secret' | passwd --stdin testuser
 
 # Add test subsystem configuration
@@ -24,5 +28,16 @@ RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 RUN dos2unix /home/testuser/.ssh/authorized_keys
 
-# Run sshd.
-CMD /usr/sbin/sshd -o LogLevel=DEBUG2 -De
+# Configure KDC and setup keytab
+COPY krb5.conf /etc/krb5.conf
+COPY kadm5.acl /var/kerberos/krb5kdc/kadm5.acl
+RUN echo -e "secret\nsecret" | /usr/sbin/kdb5_util create -r REALM.TEST
+RUN kadmin.local -q "addprinc -pw secret testuser"
+RUN kadmin.local -q "addprinc -randkey host/localhost@REALM.TEST"
+RUN kadmin.local -q "ktadd -k /etc/krb5.keytab host/localhost@REALM.TEST"
+RUN echo 'testuser@REALM.TEST' > /home/testuser/.k5login
+RUN echo 'testuser@REALM.TEST' > /home/testuser@REALM.TEST/.k5login
+COPY 90-gssapi.conf /etc/ssh/sshd_config.d/90-gssapi.conf
+
+# Run kdc and sshd.
+CMD /usr/sbin/krb5kdc && /usr/sbin/sshd -o LogLevel=DEBUG2 -De

@@ -19,8 +19,10 @@ static class LoggingExtensions
     private static readonly Action<ILogger, Name, Name, Name, Exception?> _algC2S;
     private static readonly Action<ILogger, string, Exception?> _authMethod;
     private static readonly Action<ILogger, string, Exception?> _authMethodPk;
+    private static readonly Action<ILogger, string, string, string, bool, Exception?> _authMethodGssapiWithMic;
     private static readonly Action<ILogger, Exception?> _authSuccess;
     private static readonly Action<ILogger, Exception?> _authFailed;
+    private static readonly Action<ILogger, string, Exception?> _authKerberosFailed;
     private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _received;
     private static readonly Action<ILogger, MessageId?, PacketPayload, Exception?> _send;
 
@@ -103,6 +105,18 @@ static class LoggingExtensions
             logLevel: LogLevel.Information,
             formatString: "Authentication failed"
         );
+
+        _authMethodGssapiWithMic = LoggerMessage.Define<string, string, string, bool>(
+            eventId: 13,
+            logLevel: LogLevel.Information,
+            formatString: "Authentication method: gssapi-with-mic userName: {userName} kerberosPrincipal: '{kerberosPrincipal}' spn: {serviceName} delegation: {delegation}"
+        );
+
+        _authKerberosFailed = LoggerMessage.Define<string>(
+            eventId: 14,
+            logLevel: LogLevel.Information,
+            formatString: "Kerberos authentication failed: {message}."
+        );
     }
 
     public static void Connecting(this ILogger logger, string host, int port)
@@ -150,6 +164,11 @@ static class LoggingExtensions
         _authMethodPk(logger, source, null);
     }
 
+    public static void AuthenticationMethodGssapiWithMic(this ILogger logger, string userName, string kerberosPrincipal, string serviceName, bool delegation)
+    {
+        _authMethodGssapiWithMic(logger, userName, kerberosPrincipal, serviceName, delegation, null);
+    }
+
     public static void AuthenticationSucceeded(this ILogger logger)
     {
         _authSuccess(logger, null);
@@ -158,6 +177,11 @@ static class LoggingExtensions
     public static void AuthenticationFailed(this ILogger logger)
     {
         _authFailed(logger, null);
+    }
+
+    public static void AuthenticationKerberosFailed(this ILogger logger, string message)
+    {
+        _authKerberosFailed(logger, message, null);
     }
 
     public static void Received(this ILogger logger, ReadOnlyPacket packet)

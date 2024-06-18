@@ -16,7 +16,10 @@ public class SshServer : IDisposable
     private const string ContainerImageName = "test_sshd:latest";
     private const string ContainerBuildContext = "sshd_container";
 
+    public static bool HasKerberos = HasExecutable("kinit");
+
     public string TestUser => "testuser";
+    public NetworkCredential TestKerberosCredential => new NetworkCredential($"{TestUser}@REALM.TEST", TestUserPassword);
     public string TestUserHome => $"/home/{TestUser}";
     public string TestUserPassword => "secret";
     public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
@@ -24,6 +27,7 @@ public class SshServer : IDisposable
     public string ServerHost => _host;
     public int ServerPort => _port;
     public string KnownHostsFilePath => _knownHostsFile;
+    public string KerberosConfigFilePath => _krbConfigFilePath;
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
     public string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
@@ -34,6 +38,7 @@ public class SshServer : IDisposable
     private readonly string _host;
     private readonly int _port;
     private readonly string _knownHostsFile;
+    private readonly string _krbConfigFilePath;
     private bool _useDockerInstead;
 
     public SshServer()
@@ -49,7 +54,8 @@ public class SshServer : IDisposable
             IPAddress interfaceAddress = IPAddress.Loopback;
             _host = interfaceAddress.ToString();
             _port = PickFreePort(interfaceAddress);
-            _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", ContainerImageName));
+            int kdcPort = PickFreePort(interfaceAddress);
+            _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", "-p", $"{_host}:{kdcPort}:88/tcp", "-p", $"{_host}:{kdcPort}:88/udp", "-h", "localhost", ContainerImageName));
             do
             {
                 string[] log = Run("podman", "logs", _containerId);
@@ -72,6 +78,7 @@ public class SshServer : IDisposable
             } while (true);
 
             _knownHostsFile = WriteKnownHostsFile(_host, _port);
+            _krbConfigFilePath = WriteKerberosConfigFile(kdcPort);
 
             if (!OperatingSystem.IsWindows())
             {
@@ -104,6 +111,15 @@ public class SshServer : IDisposable
             return filename;
         }
 
+        string WriteKerberosConfigFile(int kdcPort)
+        {
+            string configTemplate = File.ReadAllText(Path.Combine(ContainerBuildContext, "krb5.conf"));
+            string configValue = configTemplate.Replace("localhost", $"localhost:{kdcPort}");
+            string filename = Path.GetTempFileName();
+            File.WriteAllText(filename, configValue);
+            return filename;
+        }
+
         static bool HasContainerEngine(string name)
         {
             try
@@ -127,6 +143,29 @@ public class SshServer : IDisposable
         }
     }
 
+    private static bool HasExecutable(string executable)
+    {
+        try
+        {
+            // command is POSIX but is a shell-ism not a binary itself
+            var psi = new ProcessStartInfo()
+            {
+                FileName = "sh",
+                ArgumentList = { "-c", $"command -v {executable}" },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+            };
+            using var process = Process.Start(psi)!;
+            process.WaitForExit();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string LastWord(IEnumerable<string> lines)
         => lines.Last().Split(' ').Last();
 
@@ -138,6 +177,10 @@ public class SshServer : IDisposable
             if (_knownHostsFile != null)
             {
                 File.Delete(_knownHostsFile);
+            }
+            if (_krbConfigFilePath != null)
+            {
+                File.Delete(_krbConfigFilePath);
             }
             if (_containerId != null)
             {

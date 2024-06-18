@@ -373,6 +373,10 @@ class PasswordCredential : Credential
   PasswordCredential(string password);
   PasswordCredential(Func<string?> prompt);
 }
+class KerberosCredential : Credential
+{
+  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null);
+}
 // Base class.
 class SshException : Exception
 { }

@@ -85,6 +85,20 @@ sealed partial class UserAuthentication
                     throw new PrivateKeyLoadException(filename, error);
                 }
             }
+            else if (credential is KerberosCredential kerberosCredential)
+            {
+                bool isKerberosSuccessful = await kerberosCredential.TryAuthenticate(connection, logger, settings, connectionInfo, ct).ConfigureAwait(false);
+                if (!isKerberosSuccessful)
+                {
+                    continue;
+                }
+
+                bool isAuthSuccesfull = await ReceiveAuthIsSuccesfullAsync(connection, logger, ct).ConfigureAwait(false);
+                if (isAuthSuccesfull)
+                {
+                    return;
+                }
+            }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
