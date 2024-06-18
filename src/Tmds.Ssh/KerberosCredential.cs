@@ -3,7 +3,6 @@
 
 using System;
 using System.Buffers;
-using System.Formats.Asn1;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -166,8 +165,7 @@ public sealed class KerberosCredential : Credential
             }
             else
             {
-                var reader = new AsnReader(oidResponse.ToArray(), AsnEncodingRules.DER);
-                string receivedOid = reader.ReadObjectIdentifier();
+                string receivedOid = Convert.ToBase64String(oidResponse.IsSingleSegment ? oidResponse.FirstSpan : oidResponse.ToArray());
                 logger.AuthenticationKerberosFailed($"OID response {receivedOid} did not match expected value");
                 return false;
             }
