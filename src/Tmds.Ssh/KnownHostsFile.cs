@@ -3,14 +3,31 @@
 
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using static System.Environment;
 
 namespace Tmds.Ssh;
 
 static class KnownHostsFile
 {
+    public static string SystemKnownHostsFile
+    {
+        get
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
+            }
+            else
+            {
+                return "/etc/ssh/known_hosts";
+            }
+        }
+    }
+
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
     public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key)
@@ -40,10 +57,8 @@ static class KnownHostsFile
                                : $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
     }
 
-    public static KnownHostResult CheckHost(string filename, string host, string? ip, int port, HostKey key)
+    public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port)
     {
-        KnownHostResult result = KnownHostResult.Unknown;
-
         string[] lines;
         try
         {
@@ -53,12 +68,12 @@ static class KnownHostsFile
             }
             else
             {
-                return KnownHostResult.Unknown;
+                return;
             }
         }
         catch (IOException)
         {
-            return KnownHostResult.Unknown;
+            return;
         }
 
         host = host.ToLowerInvariant();
@@ -67,8 +82,6 @@ static class KnownHostsFile
             ip = null;
         }
         ip = ip?.ToLowerInvariant();
-
-        string? keyDataBase64 = null;
 
         foreach (var line in lines)
         {
@@ -106,52 +119,40 @@ static class KnownHostsFile
                 continue;
             }
 
-            if (!IsMatch(hostnames, host, ip, port))
+            MatchType matchType = IsMatch(hostnames, host, ip, port);
+            if (matchType == MatchType.NoMatch)
             {
                 continue;
             }
 
             bool revoked = markers == "@revoked";
 
-            if (keytype != key.Type)
+            byte[] key;
+            try
             {
-                if (!revoked && result == KnownHostResult.Unknown)
-                {
-                    result = KnownHostResult.Changed;
-                }
+                key = Convert.FromBase64String(base64key);
+            }
+            catch (FormatException)
+            {
                 continue;
             }
 
-            if (keyDataBase64 == null)
-            {
-                keyDataBase64 = Convert.ToBase64String(key.RawKey);
-            }
-
-            if (keyDataBase64 != base64key)
-            {
-                if (!revoked && result == KnownHostResult.Unknown)
-                {
-                    result = KnownHostResult.Changed;
-                }
-                continue;
-            }
+            HostKey hostKey = new HostKey(new Name(keytype), key);
 
             if (revoked)
             {
-                return KnownHostResult.Revoked;
+                hostKeys.AddRevokedKey(hostKey);
             }
-
-            result = KnownHostResult.Trusted;
+            else
+            {
+                hostKeys.AddTrustedKey(hostKey, isPatternMatch: matchType == MatchType.PatternMatch);
+            }
         }
-
-        return result;
     }
 
-    private static bool IsMatch(string hostnamesPattern, string host, string? ip, int port)
+    private static MatchType IsMatch(string hostnamesPattern, string host, string? ip, int port)
     {
         string[] patterns = hostnamesPattern.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-        bool match = false;
 
         foreach (var pattern in patterns)
         {
@@ -186,26 +187,30 @@ static class KnownHostsFile
                 s = s.Substring(1, endOfBracket - 1);
             }
 
-            bool patternMatch = IsHostNameMatch(s, host, ip);
+            MatchType matchType = IsHostNameMatch(s, host, ip);
 
-            if (patternMatch)
+            if (matchType == MatchType.NoMatch)
             {
-                if (negate)
-                {
-                    return false;
-                }
-                match = true;
+                continue;
             }
+
+            // if the host name matches a negated pattern, it is not accepted (by that line)
+            if (negate)
+            {
+                return MatchType.NoMatch;
+            }
+
+            return matchType;
         }
 
-        return match;
+        return MatchType.NoMatch;
     }
 
-    private static bool IsHostNameMatch(string pattern, string host, string? ip)
+    private static MatchType IsHostNameMatch(string pattern, string host, string? ip)
     {
         if (pattern == "*")
         {
-            return true;
+            return MatchType.PatternMatch;
         }
 
         bool hashed = pattern.Length > 0 && pattern[0] == '|';
@@ -214,41 +219,41 @@ static class KnownHostsFile
         {
             if (!pattern.StartsWith("|1|"))
             {
-                return false;
+                return MatchType.NoMatch;
             }
 
             string[] split = pattern.Substring(3).Split('|');
             if (split.Length != 2)
             {
-                return false;
+                return MatchType.NoMatch;
             }
             byte[] salt = new byte[20];
             if (!Convert.TryFromBase64String(split[0], salt, out int saltLength) || saltLength != 20)
             {
-                return false;
+                return MatchType.NoMatch;
             }
             byte[] hash = new byte[20];
             if (!Convert.TryFromBase64String(split[1], hash, out int hashLength) || hashLength != 20)
             {
-                return false;
+                return MatchType.NoMatch;
             }
 
             using var hmac = new HMac(HashAlgorithmName.SHA1, 20, 20, salt);
             hmac.AppendData(Encoding.UTF8.GetBytes(host));
             if (hmac.CheckHashAndReset(hash))
             {
-                return true;
+                return MatchType.ExactMatch;
             }
             if (ip != null)
             {
                 hmac.AppendData(Encoding.UTF8.GetBytes(ip));
                 if (hmac.CheckHashAndReset(hash))
                 {
-                    return true;
+                    return MatchType.ExactMatch;
                 }
             }
 
-            return false;
+            return MatchType.NoMatch;
         }
         else
         {
@@ -262,14 +267,27 @@ static class KnownHostsFile
                         .Replace("*", ".*")
                         .Replace("?", ".?")
                     + "$";
-                return Regex.IsMatch(host, regexPattern) ||
-                    (ip != null && Regex.IsMatch(ip, regexPattern));
+
+                bool isMatch = Regex.IsMatch(host, regexPattern) ||
+                                (ip != null && Regex.IsMatch(ip, regexPattern));
+                
+                return isMatch ? MatchType.PatternMatch : MatchType.NoMatch;
             }
             else
             {
                 pattern = pattern.ToLowerInvariant();
-                return pattern == host || pattern == ip;
+
+                bool isMatch = pattern == host || pattern == ip;
+
+                return isMatch ? MatchType.ExactMatch : MatchType.NoMatch;
             }
         }
+    }
+
+    private enum MatchType
+    {
+        NoMatch,
+        ExactMatch,
+        PatternMatch
     }
 }

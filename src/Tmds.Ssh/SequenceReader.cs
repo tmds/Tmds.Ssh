@@ -150,7 +150,7 @@ ref struct SequenceReader
         ReadOnlySequence<byte> key = ReadStringAsBytes(Constants.MaxKeyLength);
         SequenceReader keyReader = new SequenceReader(key);
         Name type = keyReader.ReadName();
-        return new HostKey(type.ToString(), key.ToArray());
+        return new HostKey(type, key.ToArray());
     }
 
     public void SkipString()

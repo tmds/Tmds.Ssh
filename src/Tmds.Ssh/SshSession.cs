@@ -138,7 +138,9 @@ sealed partial class SshSession : ISshClientImplementation
             }
             if (!_settings.NoKeyExchange)
             {
-                using Packet localExchangeInitMsg = _sequencePool.CreateKeyExchangeInitMessage(_settings);
+                KeyExchangeContext context = CreateKeyExchangeContext(_settings, ConnectionInfo);
+
+                using Packet localExchangeInitMsg = _sequencePool.CreateKeyExchangeInitMessage(context);
                 await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCts.Token).ConfigureAwait(false);
                 {
                     using Packet remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token).ConfigureAwait(false);
@@ -146,7 +148,9 @@ sealed partial class SshSession : ISshClientImplementation
                     {
                         ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                     }
-                    await _settings.ExchangeKeysAsync(connection, localExchangeInitMsg, remoteExchangeInitMsg, _logger, _settings, ConnectionInfo, connectCts.Token).ConfigureAwait(false);
+                    context.ClientKexInitMsg = localExchangeInitMsg;
+                    context.ServerKexInitMsg = remoteExchangeInitMsg;
+                    await _settings.ExchangeKeysAsync(connection, context, ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
                 }
             }
             if (!_settings.NoUserAuthentication)
@@ -201,6 +205,28 @@ sealed partial class SshSession : ISshClientImplementation
         }
 
         await HandleConnectionAsync(connection, ConnectionInfo).ConfigureAwait(false);
+    }
+    
+    private static KeyExchangeContext CreateKeyExchangeContext(SshClientSettings settings, SshConnectionInfo connectionInfo)
+    {
+        TrustedHostKeys trustedKeys = GetKnownHostKeys(settings, connectionInfo);
+        List<Name> serverHostKeyAlgorithms = new List<Name>(settings.ServerHostKeyAlgorithms);
+        trustedKeys.SortAlgorithms(serverHostKeyAlgorithms);
+
+        return new KeyExchangeContext()
+        {
+            KeyExchangeAlgorithms = settings.KeyExchangeAlgorithms,
+            ServerHostKeyAlgorithms = serverHostKeyAlgorithms,
+            EncryptionAlgorithmsClientToServer = settings.EncryptionAlgorithmsClientToServer,
+            EncryptionAlgorithmsServerToClient = settings.EncryptionAlgorithmsServerToClient,
+            MacAlgorithmsClientToServer = settings.MacAlgorithmsClientToServer,
+            MacAlgorithmsServerToClient = settings.MacAlgorithmsServerToClient,
+            CompressionAlgorithmsClientToServer = settings.CompressionAlgorithmsClientToServer,
+            CompressionAlgorithmsServerToClient = settings.CompressionAlgorithmsServerToClient,
+            LanguagesClientToServer = settings.LanguagesClientToServer,
+            LanguagesServerToClient = settings.LanguagesServerToClient,
+            HostKeyVerification = new HostKeyVerification(settings, trustedKeys)
+        };
     }
 
     private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
@@ -325,7 +351,8 @@ sealed partial class SshSession : ISshClientImplementation
                         // The peer requested a key exchange. We queue a SSH_MSG_KEXINIT and when the send loop detects it
                         // it will stop sending other packets until we release the key exchange semaphore to signal the key exchange is completed.
                         {
-                            using Packet clientKexInitMsg = _sequencePool.CreateKeyExchangeInitMessage(_settings);
+                            KeyExchangeContext context = CreateKeyExchangeContext(_settings, ConnectionInfo);
+                            using Packet clientKexInitMsg = _sequencePool.CreateKeyExchangeInitMessage(context);
 
                             // Assign _keyReExchangeSemaphore before sending packet through the send queue.
                             var kexInitSent = _keyReExchangeSemaphore = new SemaphoreSlim(0, 1);
@@ -339,7 +366,9 @@ sealed partial class SshSession : ISshClientImplementation
                             // The send loop waits for us to signal kex completion.
                             try
                             {
-                                await _settings.ExchangeKeysAsync(connection, clientKexInitMsg, serverKexInitMsg: packet, _logger, _settings, ConnectionInfo, abortToken).ConfigureAwait(false);
+                                context.ClientKexInitMsg = clientKexInitMsg;
+                                context.ServerKexInitMsg = packet;
+                                await _settings.ExchangeKeysAsync(connection, context, ConnectionInfo, _logger, abortToken).ConfigureAwait(false);
                             }
                             finally
                             {
@@ -399,6 +428,29 @@ sealed partial class SshSession : ISshClientImplementation
             reader.ReadMessageId();
             return reader.ReadUInt32();
         }
+    }
+
+    private static TrustedHostKeys GetKnownHostKeys(SshClientSettings settings, SshConnectionInfo connectionInfo)
+    {
+        string? ip = connectionInfo.IPAddress?.ToString();
+
+        string? settingsKnownHostsFile = settings.KnownHostsFilePath;
+        string? globalKnownHostsFile = settings.CheckGlobalKnownHostsFile ? KnownHostsFile.SystemKnownHostsFile : null;
+
+        TrustedHostKeys knownHostsKeys = new();
+
+        // Order from least to most preferred.
+        foreach (var knownHostFile in new string?[] { globalKnownHostsFile, settingsKnownHostsFile })
+        {
+            if (string.IsNullOrEmpty(knownHostFile))
+            {
+                continue;
+            }
+
+            KnownHostsFile.AddHostKeysFromFile(knownHostFile, knownHostsKeys, connectionInfo.Host, ip, connectionInfo.Port);
+        }
+
+        return knownHostsKeys;
     }
 
     private void HandleDisconnectMessage(ReadOnlyPacket packet)

@@ -54,6 +54,5 @@ static class AlgorithmNames // TODO: rename to KnownNames
 
     // These fields are initialized in order, so these list must be created after the names.
     // Algorithms are in **order of preference**.
-    public static readonly ImmutableArray<Name> SshRsaAlgorithms =
-        ImmutableArray.Create([RsaSshSha2_512, RsaSshSha2_256]);
+    public static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
 }

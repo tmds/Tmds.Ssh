@@ -9,12 +9,12 @@ namespace Tmds.Ssh;
 
 abstract class PrivateKey : IDisposable
 {
-    private protected PrivateKey(ImmutableArray<Name> algorithms)
+    private protected PrivateKey(Name[] algorithms)
     {
         Algorithms = algorithms;
     }
 
-    public ImmutableArray<Name> Algorithms { get; }
+    public Name[] Algorithms { get; }
 
     public abstract void Dispose();
 

@@ -11,7 +11,7 @@ abstract class PublicKey
 {
     public static PublicKey CreateFromSshKey(HostKey key)
     {
-        Name name = new Name(key.Type);
+        Name name = key.Type;
         if (name == AlgorithmNames.EcdsaSha2Nistp256 ||
             name == AlgorithmNames.EcdsaSha2Nistp384 ||
             name == AlgorithmNames.EcdsaSha2Nistp521)
@@ -26,6 +26,18 @@ abstract class PublicKey
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
             return null;
+        }
+    }
+
+    public static ReadOnlySpan<Name> AlgorithmsForKeyType(ref Name keyType)
+    {
+        if (keyType == AlgorithmNames.SshRsa)
+        {
+            return AlgorithmNames.SshRsaAlgorithms;
+        }
+        else
+        {
+            return new ReadOnlySpan<Name>(ref keyType);
         }
     }
 
