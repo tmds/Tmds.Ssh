@@ -10,17 +10,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, KeyExchangeContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct);
+internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct);
 sealed class KeyExchange
 {
     public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-    private async static Task PerformDefaultExchange(SshConnection connection, KeyExchangeContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+    private async static Task PerformDefaultExchange(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
     {
         // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
         SequencePool sequencePool = connection.SequencePool;
 
-        var remoteInit = ParseKeyExchangeInitMessage(context.ServerKexInitMsg);
+        var remoteInit = ParseKeyExchangeInitMessage(serverKexInitMsg);
 
         // The chosen algorithm MUST be the first algorithm on the client's name-list
         // that is also on the server's name-list.
@@ -96,7 +96,7 @@ sealed class KeyExchange
             encS2CAlg = EncryptionAlgorithm.Find(encS2C);
             hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
-            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, context.ClientKexInitMsg, context.ServerKexInitMsg, connectionInfo,
+            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
                 encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0);
 
             foreach (var keyAlgorithm in context.KeyExchangeAlgorithms)

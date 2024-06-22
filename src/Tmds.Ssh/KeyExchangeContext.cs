@@ -18,6 +18,4 @@ sealed class KeyExchangeContext
     public required List<Name> LanguagesClientToServer { get; init; }
     public required List<Name> LanguagesServerToClient { get; init; }
     public required IHostKeyVerification HostKeyVerification { get; init; }
-    public ReadOnlyPacket ClientKexInitMsg { get; set; }
-    public ReadOnlyPacket ServerKexInitMsg { get; set; }
 }

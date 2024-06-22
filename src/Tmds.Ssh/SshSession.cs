@@ -148,9 +148,7 @@ sealed partial class SshSession : ISshClientImplementation
                     {
                         ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                     }
-                    context.ClientKexInitMsg = localExchangeInitMsg;
-                    context.ServerKexInitMsg = remoteExchangeInitMsg;
-                    await _settings.ExchangeKeysAsync(connection, context, ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
+                    await _settings.ExchangeKeysAsync(connection, context, remoteExchangeInitMsg, localExchangeInitMsg,ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
                 }
             }
             if (!_settings.NoUserAuthentication)
@@ -210,8 +208,13 @@ sealed partial class SshSession : ISshClientImplementation
     private static KeyExchangeContext CreateKeyExchangeContext(SshClientSettings settings, SshConnectionInfo connectionInfo)
     {
         TrustedHostKeys trustedKeys = GetKnownHostKeys(settings, connectionInfo);
+
+        // Sort algorithms to prefer those we have keys for.
         List<Name> serverHostKeyAlgorithms = new List<Name>(settings.ServerHostKeyAlgorithms);
         trustedKeys.SortAlgorithms(serverHostKeyAlgorithms);
+
+        string? updateKnownHostsFile = settings.UpdateKnownHostsFile ? settings.KnownHostsFilePath : null;
+        IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, settings.HostAuthentication, updateKnownHostsFile);
 
         return new KeyExchangeContext()
         {
@@ -225,7 +228,7 @@ sealed partial class SshSession : ISshClientImplementation
             CompressionAlgorithmsServerToClient = settings.CompressionAlgorithmsServerToClient,
             LanguagesClientToServer = settings.LanguagesClientToServer,
             LanguagesServerToClient = settings.LanguagesServerToClient,
-            HostKeyVerification = new HostKeyVerification(settings, trustedKeys)
+            HostKeyVerification = hostKeyVerification
         };
     }
 
@@ -366,9 +369,7 @@ sealed partial class SshSession : ISshClientImplementation
                             // The send loop waits for us to signal kex completion.
                             try
                             {
-                                context.ClientKexInitMsg = clientKexInitMsg;
-                                context.ServerKexInitMsg = packet;
-                                await _settings.ExchangeKeysAsync(connection, context, ConnectionInfo, _logger, abortToken).ConfigureAwait(false);
+                                await _settings.ExchangeKeysAsync(connection, context, packet, clientKexInitMsg, ConnectionInfo, _logger, abortToken).ConfigureAwait(false);
                             }
                             finally
                             {

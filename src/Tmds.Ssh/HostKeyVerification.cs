@@ -12,13 +12,15 @@ namespace Tmds.Ssh;
 
 sealed class HostKeyVerification : IHostKeyVerification
 {
-    private readonly SshClientSettings _sshClientSettings;
+    private readonly HostAuthentication? _hostAuthentication;
+    private readonly string? _updateKnownHostsFile;
     private readonly TrustedHostKeys _knownHostKeys;
 
-    public HostKeyVerification(SshClientSettings sshClientSettings, TrustedHostKeys knownHostKeys)
+    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile)
     {
-        _sshClientSettings = sshClientSettings;
         _knownHostKeys = knownHostKeys;
+        _hostAuthentication = hostAuthentication;
+        _updateKnownHostsFile = updateKnownHostsFile;
     }
 
     public async ValueTask<bool> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
@@ -30,14 +32,12 @@ sealed class HostKeyVerification : IHostKeyVerification
 
         if (!isTrusted && result != KnownHostResult.Revoked)
         {
-            HostAuthentication? authentication = _sshClientSettings.HostAuthentication;
-            if (authentication is not null)
+            if (_hostAuthentication is not null)
             {
-                isTrusted = await authentication(result, connectionInfo, ct);
-                string? settingsKnownHostsFile = _sshClientSettings.KnownHostsFilePath;
-                if (isTrusted && _sshClientSettings.UpdateKnownHostsFile && !string.IsNullOrEmpty(settingsKnownHostsFile))
+                isTrusted = await _hostAuthentication(result, connectionInfo, ct);
+                if (isTrusted && !string.IsNullOrEmpty(_updateKnownHostsFile))
                 {
-                    KnownHostsFile.AddKnownHost(settingsKnownHostsFile, connectionInfo.Host, connectionInfo.Port, serverKey);
+                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.Host, connectionInfo.Port, serverKey);
                 }
             }
         }
