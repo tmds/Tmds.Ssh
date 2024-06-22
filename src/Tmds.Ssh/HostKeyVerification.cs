@@ -7,81 +7,37 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using static System.Environment;
 
 namespace Tmds.Ssh;
 
 sealed class HostKeyVerification : IHostKeyVerification
 {
-    private readonly SshClientSettings _sshClientSettings;
+    private readonly HostAuthentication? _hostAuthentication;
+    private readonly string? _updateKnownHostsFile;
+    private readonly TrustedHostKeys _knownHostKeys;
 
-    public HostKeyVerification(SshClientSettings sshClientSettings)
+    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile)
     {
-        _sshClientSettings = sshClientSettings;
-    }
-
-    public static string SystemKnownHostsFile
-    {
-        get
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
-            }
-            else
-            {
-                return "/etc/ssh/known_hosts";
-            }
-        }
+        _knownHostKeys = knownHostKeys;
+        _hostAuthentication = hostAuthentication;
+        _updateKnownHostsFile = updateKnownHostsFile;
     }
 
     public async ValueTask<bool> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
     {
-        HostKey key = connectionInfo.ServerKey!;
+        HostKey serverKey = connectionInfo.ServerKey!;
 
-        KnownHostResult result = KnownHostResult.Unknown;
-
-        string? ip = connectionInfo.IPAddress?.ToString();
-
-        string? settingsKnownHostsFile = _sshClientSettings.KnownHostsFilePath;
-        string? globalKnownHostsFile = _sshClientSettings.CheckGlobalKnownHostsFile ? SystemKnownHostsFile : null;
-
-        foreach (var knownHostFile in new string?[] { settingsKnownHostsFile, globalKnownHostsFile })
-        {
-            if (string.IsNullOrEmpty(knownHostFile))
-            {
-                continue;
-            }
-
-            KnownHostResult knownHostResult = KnownHostsFile.CheckHost(knownHostFile, connectionInfo.Host, ip, connectionInfo.Port, connectionInfo.ServerKey!);
-            if (knownHostResult == KnownHostResult.Revoked)
-            {
-                result = KnownHostResult.Revoked;
-                break;
-            }
-            if (knownHostResult == KnownHostResult.Unknown)
-            {
-                continue;
-            }
-
-            if (knownHostResult == KnownHostResult.Trusted ||
-                result == KnownHostResult.Unknown)
-            {
-                result = knownHostResult;
-            }
-        }
-
+        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey);
         bool isTrusted = result == KnownHostResult.Trusted;
 
         if (!isTrusted && result != KnownHostResult.Revoked)
         {
-            HostAuthentication? authentication = _sshClientSettings.HostAuthentication;
-            if (authentication is not null)
+            if (_hostAuthentication is not null)
             {
-                isTrusted = await authentication(result, connectionInfo, ct);
-                if (isTrusted && _sshClientSettings.UpdateKnownHostsFile && !string.IsNullOrEmpty(settingsKnownHostsFile))
+                isTrusted = await _hostAuthentication(result, connectionInfo, ct);
+                if (isTrusted && !string.IsNullOrEmpty(_updateKnownHostsFile))
                 {
-                    KnownHostsFile.AddKnownHost(settingsKnownHostsFile, connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
+                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.Host, connectionInfo.Port, serverKey);
                 }
             }
         }

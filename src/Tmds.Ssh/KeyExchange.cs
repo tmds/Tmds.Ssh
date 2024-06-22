@@ -10,12 +10,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
+internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct);
 sealed class KeyExchange
 {
     public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
 
-    private async static Task PerformDefaultExchange(SshConnection connection, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ILogger logger, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct)
+    private async static Task PerformDefaultExchange(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
     {
         // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
         SequencePool sequencePool = connection.SequencePool;
@@ -24,12 +24,12 @@ sealed class KeyExchange
 
         // The chosen algorithm MUST be the first algorithm on the client's name-list
         // that is also on the server's name-list.
-        Name encC2S = ChooseAlgorithm(settings.EncryptionAlgorithmsClientToServer, remoteInit.encryption_algorithms_client_to_server);
-        Name encS2C = ChooseAlgorithm(settings.EncryptionAlgorithmsServerToClient, remoteInit.encryption_algorithms_server_to_client);
-        Name macC2S = ChooseAlgorithm(settings.MacAlgorithmsClientToServer, remoteInit.mac_algorithms_client_to_server);
-        Name macS2C = ChooseAlgorithm(settings.MacAlgorithmsServerToClient, remoteInit.mac_algorithms_server_to_client);
-        Name comC2S = ChooseAlgorithm(settings.CompressionAlgorithmsClientToServer, remoteInit.compression_algorithms_client_to_server);
-        Name comS2C = ChooseAlgorithm(settings.CompressionAlgorithmsServerToClient, remoteInit.compression_algorithms_server_to_client);
+        Name encC2S = ChooseAlgorithm(context.EncryptionAlgorithmsClientToServer, remoteInit.encryption_algorithms_client_to_server);
+        Name encS2C = ChooseAlgorithm(context.EncryptionAlgorithmsServerToClient, remoteInit.encryption_algorithms_server_to_client);
+        Name macC2S = ChooseAlgorithm(context.MacAlgorithmsClientToServer, remoteInit.mac_algorithms_client_to_server);
+        Name macS2C = ChooseAlgorithm(context.MacAlgorithmsServerToClient, remoteInit.mac_algorithms_server_to_client);
+        Name comC2S = ChooseAlgorithm(context.CompressionAlgorithmsClientToServer, remoteInit.compression_algorithms_client_to_server);
+        Name comS2C = ChooseAlgorithm(context.CompressionAlgorithmsServerToClient, remoteInit.compression_algorithms_server_to_client);
 
         if (encC2S.IsEmpty || encS2C.IsEmpty || comC2S.IsEmpty || comS2C.IsEmpty)
         {
@@ -48,9 +48,9 @@ sealed class KeyExchange
         HMacAlgorithm? hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
         HMacAlgorithm? hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
-        // Make an ordered list of host key algorithms. The key exchange algorithm will pick a compatible one.
-        List<Name> hostKeyAlgorithms = new List<Name>(capacity: settings.ServerHostKeyAlgorithms.Count);
-        foreach (var hostKeyAlgorithm in settings.ServerHostKeyAlgorithms)
+        // Remove host key algorithms not supported by the server.
+        List<Name> hostKeyAlgorithms = new List<Name>(capacity: context.ServerHostKeyAlgorithms.Count);
+        foreach (var hostKeyAlgorithm in context.ServerHostKeyAlgorithms)
         {
             if (remoteInit.server_host_key_algorithms.Contains(hostKeyAlgorithm))
             {
@@ -60,9 +60,9 @@ sealed class KeyExchange
 
         // The first algorithm MUST be the preferred (and guessed) algorithm.  If
         // both sides make the same guess, that algorithm MUST be used.
-        Name matchingKex = settings.KeyExchangeAlgorithms.Count == 0 ||
+        Name matchingKex = context.KeyExchangeAlgorithms.Count == 0 ||
                 remoteInit.kex_algorithms.Length == 0 ||
-                settings.KeyExchangeAlgorithms[0] != remoteInit.kex_algorithms[0] ? default(Name) : settings.KeyExchangeAlgorithms[0];
+                context.KeyExchangeAlgorithms[0] != remoteInit.kex_algorithms[0] ? default(Name) : context.KeyExchangeAlgorithms[0];
 
         KeyExchangeOutput? keyExchangeOutput = null;
         Packet exchangeInitMsg = default;
@@ -73,9 +73,9 @@ sealed class KeyExchange
                 exchangeInitMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
 
                 if (matchingKex.IsEmpty ||
-                    settings.ServerHostKeyAlgorithms.Count == 0 ||
+                    context.ServerHostKeyAlgorithms.Count == 0 ||
                     remoteInit.server_host_key_algorithms.Length == 0 ||
-                    settings.ServerHostKeyAlgorithms[0] != remoteInit.server_host_key_algorithms[0])
+                    context.ServerHostKeyAlgorithms[0] != remoteInit.server_host_key_algorithms[0])
                 {
                     // Silently ignore if guessed wrong.
                     exchangeInitMsg.Dispose();
@@ -99,7 +99,7 @@ sealed class KeyExchange
             var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
                 encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0);
 
-            foreach (var keyAlgorithm in settings.KeyExchangeAlgorithms)
+            foreach (var keyAlgorithm in context.KeyExchangeAlgorithms)
             {
                 if (remoteInit.kex_algorithms.Contains(keyAlgorithm))
                 {
@@ -107,7 +107,7 @@ sealed class KeyExchange
 
                     using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                     {
-                        keyExchangeOutput = await algorithm.TryExchangeAsync(connection, new HostKeyVerification(settings), keyExchangeInput, logger, ct).ConfigureAwait(false);
+                        keyExchangeOutput = await algorithm.TryExchangeAsync(connection, context.HostKeyVerification, keyExchangeInput, logger, ct).ConfigureAwait(false);
                     }
                     if (keyExchangeOutput != null)
                     {

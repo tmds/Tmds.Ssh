@@ -6,16 +6,9 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-public sealed class HostKey
+public sealed class HostKey : IEquatable<HostKey>
 {
     private string? _sha256FingerPrint;
-
-    internal HostKey(string sha256FingerPrint)
-    {
-        _sha256FingerPrint = sha256FingerPrint;
-        Type = "";
-        RawKey = Array.Empty<byte>();
-    }
 
     public string SHA256FingerPrint
     {
@@ -31,12 +24,27 @@ public sealed class HostKey
         }
     }
 
-    // Managed
-    internal HostKey(string type, byte[] key)
+    internal HostKey(Name type, byte[] key)
     {
-        Type = type ?? throw new ArgumentNullException(nameof(type));
+        if (type.IsEmpty)
+        {
+            throw new ArgumentException(nameof(type));
+        }
+        Type = type;
         RawKey = key ?? throw new ArgumentNullException(nameof(key));
     }
-    internal string Type { get; } // TODO: type as 'Name'?
+
+    internal Name Type { get; }
+
     internal byte[] RawKey { get; }
+
+    public bool Equals(HostKey? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        return Type == other.Type && RawKey.AsSpan().SequenceEqual(other.RawKey);
+    }
 }
