@@ -48,7 +48,7 @@ sealed class KeyExchange
         HMacAlgorithm? hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
         HMacAlgorithm? hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
-        // Make an ordered list of host key algorithms. The key exchange algorithm will pick a compatible one.
+        // Remove host key algorithms not supported by the server.
         List<Name> hostKeyAlgorithms = new List<Name>(capacity: context.ServerHostKeyAlgorithms.Count);
         foreach (var hostKeyAlgorithm in context.ServerHostKeyAlgorithms)
         {
