@@ -153,7 +153,7 @@ sealed partial class SshSession : ISshClientImplementation
             }
             if (!_settings.NoUserAuthentication)
             {
-                await _settings.AuthenticateUserAsync(connection, _logger, _settings, ConnectionInfo, connectCts.Token).ConfigureAwait(false);
+                await _settings.AuthenticateUserAsync(connection, _settings.UserName, _settings.Credentials, ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
             }
 
             // Allow sending.

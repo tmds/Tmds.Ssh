@@ -57,9 +57,14 @@ static class ThrowHelper
         throw new ProtocolException("The packet MAC is incorrect.");
     }
 
-    internal static void ThrowProtocolPacketTooLong()
+    public static void ThrowProtocolPacketTooLong()
     {
         throw new ProtocolException("Packet is too long.");
+    }
+
+    public static void ThrowBannerTooLong()
+    {
+        throw new ProtocolException("Too many banner messages.");
     }
 
     [DoesNotReturn]
