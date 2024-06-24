@@ -11,7 +11,7 @@ sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
     private readonly ILogger _logger;
-    private int _bannerMessageCount = 0;
+    private int _bannerPacketCount = 0;
 
     public UserAuthContext(SshConnection connection, string userName, ILogger logger)
     {
@@ -41,7 +41,7 @@ sealed class UserAuthContext
 
                 packet.Dispose();
 
-                if (_bannerMessageCount++ > Constants.MaxBannerPackets)
+                if (_bannerPacketCount++ > Constants.MaxBannerPackets)
                 {
                     ThrowHelper.ThrowBannerTooLong();
                 }

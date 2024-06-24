@@ -9,6 +9,7 @@ namespace Tmds.Ssh;
 
 partial class UserAuthentication
 {
+    // https://datatracker.ietf.org/doc/html/rfc4252 - Password Authentication Method: "password"
     sealed class PasswordAuth
     {
         public static async Task<bool> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)

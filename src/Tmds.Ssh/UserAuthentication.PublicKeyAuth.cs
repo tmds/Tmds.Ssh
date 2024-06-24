@@ -15,6 +15,7 @@ namespace Tmds.Ssh;
 
 partial class UserAuthentication
 {
+    // https://datatracker.ietf.org/doc/html/rfc4252 - Public Key Authentication Method: "publickey"
     sealed class PublicKeyAuth
     {
         public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)

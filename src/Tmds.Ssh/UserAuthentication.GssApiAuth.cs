@@ -16,10 +16,9 @@ namespace Tmds.Ssh;
 
 partial class UserAuthentication
 {
-    sealed class GssApiWithMicAuth
+    // https://datatracker.ietf.org/doc/html/rfc4462 - GSS-API User Authentication
+    sealed class GssApiAuth
     {
-        // gssapi-with-mic is defined in https://datatracker.ietf.org/doc/html/rfc4462
-
         // Kerberos - 1.2.840.113554.1.2.2 - This is DER encoding of the OID.
         private static readonly byte[] KRB5_OID = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02];
 

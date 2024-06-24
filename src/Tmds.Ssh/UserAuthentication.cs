@@ -45,7 +45,7 @@ sealed partial class UserAuthentication
             }
             else if (credential is KerberosCredential kerberosCredential)
             {
-                authSuccess = await GssApiWithMicAuth.TryAuthenticate(kerberosCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);
+                authSuccess = await GssApiAuth.TryAuthenticate(kerberosCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);
             }
             else
             {
