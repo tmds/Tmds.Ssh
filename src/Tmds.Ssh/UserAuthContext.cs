@@ -1,6 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,7 @@ sealed class UserAuthContext
     private readonly SshConnection _connection;
     private readonly ILogger _logger;
     private int _bannerPacketCount = 0;
+    private Name[]? _allowedAuthentications;
 
     public UserAuthContext(SshConnection connection, string userName, ILogger logger)
     {
@@ -67,7 +69,7 @@ sealed class UserAuthContext
         return isSuccess;
     }
 
-    private static bool IsAuthSuccesfull(ReadOnlyPacket packet)
+    private bool IsAuthSuccesfull(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         MessageId b = reader.ReadMessageId();
@@ -76,10 +78,26 @@ sealed class UserAuthContext
             case MessageId.SSH_MSG_USERAUTH_SUCCESS:
                 return true;
             case MessageId.SSH_MSG_USERAUTH_FAILURE:
+                /*
+                    byte         SSH_MSG_USERAUTH_FAILURE
+                    name-list    authentications that can continue
+                    boolean      partial success
+                */
+                _allowedAuthentications = reader.ReadNameList();
+                bool partial_success = reader.ReadBoolean();
+                if (partial_success)
+                {
+                    throw new NotImplementedException("Partial success auth is not implemented.");
+                }
                 return false;
             default:
                 ThrowHelper.ThrowProtocolUnexpectedValue();
                 return false;
         }
+    }
+
+    public bool IsAuthenticationAllowed(Name name)
+    {
+        return _allowedAuthentications == null ? true : Array.IndexOf(_allowedAuthentications, name) >= 0;
     }
 }

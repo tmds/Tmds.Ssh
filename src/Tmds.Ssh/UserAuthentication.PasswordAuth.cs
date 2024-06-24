@@ -14,6 +14,11 @@ partial class UserAuthentication
     {
         public static async Task<bool> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
+            if (!context.IsAuthenticationAllowed(AlgorithmNames.Password))
+            {
+                return false;
+            }
+
             logger.AuthenticationMethod("password");
 
             string? password = passwordCredential.GetPassword();

@@ -431,6 +431,11 @@ Supported message authentication code algorithms:
 Supported compression algorithms:
 - none
 
+Authentications:
+- publickey (`PrivateKeyCredential`)
+- password (`PasswordCredential`)
+- gssapi-with-mic (`KerberosCredential`)
+
 ## CI Feed
 
 You can obtain packages from the CI NuGet feed: https://www.myget.org/F/tmds/api/v3/index.json.

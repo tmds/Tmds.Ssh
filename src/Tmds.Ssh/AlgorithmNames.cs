@@ -55,4 +55,15 @@ static class AlgorithmNames // TODO: rename to KnownNames
     // These fields are initialized in order, so these list must be created after the names.
     // Algorithms are in **order of preference**.
     public static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
+
+    // Authentications
+    private static readonly byte[] GssApiWithMicBytes = "gssapi-with-mic"u8.ToArray();
+    public static Name GssApiWithMic => new Name(GssApiWithMicBytes);
+
+    private static readonly byte[] PasswordBytes = "password"u8.ToArray();
+    public static Name Password => new Name(PasswordBytes);
+
+    private static readonly byte[] PublicKeyBytes = "publickey"u8.ToArray();
+    public static Name PublicKey => new Name(PublicKeyBytes);
+    
 }
