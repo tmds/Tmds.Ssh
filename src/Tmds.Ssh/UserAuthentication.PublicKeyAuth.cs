@@ -20,6 +20,11 @@ partial class UserAuthentication
     {
         public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
+            if (!context.IsAuthenticationAllowed(AlgorithmNames.PublicKey))
+            {
+                return false;
+            }
+
             string filename = keyCredential.FilePath;
             if (!File.Exists(filename))
             {

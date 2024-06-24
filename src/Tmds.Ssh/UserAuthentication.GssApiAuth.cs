@@ -30,6 +30,11 @@ partial class UserAuthentication
 
         public static async Task<bool> TryAuthenticate(KerberosCredential credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
+            if (!context.IsAuthenticationAllowed(AlgorithmNames.GssApiWithMic))
+            {
+                return false;
+            }
+
             // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
             // .NET converts this format to the hostbased format expected by GSSAPI for us.
             string spn = string.IsNullOrEmpty(credential.ServiceName) ? $"host/{connectionInfo.Host}" : credential.ServiceName;
