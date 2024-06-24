@@ -138,7 +138,8 @@ public sealed partial class SshClientSettings
         [
             // new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ed25519")),
             // new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")),
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa"))
+            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa")),
+            new KerberosCredential(),
         ];
     }    
 
