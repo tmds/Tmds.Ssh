@@ -188,7 +188,7 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ "~/.ssh/id_rsa" ]
+  static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
 
   SshClientSettings();
   SshClientSettings(string destination);
