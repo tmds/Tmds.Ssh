@@ -3,10 +3,8 @@
 
 using System;
 using System.Buffers;
-using System.Linq;
 using System.Net;
 using System.Net.Security;
-using System.Runtime.CompilerServices;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,12 +19,6 @@ partial class UserAuthentication
     {
         // Kerberos - 1.2.840.113554.1.2.2 - This is DER encoding of the OID.
         private static readonly byte[] KRB5_OID = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02];
-
-#if NET8_0
-        // This API was made public in .NET 9 through ComputeIntegrityCheck.
-        [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "GetMIC")]
-        private extern static void GetMICMethod(NegotiateAuthentication context, ReadOnlySpan<byte> data, IBufferWriter<byte> writer);
-#endif
 
         public static async Task<bool> TryAuthenticate(KerberosCredential credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
@@ -68,7 +60,7 @@ partial class UserAuthentication
                 TargetName = spn
             };
 
-            using var authContext = new NegotiateAuthentication(negotiateOptions);
+            using var authContext = new AsyncNegotiateAuthentication(negotiateOptions);
             bool isAuthSuccess = await TryStageAuthentication(context, logger, authContext, ct).ConfigureAwait(false);
             if (!isAuthSuccess)
             {
@@ -129,9 +121,9 @@ partial class UserAuthentication
             }
         }
 
-        private static async Task<bool> TryStageAuthentication(UserAuthContext context, ILogger logger, NegotiateAuthentication authContext, CancellationToken ct)
+        private static async Task<bool> TryStageAuthentication(UserAuthContext context, ILogger logger, AsyncNegotiateAuthentication authContext, CancellationToken ct)
         {
-            byte[]? outToken = authContext.GetOutgoingBlob(Array.Empty<byte>(), out var statusCode);
+            (byte[]? outToken, NegotiateAuthenticationStatusCode statusCode) = await authContext.GetOutgoingBlobAsync(Array.Empty<byte>(), ct);
 
             while (outToken is not null)
             {
@@ -154,9 +146,7 @@ partial class UserAuthentication
                     break;
                 }
 
-                outToken = authContext.GetOutgoingBlob(
-                    tokenResponse.Value.IsSingleSegment ? tokenResponse.Value.FirstSpan : tokenResponse.Value.ToArray(),
-                    out statusCode);
+                (outToken, statusCode) = await authContext.GetOutgoingBlobAsync(tokenResponse.Value.ToArray(), ct);
             }
 
             if (statusCode == NegotiateAuthenticationStatusCode.Completed)
@@ -216,7 +206,7 @@ partial class UserAuthentication
             return packet.Move();
         }
 
-        private static Packet CreateGssapiMicData(SequencePool sequencePool, ReadOnlySpan<byte> sessionId, string userName, NegotiateAuthentication authContext)
+        private static Packet CreateGssapiMicData(SequencePool sequencePool, ReadOnlySpan<byte> sessionId, string userName, AsyncNegotiateAuthentication authContext)
         {
             /*
                 string    session identifier
@@ -237,16 +227,9 @@ partial class UserAuthentication
 
             var signatureWriter = new ArrayBufferWriter<byte>();
 
-#if NET8_0
-            GetMICMethod(
-                authContext,
-                micData.IsSingleSegment ? micData.FirstSpan : micData.ToArray(),
-                signatureWriter);
-#else
         authContext.ComputeIntegrityCheck(
             micData.IsSingleSegment ? micData.FirstSpan : micData.ToArray(),
             signatureWriter);
-#endif
 
             /*
                 byte      SSH_MSG_USERAUTH_GSSAPI_MIC
