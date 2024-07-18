@@ -13,21 +13,6 @@ namespace Tmds.Ssh;
 
 static class KnownHostsFile
 {
-    public static string SystemKnownHostsFile
-    {
-        get
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
-            }
-            else
-            {
-                return "/etc/ssh/known_hosts";
-            }
-        }
-    }
-
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
     public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key)

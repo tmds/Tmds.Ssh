@@ -35,8 +35,22 @@ partial class UserAuthentication
             {
                 using (pk)
                 {
+                    if (pk is RsaPrivateKey rsaKey)
+                    {
+                        if (rsaKey.KeySize < context.MinimumRSAKeySize)
+                        {
+                            // TODO: log
+                            return false;
+                        }
+                    }
+
                     foreach (var keyAlgorithm in pk.Algorithms)
                     {
+                        if (!context.PublicKeyAcceptedAlgorithms.Contains(keyAlgorithm))
+                        {
+                            continue;
+                        }
+
                         logger.AuthenticationMethodPublicKey(keyCredential.FilePath);
                         {
                             using var userAuthMsg = CreatePublicKeyRequestMessage(

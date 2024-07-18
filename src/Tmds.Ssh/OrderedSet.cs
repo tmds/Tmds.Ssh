@@ -39,4 +39,12 @@ sealed class OrderedSet<T>
             return CollectionsMarshal.AsSpan(_ordered);
         }
     }
+
+    public List<T> List
+    {
+        get
+        {
+            return _ordered;
+        }
+    }
 }

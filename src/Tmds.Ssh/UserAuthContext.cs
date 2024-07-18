@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -15,16 +16,22 @@ sealed class UserAuthContext
     private int _bannerPacketCount = 0;
     private Name[]? _allowedAuthentications;
 
-    public UserAuthContext(SshConnection connection, string userName, ILogger logger)
+    public UserAuthContext(SshConnection connection, string userName, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, ILogger logger)
     {
         _connection = connection;
         _logger = logger;
         UserName = userName;
+        PublicKeyAcceptedAlgorithms = publicKeyAcceptedAlgorithms;
+        MinimumRSAKeySize = minimumRSAKeySize;
     }
 
     public string UserName { get; }
 
     public SequencePool SequencePool => _connection.SequencePool;
+
+    public List<Name> PublicKeyAcceptedAlgorithms { get; }
+
+    public int MinimumRSAKeySize { get; }
 
     public async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, int maxLength = Constants.PreAuthMaxPacketLength)
     {

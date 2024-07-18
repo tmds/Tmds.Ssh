@@ -50,12 +50,17 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
         bool isTrusted = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
         if (!isTrusted)
         {
-            string knownHostsLine = KnownHostsFile.FormatLine(connectionInfo.Host, connectionInfo.Port, connectionInfo.ServerKey);
+            string knownHostsLine = KnownHostsFile.FormatLine(connectionInfo.HostName, connectionInfo.Port, connectionInfo.ServerKey);
             string message = $"The host '{knownHostsLine}' is not trusted.";
             throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
         }
 
         var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
+        if (publicHostKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < input.MinimumRSAKeySize)
+        {
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server RSA key size {rsaPublicKey.KeySize} is less than {input.MinimumRSAKeySize}.", connectionInfo);
+        }
+
         // Compute shared secret.
         BigInteger sharedSecret;
         try

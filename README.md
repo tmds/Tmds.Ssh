@@ -23,7 +23,7 @@ Update `Program.cs`:
 ```cs
 using Tmds.Ssh;
 
-using var sshClient = new SshClient("localhost");
+using var sshClient = new SshClient("localhost", SshConfigOptions.Default);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -42,7 +42,7 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination);
+  SshClient(string destination, SshConfigOptions configOptions);
   SshClient(SshClientSettings settings);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
@@ -105,7 +105,7 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SftpClientOptions? options = null);
+  SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null);
   SftpClient(SshClientSettings settings, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
@@ -189,14 +189,16 @@ class SftpFile : Stream
 class SshClientSettings
 {
   static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
+  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } // = [ '~/.ssh/known_hosts' ].
+  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } // = [ '/etc/ssh/known_hosts' ].
 
   SshClientSettings();
   SshClientSettings(string destination);
 
-  TimeSpan ConnectTimeout { get; set; }
+  TimeSpan ConnectTimeout { get; set; } // = 15s
 
   string UserName { get; set; }
-  string Host { get; set; }
+  string HostName { get; set; }
   int Port { get; set; }
 
   IReadOnlyList<Credential> Credentials { get; set; } = DefaultCredentials;
@@ -204,10 +206,23 @@ class SshClientSettings
   bool AutoConnect { get; set; } = true;
   bool AutoReconnect { get; set; }
 
-  bool CheckGlobalKnownHostsFile { get; set; } = true;
-  string? KnownHostsFilePath { get; set; } // = '~/.ssh/known_hosts'.
+  IReadOnlyList<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
+  IReadOnlyList<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
   HostAuthentication? HostAuthentication { get; set; }
-  bool UpdateKnownHostsFile { get; set; } = false;
+  bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
+  int MinimumRSAKeySize { get; set; } = 2048;
+}
+class SshConfigOptions
+{
+  static SshConfigOptions Default  { get; }  // use [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
+  static SshConfigOptions NoConfig  { get; } // use [ ]
+
+  IReadOnlyList<string> ConfigFilePaths { get; set; }
+
+  bool AutoConnect { get; set; } = true;
+  bool AutoReconnect { get; set; }
+  // Will be overridden by config file connect timeout (if set).
+  TimeSpan ConnectTimeout { get; set; } // = 15s
 }
 class SftpClientOptions
 { }

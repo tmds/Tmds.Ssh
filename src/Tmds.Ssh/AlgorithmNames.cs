@@ -59,10 +59,12 @@ static class AlgorithmNames // TODO: rename to KnownNames
     // Authentications
     private static readonly byte[] GssApiWithMicBytes = "gssapi-with-mic"u8.ToArray();
     public static Name GssApiWithMic => new Name(GssApiWithMicBytes);
-
+    private static readonly byte[] HostBasedBytes = "hostbased"u8.ToArray();
+    public static Name HostBased => new Name(HostBasedBytes);
+    private static readonly byte[] KeyboardInteractiveBytes = "keyboard-interactive"u8.ToArray();
+    public static Name KeyboardInteractive => new Name(KeyboardInteractiveBytes);
     private static readonly byte[] PasswordBytes = "password"u8.ToArray();
     public static Name Password => new Name(PasswordBytes);
-
     private static readonly byte[] PublicKeyBytes = "publickey"u8.ToArray();
     public static Name PublicKey => new Name(PublicKeyBytes);
     

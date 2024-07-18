@@ -24,6 +24,12 @@ readonly struct Name : IEquatable<Name>
         _name = Encoding.ASCII.GetBytes(name);
     }
 
+    internal Name(ReadOnlySpan<char> name)
+    {
+        _name = new byte[Encoding.ASCII.GetByteCount(name)];
+        Encoding.ASCII.GetBytes(name, _name);
+    }
+
     public static bool TryCreate(byte[] bytes, out Name name)
     {
         if (bytes == null)

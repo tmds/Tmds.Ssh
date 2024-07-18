@@ -22,7 +22,7 @@ if (source.IsLocal == false && destination.IsLocal == false)
 
 string sshDestination = source.SshDestination ?? destination.SshDestination!;
 
-using SshClient client = new SshClient(sshDestination);
+using SshClient client = new SshClient(sshDestination, SshConfigOptions.Default);
 
 await client.ConnectAsync();
 

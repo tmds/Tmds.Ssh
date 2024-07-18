@@ -53,23 +53,24 @@ public sealed partial class SftpClient : IDisposable
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
 
-    public SftpClient(string destination, SftpClientOptions? options = null) :
-        this(new SshClientSettings(destination), options)
+    public SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null) :
+        this(new SshClient(destination, configOptions), options, ownsClient: true)
     { }
 
-    public SftpClient(SshClientSettings settings, SftpClientOptions? options = null)
-    {
-        _client = new SshClient(settings);
-        _ownsClient = true;
-        _options = options ?? SshClient.DefaultSftpClientOptions;
-    }
+    public SftpClient(SshClientSettings settings, SftpClientOptions? options = null) :
+        this(new SshClient(settings), options, ownsClient: true)
+    { }
 
-    public SftpClient(SshClient client, SftpClientOptions? options = null)
+    public SftpClient(SshClient client, SftpClientOptions? options = null) :
+        this(client, options, ownsClient: false)
+    {}
+
+    private SftpClient(SshClient client, SftpClientOptions? options, bool ownsClient)
     {
         ArgumentNullException.ThrowIfNull(client);
         _client = client;
-        _ownsClient = false;
         _options = options ?? SshClient.DefaultSftpClientOptions;
+        _ownsClient = ownsClient;
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)

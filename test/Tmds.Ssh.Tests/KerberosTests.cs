@@ -91,7 +91,7 @@ public class KerberosTests : IDisposable
                 var credential = new NetworkCredential(args[4], args[5]);
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[2],
+                    UserKnownHostsFilePaths = [ args[2] ],
                     UserName = userName,
                     Credentials = [ new KerberosCredential(credential, serviceName: args[1]) ],
                 };
@@ -158,7 +158,7 @@ public class KerberosTests : IDisposable
 
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = userName,
                     Credentials = [ new KerberosCredential(delegateCredential: requestDelegate) ],
                 };
@@ -204,7 +204,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = "invalid",
                     Credentials = [ new KerberosCredential(new NetworkCredential(args[2], args[3])) ],
                 };
@@ -227,7 +227,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = args[2],
                     Credentials = [ new KerberosCredential(new NetworkCredential(args[2], "invalid")) ],
                 };
@@ -250,7 +250,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = args[2],
                     Credentials = [ new KerberosCredential() ],
                 };

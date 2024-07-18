@@ -37,7 +37,7 @@ sealed class HostKeyVerification : IHostKeyVerification
                 isTrusted = await _hostAuthentication(result, connectionInfo, ct);
                 if (isTrusted && !string.IsNullOrEmpty(_updateKnownHostsFile))
                 {
-                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.Host, connectionInfo.Port, serverKey);
+                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, serverKey);
                 }
             }
         }

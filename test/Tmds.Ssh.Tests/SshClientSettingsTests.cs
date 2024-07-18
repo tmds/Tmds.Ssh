@@ -12,11 +12,9 @@ public class ClientSettingsTests
         var settings = new SshClientSettings();
         Assert.Equal(TimeSpan.FromSeconds(15), settings.ConnectTimeout);
         Assert.Equal(string.Empty, settings.UserName);
-        Assert.Equal(string.Empty, settings.Host);
+        Assert.Equal(string.Empty, settings.HostName);
         Assert.Equal(22, settings.Port);
         Assert.Equal(SshClientSettings.DefaultCredentials, settings.Credentials);
-        Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFilePath);
-        Assert.True(settings.CheckGlobalKnownHostsFile);
         Assert.Null(settings.HostAuthentication);
     }
 
@@ -34,7 +32,7 @@ public class ClientSettingsTests
 
         var settings = new SshClientSettings(destination);
 
-        Assert.Equal(expectedHost, settings.Host);
+        Assert.Equal(expectedHost, settings.HostName);
         Assert.Equal(expectedUsername, settings.UserName);
         Assert.Equal(expectedPort, settings.Port);
     }

@@ -16,7 +16,10 @@ public sealed partial class SshClient : IDisposable
     private readonly object _gate = new object();
     private SshSession? _session;
     private Task<SshSession>? _connectingTask;
-    private readonly SshClientSettings _clientSettings;
+    private readonly bool _autoConnect;
+    private readonly bool _autoReconnect;
+    private readonly TimeSpan _connectTimeout;
+    private readonly Func<CancellationToken, ValueTask<SshClientSettings>> _getClientSettings;
     private State _state = State.Initial;
 
     enum State
@@ -33,12 +36,24 @@ public sealed partial class SshClient : IDisposable
 
     public SshClient(SshClientSettings settings)
     {
-        _clientSettings = settings ?? throw new ArgumentNullException(nameof(settings));
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _getClientSettings = delegate { return ValueTask.FromResult(settings); };
+        _autoConnect = settings.AutoConnect;
+        _autoReconnect = settings.AutoReconnect;
+        _connectTimeout = settings.ConnectTimeout;
     }
 
-    public SshClient(string destination)
-        : this(new SshClientSettings(destination))
-    { }
+    public SshClient(string destination, SshConfigOptions configOptions)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(configOptions);
+
+        _getClientSettings = (CancellationToken cancellationToken) => SshClientSettings.LoadFromConfigAsync(destination, configOptions, cancellationToken);
+        _autoConnect = configOptions.AutoConnect;
+        _autoReconnect = configOptions.AutoReconnect;
+        _connectTimeout = configOptions.ConnectTimeout;
+    }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -57,7 +72,7 @@ public sealed partial class SshClient : IDisposable
             State state = _state;
 
             if (state == State.Connected ||
-                (state == State.Disconnected && !_clientSettings.AutoReconnect))
+                (state == State.Disconnected && !_autoReconnect))
             {
                 return new ValueTask<SshSession>(_session!);
             }
@@ -74,7 +89,7 @@ public sealed partial class SshClient : IDisposable
                 throw NewObjectDisposedException();
             }
 
-            if (!explicitConnect && !_clientSettings.AutoConnect && (state == State.Initial || state == State.Connecting))
+            if (!explicitConnect && !_autoConnect && (state == State.Initial || state == State.Connecting))
             {
                 throw new InvalidOperationException($"{nameof(ConnectAsync)} must be called and awaited.");
             }
@@ -130,13 +145,13 @@ public sealed partial class SshClient : IDisposable
         Debug.Assert(Monitor.IsEntered(_gate));
         Debug.Assert(_state == State.Connecting);
 
-        SshSession session = new SshSession(_clientSettings, this);
+        SshSession session = new SshSession(_getClientSettings, this);
         _session = session;
 
         bool success = false;
         try
         {
-            await session.ConnectAsync(cancellationToken);
+            await session.ConnectAsync(_connectTimeout, cancellationToken);
             success = true;
             return session;
         }
