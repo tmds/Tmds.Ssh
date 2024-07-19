@@ -41,12 +41,14 @@ partial class SshClientSettings
     internal readonly static List<Name> SupportedPublicKeyAcceptedAlgorithms = [ ..AlgorithmNames.SshRsaAlgorithms ];
     internal readonly static List<Name> SupportedMacAlgorithms = EmptyList;
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];
+    internal readonly static List<Name> DisableCompressionAlgorithms = [ AlgorithmNames.None ];
     internal readonly static List<Name> DefaultKeyExchangeAlgorithms = SupportedKeyExchangeAlgorithms;
     internal readonly static List<Name> DefaultServerHostKeyAlgorithms = SupportedServerHostKeyAlgorithms;
     internal readonly static List<Name> DefaultEncryptionAlgorithms = SupportedEncryptionAlgorithms;
     internal readonly static List<Name> DefaultPublicKeyAcceptedAlgorithms = SupportedPublicKeyAcceptedAlgorithms;
     internal readonly static List<Name> DefaultMacAlgorithms = SupportedMacAlgorithms;
     internal readonly static List<Name> DefaultCompressionAlgorithms = SupportedCompressionAlgorithms;
+    internal readonly static List<Name> EnableCompressionAlgorithms = DisableCompressionAlgorithms; // no compression algorithms implemented.
 
     private static IReadOnlyList<Credential> CreateDefaultCredentials()
     {

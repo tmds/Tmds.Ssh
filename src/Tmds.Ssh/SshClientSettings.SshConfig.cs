@@ -32,15 +32,15 @@ partial class SshClientSettings
         SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.ConfigFilePaths, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);
-        List<Name> compression = DetermineAlgorithms(sshConfig.Compression, DefaultCompressionAlgorithms, SupportedCompressionAlgorithms);
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
         List<Name> kexAlgorithms = DetermineAlgorithms(sshConfig.KexAlgorithms, DefaultKeyExchangeAlgorithms, SupportedKeyExchangeAlgorithms);
         List<Name> macs = DetermineAlgorithms(sshConfig.Macs, DefaultMacAlgorithms, SupportedMacAlgorithms);
         List<Name> publicKeyAcceptedAlgorithms = DetermineAlgorithms(sshConfig.PublicKeyAcceptedAlgorithms, DefaultPublicKeyAcceptedAlgorithms, SupportedPublicKeyAcceptedAlgorithms);
+        List<Name> compressionAlgorithms = sshConfig.Compression == true ? EnableCompressionAlgorithms : DisableCompressionAlgorithms;
 
         var settings = new SshClientSettings()
         {
-            HostName = sshConfig.HostName ?? "",
+            HostName = sshConfig.HostName ?? host,
             UserName = sshConfig.UserName ?? Environment.UserName,
             Port = sshConfig.Port ?? DefaultPort,
             UserKnownHostsFilePaths = sshConfig.UserKnownHostsFiles ?? DefaultUserKnownHostsFilePaths,
@@ -53,8 +53,8 @@ partial class SshClientSettings
             EncryptionAlgorithmsServerToClient = ciphers,
             MacAlgorithmsClientToServer = macs,
             MacAlgorithmsServerToClient = macs,
-            CompressionAlgorithmsClientToServer = compression,
-            CompressionAlgorithmsServerToClient = compression,
+            CompressionAlgorithmsClientToServer = compressionAlgorithms,
+            CompressionAlgorithmsServerToClient = compressionAlgorithms,
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig)
         };
@@ -108,7 +108,7 @@ partial class SshClientSettings
         return credentials;
     }
 
-    private static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, List<Name> defaultAlgorithms, List<Name> supportedAlgorithms)
+    internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, List<Name> defaultAlgorithms, List<Name> supportedAlgorithms)
     {
         if (!config.HasValue)
         {

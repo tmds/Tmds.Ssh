@@ -16,9 +16,9 @@ namespace Tmds.Ssh;
 
 sealed class SshConfig
 {
-    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-
     private const string WhiteSpace = " \t";
+    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+    private static readonly List<string> ListOfNone = [];
 
     public enum AlgorithmListOperation
     {
@@ -43,7 +43,7 @@ sealed class SshConfig
     public List<string>? GlobalKnownHostsFiles { get; set; }
     public List<string>? UserKnownHostsFiles { get; set; }
     public AlgorithmList? Ciphers { get; set; }
-    public AlgorithmList? Compression { get; set; }
+    public bool? Compression { get; set; }
     public AlgorithmList? HostKeyAlgorithms { get; set; }
     public AlgorithmList? KexAlgorithms { get; set; }
     public AlgorithmList? Macs { get; set; }
@@ -263,35 +263,37 @@ sealed class SshConfig
 
                     // host key options
                     case "globalknownhostsfile":
-                        config.GlobalKnownHostsFiles?.Clear();
-                        while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
+                        if (config.GlobalKnownHostsFiles == null)
                         {
-                            config.GlobalKnownHostsFiles ??= new();
-
-                            if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                            config.GlobalKnownHostsFiles = new();
+                            while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
                             {
-                                break;
-                            }
+                                if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    break;
+                                }
 
-                            string path = TildeExpand(pathPattern);
-                            config.GlobalKnownHostsFiles.Add(path);
+                                string path = TildeExpand(pathPattern);
+                                config.GlobalKnownHostsFiles.Add(path);
+                            }
                         }
                         break;
                     case "userknownhostsfile":
-                        config.UserKnownHostsFiles?.Clear();
-                        while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
+                        if (config.UserKnownHostsFiles == null)
                         {
-                            config.UserKnownHostsFiles ??= new();
-
-                            if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                            config.UserKnownHostsFiles = new();
+                            while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
                             {
-                                break;
-                            }
+                                if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    break;
+                                }
 
-                            string path = TildeExpand(pathPattern);
-                            // TODO: TOKEN expand.
-                            // TODO: envvar expand.
-                            config.UserKnownHostsFiles.Add(path);
+                                string path = TildeExpand(pathPattern);
+                                // TODO: TOKEN expand.
+                                // TODO: envvar expand.
+                                config.UserKnownHostsFiles.Add(path);
+                            }
                         }
                         break;
                     case "hashknownhosts":
@@ -333,29 +335,32 @@ sealed class SshConfig
                     {
                         ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
 
-                        config.IdentityFiles ??= new();
-
                         if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
                         {
-                            break;
+                            config.IdentityFiles = ListOfNone;
                         }
 
-                        // Don't add duplicates.
-                        bool found = false;
-                        string path = TildeExpand(value);
-                        // TODO: TOKEN expand.
-                        for (int i = 0; i < config.IdentityFiles.Count; i++)
+                        if (!object.ReferenceEquals(config.IdentityFiles, ListOfNone))
                         {
-                            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-                            if (string.Equals(path, config.IdentityFiles[i], comparison))
+                            config.IdentityFiles ??= new();
+
+                            // Don't add duplicates.
+                            bool found = false;
+                            string path = TildeExpand(value);
+                            // TODO: TOKEN expand.
+                            for (int i = 0; i < config.IdentityFiles.Count; i++)
                             {
-                                found = true;
-                                break;
+                                StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                                if (string.Equals(path, config.IdentityFiles[i], comparison))
+                                {
+                                    found = true;
+                                    break;
+                                }
                             }
-                        }
-                        if (!found)
-                        {
-                            config.IdentityFiles.Add(path);
+                            if (!found)
+                            {
+                                config.IdentityFiles.Add(path);
+                            }
                         }
                         break;
                     }
@@ -397,11 +402,15 @@ sealed class SshConfig
                         ThrowUnsupportedKeyword(keyword, remainder);
                         break;
 
+                    case "compression":
+                    {
+                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+                        config.Compression ??= value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                        break;
+                    }
+
                     case "ciphers":
                         config.Ciphers ??= ReadAlgorithmList(keyword, remainder);
-                        break;
-                    case "compression":
-                        config.Compression ??= ReadAlgorithmList(keyword, remainder);
                         break;
                     case "hostkeyalgorithms":
                         config.HostKeyAlgorithms ??= ReadAlgorithmList(keyword, remainder);
@@ -471,7 +480,7 @@ sealed class SshConfig
         else if (algorithms.StartsWith("-"))
         {
             operation = AlgorithmListOperation.Remove;
-            patternList = algorithms.Trim(WhiteSpace).ToString();
+            patternList = algorithms.Slice(1).Trim(WhiteSpace).ToString();
             algorithms = default;
         }
         else if (algorithms.StartsWith("^"))
@@ -495,9 +504,8 @@ sealed class SshConfig
         for (int i = 0; i < itemCount; i++)
         {
             int idx = list.IndexOf(',');
-            items[i] = new Name(list.Slice(0, idx));
+            items[i] = new Name(idx == -1 ? list : list.Slice(0, idx));
             list = list.Slice(idx + 1);
-            itemCount--;
         }
         return items;
     }
@@ -530,7 +538,7 @@ sealed class SshConfig
     {
         if (path.StartsWith("~"))
         {
-            return Path.Combine(Home, path.Slice(1).ToString());
+            return Path.Join(Home, path.Slice(1).ToString());
         }
         return path.ToString();
     }
@@ -572,6 +580,11 @@ sealed class SshConfig
     private static bool IsMatchMatch(SshConfig config, string host, string originalhost, ReadOnlySpan<char> matchPattern, ref bool performSecondPass, bool isFinal)
     {
         bool hasMatches = false;
+
+        if (config.HostName != null)
+        {
+            host = config.HostName; // TODO: TOKEN expand.
+        }
 
         Span<char> attributeBuffer = stackalloc char[20];
         while (TryGetNextToken(ref matchPattern, out ReadOnlySpan<char> t))
