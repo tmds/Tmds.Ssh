@@ -20,6 +20,14 @@ sealed class SshConfig
     private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
     private static readonly List<string> ListOfNone = [];
 
+    public enum StrictHostKeyChecking
+    {
+        Yes,
+        AcceptNew,
+        No,
+        Ask
+    }
+
     public enum AlgorithmListOperation
     {
         Prepend,
@@ -55,6 +63,7 @@ sealed class SshConfig
     public bool? GssApiDelegateCredentials { get; set; }
     public string? GssApiServerIdentity { get; set; }
     public List<string>? IdentityFiles { get; set; }
+    public StrictHostKeyChecking? HostKeyChecking { get; set; }
 
     private static readonly HashSet<string> KnownUnsupportedOptions =
         new HashSet<string>(
@@ -113,7 +122,6 @@ sealed class SshConfig
                 "gssapikeyexchange",       // gssapikeyexchange is not supported
                 "gssapikexalgorithms",     // gssapikeyexchange is not supported
                 "nohostauthenticationforlocalhost", // not supported
-                "stricthostkeychecking",   // unsupported. We behave like the strictest setting ('yes')
                 "updatehostkeys",          // unsupported. This is for updating the known hosts file with keys the server sends us
                 "ignoreunknown",           // unsupported.
 
@@ -301,6 +309,27 @@ sealed class SshConfig
                     case "knownhostscommand":
                     case "revokedhostkeys":
                         ThrowUnsupportedKeyword(keyword, remainder);
+                        break;
+
+                    case "stricthostkeychecking":
+                        if (!config.HostKeyChecking.HasValue)
+                        {
+                            ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                            if (value.Equals("no", StringComparison.OrdinalIgnoreCase) ||
+                                value.Equals("off", StringComparison.OrdinalIgnoreCase))
+                            {
+                                config.HostKeyChecking = StrictHostKeyChecking.No;
+                            }
+                            else if (value.Equals("accept-new", StringComparison.OrdinalIgnoreCase))
+                            {
+                                config.HostKeyChecking = StrictHostKeyChecking.AcceptNew;
+                            }
+                            else
+                            {
+                                config.HostKeyChecking = StrictHostKeyChecking.Yes;
+                            }
+                        }
                         break;
 
                     // we don't support running local/remote commands.

@@ -64,7 +64,7 @@ partial class SshClientSettings
     private static IReadOnlyList<string> CreateDefaultGlobalKnownHostsFilePaths()
     {
         string path;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (Platform.IsWindows)
         {
             path = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
         }

@@ -13,19 +13,17 @@ namespace Tmds.Ssh;
 
 public sealed class SshConfigOptions
 {
-    public static readonly SshConfigOptions Default = CreateDefault();
+    public static readonly SshConfigOptions DefaultConfig = CreateDefault();
 
     public static readonly SshConfigOptions NoConfig = CreateNoConfig();
 
     private bool _locked;
 
     private IReadOnlyList<string> _configFilePaths;
-
     private bool _autoConnect = true;
-
     private bool _autoReconnect = false;
-
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
+    private HostAuthentication? _hostAuthentication;
 
     public SshConfigOptions(IReadOnlyList<string> configFilePaths)
     {
@@ -77,6 +75,18 @@ public sealed class SshConfigOptions
         }
     }
 
+    // Called when StrictHostKeyChecking is Ask and the key is unknown.
+    public HostAuthentication? HostAuthentication
+    {
+        get => _hostAuthentication;
+        set
+        {
+            ThrowIfLocked();
+
+            _hostAuthentication = value;
+        }
+    }
+
     private IReadOnlyList<string> ValidateConfigFilePaths(IReadOnlyList<string> argument, [CallerArgumentExpression(nameof(argument))] string? paramName = null)
     {
         ArgumentNullException.ThrowIfNull(argument, paramName);
@@ -109,7 +119,7 @@ public sealed class SshConfigOptions
     {
         string userConfigFilePath = Path.Combine(SshClientSettings.Home, ".ssh", "config");
         string systemConfigFilePath;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (Platform.IsWindows)
         {
             systemConfigFilePath = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "ssh_config");
         }

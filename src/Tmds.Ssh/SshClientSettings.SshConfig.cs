@@ -59,6 +59,53 @@ partial class SshClientSettings
             Credentials = DetermineCredentials(sshConfig)
         };
 
+        SshConfig.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfig.StrictHostKeyChecking.Ask;
+        switch (hostKeyChecking)
+        {
+            case SshConfig.StrictHostKeyChecking.No:
+                settings.UpdateKnownHostsFileAfterAuthentication = true;
+                // Allow unknown and changed.
+                settings.HostAuthentication =
+                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken)
+                        => ValueTask.FromResult(knownHostResult is KnownHostResult.Unknown or KnownHostResult.Changed);
+                break;
+
+            case SshConfig.StrictHostKeyChecking.AcceptNew:
+                settings.UpdateKnownHostsFileAfterAuthentication = true;
+                // Disallow changed. Allow unknown.
+                settings.HostAuthentication =
+                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken)
+                        => ValueTask.FromResult(knownHostResult == KnownHostResult.Unknown);
+                break;
+
+            case SshConfig.StrictHostKeyChecking.Ask:
+                settings.UpdateKnownHostsFileAfterAuthentication = true;
+                // Disallow changed, and ask for unknown keys.
+                if (options.HostAuthentication is HostAuthentication authentication)
+                {
+                    settings.HostAuthentication =
+                        (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                        {
+                            if (knownHostResult == KnownHostResult.Changed)
+                            {
+                                return ValueTask.FromResult(false);
+                            }
+                            return authentication(knownHostResult, connectionInfo, cancellationToken);
+                        };
+                }
+                else
+                {
+                    settings.HostAuthentication = delegate { return ValueTask.FromResult(false); };
+                }
+                break;
+
+            case SshConfig.StrictHostKeyChecking.Yes:
+            default:
+                settings.UpdateKnownHostsFileAfterAuthentication = false;
+                settings.HostAuthentication = delegate { return ValueTask.FromResult(false); };
+                break;
+        }
+
         return settings;
     }
 

@@ -4,7 +4,7 @@ The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
 
 It has an async [API](#api) and leverages the modern .NET primitives, like `Span`, to minimize allocations.
 
-The library automatically picks up OpenSSH config files, like private keys, and known hosts.
+The library supports OpenSSH file formats for private keys, known hosts and OpenSSH config.
 
 The library targets modern .NET (Core). It does not support .NET Framework due to missing BCL APIs to implement the SSH key exchange.
 
@@ -23,7 +23,7 @@ Update `Program.cs`:
 ```cs
 using Tmds.Ssh;
 
-using var sshClient = new SshClient("localhost", SshConfigOptions.Default);
+using var sshClient = new SshClient("localhost", SshConfigOptions.DefaultConfig);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -189,8 +189,8 @@ class SftpFile : Stream
 class SshClientSettings
 {
   static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
-  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } // = [ '~/.ssh/known_hosts' ].
-  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } // = [ '/etc/ssh/known_hosts' ].
+  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } // = [ '~/.ssh/known_hosts' ]
+  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } // = [ '/etc/ssh/known_hosts' ]
 
   SshClientSettings();
   SshClientSettings(string destination);
@@ -208,21 +208,23 @@ class SshClientSettings
 
   IReadOnlyList<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   IReadOnlyList<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
-  HostAuthentication? HostAuthentication { get; set; }
+  HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
   bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
   int MinimumRSAKeySize { get; set; } = 2048;
 }
 class SshConfigOptions
 {
-  static SshConfigOptions Default  { get; }  // use [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
-  static SshConfigOptions NoConfig  { get; } // use [ ]
+  static SshConfigOptions DefaultConfig { get; }  // use [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
+  static SshConfigOptions NoConfig { get; } // use [ ]
 
   IReadOnlyList<string> ConfigFilePaths { get; set; }
 
+  TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
+
   bool AutoConnect { get; set; } = true;
   bool AutoReconnect { get; set; }
-  // Will be overridden by config file connect timeout (if set).
-  TimeSpan ConnectTimeout { get; set; } // = 15s
+
+  HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }
 class SftpClientOptions
 { }
