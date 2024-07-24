@@ -163,12 +163,12 @@ sealed class SshConfig
 
     private static void ConfigureFromConfigFile(SshConfig config, string host, string originalhost, string filename, string includeBasePath, ref bool performSecondPass, bool isSecondPass)
     {
-        string[] lines;
+        IEnumerable<string> lines;
         try
         {
             if (File.Exists(filename))
             {
-                lines = File.ReadAllLines(filename);
+                lines = File.ReadLines(filename);
             }
             else
             {

@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -44,12 +45,12 @@ static class KnownHostsFile
 
     public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port)
     {
-        string[] lines;
+        IEnumerable<string> lines;
         try
         {
             if (File.Exists(filename))
             {
-                lines = File.ReadAllLines(filename);
+                lines = File.ReadLines(filename);
             }
             else
             {
