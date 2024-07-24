@@ -29,7 +29,8 @@ partial class UserAuthentication
 
             // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
             // .NET converts this format to the hostbased format expected by GSSAPI for us.
-            string spn = string.IsNullOrEmpty(credential.ServiceName) ? $"host/{connectionInfo.HostName}" : credential.ServiceName;
+            string serviceName = string.IsNullOrEmpty(credential.ServiceName) ? connectionInfo.HostName : credential.ServiceName;
+            string spn = $"host@{serviceName}";
             NetworkCredential networkCredential = credential.NetworkCredential ?? CredentialCache.DefaultNetworkCredentials;
 
             // The SSH messages must have a username value which maps to the target user we want to login as. We use the

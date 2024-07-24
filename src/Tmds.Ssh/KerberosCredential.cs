@@ -37,7 +37,7 @@ public sealed class KerberosCredential : Credential
     /// </remarks>
     /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use a cached ticket.</param>
     /// <param name="delegateCredential">Allows the SSH server to delegate the user on remote systems.</param>
-    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/<SshClientSettings.HostName>.</c></param>
+    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c><SshClientSettings.HostName></c>.</param>
     public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
     {
         if (!string.IsNullOrWhiteSpace(credential?.UserName))
