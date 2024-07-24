@@ -33,21 +33,6 @@ sealed partial class UserAuthentication
 
         bool authSuccess = false;
 
-        // gssapi-with-mic may require interaction with the ticket server.
-        // Before doing that, we first send a send a "none" credential to get the list of accepted auth methods.
-        // This list is tracked by the UserAuthContext and enables us to skip gssapi-with-mic when the server does not allow it.
-        Credential? firstCredential = credentials.Count > 0 ? credentials[0] : null;
-        bool authWithNone = firstCredential is KerberosCredential;
-        if (authWithNone)
-        {
-            authSuccess = await None.TryAuthenticate(context, connectionInfo, logger, ct).ConfigureAwait(false);
-
-            if (authSuccess)
-            {
-                return;
-            }
-        }
-
         // Try credentials.
         foreach (var credential in credentials)
         {
