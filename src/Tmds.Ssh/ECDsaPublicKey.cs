@@ -31,7 +31,7 @@ class ECDsaPublicKey : PublicKey
         var name = reader.ReadName();
         if (name == AlgorithmNames.EcdsaSha2Nistp256)
         {
-            reader.ReadName(AlgorithmNames.Nistp265);
+            reader.ReadName(AlgorithmNames.Nistp256);
             ECPoint q = reader.ReadStringAsECPoint();
             reader.ReadEnd();
             return new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp256, ECCurve.NamedCurves.nistP256, q, HashAlgorithmName.SHA256);
