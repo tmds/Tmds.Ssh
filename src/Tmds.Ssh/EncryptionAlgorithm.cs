@@ -3,18 +3,21 @@
 
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
 sealed class EncryptionAlgorithm
 {
+    private delegate byte[] DecryptDelegate(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag);
+
     private readonly Func<EncryptionAlgorithm, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> _createPacketEncoder;
     private readonly Func<EncryptionAlgorithm, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> _createPacketDecoder;
+    private readonly DecryptDelegate _decryptData;
 
     private EncryptionAlgorithm(int keyLength, int ivLength,
             Func<EncryptionAlgorithm, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> createPacketEncoder,
             Func<EncryptionAlgorithm, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> createPacketDecoder,
+            DecryptDelegate decryptData,
             bool isAuthenticated = false,
             int tagLength = 0)
     {
@@ -24,6 +27,7 @@ sealed class EncryptionAlgorithm
         TagLength = tagLength;
         _createPacketEncoder = createPacketEncoder;
         _createPacketDecoder = createPacketDecoder;
+        _decryptData = decryptData;
     }
 
     public int KeyLength { get; }
@@ -43,7 +47,18 @@ sealed class EncryptionAlgorithm
         return _createPacketDecoder(this, sequencePool, key, iv, hmacAlgorithm, hmacKey);
     }
 
-    private static void CheckArguments(EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
+    public byte[] DecryptData(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
+    {
+        CheckArguments(this, key, iv, null, Array.Empty<byte>());
+        if (IsAuthenticated && tag.Length != TagLength)
+        {
+            throw new ArgumentException(nameof(tag));
+        }
+
+        return _decryptData(key, iv, data, tag);
+    }
+
+    private static void CheckArguments(EncryptionAlgorithm algorithm, ReadOnlySpan<byte> key, Span<byte> iv, HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
     {
         if (algorithm.IVLength != iv.Length)
         {
@@ -68,23 +83,43 @@ sealed class EncryptionAlgorithm
 
     private static Dictionary<Name, EncryptionAlgorithm> _algorithms = new()
         {
-            { AlgorithmNames.Aes128Gcm,
-                new EncryptionAlgorithm(keyLength: 128 / 8, ivLength: 12,
-                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
-                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
-                        isAuthenticated: true,
-                        tagLength: 16) },
-            { AlgorithmNames.Aes256Gcm,
-                new EncryptionAlgorithm(keyLength: 256 / 8, ivLength: 12,
-                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
-                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
-                        isAuthenticated: true,
-                        tagLength: 16) },
+            { AlgorithmNames.Aes128Cbc, CreateAesCbcAlgorithm(16) },
+            { AlgorithmNames.Aes192Cbc, CreateAesCbcAlgorithm(24) },
+            { AlgorithmNames.Aes256Cbc, CreateAesCbcAlgorithm(32) },
+            { AlgorithmNames.Aes128Ctr, CreateAesCtrAlgorithm(16) },
+            { AlgorithmNames.Aes192Ctr, CreateAesCtrAlgorithm(24) },
+            { AlgorithmNames.Aes256Ctr, CreateAesCtrAlgorithm(32) },
+            { AlgorithmNames.Aes128Gcm, CreateAesGcmAlgorithm(16) },
+            { AlgorithmNames.Aes256Gcm, CreateAesGcmAlgorithm(32) },
         };
+
+    private static EncryptionAlgorithm CreateAesCbcAlgorithm(int keyLength)
+        => new EncryptionAlgorithm(keyLength: keyLength, ivLength: 16,
+            (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => throw new NotImplementedException(),
+            (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => throw new NotImplementedException(),
+            (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
+                => AesDecrypter.DecryptCbc(key, iv, data));
+
+    private static EncryptionAlgorithm CreateAesCtrAlgorithm(int keyLength)
+        => new EncryptionAlgorithm(keyLength: keyLength, ivLength: 16,
+            (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => throw new NotImplementedException(),
+            (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => throw new NotImplementedException(),
+            (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
+                => AesDecrypter.DecryptCtr(key, iv, data));
+
+    private static EncryptionAlgorithm CreateAesGcmAlgorithm(int keyLength)
+        => new EncryptionAlgorithm(keyLength: keyLength, ivLength: 12,
+            (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
+            (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
+                AesDecrypter.DecryptGcm,
+                isAuthenticated: true,
+                tagLength: 16);
 
     private static IPacketEncoder CreatePacketEncoder(IDisposableCryptoTransform encodeTransform, IHMac hmac)
         => new TransformAndHMacPacketEncoder(encodeTransform, hmac);
