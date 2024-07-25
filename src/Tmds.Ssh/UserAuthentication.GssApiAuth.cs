@@ -29,14 +29,13 @@ partial class UserAuthentication
 
             // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
             // .NET converts this format to the hostbased format expected by GSSAPI for us.
-            string serviceName = string.IsNullOrEmpty(credential.ServiceName) ? connectionInfo.HostName : credential.ServiceName;
-            string spn = $"host@{serviceName}";
+            string targetName = !string.IsNullOrEmpty(credential.TargetName) ? credential.TargetName : $"host@{connectionInfo.HostName}";
             NetworkCredential networkCredential = credential.NetworkCredential ?? CredentialCache.DefaultNetworkCredentials;
 
             // The SSH messages must have a username value which maps to the target user we want to login as. We use the
             // client supplied username as the target user. The Kerberos principal credential is only used for the
             // authentication stage that happens next.
-            logger.AuthenticationMethodGssapiWithMic(context.UserName, networkCredential.UserName, spn, credential.DelegateCredential);
+            logger.AuthenticationMethodGssapiWithMic(context.UserName, networkCredential.UserName, targetName, credential.DelegateCredential);
 
             bool isOidSuccess = await TryStageOid(context, logger, context.UserName, ct).ConfigureAwait(false);
             if (!isOidSuccess)
@@ -58,7 +57,7 @@ partial class UserAuthentication
                 // fails if it's not true. I'm unsure if openssh-portable on Linux
                 // will fail in the same way or not.
                 RequireMutualAuthentication = true,
-                TargetName = spn
+                TargetName = targetName
             };
 
             using var authContext = new AsyncNegotiateAuthentication(negotiateOptions);

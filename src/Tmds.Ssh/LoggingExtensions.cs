@@ -109,7 +109,7 @@ static class LoggingExtensions
         _authMethodGssapiWithMic = LoggerMessage.Define<string, string, string, bool>(
             eventId: 13,
             logLevel: LogLevel.Information,
-            formatString: "Authentication method: gssapi-with-mic userName: {userName} kerberosPrincipal: '{kerberosPrincipal}' spn: {serviceName} delegation: {delegation}"
+            formatString: "Authentication method: gssapi-with-mic userName: {userName} kerberosPrincipal: '{kerberosPrincipal}' spn: {targetName} delegation: {delegation}"
         );
 
         _authKerberosFailed = LoggerMessage.Define<string>(
@@ -164,9 +164,9 @@ static class LoggingExtensions
         _authMethodPk(logger, source, null);
     }
 
-    public static void AuthenticationMethodGssapiWithMic(this ILogger logger, string userName, string kerberosPrincipal, string serviceName, bool delegation)
+    public static void AuthenticationMethodGssapiWithMic(this ILogger logger, string userName, string kerberosPrincipal, string targetName, bool delegation)
     {
-        _authMethodGssapiWithMic(logger, userName, kerberosPrincipal, serviceName, delegation, null);
+        _authMethodGssapiWithMic(logger, userName, kerberosPrincipal, targetName, delegation, null);
     }
 
     public static void AuthenticationSucceeded(this ILogger logger)

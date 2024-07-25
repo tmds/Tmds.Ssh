@@ -392,7 +392,7 @@ class PasswordCredential : Credential
 }
 class KerberosCredential : Credential
 {
-  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null);
+  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null);
 }
 // Base class.
 class SshException : Exception
