@@ -108,6 +108,7 @@ public class SshConfigTests
         Assert.Equal(false, config.PubKeyAuthentication);
         Assert.Equal(true, config.GssApiAuthentication);
         Assert.Equal(true, config.GssApiDelegateCredentials);
+        Assert.Equal("serverid", config.GssApiServerIdentity);
     }
 
     [Fact]

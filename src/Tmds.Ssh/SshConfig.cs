@@ -325,9 +325,13 @@ sealed class SshConfig
                             {
                                 config.HostKeyChecking = StrictHostKeyChecking.AcceptNew;
                             }
-                            else
+                            else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
                             {
                                 config.HostKeyChecking = StrictHostKeyChecking.Yes;
+                            }
+                            else
+                            {
+                                ThrowUnsupportedKeywordValue(keyword, value);
                             }
                         }
                         break;
@@ -356,8 +360,25 @@ sealed class SshConfig
                     }
                     case "pubkeyauthentication":
                     {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-                        config.PubKeyAuthentication ??= value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                        if (!config.PubKeyAuthentication.HasValue)
+                        {
+                            ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                            if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
+                            {
+                                config.PubKeyAuthentication = false;
+                            }
+                            else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+                                     value.Equals("unbound", StringComparison.OrdinalIgnoreCase) ||
+                                     value.Equals("host-bound", StringComparison.OrdinalIgnoreCase))
+                            {
+                                config.PubKeyAuthentication = true;
+                            }
+                            else
+                            {
+                                ThrowUnsupportedKeywordValue(keyword, value);
+                            }
+                        }
                         break;
                     }
                     case "identityfile":
@@ -395,19 +416,16 @@ sealed class SshConfig
                     }
                     case "gssapiauthentication":
                     {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-                        config.GssApiAuthentication ??= value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                        config.GssApiAuthentication ??= ParseYesNoKeywordValue(keyword, ref remainder);
                         break;
                     }
                     case "gssapidelegatecredentials":
                     {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-                        config.GssApiDelegateCredentials ??= value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                        config.GssApiDelegateCredentials ??= ParseYesNoKeywordValue(keyword, ref remainder);
                         break;
                     }
                     case "gssapiserveridentity":
                     {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
                         config.GssApiServerIdentity ??= NextTokenAsStringOrDefault(ref remainder);
                         break;
                     }
@@ -433,8 +451,7 @@ sealed class SshConfig
 
                     case "compression":
                     {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-                        config.Compression ??= value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                        config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
                         break;
                     }
 
@@ -544,12 +561,35 @@ sealed class SshConfig
         throw new NotSupportedException($"Unsupported keyword: '{keyword}' (value: '{remainder}').");
     }
 
+    private static bool ParseYesNoKeywordValue(scoped ReadOnlySpan<char> keyword, ref ReadOnlySpan<char> remainder)
+    {
+        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+        if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        else if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        else
+        {
+            ThrowUnsupportedKeywordValue(keyword, value);
+            return false; // unreachable
+        }
+    }
+
     private static void ThrowUnsupportedWhenKeywordValueIsNot(scoped ReadOnlySpan<char> keyword, ref ReadOnlySpan<char> remainder, ReadOnlySpan<char> expected)
     {
         if (!TryGetNextToken(ref remainder, out ReadOnlySpan<char> value) && value.Equals(expected, StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException($"Unsupported value '{value}' for keyword '{keyword}'.");
+            ThrowUnsupportedKeywordValue(keyword, value);
         }
+    }
+
+    private static void ThrowUnsupportedKeywordValue(ReadOnlySpan<char> keyword, ReadOnlySpan<char> value)
+    {
+        throw new NotSupportedException($"Unsupported value '{value}' for keyword '{keyword}'.");
     }
 
     private static int NextTokenAsInt(scoped ReadOnlySpan<char> keyword, ref ReadOnlySpan<char> remainder)
