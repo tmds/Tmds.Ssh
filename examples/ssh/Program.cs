@@ -11,7 +11,7 @@ class Program
         string destination = args.Length >= 1 ? args[0] : "localhost";
         string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
 
-        using SshClient client = new SshClient(destination, SshConfigOptions.DefaultConfig);
+        using SshClient client = new SshClient(destination);
         await client.ConnectAsync();
 
         using var process = await client.ExecuteAsync(command);

@@ -4,7 +4,7 @@ The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
 
 It has an async [API](#api) and leverages the modern .NET primitives, like `Span`, to minimize allocations.
 
-The library supports OpenSSH file formats for private keys, known hosts and OpenSSH config.
+The library supports OpenSSH file formats for private keys, known hosts and config.
 
 The library targets modern .NET (Core). It does not support .NET Framework due to missing BCL APIs to implement the SSH key exchange.
 
@@ -23,7 +23,7 @@ Update `Program.cs`:
 ```cs
 using Tmds.Ssh;
 
-using var sshClient = new SshClient("localhost", SshConfigOptions.DefaultConfig);
+using var sshClient = new SshClient("localhost");
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -42,6 +42,7 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
+  SshClient(string destination); // uses SshConfigOptions.DefaultConfig.
   SshClient(string destination, SshConfigOptions configOptions);
   SshClient(SshClientSettings settings);
 

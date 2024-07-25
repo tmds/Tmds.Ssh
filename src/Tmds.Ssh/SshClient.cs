@@ -34,6 +34,10 @@ public sealed partial class SshClient : IDisposable
     // For testing.
     internal bool IsDisposed => _state == State.Disposed;
 
+    public SshClient(string destination) :
+        this(destination, SshConfigOptions.DefaultConfig)
+    { }
+
     public SshClient(SshClientSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
