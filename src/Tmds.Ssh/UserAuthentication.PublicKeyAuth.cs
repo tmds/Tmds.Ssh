@@ -308,37 +308,39 @@ partial class UserAuthentication
             }
 
             ECPoint q = reader.ReadStringAsECPoint();
-            BigInteger dInt = reader.ReadMPInt();
-            byte[] d = dInt.ToByteArray(isUnsigned: false, isBigEndian: true);
+            ReadOnlySequence<byte> d = reader.ReadMPIntAsBytes();
 
             ECDsa ecdsa = ECDsa.Create();
             try
             {
+                ECParameters parameters = new()
+                {
+                    Curve = curve,
+                    Q = q,
+                };
+
                 int dRequiredLength = q.X!.Length;
-                if (d.Length != dRequiredLength)
+                if (d.Length == dRequiredLength)
+                {
+                    parameters.D = d.ToArray();
+                }
+                else
                 {
                     // ECParameters.D's length needs to match the curve point
                     // coordinates length. We need to remove the leading 0 byte
                     // for the sign if it's there and left pad with 0 if the
                     // length is not enough.
-                    byte[] tempD = new byte[dRequiredLength];
+                    parameters.D = new byte[dRequiredLength];
                     if (d.Length < dRequiredLength)
                     {
-                        d.AsSpan().CopyTo(tempD.AsSpan(dRequiredLength - d.Length));
+                        d.CopyTo(parameters.D.AsSpan(dRequiredLength - (int)d.Length));
                     }
                     else
                     {
-                        d.AsSpan()[(d.Length - dRequiredLength)..].CopyTo(tempD);
+                        d.Slice(d.Length - dRequiredLength).CopyTo(parameters.D);
                     }
-                    d = tempD;
                 }
 
-                ECParameters parameters = new()
-                {
-                    Curve = curve,
-                    D = d,
-                    Q = q,
-                };
                 ecdsa.ImportParameters(parameters);
                 privateKey = new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
                 error = null;

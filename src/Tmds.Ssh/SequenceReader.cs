@@ -320,6 +320,17 @@ ref struct SequenceReader
         }
     }
 
+    public ReadOnlySequence<byte> ReadMPIntAsBytes()
+    {
+        long length = ReadUInt32();
+        if (TryRead(length, out ReadOnlySequence<byte> value))
+        {
+            return value;
+        }
+        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        return default;
+    }
+
     public ECPoint ReadStringAsECPoint()
     {
         long length = ReadUInt32();
