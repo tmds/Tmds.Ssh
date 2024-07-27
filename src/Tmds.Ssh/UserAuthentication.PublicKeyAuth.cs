@@ -308,34 +308,37 @@ partial class UserAuthentication
             }
 
             ECPoint q = reader.ReadStringAsECPoint();
-            BigInteger d = reader.ReadMPInt();
+            BigInteger dInt = reader.ReadMPInt();
+            byte[] d = dInt.ToByteArray(isUnsigned: false, isBigEndian: true);
 
             ECDsa ecdsa = ECDsa.Create();
             try
             {
-                byte[] dBytes = d.ToByteArray(true, true);
-                if (dBytes.Length < q.X!.Length)
+                int dRequiredLength = q.X!.Length;
+                if (d.Length != dRequiredLength)
                 {
-                    Array.Resize(ref dBytes, q.X.Length);
+                    // ECParameters.D's length needs to match the curve point
+                    // coordinates length. We need to remove the leading 0 byte
+                    // for the sign if it's there and left pad with 0 if the
+                    // length is not enough.
+                    byte[] tempD = new byte[dRequiredLength];
+                    if (d.Length < dRequiredLength)
+                    {
+                        d.AsSpan().CopyTo(tempD.AsSpan(dRequiredLength - d.Length));
+                    }
+                    else
+                    {
+                        d.AsSpan()[(d.Length - dRequiredLength)..].CopyTo(tempD);
+                    }
+                    d = tempD;
                 }
 
                 ECParameters parameters = new()
                 {
                     Curve = curve,
-                    D = d.ToByteArray(true, true),
+                    D = d,
                     Q = q,
                 };
-                if (parameters.D.Length < q.X!.Length)
-                {
-                    // ToByteArray will shorten the value to the minimum size,
-                    // we need to prepend 0 to the array to make it the
-                    // size.
-                    byte[] originalD = parameters.D;
-                    byte[] expandedD = new byte[q.X.Length];
-                    Buffer.BlockCopy(originalD, 0, expandedD, expandedD.Length - originalD.Length, originalD.Length);
-                    parameters.D = expandedD;
-                }
-
                 ecdsa.ImportParameters(parameters);
                 privateKey = new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
                 error = null;
