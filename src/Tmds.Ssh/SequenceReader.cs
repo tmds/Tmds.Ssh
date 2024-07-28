@@ -299,6 +299,12 @@ ref struct SequenceReader
     public BigInteger ReadMPInt()
     {
         long length = ReadUInt32();
+
+        if (length > Constants.MaxMPIntLength)
+        {
+            ThrowHelper.ThrowProtocolMPIntTooLong();
+        }
+
         if (length == 0)
         {
             return BigInteger.Zero;
@@ -320,15 +326,54 @@ ref struct SequenceReader
         }
     }
 
-    public ReadOnlySequence<byte> ReadMPIntAsBytes()
+    public byte[] ReadMPIntAsByteArray(bool isUnsigned, int minLength = -1)
     {
-        long length = ReadUInt32();
-        if (TryRead(length, out ReadOnlySequence<byte> value))
+        minLength = Math.Max(1, minLength);
+
+        uint l = ReadUInt32();
+
+        if (Math.Max(l, minLength) > Constants.MaxMPIntLength)
         {
-            return value;
+            ThrowHelper.ThrowProtocolMPIntTooLong();
         }
-        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
-        return default;
+
+        int length = (int)l;
+
+        if (length == 0)
+        {
+            return new byte[minLength];
+        }
+
+        byte firstByte = ReadByte();
+
+        bool isNegative = firstByte >= 128;
+        if (isUnsigned && isNegative)
+        {
+            ThrowHelper.ThrowProtocolValueOutOfRange();
+        }
+
+        bool skipFirstByte = isUnsigned && firstByte == 0;
+
+        int arrayLength = Math.Max(minLength, length + (skipFirstByte ? - 1 : 0));
+        byte[] array = new byte[arrayLength];
+
+        length--;
+
+        array.AsSpan(0, arrayLength - length).Fill(isNegative ? (byte)0xff : (byte)0x00);
+
+        if (!skipFirstByte)
+        {
+            array[arrayLength - length - 1] = firstByte;
+        }
+
+        if (!_reader.TryCopyTo(array.AsSpan(arrayLength - length)))
+        {
+            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        }
+
+        _reader.Advance(length);
+
+        return array;
     }
 
     public ECPoint ReadStringAsECPoint()

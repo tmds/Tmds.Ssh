@@ -241,10 +241,10 @@ partial class UserAuthentication
         {
             privateKey = null;
 
-            BigInteger modulus = reader.ReadMPInt();
-            BigInteger exponent = reader.ReadMPInt();
+            byte[] modulus = reader.ReadMPIntAsByteArray(isUnsigned: true);
+            byte[] exponent = reader.ReadMPIntAsByteArray(isUnsigned: true);
             BigInteger d = reader.ReadMPInt();
-            BigInteger inverseQ = reader.ReadMPInt();
+            byte[] inverseQ = reader.ReadMPIntAsByteArray(isUnsigned: true);
             BigInteger p = reader.ReadMPInt();
             BigInteger q = reader.ReadMPInt();
 
@@ -253,10 +253,10 @@ partial class UserAuthentication
 
             RSAParameters parameters = new()
             {
-                Modulus = modulus.ToByteArray(isUnsigned: true, isBigEndian: true),
-                Exponent = exponent.ToByteArray(isUnsigned: true, isBigEndian: true),
+                Modulus = modulus,
+                Exponent = exponent,
                 D = d.ToByteArray(isUnsigned: true, isBigEndian: true),
-                InverseQ = inverseQ.ToByteArray(isUnsigned: true, isBigEndian: true),
+                InverseQ = inverseQ,
                 P = p.ToByteArray(isUnsigned: true, isBigEndian: true),
                 Q = q.ToByteArray(isUnsigned: true, isBigEndian: true),
                 DP = dp.ToByteArray(isUnsigned: true, isBigEndian: true),
@@ -308,7 +308,7 @@ partial class UserAuthentication
             }
 
             ECPoint q = reader.ReadStringAsECPoint();
-            ReadOnlySequence<byte> d = reader.ReadMPIntAsBytes();
+            byte[] d = reader.ReadMPIntAsByteArray(isUnsigned: true, minLength: q.X!.Length);
 
             ECDsa ecdsa = ECDsa.Create();
             try
@@ -317,29 +317,8 @@ partial class UserAuthentication
                 {
                     Curve = curve,
                     Q = q,
+                    D = d
                 };
-
-                int dRequiredLength = q.X!.Length;
-                if (d.Length == dRequiredLength)
-                {
-                    parameters.D = d.ToArray();
-                }
-                else
-                {
-                    // ECParameters.D's length needs to match the curve point
-                    // coordinates length. We need to remove the leading 0 byte
-                    // for the sign if it's there and left pad with 0 if the
-                    // length is not enough.
-                    parameters.D = new byte[dRequiredLength];
-                    if (d.Length < dRequiredLength)
-                    {
-                        d.CopyTo(parameters.D.AsSpan(dRequiredLength - (int)d.Length));
-                    }
-                    else
-                    {
-                        d.Slice(d.Length - dRequiredLength).CopyTo(parameters.D);
-                    }
-                }
 
                 ecdsa.ImportParameters(parameters);
                 privateKey = new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
