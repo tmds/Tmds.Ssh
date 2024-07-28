@@ -303,7 +303,7 @@ partial class UserAuthentication
             }
             else
             {
-                error = new FormatException($"ECDSA curve '{curveName}' is unsupported.");
+                error = new NotSupportedException($"ECDSA curve '{curveName}' is unsupported.");
                 return false;
             }
 

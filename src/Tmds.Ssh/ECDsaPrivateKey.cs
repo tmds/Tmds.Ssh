@@ -12,17 +12,17 @@ namespace Tmds.Ssh;
 sealed class ECDsaPrivateKey : PrivateKey
 {
     private readonly ECDsa _ecdsa;
-    private readonly Name _ecIdentifier;
+    private readonly Name _algorithm;
     private readonly Name _curveName;
-    private readonly HashAlgorithmName _allowedAlgorithm;
+    private readonly HashAlgorithmName _hashAlgorithm;
 
-    public ECDsaPrivateKey(ECDsa ecdsa, Name identifier, Name curveName, HashAlgorithmName allowedAlgorithm) :
-        base([identifier])
+    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm) :
+        base([algorithm])
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
-        _ecIdentifier = identifier;
+        _algorithm = algorithm;
         _curveName = curveName;
-        _allowedAlgorithm = allowedAlgorithm;
+        _hashAlgorithm = hashAlgorithm;
     }
 
     public override void Dispose()
@@ -36,7 +36,7 @@ sealed class ECDsaPrivateKey : PrivateKey
 
         using var innerData = writer.SequencePool.RentSequence();
         var innerWriter = new SequenceWriter(innerData);
-        innerWriter.WriteString(_ecIdentifier);
+        innerWriter.WriteString(_algorithm);
         innerWriter.WriteString(_curveName);
         innerWriter.WriteString(parameters.Q);
 
@@ -45,7 +45,7 @@ sealed class ECDsaPrivateKey : PrivateKey
 
     public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)
     {
-        if (algorithm != _ecIdentifier)
+        if (algorithm != _algorithm)
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
             return;
@@ -53,7 +53,7 @@ sealed class ECDsaPrivateKey : PrivateKey
 
         byte[] signature = _ecdsa.SignData(
             data.IsSingleSegment ? data.FirstSpan : data.ToArray().AsSpan(),
-            _allowedAlgorithm,
+            _hashAlgorithm,
             DSASignatureFormat.Rfc3279DerSequence);
 
         AsnReader reader = new AsnReader(signature, AsnEncodingRules.DER);

@@ -9,7 +9,7 @@ public class PrivateKeyCredentialTests
 {
     private readonly SshServer _sshServer;
 
-    public PrivateKeyCredentialTests(SshServer sshServer) : base()
+    public PrivateKeyCredentialTests(SshServer sshServer)
     {
         _sshServer = sshServer;
     }

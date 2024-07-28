@@ -406,6 +406,9 @@ Supported private key encryption cyphers:
 - none
 
 Supported client key algorithms:
+- ecdsa-sha2-nistp521
+- ecdsa-sha2-nistp384
+- ecdsa-sha2-nistp256
 - rsa-sha2-512
 - rsa-sha2-256
 
