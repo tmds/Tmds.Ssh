@@ -98,6 +98,12 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
+    public static void ThrowProtocolValueOutOfRange()
+    {
+        throw new ProtocolException("The value is out of the expected range.");
+    }
+
+    [DoesNotReturn]
     public static void ThrowProtocolUnexpectedValue()
     {
         throw new ProtocolException("The packet contains an unexpected value.");
@@ -131,6 +137,12 @@ static class ThrowHelper
     public static void ThrowProtocolECPointTooLong()
     {
         throw new ProtocolException("The elliptic curve point is too long.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowProtocolMPIntTooLong()
+    {
+        throw new ProtocolException("The mpint is too long.");
     }
 
     [DoesNotReturn]

@@ -23,7 +23,11 @@ RUN chmod 600 /etc/ssh/ssh_host_{rsa,ecdsa,ed25519}_key
 RUN dos2unix /etc/ssh/ssh_host_{rsa,ecdsa,ed25519}_key
 
 # Add user authorized key.
-COPY user_key_rsa.pub /home/testuser/.ssh/authorized_keys
+COPY user_key_rsa.pub /home/testuser/.ssh/user_key_rsa.pub
+COPY user_key_ecdsa_256.pub /home/testuser/.ssh/user_key_ecdsa_256.pub
+COPY user_key_ecdsa_384.pub /home/testuser/.ssh/user_key_ecdsa_384.pub
+COPY user_key_ecdsa_521.pub /home/testuser/.ssh/user_key_ecdsa_521.pub
+RUN cat /home/testuser/.ssh/user_key_*.pub > /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 RUN dos2unix /home/testuser/.ssh/authorized_keys

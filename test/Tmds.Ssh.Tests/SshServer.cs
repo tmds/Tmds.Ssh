@@ -23,6 +23,9 @@ public class SshServer : IDisposable
     public string TestUserHome => $"/home/{TestUser}";
     public string TestUserPassword => "secret";
     public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
+    public string TestUserIdentityFileEcdsa256 => $"{ContainerBuildContext}/user_key_ecdsa_256";
+    public string TestUserIdentityFileEcdsa384 => $"{ContainerBuildContext}/user_key_ecdsa_384";
+    public string TestUserIdentityFileEcdsa521 => $"{ContainerBuildContext}/user_key_ecdsa_521";
     public string TestSubsystem = "test_subsystem";
     public string ServerHost => _host;
     public int ServerPort => _port;
