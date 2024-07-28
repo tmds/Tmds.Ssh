@@ -52,6 +52,14 @@ static class AlgorithmNames // TODO: rename to KnownNames
     private static readonly byte[] Aes256GcmBytes = "aes256-gcm@openssh.com"u8.ToArray();
     public static Name Aes256Gcm => new Name(Aes256GcmBytes);
 
+    // PKCS#1 encryption algorithms:
+    private static readonly byte[] Pkcs1Aes128CbcBytes = "AES-128-CBC"u8.ToArray();
+    public static Name Pkcs1Aes128Cbc => new Name(Pkcs1Aes128CbcBytes);
+    private static readonly byte[] Pkcs1Aes192CbcBytes = "AES-192-CBC"u8.ToArray();
+    public static Name Pkcs1Aes192Cbc => new Name(Pkcs1Aes192CbcBytes);
+    private static readonly byte[] Pkcs1Aes256CbcBytes = "AES-256-CBC"u8.ToArray();
+    public static Name Pkcs1Aes256Cbc => new Name(Pkcs1Aes256CbcBytes);
+
     // KDF algorithms:
     private static readonly byte[] BcryptBytes = "bcrypt"u8.ToArray();
     public static Name Bcrypt => new Name(BcryptBytes);

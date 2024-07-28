@@ -50,44 +50,19 @@ public class PrivateKeyCredentialTests
     [InlineData("aes256")]
     public async Task Pkcs1RsaKey(string? algo)
     {
-        string localKey = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        try
+        await RunWithKeyConversion(async (string localKey) =>
         {
-            File.Copy(_sshServer.TestUserIdentityFile, localKey);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(localKey, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-
             await EncryptSshKey(localKey, "PEM", null, null);
-            PrivateKeyCredential key;
+
             if (string.IsNullOrWhiteSpace(algo))
             {
-                key = new PrivateKeyCredential(localKey);
-            }
-            else
-            {
-                await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", $"-{algo}", "-passout", $"pass:{TestPassword}");
-                File.Move($"{localKey}.rsa", localKey, overwrite: true);
-                key = new PrivateKeyCredential(localKey, TestPassword);
+                return new PrivateKeyCredential(localKey);
             }
 
-            var settings = new SshClientSettings(_sshServer.Destination)
-            {
-                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-                Credentials = [ key ],
-            };
-            using var client = new SshClient(settings);
-
-            await client.ConnectAsync();
-        }
-        finally
-        {
-            if (File.Exists(localKey))
-            {
-                File.Delete(localKey);
-            }
-        }
+            await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", $"-{algo}", "-passout", $"pass:{TestPassword}");
+            File.Move($"{localKey}.rsa", localKey, overwrite: true);
+            return  new PrivateKeyCredential(localKey, TestPassword);
+        }, async (c) => await c.ConnectAsync());
     }
 
     [Theory]
@@ -102,37 +77,25 @@ public class PrivateKeyCredentialTests
     [InlineData("aes256-gcm@openssh.com")]
     public async Task OpenSshRsaKey(string? cipher)
     {
-        string localKey = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        try
+        await RunWithKeyConversion(async (string localKey) =>
         {
-            File.Copy(_sshServer.TestUserIdentityFile, localKey);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(localKey, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
 
-            await EncryptSshKey(localKey, "RFC4716", string.IsNullOrWhiteSpace(cipher) ? null : TestPassword, cipher);
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
 
-            var key = string.IsNullOrWhiteSpace(cipher)
-                ? new PrivateKeyCredential(localKey)
-                : new PrivateKeyCredential(localKey, TestPassword);
-
-            var settings = new SshClientSettings(_sshServer.Destination)
-            {
-                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-                Credentials = [ key ],
-            };
-            using var client = new SshClient(settings);
-
-            await client.ConnectAsync();
-        }
-        finally
+    [Fact]
+    public async Task OpenSshRsaKeyWithWhitespacePassword()
+    {
+        const string passphrase = " ";
+        await RunWithKeyConversion(async (string localKey) =>
         {
-            if (File.Exists(localKey))
-            {
-                File.Delete(localKey);
-            }
-        }
+            await EncryptSshKey(localKey, "RFC4716", passphrase, "aes256-ctr");
+
+            return new PrivateKeyCredential(localKey, passphrase);
+        }, async (c) => await c.ConnectAsync());
     }
 
     [Theory]
@@ -140,39 +103,34 @@ public class PrivateKeyCredentialTests
     [InlineData("RFC4716")]
     public async Task FailWithEncryptedKeyAndNoPassword(string format)
     {
-        string localKey = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        try
+        await RunWithKeyConversion(async (string localKey) =>
         {
-            File.Copy(_sshServer.TestUserIdentityFile, localKey);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(localKey, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-
             await EncryptSshKey(localKey, format, "password", null);
-            var settings = new SshClientSettings(_sshServer.Destination)
-            {
-                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-                Credentials = [ new PrivateKeyCredential(localKey) ],
-            };
-            using var client = new SshClient(settings);
-
+            return new PrivateKeyCredential(localKey);
+        }, async (SshClient client) =>
+        {
             var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
             Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
-        }
-        finally
-        {
-            if (File.Exists(localKey))
-            {
-                File.Delete(localKey);
-            }
-        }
+        });
     }
 
     [Theory]
     [InlineData("PEM")]
     [InlineData("RFC4716")]
     public async Task FailWithEncryptedKeyAndIncorrectPassword(string format)
+    {
+        await RunWithKeyConversion(async (string localKey) =>
+        {
+            await EncryptSshKey(localKey, format, "password", null);
+            return new PrivateKeyCredential(localKey, "invalid");
+        }, async (SshClient client) =>
+        {
+            var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
+            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
+        });
+    }
+
+    private async Task RunWithKeyConversion(Func<string, Task<PrivateKeyCredential>> convertKey, Func<SshClient, Task> test)
     {
         string localKey = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
@@ -183,16 +141,15 @@ public class PrivateKeyCredentialTests
                 File.SetUnixFileMode(localKey, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
 
-            await EncryptSshKey(localKey, format, "password", null);
+            PrivateKeyCredential key = await convertKey(localKey);
             var settings = new SshClientSettings(_sshServer.Destination)
             {
                 KnownHostsFilePath = _sshServer.KnownHostsFilePath,
-                Credentials = [ new PrivateKeyCredential(localKey, "invalid") ],
+                Credentials = [ key ],
             };
             using var client = new SshClient(settings);
 
-            var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
-            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
+            await test(client);
         }
         finally
         {
