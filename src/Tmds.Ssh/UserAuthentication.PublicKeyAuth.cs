@@ -14,7 +14,7 @@ namespace Tmds.Ssh;
 partial class UserAuthentication
 {
     // https://datatracker.ietf.org/doc/html/rfc4252 - Public Key Authentication Method: "publickey"
-    internal sealed class PublicKeyAuth
+    sealed class PublicKeyAuth
     {
         public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
         {
@@ -109,8 +109,10 @@ partial class UserAuthentication
                 return false;
             }
 
-            // While not part of RFC 7468 some tools, like 'ssh-keygen -m PEM',
-            // add headers before the base64 data which we need to skip.
+            // While not part of RFC 7468, PKCS#1 RSA keys have extra metadata
+            // after the begin marker and before the base64 data. We need to
+            // parse that information for decryption and so it doesn't break
+            // our validator.
             int keyStart = formatStartEnd + 1;
             Dictionary<string, string> metadata = new Dictionary<string, string>();
             while (true)
