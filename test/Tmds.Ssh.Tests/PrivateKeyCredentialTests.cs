@@ -14,33 +14,9 @@ public class PrivateKeyCredentialTests
 
     private readonly SshServer _sshServer;
 
-    public PrivateKeyCredentialTests(SshServer sshServer) : base()
+    public PrivateKeyCredentialTests(SshServer sshServer)
     {
         _sshServer = sshServer;
-    }
-
-    [Fact]
-    public async Task OpenSshRsa()
-    {
-        await ConnectWithKey(_sshServer.TestUserIdentityFile);
-    }
-
-    [Fact]
-    public async Task OpenSshEcdsa256()
-    {
-        await ConnectWithKey(_sshServer.TestUserIdentityFileEcdsa256);
-    }
-
-    [Fact]
-    public async Task OpenSshEcdsa384()
-    {
-        await ConnectWithKey(_sshServer.TestUserIdentityFileEcdsa384);
-    }
-
-    [Fact]
-    public async Task OpenSshEcdsa521()
-    {
-        await ConnectWithKey(_sshServer.TestUserIdentityFileEcdsa521);
     }
 
     [Theory]
@@ -50,7 +26,7 @@ public class PrivateKeyCredentialTests
     [InlineData("aes256")]
     public async Task Pkcs1RsaKey(string? algo)
     {
-        await RunWithKeyConversion(async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, "PEM", null, null);
 
@@ -78,7 +54,49 @@ public class PrivateKeyCredentialTests
     [InlineData("chacha20-poly1305@openssh.com")]
     public async Task OpenSshRsaKey(string? cipher)
     {
-        await RunWithKeyConversion(async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task OpenSshEcdsa256Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa256, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task OpenSshEcdsa384Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa384, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task OpenSshEcdsa521Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa521, async (string localKey) =>
         {
             string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
             await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
@@ -88,10 +106,10 @@ public class PrivateKeyCredentialTests
     }
 
     [Fact]
-    public async Task OpenSshRsaKeyWithWhitespacePassword()
+    public async Task OpenSshKeyWithWhitespacePassword()
     {
         const string passphrase = " ";
-        await RunWithKeyConversion(async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, "RFC4716", passphrase, "aes256-ctr");
 
@@ -104,7 +122,7 @@ public class PrivateKeyCredentialTests
     [InlineData("RFC4716")]
     public async Task FailWithEncryptedKeyAndNoPassword(string format)
     {
-        await RunWithKeyConversion(async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, format, "password", null);
             return new PrivateKeyCredential(localKey);
@@ -120,7 +138,7 @@ public class PrivateKeyCredentialTests
     [InlineData("RFC4716")]
     public async Task FailWithEncryptedKeyAndIncorrectPassword(string format)
     {
-        await RunWithKeyConversion(async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, format, "password", null);
             return new PrivateKeyCredential(localKey, "invalid");
@@ -131,12 +149,12 @@ public class PrivateKeyCredentialTests
         });
     }
 
-    private async Task RunWithKeyConversion(Func<string, Task<PrivateKeyCredential>> convertKey, Func<SshClient, Task> test)
+    private async Task RunWithKeyConversion(string keyFile, Func<string, Task<PrivateKeyCredential>> convertKey, Func<SshClient, Task> test)
     {
         string localKey = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
         {
-            File.Copy(_sshServer.TestUserIdentityFile, localKey);
+            File.Copy(keyFile, localKey);
             if (!OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(localKey, UnixFileMode.UserRead | UnixFileMode.UserWrite);
@@ -159,18 +177,6 @@ public class PrivateKeyCredentialTests
                 File.Delete(localKey);
             }
         }
-    }
-
-    private async Task ConnectWithKey(string keyPath)
-    {
-        var settings = new SshClientSettings(_sshServer.Destination)
-        {
-            UserKnownHostsFilePaths = [ _sshServer.KnownHostsFilePath ],
-            Credentials = [ new PrivateKeyCredential(keyPath) ],
-        };
-        using var client = new SshClient(settings);
-
-        await client.ConnectAsync();
     }
 
     private static async Task EncryptSshKey(string filePath, string format, string? password, string? cipher)
