@@ -12,10 +12,10 @@ namespace Tmds.Ssh;
 
 class RsaPublicKey : PublicKey
 {
-    private readonly BigInteger _e;
-    private readonly BigInteger _n;
+    private readonly byte[] _e;
+    private readonly byte[] _n;
 
-    public RsaPublicKey(BigInteger e, BigInteger n)
+    public RsaPublicKey(byte[] e, byte[] n)
     {
         _e = e;
         _n = n;
@@ -25,8 +25,8 @@ class RsaPublicKey : PublicKey
     {
         SequenceReader reader = new SequenceReader(key);
         reader.ReadName(AlgorithmNames.SshRsa);
-        BigInteger e = reader.ReadMPInt();
-        BigInteger n = reader.ReadMPInt();
+        byte[] e = reader.ReadMPIntAsByteArray(isUnsigned: true);
+        byte[] n = reader.ReadMPIntAsByteArray(isUnsigned: true);
         reader.ReadEnd();
         return new RsaPublicKey(e, n);
     }
@@ -53,8 +53,8 @@ class RsaPublicKey : PublicKey
 
         var rsaParameters = new RSAParameters
         {
-            Exponent = _e.ToByteArray(isUnsigned: true, isBigEndian: true),
-            Modulus = _n.ToByteArray(isUnsigned: true, isBigEndian: true)
+            Exponent = _e,
+            Modulus = _n
         };
         using var rsa = RSA.Create(rsaParameters);
         int signatureLength = rsa.KeySize / 8;
