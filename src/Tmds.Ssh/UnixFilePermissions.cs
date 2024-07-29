@@ -25,7 +25,7 @@ public enum UnixFilePermissions : short
     SetUser = 2048,
 }
 
-public static class UnixFilePemissionExtensions
+public static class UnixFilePermissionsExtensions
 {
 #if NET7_0_OR_GREATER
         public static UnixFilePermissions ToUnixFilePermissions(this UnixFileMode mode)
