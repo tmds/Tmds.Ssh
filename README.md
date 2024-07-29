@@ -338,7 +338,7 @@ enum UnixFilePermissions // values match System.IO.UnixFileMode.
   SetGroup,
   SetUser,
 }
-static class UnixFilePemissionExtensions
+static class UnixFilePermissionsExtensions
 {
   static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
   static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
