@@ -384,24 +384,4 @@ public class SshConfigTests
         File.WriteAllText(tempFile.Path, config);
         return await SshConfig.DetermineConfigForHost(username, host, port, [tempFile.Path], cancellationToken: default);
     }
-
-    struct TempFile : IDisposable
-    {
-        public string Path { get; }
-
-        public TempFile(string path)
-        {
-            Path = path;
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                File.Delete(Path);
-            }
-            catch
-            { }
-        }
-    }
 }

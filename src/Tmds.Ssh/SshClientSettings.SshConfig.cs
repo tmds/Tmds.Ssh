@@ -45,7 +45,7 @@ partial class SshClientSettings
             Port = sshConfig.Port ?? DefaultPort,
             UserKnownHostsFilePaths = sshConfig.UserKnownHostsFiles ?? DefaultUserKnownHostsFilePaths,
             GlobalKnownHostsFilePaths = sshConfig.GlobalKnownHostsFiles ?? DefaultGlobalKnownHostsFilePaths,
-            ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : DefaultConnectTimeout,
+            ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : options.ConnectTimeout,
             KeyExchangeAlgorithms = kexAlgorithms,
             ServerHostKeyAlgorithms = hostKeyAlgorithms,
             PublicKeyAcceptedAlgorithms = publicKeyAcceptedAlgorithms,

@@ -215,8 +215,9 @@ class SshClientSettings
 }
 class SshConfigOptions
 {
-  static SshConfigOptions DefaultConfig { get; }  // use [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
+  static SshConfigOptions DefaultConfig { get; }  // use DefaultConfigFilePaths.
   static SshConfigOptions NoConfig { get; } // use [ ]
+  static IReadOnlyList<string> DefaultConfigFilePaths { get; } // [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
 
   IReadOnlyList<string> ConfigFilePaths { get; set; }
 

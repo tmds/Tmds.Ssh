@@ -294,4 +294,183 @@ public class ConnectTests
 
         Assert.Equal(exceptionThrown, ex.InnerException);
     }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task AutoConnect(bool autoConnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = autoConnect,
+            connect: false
+        );
+
+        if (autoConnect)
+        {
+            using var sftpClient = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AutoConnectAllowsExplicitConnectBeforeImplicitConnect()
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = true,
+            connect: false
+        );
+
+        await client.ConnectAsync();
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+    }
+
+    [Fact]
+    public async Task AutoConnectDisallowsExplicitConnectAfterImplicitConnect()
+    {
+        // If a user calls ConnectAsync, we require it to happen before performing operations.
+        // If there is an issue connecting, this ConnectAsync will throw the connect exception.
+        // And, its cancellation token enables cancelling the connect.
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = true,
+            connect: false
+        );
+
+        var pending = client.OpenSftpClientAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task AutoReconnect(bool autoReconnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoReconnect = autoReconnect
+        );
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        client.ForceConnectionClose();
+
+        if (autoReconnect)
+        {
+            using var sftpClient2 = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task SshConfig_AutoConnect(bool autoConnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                AutoConnect = autoConnect
+            },
+            connect: false
+        );
+
+        if (autoConnect)
+        {
+            using var sftpClient = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task SshConfig_AutoReconnect(bool autoReconnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                AutoReconnect = autoReconnect
+            }
+        );
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        client.ForceConnectionClose();
+
+        if (autoReconnect)
+        {
+            using var sftpClient2 = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1000)]
+    public async Task SshConfig_Timeout(int msTimeout)
+    {
+        IPAddress address = IPAddress.Loopback;
+        using var s = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        s.Bind(new IPEndPoint(address, 0));
+        s.Listen();
+        int port = (s.LocalEndPoint as IPEndPoint)!.Port;
+
+        using var client = new SshClient($"user@{address}:{port}",
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout)
+            });
+
+        SshConnectionException exception = await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
+        Assert.IsType<TimeoutException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task SshConfig_ConnectFailure()
+    {
+        await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+            _sshServer.CreateClientAsync(SshConfigOptions.NoConfig));
+    }
+
+    [Fact]
+    public async Task SshConfig_HostAuthentication()
+    {
+        using TempFile tempFile = new TempFile(Path.GetTempFileName());
+        File.WriteAllText(tempFile.Path,
+            $"""
+            IdentityFile "{_sshServer.TestUserIdentityFile}"
+            """);
+        using var _ = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([tempFile.Path])
+            {
+                HostAuthentication =
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                {
+                    Assert.Equal(KnownHostResult.Unknown, knownHostResult);
+                    Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
+                    Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
+                    string[] serverKeyFingerPrints =
+                    [
+                        _sshServer.RsaKeySHA256FingerPrint,
+                            _sshServer.Ed25519KeySHA256FingerPrint,
+                            _sshServer.EcdsaKeySHA256FingerPrint
+                    ];
+                    Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    return ValueTask.FromResult(true);
+                }
+            }
+        );
+    }
 }

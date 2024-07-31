@@ -13,9 +13,10 @@ namespace Tmds.Ssh;
 
 public sealed class SshConfigOptions
 {
-    public static readonly SshConfigOptions DefaultConfig = CreateDefault();
+    public static IReadOnlyList<string> DefaultConfigFilePaths { get; } = CreateDefaultConfigFilePaths();
+    public static SshConfigOptions DefaultConfig { get; }= CreateDefault();
 
-    public static readonly SshConfigOptions NoConfig = CreateNoConfig();
+    public static SshConfigOptions NoConfig { get; }= CreateNoConfig();
 
     private bool _locked;
 
@@ -136,10 +137,26 @@ public sealed class SshConfigOptions
 
     private static SshConfigOptions CreateNoConfig()
     {
-        var config = new SshConfigOptions([]);
+        var config = new SshConfigOptions(DefaultConfigFilePaths);
 
         config.Lock();
 
         return config;
+    }
+
+    private static IReadOnlyList<string> CreateDefaultConfigFilePaths()
+    {
+        string userConfigFilePath = Path.Combine(SshClientSettings.Home, ".ssh", "config");
+        string systemConfigFilePath;
+        if (Platform.IsWindows)
+        {
+            systemConfigFilePath = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "ssh_config");
+        }
+        else
+        {
+            systemConfigFilePath = "/etc/ssh/ssh_config";
+        }
+
+        return [userConfigFilePath, systemConfigFilePath];
     }
 }
