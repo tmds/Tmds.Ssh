@@ -238,45 +238,111 @@ partial class UserAuthentication
             Name keyType = reader.ReadName();
             if (keyType == AlgorithmNames.SshRsa)
             {
-                BigInteger modulus = reader.ReadMPInt();
-                BigInteger exponent = reader.ReadMPInt();
-                BigInteger d = reader.ReadMPInt();
-                BigInteger inverseQ = reader.ReadMPInt();
-                BigInteger p = reader.ReadMPInt();
-                BigInteger q = reader.ReadMPInt();
-
-                BigInteger dp = d % (p - BigInteger.One);
-                BigInteger dq = d % (q - BigInteger.One);
-
-                RSAParameters parameters = new()
-                {
-                    Modulus = modulus.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    Exponent = exponent.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    D = d.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    InverseQ = inverseQ.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    P = p.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    Q = q.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    DP = dp.ToByteArray(isUnsigned: true, isBigEndian: true),
-                    DQ = dq.ToByteArray(isUnsigned: true, isBigEndian: true)
-                };
-                RSA? rsa = RSA.Create();
-                try
-                {
-                    rsa.ImportParameters(parameters);
-                    privateKey = new RsaPrivateKey(rsa);
-                    error = null;
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    error = new FormatException($"The data can not be parsed into an RSA key.", ex);
-                    rsa?.Dispose();
-                    return false;
-                }
+                return TryParseOpenSshRsaKey(reader, out privateKey, out error);
+            }
+            if (keyType.ToString().StartsWith("ecdsa-sha2-"))
+            {
+                return TryParseOpenSshEcdsaKey(keyType, reader, out privateKey, out error);
             }
             else
             {
                 error = new NotSupportedException($"The key type is unsupported: '{keyType}'.");
+                return false;
+            }
+        }
+
+        private static bool TryParseOpenSshRsaKey(SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+        {
+            privateKey = null;
+
+            byte[] modulus = reader.ReadMPIntAsByteArray(isUnsigned: true);
+            byte[] exponent = reader.ReadMPIntAsByteArray(isUnsigned: true);
+            BigInteger d = reader.ReadMPInt();
+            byte[] inverseQ = reader.ReadMPIntAsByteArray(isUnsigned: true);
+            BigInteger p = reader.ReadMPInt();
+            BigInteger q = reader.ReadMPInt();
+
+            BigInteger dp = d % (p - BigInteger.One);
+            BigInteger dq = d % (q - BigInteger.One);
+
+            RSAParameters parameters = new()
+            {
+                Modulus = modulus,
+                Exponent = exponent,
+                D = d.ToByteArray(isUnsigned: true, isBigEndian: true),
+                InverseQ = inverseQ,
+                P = p.ToByteArray(isUnsigned: true, isBigEndian: true),
+                Q = q.ToByteArray(isUnsigned: true, isBigEndian: true),
+                DP = dp.ToByteArray(isUnsigned: true, isBigEndian: true),
+                DQ = dq.ToByteArray(isUnsigned: true, isBigEndian: true)
+            };
+            RSA rsa = RSA.Create();
+            try
+            {
+                rsa.ImportParameters(parameters);
+                privateKey = new RsaPrivateKey(rsa);
+                error = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = new FormatException($"The data can not be parsed into an RSA key.", ex);
+                rsa.Dispose();
+                return false;
+            }
+        }
+
+        private static bool TryParseOpenSshEcdsaKey(Name keyIdentifier, SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+        {
+            privateKey = null;
+
+            Name curveName = reader.ReadName();
+
+            HashAlgorithmName allowedHashAlgo;
+            ECCurve curve;
+            if (curveName == AlgorithmNames.Nistp256)
+            {
+                allowedHashAlgo = HashAlgorithmName.SHA256;
+                curve = ECCurve.NamedCurves.nistP256;
+            }
+            else if (curveName == AlgorithmNames.Nistp384)
+            {
+                allowedHashAlgo = HashAlgorithmName.SHA384;
+                curve = ECCurve.NamedCurves.nistP384;
+            }
+            else if (curveName == AlgorithmNames.Nistp521)
+            {
+                allowedHashAlgo = HashAlgorithmName.SHA512;
+                curve = ECCurve.NamedCurves.nistP521;
+            }
+            else
+            {
+                error = new NotSupportedException($"ECDSA curve '{curveName}' is unsupported.");
+                return false;
+            }
+
+            ECPoint q = reader.ReadStringAsECPoint();
+            byte[] d = reader.ReadMPIntAsByteArray(isUnsigned: true, minLength: q.X!.Length);
+
+            ECDsa ecdsa = ECDsa.Create();
+            try
+            {
+                ECParameters parameters = new()
+                {
+                    Curve = curve,
+                    Q = q,
+                    D = d
+                };
+
+                ecdsa.ImportParameters(parameters);
+                privateKey = new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
+                error = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = new FormatException($"The data can not be parsed into an ECDSA key.", ex);
+                ecdsa.Dispose();
                 return false;
             }
         }

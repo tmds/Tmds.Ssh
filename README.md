@@ -357,7 +357,7 @@ enum UnixFilePermissions // values match System.IO.UnixFileMode.
   SetGroup,
   SetUser,
 }
-static class UnixFilePemissionExtensions
+static class UnixFilePermissionsExtensions
 {
   static UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode);
   static System.IO.UnixFileMode ToUnixFileMode(this UnixFilePermissions permissions);
@@ -419,12 +419,15 @@ This section lists the currently supported algorithms. If you would like support
 
 Supported private key formats:
 - RSA in `RSA PRIVATE KEY`
-- RSA in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
+- RSA, ECDSA in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
 
 Supported private key encryption cyphers:
 - none
 
 Supported client key algorithms:
+- ecdsa-sha2-nistp521
+- ecdsa-sha2-nistp384
+- ecdsa-sha2-nistp256
 - rsa-sha2-512
 - rsa-sha2-256
 

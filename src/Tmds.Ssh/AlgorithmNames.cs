@@ -45,8 +45,8 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name HMacSha2_256 => new Name(HMacSha2_256Bytes);
 
     // Curve names.
-    private static readonly byte[] Nistp265Bytes = "nistp256"u8.ToArray();
-    public static Name Nistp265 => new Name(Nistp265Bytes);
+    private static readonly byte[] Nistp256Bytes = "nistp256"u8.ToArray();
+    public static Name Nistp256 => new Name(Nistp256Bytes);
     private static readonly byte[] Nistp384Bytes = "nistp384"u8.ToArray();
     public static Name Nistp384 => new Name(Nistp384Bytes);
     private static readonly byte[] Nistp521Bytes = "nistp521"u8.ToArray();
@@ -67,5 +67,5 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name Password => new Name(PasswordBytes);
     private static readonly byte[] PublicKeyBytes = "publickey"u8.ToArray();
     public static Name PublicKey => new Name(PublicKeyBytes);
-    
+
 }
