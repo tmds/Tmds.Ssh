@@ -130,7 +130,7 @@ partial class SshClientSettings
                     if (addGssApiCredentials)
                     {
                         bool delegateCredential = config.GssApiDelegateCredentials ?? false;
-                        string? targetName = !string.IsNullOrEmpty(config.GssApiServerIdentity) ? $"host@{config.GssApiServerIdentity}" : null;
+                        string? targetName = !string.IsNullOrEmpty(config.GssApiServerIdentity) ? $"host/{config.GssApiServerIdentity}" : null;
                         credentials.Add(new KerberosCredential(credential: null, delegateCredential, targetName));
 
                         addGssApiCredentials = false;
