@@ -65,70 +65,6 @@ sealed class SshConfig
     public List<string>? IdentityFiles { get; set; }
     public StrictHostKeyChecking? HostKeyChecking { get; set; }
 
-    private static readonly HashSet<string> KnownUnsupportedOptions =
-        new HashSet<string>(
-            [
-                // Forwarding related options
-                "clearallforwardings",
-                "dynamicforward",
-                "exitonforwardfailure",
-                "forwardagent",
-                "forwardx11",
-                "forwardx11timeout",
-                "forwardx11trusted",
-                "gatewayports",
-                "localforward",
-                "permitremoteopen",
-                "remoteforward",
-
-                // Logging related options
-                "loglevel",
-                "logverbose",
-                "syslogfacility",
-
-                // Application/UX options
-                "enableescapecommandline",
-                "escapechar",
-                "requestty",
-                "sessiontype",
-                "stdinnull",
-                "forkafterauthentication",
-                "channeltimeout",
-                "obsecurekeystroketiming",
-                "visualhostkey",
-                "batchmode",
-                "fingerprinthash",
-
-                // Session sharing options
-                "controlmaster",
-                "controlsocket",
-                "controlpersist",
-
-                // Unsupported options - support may be added later.
-                "verifyhostkeydns",        // DNS based key verification is not supported
-                "hostbasedauthentication", // host-based auth is not supported
-                "enablesshkeysign",        // host-based auth is not supported
-                "hostbasedacceptedalgorithms", // host-based auth is not supported
-                "connectionattempts",      // Only a single attempt is supported (currently)
-                "certificatefile",         // certificate based auth is not supported
-                "casignaturealgorithms",   // certificate based auth is not supported
-                "addkeystoagent",          // auth agent is not supported
-                "identitiesonly",          // auth agent is not supported
-                "identityagent",           // auth agent is not supported
-                "pkcs11provider",          // not supported
-                "securitykeyprovider",     // not supported
-                "kbdinteractiveauthentication", // keyboard-interactive auth is not supported
-                "kbdinteractivedevices",   // keyboard-interactive auth is not supported
-                "gssapikeyexchange",       // gssapikeyexchange is not supported
-                "gssapikexalgorithms",     // gssapikeyexchange is not supported
-                "nohostauthenticationforlocalhost", // not supported
-                "updatehostkeys",          // unsupported. This is for updating the known hosts file with keys the server sends us
-                "ignoreunknown",           // unsupported.
-
-                // No password prompt
-                "passwordauthentication"
-            ], StringComparer.Ordinal);
-
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
         SshConfig config = new SshConfig()
@@ -445,7 +381,6 @@ sealed class SshConfig
                     case "serveraliveinterval":
                     case "tcpkeepalive":
                     case "setenv":
-                    case "sendenv":
                         ThrowUnsupportedKeyword(keyword, remainder);
                         break;
 
@@ -491,11 +426,67 @@ sealed class SshConfig
                     case "canonicalizepermittedcnames":
                         break; // throw for canonicalizehostname.
 
+                    /*** Ignored options ***/
+                    // Forwarding related options
+                    case "clearallforwardings":
+                    case "dynamicforward":
+                    case "exitonforwardfailure":
+                    case "forwardagent":
+                    case "forwardx11":
+                    case "forwardx11timeout":
+                    case "forwardx11trusted":
+                    case "gatewayports":
+                    case "localforward":
+                    case "permitremoteopen":
+                    case "remoteforward":
+                    // Logging related options
+                    case "loglevel":
+                    case "logverbose":
+                    case "syslogfacility":
+                    // Application/UX options
+                    case "enableescapecommandline":
+                    case "escapechar":
+                    case "requestty":
+                    case "sessiontype":
+                    case "stdinnull":
+                    case "forkafterauthentication":
+                    case "channeltimeout":
+                    case "obsecurekeystroketiming":
+                    case "visualhostkey":
+                    case "batchmode":
+                    case "fingerprinthash":
+                    // Session sharing options
+                    case "controlmaster":
+                    case "controlsocket":
+                    case "controlpersist":
+                    // Unsupported options - support may be added later.
+                    case "verifyhostkeydns":        // DNS based key verification is not supported
+                    case "hostbasedauthentication": // host-based auth is not supported
+                    case "enablesshkeysign":        // host-based auth is not supported
+                    case "hostbasedacceptedalgorithms": // host-based auth is not supported
+                    case "connectionattempts":      // Only a single attempt is supported (currently)
+                    case "certificatefile":         // certificate based auth is not supported
+                    case "casignaturealgorithms":   // certificate based auth is not supported
+                    case "addkeystoagent":          // auth agent is not supported
+                    case "identitiesonly":          // auth agent is not supported
+                    case "identityagent":           // auth agent is not supported
+                    case "pkcs11provider":          // not supported
+                    case "securitykeyprovider":     // not supported
+                    case "kbdinteractiveauthentication": // keyboard-interactive auth is not supported
+                    case "kbdinteractivedevices":   // keyboard-interactive auth is not supported
+                    case "gssapikeyexchange":       // gssapikeyexchange is not supported
+                    case "gssapikexalgorithms":     // gssapikeyexchange is not supported
+                    case "nohostauthenticationforlocalhost": // not supported
+                    case "updatehostkeys":          // unsupported. This is for updating the known hosts file with keys the server sends us
+                    case "ignoreunknown":           // unsupported.
+                    // No password prompt
+                    case "passwordauthentication":
+                    case "sendenv": // TODO
+                    /*** End of ignored options ***/
+                        break;
+
                     default:
-                        if (!KnownUnsupportedOptions.Contains(keyword.ToString()))
-                        {
-                            ThrowUnsupportedKeyword(keyword, remainder);
-                        }
+                        ThrowUnsupportedKeyword(keyword, remainder);
                         break;
                 }
             }
