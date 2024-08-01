@@ -240,7 +240,6 @@ sealed class SshConfig
                             }
                         }
                         break;
-                    case "hashknownhosts":
                     case "hostkeyalias":
                     case "knownhostscommand":
                     case "revokedhostkeys":
@@ -482,6 +481,7 @@ sealed class SshConfig
                     // No password prompt
                     case "passwordauthentication":
                     case "sendenv": // TODO
+                    case "hashknownhosts": // TODO
                     /*** End of ignored options ***/
                         break;
 
