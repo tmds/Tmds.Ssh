@@ -447,13 +447,14 @@ public class ConnectTests
     [Fact]
     public async Task SshConfig_HostAuthentication()
     {
-        using TempFile tempFile = new TempFile(Path.GetTempFileName());
-        File.WriteAllText(tempFile.Path,
+        using TempFile configFile = new TempFile(Path.GetTempFileName());
+        File.WriteAllText(configFile.Path,
             $"""
             IdentityFile "{_sshServer.TestUserIdentityFile}"
+            UserKnownHostsFile {Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())}
             """);
         using var _ = await _sshServer.CreateClientAsync(
-            new SshConfigOptions([tempFile.Path])
+            new SshConfigOptions([configFile.Path])
             {
                 HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>

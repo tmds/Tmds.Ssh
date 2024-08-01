@@ -21,6 +21,19 @@ static class KnownHostsFile
         string knownHostLine = FormatLine(host, port, key) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
 
+        string directoryPath = Path.GetDirectoryName(knownHostsFile)!;
+        if (!Directory.Exists(directoryPath))
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+            else
+            {
+                Directory.CreateDirectory(directoryPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+        }
+
         var fileStreamOptions = new FileStreamOptions()
         {
             Access = FileAccess.Write,
