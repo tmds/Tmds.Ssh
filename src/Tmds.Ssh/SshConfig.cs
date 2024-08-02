@@ -64,6 +64,7 @@ sealed class SshConfig
     public string? GssApiServerIdentity { get; set; }
     public List<string>? IdentityFiles { get; set; }
     public StrictHostKeyChecking? HostKeyChecking { get; set; }
+    public bool? HashKnownHosts { get; set; }
 
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
@@ -239,6 +240,9 @@ sealed class SshConfig
                                 config.UserKnownHostsFiles.Add(path);
                             }
                         }
+                        break;
+                    case "hashknownhosts":
+                        config.HashKnownHosts ??= ParseYesNoKeywordValue(keyword, ref remainder);
                         break;
                     case "hostkeyalias":
                     case "knownhostscommand":
@@ -481,7 +485,6 @@ sealed class SshConfig
                     // No password prompt
                     case "passwordauthentication":
                     case "sendenv": // TODO
-                    case "hashknownhosts": // TODO
                     /*** End of ignored options ***/
                         break;
 

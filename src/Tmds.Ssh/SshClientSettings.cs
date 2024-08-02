@@ -151,6 +151,8 @@ public sealed partial class SshClientSettings
 
     public bool AutoReconnect { get; set; } = false;
 
+    public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
+
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
     // Currently these settings are not exposed.

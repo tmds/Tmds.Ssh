@@ -118,8 +118,10 @@ public class ConnectTests
         ));
     }
 
-    [Fact]
-    public async Task AddKnownHost()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AddKnownHost(bool hashKnownHosts)
     {
         string knownHostsFileName = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
@@ -130,6 +132,7 @@ public class ConnectTests
             SshClient client = await _sshServer.CreateClientAsync(settings =>
                 {
                     settings.UserKnownHostsFilePaths = [ knownHostsFileName ];
+                    settings.HashKnownHosts = hashKnownHosts;
                     settings.HostAuthentication =
                     (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {

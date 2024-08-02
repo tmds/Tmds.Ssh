@@ -56,7 +56,8 @@ partial class SshClientSettings
             CompressionAlgorithmsClientToServer = compressionAlgorithms,
             CompressionAlgorithmsServerToClient = compressionAlgorithms,
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
-            Credentials = DetermineCredentials(sshConfig)
+            Credentials = DetermineCredentials(sshConfig),
+            HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts
         };
 
         SshConfig.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfig.StrictHostKeyChecking.Ask;

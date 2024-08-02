@@ -237,7 +237,7 @@ sealed partial class SshSession
         // TODO: remove old keys from KnownHostsFilePaths?
         // Add keys to first KnownHostsFilePaths.
         string? updateKnownHostsFile = settings.UpdateKnownHostsFileAfterAuthentication && settings.UserKnownHostsFilePaths.Count > 0 ? settings.UserKnownHostsFilePaths[0] : null;
-        IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, settings.HostAuthentication, updateKnownHostsFile);
+        IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, settings.HostAuthentication, updateKnownHostsFile, settings.HashKnownHosts);
 
         return new KeyExchangeContext()
         {

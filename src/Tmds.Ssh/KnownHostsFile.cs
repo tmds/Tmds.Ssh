@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -16,15 +17,15 @@ static class KnownHostsFile
 {
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
-    public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key)
+    public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key, bool hash)
     {
-        string knownHostLine = FormatLine(host, port, key) + '\n';
+        string knownHostLine = FormatLine(host, port, key, hash) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
 
         string directoryPath = Path.GetDirectoryName(knownHostsFile)!;
         if (!Directory.Exists(directoryPath))
         {
-            if (!OperatingSystem.IsWindows())
+            if (OperatingSystem.IsWindows())
             {
                 Directory.CreateDirectory(directoryPath);
             }
@@ -49,11 +50,22 @@ static class KnownHostsFile
         fileStream.Write(buffer);
     }
 
-    public static string FormatLine(string host, int port, HostKey key)
+    public static string FormatLine(string host, int port, HostKey key, bool hash = false)
     {
-        bool nonStandardPort = port != 22;
-        return nonStandardPort ? $"[{host}]:{port} {key.Type} {Convert.ToBase64String(key.RawKey)}"
-                               : $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
+        if (port != 22)
+        {
+            host = $"[{host}]:{port}";
+        }
+        if (hash)
+        {
+            Span<byte> salt = stackalloc byte[20];
+            RandomBytes.Fill(salt);
+            Span<byte> destination = stackalloc byte[20];
+            int bytesWritten = HMACSHA1.HashData(salt, Encoding.UTF8.GetBytes(host), destination);
+            Debug.Assert(bytesWritten == 20);
+            host = $"|1|{Convert.ToBase64String(salt)}|{Convert.ToBase64String(destination)}";
+        }
+        return $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
     }
 
     public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port)
@@ -162,31 +174,7 @@ static class KnownHostsFile
                 s = s.Substring(1);
             }
 
-            // A hostname or address may optionally be
-            // enclosed within ‘[’ and ‘]’ brackets then followed by ‘:’ and a non-standard port number.
-            if (port != 22 || (s.Length > 0 && s[0] == '['))
-            {
-                int endOfBracket = s.IndexOf(']');
-                if (endOfBracket == -1)
-                {
-                    continue;
-                }
-                if (s.Length < (endOfBracket + 2))
-                {
-                    continue;
-                }
-                if (!int.TryParse(s.AsSpan(endOfBracket + 2), out int parsedPort))
-                {
-                    continue;
-                }
-                if (parsedPort != port)
-                {
-                    continue;
-                }
-                s = s.Substring(1, endOfBracket - 1);
-            }
-
-            MatchType matchType = IsHostNameMatch(s, host, ip);
+            MatchType matchType = IsHostNameMatch(s, host, ip, port);
 
             if (matchType == MatchType.NoMatch)
             {
@@ -205,7 +193,7 @@ static class KnownHostsFile
         return MatchType.NoMatch;
     }
 
-    private static MatchType IsHostNameMatch(string pattern, string host, string? ip)
+    private static MatchType IsHostNameMatch(string pattern, string host, string? ip, int port)
     {
         if (pattern == "*")
         {
@@ -238,6 +226,10 @@ static class KnownHostsFile
             }
 
             using var hmac = new HMac(HashAlgorithmName.SHA1, 20, 20, salt);
+            if (port != 22)
+            {
+                host = $"[{host}]:{port}";
+            }
             hmac.AppendData(Encoding.UTF8.GetBytes(host));
             if (hmac.CheckHashAndReset(hash))
             {
@@ -245,6 +237,10 @@ static class KnownHostsFile
             }
             if (ip != null)
             {
+                if (port != 22)
+                {
+                    ip = $"[{ip}]:{port}";
+                }
                 hmac.AppendData(Encoding.UTF8.GetBytes(ip));
                 if (hmac.CheckHashAndReset(hash))
                 {
@@ -256,6 +252,30 @@ static class KnownHostsFile
         }
         else
         {
+            // A hostname or address may optionally be
+            // enclosed within ‘[’ and ‘]’ brackets then followed by ‘:’ and a non-standard port number.
+            if (port != 22 || (pattern.Length > 0 && pattern[0] == '['))
+            {
+                int endOfBracket = pattern.IndexOf(']');
+                if (endOfBracket == -1)
+                {
+                    return MatchType.NoMatch;;
+                }
+                if (pattern.Length < (endOfBracket + 2))
+                {
+                    return MatchType.NoMatch;;
+                }
+                if (!int.TryParse(pattern.AsSpan(endOfBracket + 2), out int parsedPort))
+                {
+                    return MatchType.NoMatch;;
+                }
+                if (parsedPort != port)
+                {
+                    return MatchType.NoMatch;;
+                }
+                pattern = pattern.Substring(1, endOfBracket - 1);
+            }
+
             bool containsWildCards = pattern.Contains("*") || pattern.Contains("?");
             if (containsWildCards)
             {
