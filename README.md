@@ -212,7 +212,10 @@ class SshClientSettings
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
   bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
   bool HashKnownHosts { get; set; } = false;
+
   int MinimumRSAKeySize { get; set; } = 2048;
+
+  IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
 }
 class SshConfigOptions
 {
