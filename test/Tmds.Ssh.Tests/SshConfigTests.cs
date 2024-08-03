@@ -378,6 +378,40 @@ public class SshConfigTests
         Assert.Equal(new[] { new Name("alg1"), new Name("alg2")}, algorithms);
     }
 
+    [Fact]
+    public async Task SendEnv()
+    {
+        const string Config =
+        $"""
+        SendEnv FOO
+        SendEnv -FOO BAR
+        SendEnv BAZZ*
+        """;
+        SshConfig config = await DetermineConfigAsync(Config);
+
+        Assert.Equal(new[] { "BAR", "BAZZ*" }, config.SendEnv);
+    }
+
+    [Fact]
+    public void DetermineEnvironment()
+    {
+        List<string> sendEnv = [ "FOO", "BAR*" ];
+        Dictionary<string, string> environment = new()
+        {
+            { "FOO", "foo_value" },
+            { "BAR1", "bar1_value" },
+            { "BAZ", "baz_value" },
+        };
+
+        Dictionary<string, string> expected = new()
+        {
+            { "FOO", "foo_value" },
+            { "BAR1", "bar1_value" }
+        };
+
+        Assert.Equal(expected, SshClientSettings.CreateEnvironmentVariables(environment, sendEnv));
+    }
+
     private static async Task<SshConfig> DetermineConfigAsync(string config, string? username = null, string host = "", int? port = null, CancellationToken cancellationToken = default)
     {
         using TempFile tempFile = new TempFile(Path.GetTempFileName());

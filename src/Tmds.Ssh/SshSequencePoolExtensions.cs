@@ -170,6 +170,28 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateSetEnvMessage(this SequencePool sequencePool, uint remoteChannel, string variableName, string variableValue)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_REQUEST
+            uint32    recipient channel
+            string    "env"
+            boolean   want reply
+            string    variable name
+            string    variable value
+            */
+
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteString("env");
+        writer.WriteBoolean(false);
+        writer.WriteString(variableName);
+        writer.WriteString(variableValue);
+        return packet.Move();
+    }
+
     public static Packet CreateChannelOpenDirectTcpIpMessage(this SequencePool sequencePool, uint localChannel, uint localWindowSize, uint maxPacketSize, string host, uint port, IPAddress originatorIP, uint originatorPort)
     {
         /*

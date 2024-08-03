@@ -24,6 +24,7 @@ sealed partial class SshSession
     private readonly ILogger _logger;
     private readonly object _gate = new object();
     private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
+    private SshClientSettings? _settings;
     private bool _disposed;
     private Channel<Packet>? _sendQueue;              // Multiple senders push into the queue
     private Task? _runningConnectionTask;                  // Task that encompasses all operations
@@ -115,7 +116,6 @@ sealed partial class SshSession
     private async Task RunConnectionAsync(TimeSpan connectTimeout, CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
     {
         SshConnection? connection = null;
-        SshClientSettings settings;
         try
         {
             // Cancel when:
@@ -128,13 +128,13 @@ sealed partial class SshSession
             long startTime = Stopwatch.GetTimestamp();
             using var timer = new Timer(cts => ((CancellationTokenSource)cts!).Cancel(), connectCts, connectTimeout, Timeout.InfiniteTimeSpan);
 
-            settings = await _getClientSettings(connectCts.Token).ConfigureAwait(false);
+            _settings = await _getClientSettings(connectCts.Token).ConfigureAwait(false);
 
-            ConnectionInfo.HostName = settings.HostName;
-            ConnectionInfo.Port = settings.Port;
+            ConnectionInfo.HostName = _settings.HostName;
+            ConnectionInfo.Port = _settings.Port;
 
-            // Update the timer to cancel after settings.ConnectTimeout taking into account the elapsed time.
-            TimeSpan settingsConnectTimeout = settings.ConnectTimeout;
+            // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
+            TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;
             if (settingsConnectTimeout != connectTimeout)
             {
                 TimeSpan elapsedTime = Stopwatch.GetElapsedTime(startTime);
@@ -150,16 +150,16 @@ sealed partial class SshSession
             }
 
             // Connect to the remote host
-            connection = await settings.EstablishConnectionAsync(_logger, _sequencePool, settings, ConnectionInfo, connectCts.Token).ConfigureAwait(false);
+            connection = await _settings.EstablishConnectionAsync(_logger, _sequencePool, _settings, ConnectionInfo, connectCts.Token).ConfigureAwait(false);
 
             // Setup ssh connection
-            if (!settings.NoProtocolVersionExchange)
+            if (!_settings.NoProtocolVersionExchange)
             {
-                await settings.ExchangeProtocolVersionAsync(connection, ConnectionInfo, _logger, settings, connectCts.Token).ConfigureAwait(false);
+                await _settings.ExchangeProtocolVersionAsync(connection, ConnectionInfo, _logger, _settings, connectCts.Token).ConfigureAwait(false);
             }
-            if (!settings.NoKeyExchange)
+            if (!_settings.NoKeyExchange)
             {
-                KeyExchangeContext context = CreateKeyExchangeContext(settings, ConnectionInfo);
+                KeyExchangeContext context = CreateKeyExchangeContext(_settings, ConnectionInfo);
 
                 using Packet localExchangeInitMsg = _sequencePool.CreateKeyExchangeInitMessage(context);
                 await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCts.Token).ConfigureAwait(false);
@@ -169,12 +169,12 @@ sealed partial class SshSession
                     {
                         ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                     }
-                    await settings.ExchangeKeysAsync(connection, context, remoteExchangeInitMsg, localExchangeInitMsg,ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
+                    await _settings.ExchangeKeysAsync(connection, context, remoteExchangeInitMsg, localExchangeInitMsg,ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
                 }
             }
-            if (!settings.NoUserAuthentication)
+            if (!_settings.NoUserAuthentication)
             {
-                await settings.AuthenticateUserAsync(connection, settings.UserName, settings.Credentials, settings.PublicKeyAcceptedAlgorithms, settings.MinimumRSAKeySize, ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
+                await _settings.AuthenticateUserAsync(connection, _settings.UserName, _settings.Credentials, _settings.PublicKeyAcceptedAlgorithms, _settings.MinimumRSAKeySize, ConnectionInfo, _logger, connectCts.Token).ConfigureAwait(false);
             }
 
             // Allow sending.
@@ -223,7 +223,7 @@ sealed partial class SshSession
             return;
         }
 
-        await HandleConnectionAsync(connection, settings, ConnectionInfo).ConfigureAwait(false);
+        await HandleConnectionAsync(connection, ConnectionInfo).ConfigureAwait(false);
     }
     
     private static KeyExchangeContext CreateKeyExchangeContext(SshClientSettings settings, SshConnectionInfo connectionInfo)
@@ -256,10 +256,10 @@ sealed partial class SshSession
         };
     }
 
-    private async Task HandleConnectionAsync(SshConnection connection, SshClientSettings settings, SshConnectionInfo ConnectionInfo)
+    private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
     {
         Task sendTask = SendLoopAsync(connection);
-        Task receiveTask = ReceiveLoopAsync(connection, settings, ConnectionInfo);
+        Task receiveTask = ReceiveLoopAsync(connection, ConnectionInfo);
         await Task.WhenAll(sendTask, receiveTask).ConfigureAwait(false);
         connection.Dispose();
 
@@ -354,8 +354,10 @@ sealed partial class SshSession
         }
     }
 
-    private async Task ReceiveLoopAsync(SshConnection connection, SshClientSettings settings, SshConnectionInfo ConnectionInfo)
+    private async Task ReceiveLoopAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
     {
+        Debug.Assert(_settings is not null);
+
         try
         {
             CancellationToken abortToken = _abortCts.Token;
@@ -378,7 +380,7 @@ sealed partial class SshSession
                         // The peer requested a key exchange. We queue a SSH_MSG_KEXINIT and when the send loop detects it
                         // it will stop sending other packets until we release the key exchange semaphore to signal the key exchange is completed.
                         {
-                            KeyExchangeContext context = CreateKeyExchangeContext(settings, ConnectionInfo);
+                            KeyExchangeContext context = CreateKeyExchangeContext(_settings, ConnectionInfo);
                             using Packet clientKexInitMsg = _sequencePool.CreateKeyExchangeInitMessage(context);
 
                             // Assign _keyReExchangeSemaphore before sending packet through the send queue.
@@ -393,7 +395,7 @@ sealed partial class SshSession
                             // The send loop waits for us to signal kex completion.
                             try
                             {
-                                await settings.ExchangeKeysAsync(connection, context, packet, clientKexInitMsg, ConnectionInfo, _logger, abortToken).ConfigureAwait(false);
+                                await _settings.ExchangeKeysAsync(connection, context, packet, clientKexInitMsg, ConnectionInfo, _logger, abortToken).ConfigureAwait(false);
                             }
                             finally
                             {
@@ -632,6 +634,8 @@ sealed partial class SshSession
 
     public async Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, CancellationToken cancellationToken)
     {
+        Debug.Assert(_settings is not null);
+
         SshChannel channel = CreateChannel(channelType);
         try
         {
@@ -640,6 +644,8 @@ sealed partial class SshSession
                 channel.TrySendChannelOpenSessionMessage();
                 await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            SendEnv(channel, _settings.EnvironmentVariables);
 
             // Request command execution.
             {
@@ -700,6 +706,8 @@ sealed partial class SshSession
 
     private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, CancellationToken cancellationToken)
     {
+        Debug.Assert(_settings is not null);
+
         SshChannel channel = CreateChannel(channelType, onAbort);
         try
         {
@@ -708,6 +716,8 @@ sealed partial class SshSession
                 channel.TrySendChannelOpenSessionMessage();
                 await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            SendEnv(channel, _settings.EnvironmentVariables);
 
             // Request subsystem execution.
             {
@@ -721,6 +731,19 @@ sealed partial class SshSession
         {
             channel.Dispose();
             throw;
+        }
+    }
+
+    private static void SendEnv(SshChannel channel, IReadOnlyDictionary<string, string>? environmentVariables)
+    {
+        if (environmentVariables is null)
+        {
+            return;
+        }
+
+        foreach (var envvar in environmentVariables)
+        {
+            channel.TrySendEnvMessage(envvar.Key, envvar.Value);
         }
     }
 

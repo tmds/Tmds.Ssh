@@ -153,6 +153,8 @@ public sealed partial class SshClientSettings
 
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
+    public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
+
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
     // Currently these settings are not exposed.

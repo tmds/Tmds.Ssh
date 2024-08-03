@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -57,7 +58,8 @@ partial class SshClientSettings
             CompressionAlgorithmsServerToClient = compressionAlgorithms,
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig),
-            HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts
+            HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts,
+            EnvironmentVariables = CreateEnvironmentVariables(Environment.GetEnvironmentVariables(), sshConfig.SendEnv)
         };
 
         SshConfig.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfig.StrictHostKeyChecking.Ask;
@@ -108,6 +110,29 @@ partial class SshClientSettings
         }
 
         return settings;
+    }
+
+    internal static IReadOnlyDictionary<string, string>? CreateEnvironmentVariables(IDictionary systemEnvironment, List<System.String>? sendEnv)
+    {
+        if (sendEnv is null || sendEnv.Count == 0)
+        {
+            return null;
+        }
+
+        Dictionary<string, string> envvars = new(StringComparer.Ordinal);
+
+        foreach (DictionaryEntry de in systemEnvironment)
+        {
+            foreach (var pattern in sendEnv)
+            {
+                if (PatternMatcher.IsPatternMatch(pattern, (string)de.Key))
+                {
+                    envvars.Add((string)de.Key, (string)de.Value!);
+                }
+            }
+        }
+
+        return envvars;
     }
 
     private static IReadOnlyList<Credential> DetermineCredentials(SshConfig config)

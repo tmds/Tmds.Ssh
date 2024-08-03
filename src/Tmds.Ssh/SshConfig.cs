@@ -65,6 +65,7 @@ sealed class SshConfig
     public List<string>? IdentityFiles { get; set; }
     public StrictHostKeyChecking? HostKeyChecking { get; set; }
     public bool? HashKnownHosts { get; set; }
+    public List<string>? SendEnv { get; set; }
 
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
@@ -387,6 +388,35 @@ sealed class SshConfig
                         ThrowUnsupportedKeyword(keyword, remainder);
                         break;
 
+                    case "sendenv":
+                        while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pattern))
+                        {
+                            if (pattern.StartsWith("-"))
+                            {
+                                pattern = pattern.Slice(1);
+                                if (config.SendEnv != null)
+                                {
+                                    for (int i = 0; i < config.SendEnv.Count;)
+                                    {
+                                        if (PatternMatcher.IsPatternMatch(pattern, config.SendEnv[i]))
+                                        {
+                                            config.SendEnv.RemoveAt(i);
+                                        }
+                                        else
+                                        {
+                                            i++;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                config.SendEnv ??= new();
+                                config.SendEnv.Add(pattern.ToString());
+                            }
+                        }
+                        break;
+
                     case "compression":
                     {
                         config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
@@ -484,7 +514,6 @@ sealed class SshConfig
                     case "ignoreunknown":           // unsupported.
                     // No password prompt
                     case "passwordauthentication":
-                    case "sendenv": // TODO
                     /*** End of ignored options ***/
                         break;
 

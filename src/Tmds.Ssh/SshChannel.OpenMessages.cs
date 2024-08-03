@@ -25,6 +25,9 @@ sealed partial class SshChannel : ISshChannel
     public void TrySendExecSubsystemMessage(string subsystem)
         => TrySendPacket(_sequencePool.CreateExecSubsystemMessage(RemoteChannel, subsystem));
 
+    public void TrySendEnvMessage(string variableName, string variableValue)
+        => TrySendPacket(_sequencePool.CreateSetEnvMessage(RemoteChannel, variableName, variableValue));
+
     public void TrySendChannelOpenDirectTcpIpMessage(string host, uint port, IPAddress originatorIP, uint originatorPort)
         => TrySendPacket(_sequencePool.CreateChannelOpenDirectTcpIpMessage(LocalChannel, (uint)_receiveWindow, (uint)ReceiveMaxPacket, host, port, originatorIP, originatorPort));
 
