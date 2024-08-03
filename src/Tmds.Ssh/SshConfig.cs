@@ -374,20 +374,6 @@ sealed class SshConfig
                         config.RequiredRSASize ??= NextTokenAsInt(keyword, ref remainder);
                         break;
 
-                    case "rekeylimit":
-                    case "addressfamily":
-                    case "bindaddress":
-                    case "bindinterface":
-                    case "ipqos":
-                    case "streamlocalbindmask":
-                    case "streamlocalbindunlink":
-                    case "serveralivecountmax":
-                    case "serveraliveinterval":
-                    case "tcpkeepalive":
-                    case "setenv":
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
-
                     case "sendenv":
                         while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pattern))
                         {
@@ -512,6 +498,17 @@ sealed class SshConfig
                     case "nohostauthenticationforlocalhost": // not supported
                     case "updatehostkeys":          // unsupported. This is for updating the known hosts file with keys the server sends us
                     case "ignoreunknown":           // unsupported.
+                    case "rekeylimit":
+                    case "addressfamily":
+                    case "bindaddress":
+                    case "bindinterface":
+                    case "ipqos":
+                    case "streamlocalbindmask":
+                    case "streamlocalbindunlink":
+                    case "serveralivecountmax":
+                    case "serveraliveinterval":
+                    case "tcpkeepalive":
+                    case "setenv":
                     // No password prompt
                     case "passwordauthentication":
                     /*** End of ignored options ***/
