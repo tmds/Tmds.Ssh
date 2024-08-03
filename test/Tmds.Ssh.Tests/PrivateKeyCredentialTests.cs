@@ -42,7 +42,7 @@ public class PrivateKeyCredentialTests
     {
         var settings = new SshClientSettings(_sshServer.Destination)
         {
-            KnownHostsFilePath = _sshServer.KnownHostsFilePath,
+            UserKnownHostsFilePaths = [ _sshServer.KnownHostsFilePath ],
             Credentials = [ new PrivateKeyCredential(keyPath) ],
         };
         using var client = new SshClient(settings);

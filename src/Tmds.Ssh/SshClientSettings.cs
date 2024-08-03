@@ -13,25 +13,35 @@ namespace Tmds.Ssh;
 // This class gathers settings for SshClient in a separate object.
 public sealed partial class SshClientSettings
 {
-    private int _port = 22;
-    private string _host = "";
+    private int _port = DefaultPort;
+    private string _hostName = "";
     private string _userName = "";
     private IReadOnlyList<Credential> _credentials = DefaultCredentials;
-    private TimeSpan _connectTimeout = TimeSpan.FromSeconds(15);
+    private TimeSpan _connectTimeout = DefaultConnectTimeout;
+    private IReadOnlyList<string> _userKnownHostsFilePaths = DefaultUserKnownHostsFilePaths;
+    private IReadOnlyList<string> _globalKnownHostsFilePaths = DefaultGlobalKnownHostsFilePaths;
 
     public SshClientSettings()
     { }
 
     public SshClientSettings(string destination)
     {
-        ArgumentNullException.ThrowIfNull(destination);
-        ConfigureForDestination(destination);
+        (string? username, string host, int? port) = ParseDestination(destination);
+
+        _hostName = host;
+        _userName = username ?? Environment.UserName;
+        _port = port ?? DefaultPort;
     }
 
-    internal void ConfigureForDestination(string destination)
+    private static (string? user, string host, int? port) ParseDestination(string destination)
     {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        string? user = null;
         string host = destination;
-        int port = 22;
+        int? port = null;
+
+        host = destination;
         int colonPos = host.LastIndexOf(":");
         if (colonPos != -1)
         {
@@ -39,20 +49,13 @@ public sealed partial class SshClientSettings
             host = host.Substring(0, colonPos);
         }
         int atPos = host.LastIndexOf("@");
-        string username;
         if (atPos != -1)
         {
-            username = host.Substring(0, atPos);
+            user = host.Substring(0, atPos);
             host = host.Substring(atPos + 1);
         }
-        else
-        {
-            username = Environment.UserName;
-        }
 
-        UserName = username;
-        Host = host;
-        Port = port;
+        return (user, host, port);
     }
 
     public string UserName
@@ -65,13 +68,13 @@ public sealed partial class SshClientSettings
         }
     }
 
-    public string Host
+    public string HostName
     {
-        get => _host;
+        get => _hostName;
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            _host = value;
+            _hostName = value;
         }
     }
 
@@ -112,11 +115,35 @@ public sealed partial class SshClientSettings
         }
     }
 
-    public string? KnownHostsFilePath { get; set; } = DefaultKnownHostsFile;
+    public IReadOnlyList<string> UserKnownHostsFilePaths
+    {
+        get => _userKnownHostsFilePaths;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            foreach (var item in value)
+            {
+                ArgumentNullException.ThrowIfNullOrEmpty(item);
+            }
+            _userKnownHostsFilePaths = value;
+        }
+    }
 
-    public bool CheckGlobalKnownHostsFile { get; set; } = true;
+    public IReadOnlyList<string> GlobalKnownHostsFilePaths
+    {
+        get => _globalKnownHostsFilePaths;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            foreach (var item in value)
+            {
+                ArgumentNullException.ThrowIfNullOrEmpty(item);
+            }
+            _globalKnownHostsFilePaths = value;
+        }
+    }
 
-    public bool UpdateKnownHostsFile { get; set; } = false;
+    public bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
 
     public HostAuthentication? HostAuthentication { get; set; }
 
@@ -124,38 +151,24 @@ public sealed partial class SshClientSettings
 
     public bool AutoReconnect { get; set; } = false;
 
-    public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
+    public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
-    private static string DefaultKnownHostsFile
-        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
-                        ".ssh",
-                        "known_hosts");
+    public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
 
-    private static IReadOnlyList<Credential> CreateDefaultCredentials()
-    {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-        return
-        [
-            // new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ed25519")),
-            // new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_ecdsa")),
-            new PrivateKeyCredential(Path.Combine(home, ".ssh", "id_rsa")),
-            new KerberosCredential(),
-        ];
-    }    
+    public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
-
-    // Internal.
-    // Algorithms are in **order of preference**.
-    internal List<Name> KeyExchangeAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 };
-    internal List<Name> ServerHostKeyAlgorithms { get; } = new List<Name>() { AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 };
-    internal List<Name> EncryptionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
-    internal List<Name> EncryptionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm };
-    internal List<Name> MacAlgorithmsClientToServer { get; } = new List<Name>() { };
-    internal List<Name> MacAlgorithmsServerToClient { get; } = new List<Name>() { };
-    internal List<Name> CompressionAlgorithmsClientToServer { get; } = new List<Name>() { AlgorithmNames.None };
-    internal List<Name> CompressionAlgorithmsServerToClient { get; } = new List<Name>() { AlgorithmNames.None };
-    internal List<Name> LanguagesClientToServer { get; } = new List<Name>();
-    internal List<Name> LanguagesServerToClient { get; } = new List<Name>();
+    // Currently these settings are not exposed.
+    internal List<Name> KeyExchangeAlgorithms { get; set; } = DefaultKeyExchangeAlgorithms;
+    internal List<Name> ServerHostKeyAlgorithms { get; set; } = DefaultServerHostKeyAlgorithms;
+    internal List<Name> PublicKeyAcceptedAlgorithms { get; set; } = DefaultPublicKeyAcceptedAlgorithms;
+    internal List<Name> EncryptionAlgorithmsClientToServer { get; set; } = DefaultEncryptionAlgorithms;
+    internal List<Name> EncryptionAlgorithmsServerToClient { get; set; } = DefaultEncryptionAlgorithms;
+    internal List<Name> MacAlgorithmsClientToServer { get; set; } = DefaultMacAlgorithms;
+    internal List<Name> MacAlgorithmsServerToClient { get; set; } = DefaultMacAlgorithms;
+    internal List<Name> CompressionAlgorithmsClientToServer { get; set; } = DefaultCompressionAlgorithms;
+    internal List<Name> CompressionAlgorithmsServerToClient { get; set; } = DefaultCompressionAlgorithms;
+    internal List<Name> LanguagesClientToServer { get; set; } = EmptyList;
+    internal List<Name> LanguagesServerToClient { get; set; } = EmptyList;
 
     // For testing:
     internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);

@@ -10,7 +10,7 @@ public sealed class KerberosCredential : Credential
 {
     internal NetworkCredential? NetworkCredential { get; }
     internal bool DelegateCredential { get; }
-    internal string? ServiceName { get; }
+    internal string? TargetName { get; }
 
     /// <summary>
     /// Create a credential for Kerberos authentication.
@@ -37,8 +37,8 @@ public sealed class KerberosCredential : Credential
     /// </remarks>
     /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use a cached ticket.</param>
     /// <param name="delegateCredential">Allows the SSH server to delegate the user on remote systems.</param>
-    /// <param name="serviceName">Override the service principal name (SPN), default uses the <c>host/<SshClientSettings.Host>.</c></param>
-    public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null)
+    /// <param name="targetName">Override the service principal name (SPN), default uses <c>host/<SshClientSettings.HostName></c>.</param>
+    public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null)
     {
         if (!string.IsNullOrWhiteSpace(credential?.UserName))
         {
@@ -46,6 +46,6 @@ public sealed class KerberosCredential : Credential
         }
         NetworkCredential = credential;
         DelegateCredential = delegateCredential;
-        ServiceName = serviceName;
+        TargetName = targetName;
     }
 }

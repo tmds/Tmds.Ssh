@@ -17,6 +17,8 @@ sealed class RsaPrivateKey : PrivateKey
         _rsa = rsa ?? throw new ArgumentNullException(nameof(rsa));
     }
 
+    public int KeySize => _rsa.KeySize;
+
     public override void Dispose()
     {
         _rsa.Dispose();

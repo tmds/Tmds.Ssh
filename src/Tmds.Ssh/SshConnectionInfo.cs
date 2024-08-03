@@ -9,7 +9,7 @@ public sealed class SshConnectionInfo
 {
     internal SshConnectionInfo() { }
     public HostKey ServerKey { get; internal set; } = null!;
-    public string Host { get; internal set; } = string.Empty;
+    public string HostName { get; internal set; } = string.Empty;
     public int Port { get; internal set; }
 
     // Managed

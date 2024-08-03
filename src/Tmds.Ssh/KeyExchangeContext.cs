@@ -18,4 +18,5 @@ sealed class KeyExchangeContext
     public required List<Name> LanguagesClientToServer { get; init; }
     public required List<Name> LanguagesServerToClient { get; init; }
     public required IHostKeyVerification HostKeyVerification { get; init; }
+    public required int MinimumRSAKeySize { get; init; }
 }

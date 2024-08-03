@@ -21,6 +21,8 @@ class RsaPublicKey : PublicKey
         _n = n;
     }
 
+    public int KeySize => _n.Length * 8;
+
     public static RsaPublicKey CreateFromSshKey(byte[] key)
     {
         SequenceReader reader = new SequenceReader(key);

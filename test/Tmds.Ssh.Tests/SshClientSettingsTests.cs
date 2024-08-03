@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Xunit;
+using static System.Environment;
 
 namespace Tmds.Ssh.Tests;
 
@@ -11,13 +12,28 @@ public class ClientSettingsTests
     {
         var settings = new SshClientSettings();
         Assert.Equal(TimeSpan.FromSeconds(15), settings.ConnectTimeout);
-        Assert.Equal(string.Empty, settings.UserName);
-        Assert.Equal(string.Empty, settings.Host);
         Assert.Equal(22, settings.Port);
+        Assert.Equal(2048, settings.MinimumRSAKeySize);
+        Assert.Equal(string.Empty, settings.UserName);
+        Assert.Equal(string.Empty, settings.HostName);
         Assert.Equal(SshClientSettings.DefaultCredentials, settings.Credentials);
-        Assert.Equal(DefaultKnownHostsFile, settings.KnownHostsFilePath);
-        Assert.True(settings.CheckGlobalKnownHostsFile);
+        Assert.False(settings.UpdateKnownHostsFileAfterAuthentication);
+        Assert.True(settings.AutoConnect);
+        Assert.False(settings.AutoReconnect);
+        Assert.Equal(new[] { DefaultKnownHostsFile }, settings.UserKnownHostsFilePaths);
+        Assert.Equal(new[] { DefaultGlobalKnownHostsFile }, settings.GlobalKnownHostsFilePaths);
         Assert.Null(settings.HostAuthentication);
+        Assert.Equal(new[] { new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms);
+        Assert.Equal(new[] { new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.ServerHostKeyAlgorithms);
+        Assert.Equal(new[] { new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.PublicKeyAcceptedAlgorithms);
+        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com") }, settings.EncryptionAlgorithmsClientToServer);
+        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com") }, settings.EncryptionAlgorithmsServerToClient);
+        Assert.Equal(Array.Empty<Name>(), settings.MacAlgorithmsClientToServer);
+        Assert.Equal(Array.Empty<Name>(), settings.MacAlgorithmsServerToClient);
+        Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsClientToServer);
+        Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsServerToClient);
+        Assert.Equal(Array.Empty<Name>(), settings.LanguagesClientToServer);
+        Assert.Equal(Array.Empty<Name>(), settings.LanguagesServerToClient);
     }
 
     [Theory]
@@ -34,7 +50,7 @@ public class ClientSettingsTests
 
         var settings = new SshClientSettings(destination);
 
-        Assert.Equal(expectedHost, settings.Host);
+        Assert.Equal(expectedHost, settings.HostName);
         Assert.Equal(expectedUsername, settings.UserName);
         Assert.Equal(expectedPort, settings.Port);
     }
@@ -43,4 +59,9 @@ public class ClientSettingsTests
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
                         ".ssh",
                         "known_hosts");
+
+    private static string DefaultGlobalKnownHostsFile
+        => OperatingSystem.IsWindows()
+        ? Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts")
+        : "/etc/ssh/known_hosts";
 }

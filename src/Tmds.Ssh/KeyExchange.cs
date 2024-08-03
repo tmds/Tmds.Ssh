@@ -31,9 +31,14 @@ sealed class KeyExchange
         Name comC2S = ChooseAlgorithm(context.CompressionAlgorithmsClientToServer, remoteInit.compression_algorithms_client_to_server);
         Name comS2C = ChooseAlgorithm(context.CompressionAlgorithmsServerToClient, remoteInit.compression_algorithms_server_to_client);
 
-        if (encC2S.IsEmpty || encS2C.IsEmpty || comC2S.IsEmpty || comS2C.IsEmpty)
+        if (encC2S.IsEmpty || encS2C.IsEmpty)
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption/compression algorithm.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption algorithm.", connectionInfo);
+        }
+
+        if (comC2S.IsEmpty || comS2C.IsEmpty)
+        {
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common compression algorithm.", connectionInfo);
         }
 
         EncryptionAlgorithm encC2SAlg = EncryptionAlgorithm.Find(encC2S);
@@ -97,7 +102,8 @@ sealed class KeyExchange
             hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
             var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
-                encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0);
+                encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0,
+                context.MinimumRSAKeySize);
 
             foreach (var keyAlgorithm in context.KeyExchangeAlgorithms)
             {

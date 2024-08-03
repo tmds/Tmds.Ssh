@@ -15,12 +15,14 @@ sealed class HostKeyVerification : IHostKeyVerification
     private readonly HostAuthentication? _hostAuthentication;
     private readonly string? _updateKnownHostsFile;
     private readonly TrustedHostKeys _knownHostKeys;
+    private readonly bool _hashKnownHosts;
 
-    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile)
+    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile, bool hashKnownHost)
     {
         _knownHostKeys = knownHostKeys;
         _hostAuthentication = hostAuthentication;
         _updateKnownHostsFile = updateKnownHostsFile;
+        _hashKnownHosts = hashKnownHost;
     }
 
     public async ValueTask<bool> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
@@ -37,7 +39,7 @@ sealed class HostKeyVerification : IHostKeyVerification
                 isTrusted = await _hostAuthentication(result, connectionInfo, ct);
                 if (isTrusted && !string.IsNullOrEmpty(_updateKnownHostsFile))
                 {
-                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.Host, connectionInfo.Port, serverKey);
+                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, serverKey, _hashKnownHosts);
                 }
             }
         }

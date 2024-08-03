@@ -18,7 +18,8 @@ sealed class KeyExchangeInput
         int encryptionKeyC2SLength,
         int encryptionKeyS2CLength,
         int integrityKeyC2SLength,
-        int integrityKeyS2CLength)
+        int integrityKeyS2CLength,
+        int minimumRSAKeySize)
     {
         HostKeyAlgorithms = hostKeyAlgorithms;
         ExchangeInitMsg = exchangeInitMsg;
@@ -31,6 +32,7 @@ sealed class KeyExchangeInput
         EncryptionKeyS2CLength = encryptionKeyS2CLength;
         IntegrityKeyC2SLength = integrityKeyC2SLength;
         IntegrityKeyS2CLength = integrityKeyS2CLength;
+        MinimumRSAKeySize = minimumRSAKeySize;
     }
 
     public IReadOnlyList<Name> HostKeyAlgorithms { get; set; }
@@ -44,4 +46,5 @@ sealed class KeyExchangeInput
     public int EncryptionKeyS2CLength { get; set; }
     public int IntegrityKeyC2SLength { get; set; }
     public int IntegrityKeyS2CLength { get; set; }
+    public int MinimumRSAKeySize { get; set; }
 }

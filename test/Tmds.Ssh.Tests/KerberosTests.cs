@@ -72,11 +72,11 @@ public class KerberosTests : IDisposable
         // Default SPN is derived from the connection hostname. The test server
         // only works when localhost is part of the SPN.
         string connectionName;
-        string? serviceName = null;
+        string? targetName = null;
         if (overrideSpn)
         {
             connectionName = $"127.0.0.1:{_sshServer.ServerPort}";
-            serviceName = "host/localhost";
+            targetName = "host/localhost";
         }
         else
         {
@@ -91,9 +91,9 @@ public class KerberosTests : IDisposable
                 var credential = new NetworkCredential(args[4], args[5]);
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[2],
+                    UserKnownHostsFilePaths = [ args[2] ],
                     UserName = userName,
-                    Credentials = [ new KerberosCredential(credential, serviceName: args[1]) ],
+                    Credentials = [ new KerberosCredential(credential, targetName: args[1]) ],
                 };
                 using var client = new SshClient(settings);
 
@@ -106,7 +106,7 @@ public class KerberosTests : IDisposable
                     Assert.Equal(userName, stdout?.Trim());
                 }
             },
-            [ connectionName, serviceName ?? string.Empty, _sshServer.KnownHostsFilePath, userName, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
+            [ connectionName, targetName ?? string.Empty, _sshServer.KnownHostsFilePath, userName, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
         );
     }
 
@@ -158,7 +158,7 @@ public class KerberosTests : IDisposable
 
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = userName,
                     Credentials = [ new KerberosCredential(delegateCredential: requestDelegate) ],
                 };
@@ -204,7 +204,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = "invalid",
                     Credentials = [ new KerberosCredential(new NetworkCredential(args[2], args[3])) ],
                 };
@@ -227,7 +227,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = args[2],
                     Credentials = [ new KerberosCredential(new NetworkCredential(args[2], "invalid")) ],
                 };
@@ -250,7 +250,7 @@ public class KerberosTests : IDisposable
             {
                 var settings = new SshClientSettings(args[0])
                 {
-                    KnownHostsFilePath = args[1],
+                    UserKnownHostsFilePaths = [ args[1] ],
                     UserName = args[2],
                     Credentials = [ new KerberosCredential() ],
                 };

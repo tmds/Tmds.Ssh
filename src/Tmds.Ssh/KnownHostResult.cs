@@ -5,7 +5,7 @@ namespace Tmds.Ssh;
 
 public enum KnownHostResult
 {
-    Trusted,      // Server is known and has not changed.
+    Trusted, // Server is known and has not changed.
 
     Revoked, // Key is revoked.
 

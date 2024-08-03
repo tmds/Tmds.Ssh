@@ -4,7 +4,7 @@ The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
 
 It has an async [API](#api) and leverages the modern .NET primitives, like `Span`, to minimize allocations.
 
-The library automatically picks up OpenSSH config files, like private keys, and known hosts.
+The library supports OpenSSH file formats for private keys, known hosts and config.
 
 The library targets modern .NET (Core). It does not support .NET Framework due to missing BCL APIs to implement the SSH key exchange.
 
@@ -42,7 +42,8 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination);
+  SshClient(string destination); // uses SshConfigOptions.DefaultConfig.
+  SshClient(string destination, SshConfigOptions configOptions);
   SshClient(SshClientSettings settings);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
@@ -105,7 +106,7 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SftpClientOptions? options = null);
+  SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null);
   SftpClient(SshClientSettings settings, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
@@ -189,14 +190,16 @@ class SftpFile : Stream
 class SshClientSettings
 {
   static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
+  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } // = [ '~/.ssh/known_hosts' ]
+  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } // = [ '/etc/ssh/known_hosts' ]
 
   SshClientSettings();
   SshClientSettings(string destination);
 
-  TimeSpan ConnectTimeout { get; set; }
+  TimeSpan ConnectTimeout { get; set; } // = 15s
 
   string UserName { get; set; }
-  string Host { get; set; }
+  string HostName { get; set; }
   int Port { get; set; }
 
   IReadOnlyList<Credential> Credentials { get; set; } = DefaultCredentials;
@@ -204,10 +207,30 @@ class SshClientSettings
   bool AutoConnect { get; set; } = true;
   bool AutoReconnect { get; set; }
 
-  bool CheckGlobalKnownHostsFile { get; set; } = true;
-  string? KnownHostsFilePath { get; set; } // = '~/.ssh/known_hosts'.
-  HostAuthentication? HostAuthentication { get; set; }
-  bool UpdateKnownHostsFile { get; set; } = false;
+  IReadOnlyList<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
+  IReadOnlyList<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
+  HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
+  bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
+  bool HashKnownHosts { get; set; } = false;
+
+  int MinimumRSAKeySize { get; set; } = 2048;
+
+  IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
+}
+class SshConfigOptions
+{
+  static SshConfigOptions DefaultConfig { get; }  // use DefaultConfigFilePaths.
+  static SshConfigOptions NoConfig { get; } // use [ ]
+  static IReadOnlyList<string> DefaultConfigFilePaths { get; } // [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
+
+  IReadOnlyList<string> ConfigFilePaths { get; set; }
+
+  TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
+
+  bool AutoConnect { get; set; } = true;
+  bool AutoReconnect { get; set; }
+
+  HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }
 class SftpClientOptions
 { }
@@ -375,7 +398,7 @@ class PasswordCredential : Credential
 }
 class KerberosCredential : Credential
 {
-  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? serviceName = null);
+  KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null);
 }
 // Base class.
 class SshException : Exception

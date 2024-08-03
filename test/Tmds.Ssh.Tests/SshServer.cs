@@ -31,6 +31,7 @@ public class SshServer : IDisposable
     public int ServerPort => _port;
     public string KnownHostsFilePath => _knownHostsFile;
     public string KerberosConfigFilePath => _krbConfigFilePath;
+    public string SshConfigFilePath => _sshConfigFilePath;
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
     public string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
@@ -42,6 +43,7 @@ public class SshServer : IDisposable
     private readonly int _port;
     private readonly string _knownHostsFile;
     private readonly string _krbConfigFilePath;
+    private readonly string _sshConfigFilePath;
     private bool _useDockerInstead;
 
     public SshServer()
@@ -82,6 +84,7 @@ public class SshServer : IDisposable
 
             _knownHostsFile = WriteKnownHostsFile(_host, _port);
             _krbConfigFilePath = WriteKerberosConfigFile(kdcPort);
+            _sshConfigFilePath = WriteSshConfigFile(_knownHostsFile, TestUserIdentityFile);
 
             if (!OperatingSystem.IsWindows())
             {
@@ -111,6 +114,18 @@ public class SshServer : IDisposable
             string[] lines = Run("ssh-keyscan", "-p", port.ToString(), host);
             string filename = Path.GetTempFileName();
             File.WriteAllLines(filename, lines);
+            return filename;
+        }
+
+        string WriteSshConfigFile(string knownHostsFilePath, string identityFilePath)
+        {
+            string contents =
+            $"""
+            UserKnownHostsFile "{knownHostsFilePath}"
+            IdentityFile "{identityFilePath}"
+            """;
+            string filename = Path.GetTempFileName();
+            File.WriteAllText(filename, contents);
             return filename;
         }
 
@@ -185,6 +200,10 @@ public class SshServer : IDisposable
             {
                 File.Delete(_krbConfigFilePath);
             }
+            if (_sshConfigFilePath != null)
+            {
+                File.Delete(_sshConfigFilePath);
+            }
             if (_containerId != null)
             {
                 Run("podman", "rm", "-f", _containerId);
@@ -253,6 +272,18 @@ public class SshServer : IDisposable
         Assert.Contains(HelloWorld, output);
     }
 
+    public async Task<SshClient> CreateClientAsync(SshConfigOptions configOptions, CancellationToken cancellationToken = default, bool connect = true)
+    {
+        var client = new SshClient(Destination, configOptions);
+
+        if (connect)
+        {
+            await client.ConnectAsync(cancellationToken);
+        }
+
+        return client;
+    }
+
     public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default, bool connect = true)
     {
         var settings = CreateSshClientSettings(configure);
@@ -285,7 +316,7 @@ public class SshServer : IDisposable
     {
         var settings = new SshClientSettings(Destination)
         {
-            KnownHostsFilePath = KnownHostsFilePath,
+            UserKnownHostsFilePaths = [ KnownHostsFilePath ],
             Credentials = [ new PrivateKeyCredential(TestUserIdentityFile) ],
         };
         configure?.Invoke(settings);

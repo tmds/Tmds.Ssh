@@ -10,14 +10,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task AuthenticateUserAsyncDelegate(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken token);
+internal delegate Task AuthenticateUserAsyncDelegate(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken token);
 
 // Authentication Protocol: https://tools.ietf.org/html/rfc4252.
 sealed partial class UserAuthentication
 {
     public static readonly AuthenticateUserAsyncDelegate Default = PerformDefaultAuthentication;
 
-    private async static Task PerformDefaultAuthentication(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+    private async static Task PerformDefaultAuthentication(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
     {
         // Request ssh-userauth service
         {
@@ -29,12 +29,13 @@ sealed partial class UserAuthentication
             ParseServiceAccept(serviceAcceptMsg);
         }
 
-        UserAuthContext context = new UserAuthContext(connection, userName, logger);
+        UserAuthContext context = new UserAuthContext(connection, userName, publicKeyAcceptedAlgorithms, minimumRSAKeySize, logger);
+
+        bool authSuccess = false;
 
         // Try credentials.
         foreach (var credential in credentials)
         {
-            bool authSuccess = false;
             if (credential is PasswordCredential passwordCredential)
             {
                 authSuccess = await PasswordAuth.TryAuthenticate(passwordCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);

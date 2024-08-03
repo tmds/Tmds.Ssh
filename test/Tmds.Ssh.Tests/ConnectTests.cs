@@ -57,7 +57,7 @@ public class ConnectTests
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
-                settings.KnownHostsFilePath = "/"
+                settings.UserKnownHostsFilePaths = [ "/" ]
             ));
     }
 
@@ -66,12 +66,12 @@ public class ConnectTests
     {
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = "/";
+                settings.UserKnownHostsFilePaths = [ "/" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     Assert.Equal(KnownHostResult.Unknown, knownHostResult);
-                    Assert.Equal(_sshServer.ServerHost, connectionInfo.Host);
+                    Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
                     string[] serverKeyFingerPrints =
                     [
@@ -91,8 +91,8 @@ public class ConnectTests
     {
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = null;
-                settings.CheckGlobalKnownHostsFile = false;
+                settings.UserKnownHostsFilePaths = [];
+                settings.GlobalKnownHostsFilePaths = [];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -108,7 +108,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = "/";
+                settings.UserKnownHostsFilePaths = [ "/" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -118,8 +118,10 @@ public class ConnectTests
         ));
     }
 
-    [Fact]
-    public async Task AddKnownHost()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AddKnownHost(bool hashKnownHosts)
     {
         string knownHostsFileName = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try
@@ -129,7 +131,8 @@ public class ConnectTests
             bool keyVerified = false;
             SshClient client = await _sshServer.CreateClientAsync(settings =>
                 {
-                    settings.KnownHostsFilePath = knownHostsFileName;
+                    settings.UserKnownHostsFilePaths = [ knownHostsFileName ];
+                    settings.HashKnownHosts = hashKnownHosts;
                     settings.HostAuthentication =
                     (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                     {
@@ -137,7 +140,7 @@ public class ConnectTests
                         Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                         return ValueTask.FromResult(true);
                     };
-                    settings.UpdateKnownHostsFile = true;
+                    settings.UpdateKnownHostsFileAfterAuthentication = true;
                 });
             client.Dispose();
             Assert.True(keyVerified);
@@ -145,7 +148,7 @@ public class ConnectTests
 
             client = await _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = knownHostsFileName;
+                settings.UserKnownHostsFilePaths = [ knownHostsFileName ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -166,23 +169,6 @@ public class ConnectTests
         }
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public async Task AddKnownHostDoesNotErrorWithEmptyPath(string? path)
-    {
-        using SshClient client = await _sshServer.CreateClientAsync(settings =>
-        {
-            settings.KnownHostsFilePath = path;
-            settings.HostAuthentication =
-            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-            {
-                return ValueTask.FromResult(true);
-            };
-            settings.UpdateKnownHostsFile = true;
-        });
-    }
-
     [Fact]
     public async Task NoCredentialsConnectThrows()
     {
@@ -199,7 +185,7 @@ public class ConnectTests
     {
         var settings = new SshClientSettings(_sshServer.Destination)
         {
-            KnownHostsFilePath = _sshServer.KnownHostsFilePath,
+            UserKnownHostsFilePaths = [ _sshServer.KnownHostsFilePath ],
             Credentials = [ new PasswordCredential(correctPassword ? _sshServer.TestUserPassword : "invalid") ],
         };
         using var client = new SshClient(settings);
@@ -245,7 +231,7 @@ public class ConnectTests
         s.Listen();
         int port = (s.LocalEndPoint as IPEndPoint)!.Port;
 
-        using var client = new SshClient($"user@{address}:{port}");
+        using var client = new SshClient($"user@{address}:{port}", SshConfigOptions.NoConfig);
 
         CancellationTokenSource cts = new();
         cts.CancelAfter(msTimeout);
@@ -259,7 +245,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = "/";
+                settings.UserKnownHostsFilePaths = [ "/" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -279,7 +265,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = "/";
+                settings.UserKnownHostsFilePaths = [ "/" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -299,7 +285,7 @@ public class ConnectTests
         var ex = await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.KnownHostsFilePath = "/";
+                settings.UserKnownHostsFilePaths = [ "/" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -310,5 +296,185 @@ public class ConnectTests
         Assert.IsNotType<SshConnectionClosedException>(ex);
 
         Assert.Equal(exceptionThrown, ex.InnerException);
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task AutoConnect(bool autoConnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = autoConnect,
+            connect: false
+        );
+
+        if (autoConnect)
+        {
+            using var sftpClient = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AutoConnectAllowsExplicitConnectBeforeImplicitConnect()
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = true,
+            connect: false
+        );
+
+        await client.ConnectAsync();
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+    }
+
+    [Fact]
+    public async Task AutoConnectDisallowsExplicitConnectAfterImplicitConnect()
+    {
+        // If a user calls ConnectAsync, we require it to happen before performing operations.
+        // If there is an issue connecting, this ConnectAsync will throw the connect exception.
+        // And, its cancellation token enables cancelling the connect.
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoConnect = true,
+            connect: false
+        );
+
+        var pending = client.OpenSftpClientAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task AutoReconnect(bool autoReconnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            configure: settings => settings.AutoReconnect = autoReconnect
+        );
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        client.ForceConnectionClose();
+
+        if (autoReconnect)
+        {
+            using var sftpClient2 = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task SshConfig_AutoConnect(bool autoConnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                AutoConnect = autoConnect
+            },
+            connect: false
+        );
+
+        if (autoConnect)
+        {
+            using var sftpClient = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task SshConfig_AutoReconnect(bool autoReconnect)
+    {
+        using var client = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                AutoReconnect = autoReconnect
+            }
+        );
+
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        client.ForceConnectionClose();
+
+        if (autoReconnect)
+        {
+            using var sftpClient2 = await client.OpenSftpClientAsync();
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.OpenSftpClientAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1000)]
+    public async Task SshConfig_Timeout(int msTimeout)
+    {
+        IPAddress address = IPAddress.Loopback;
+        using var s = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        s.Bind(new IPEndPoint(address, 0));
+        s.Listen();
+        int port = (s.LocalEndPoint as IPEndPoint)!.Port;
+
+        using var client = new SshClient($"user@{address}:{port}",
+            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            {
+                ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout)
+            });
+
+        SshConnectionException exception = await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
+        Assert.IsType<TimeoutException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task SshConfig_ConnectFailure()
+    {
+        await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+            _sshServer.CreateClientAsync(SshConfigOptions.NoConfig));
+    }
+
+    [Fact]
+    public async Task SshConfig_HostAuthentication()
+    {
+        using TempFile configFile = new TempFile(Path.GetTempFileName());
+        File.WriteAllText(configFile.Path,
+            $"""
+            IdentityFile "{_sshServer.TestUserIdentityFile}"
+            UserKnownHostsFile {Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())}
+            """);
+        using var _ = await _sshServer.CreateClientAsync(
+            new SshConfigOptions([configFile.Path])
+            {
+                HostAuthentication =
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                {
+                    Assert.Equal(KnownHostResult.Unknown, knownHostResult);
+                    Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
+                    Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
+                    string[] serverKeyFingerPrints =
+                    [
+                        _sshServer.RsaKeySHA256FingerPrint,
+                            _sshServer.Ed25519KeySHA256FingerPrint,
+                            _sshServer.EcdsaKeySHA256FingerPrint
+                    ];
+                    Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    return ValueTask.FromResult(true);
+                }
+            }
+        );
     }
 }
