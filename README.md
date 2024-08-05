@@ -389,8 +389,7 @@ abstract class Credential
 { }
 class PrivateKeyCredential : Credential
 {
-  PrivateKeyCredential(string path);
-  PrivateKeyCredential(string path, string? passphrase)
+  PrivateKeyCredential(string path, string? passphrase = null);
 }
 class PasswordCredential : Credential
 {
