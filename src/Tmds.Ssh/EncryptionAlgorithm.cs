@@ -91,14 +91,6 @@ sealed class EncryptionAlgorithm
             { AlgorithmNames.Aes256Ctr, CreateAesCtrAlgorithm(32) },
             { AlgorithmNames.Aes128Gcm, CreateAesGcmAlgorithm(16) },
             { AlgorithmNames.Aes256Gcm, CreateAesGcmAlgorithm(32) },
-            { AlgorithmNames.ChaCha20Poly1305,
-                new EncryptionAlgorithm(keyLength: 64, ivLength: 0,
-                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => throw new NotImplementedException(),
-                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => throw new NotImplementedException(),
-                    (ReadOnlySpan<byte> key, Span<byte> _1, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _2)
-                        => ChaCha20Decrypter.Decrypt(key[..32], data)) },
         };
 
     private static EncryptionAlgorithm CreateAesCbcAlgorithm(int keyLength)

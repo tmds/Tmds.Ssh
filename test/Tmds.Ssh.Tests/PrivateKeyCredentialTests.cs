@@ -51,7 +51,6 @@ public class PrivateKeyCredentialTests
     [InlineData("aes256-ctr")]
     [InlineData("aes128-gcm@openssh.com")]
     [InlineData("aes256-gcm@openssh.com")]
-    [InlineData("chacha20-poly1305@openssh.com")]
     public async Task OpenSshRsaKey(string? cipher)
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
@@ -163,7 +162,7 @@ public class PrivateKeyCredentialTests
             PrivateKeyCredential key = await convertKey(localKey);
             var settings = new SshClientSettings(_sshServer.Destination)
             {
-                KnownHostsFilePath = _sshServer.KnownHostsFilePath,
+                UserKnownHostsFilePaths = [ _sshServer.KnownHostsFilePath ],
                 Credentials = [ key ],
             };
             using var client = new SshClient(settings);

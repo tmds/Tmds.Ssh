@@ -51,8 +51,6 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name Aes128Gcm => new Name(Aes128GcmBytes);
     private static readonly byte[] Aes256GcmBytes = "aes256-gcm@openssh.com"u8.ToArray();
     public static Name Aes256Gcm => new Name(Aes256GcmBytes);
-    private static readonly byte[] ChaCha20Poly1305Bytes = "chacha20-poly1305@openssh.com"u8.ToArray();
-    public static Name ChaCha20Poly1305 => new Name(ChaCha20Poly1305Bytes);
 
     // PKCS#1 encryption algorithms:
     private static readonly byte[] Pkcs1Aes128CbcBytes = "AES-128-CBC"u8.ToArray();
