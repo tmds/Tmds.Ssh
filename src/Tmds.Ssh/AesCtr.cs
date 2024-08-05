@@ -6,16 +6,8 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-static class AesDecrypter
+static class AesCtr
 {
-    public static byte[] DecryptCbc(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, PaddingMode paddingMode = PaddingMode.None)
-    {
-        using Aes aes = Aes.Create();
-        aes.Key = key.ToArray();
-
-        return aes.DecryptCbc(data, iv, paddingMode);
-    }
-
     public static byte[] DecryptCtr(ReadOnlySpan<byte> key, Span<byte> counter, ReadOnlySpan<byte> data)
     {
         using Aes aes = Aes.Create();
@@ -51,13 +43,5 @@ static class AesDecrypter
         }
 
         return decData;
-    }
-
-    public static byte[] DecryptGcm(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
-    {
-        using AesGcm aesGcm = new AesGcm(key, tag.Length);
-        byte[] plaintext = new byte[data.Length];
-        aesGcm.Decrypt(iv, data, tag, plaintext, null);
-        return plaintext;
     }
 }

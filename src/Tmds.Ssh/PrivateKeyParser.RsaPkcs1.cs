@@ -65,7 +65,10 @@ partial class PrivateKeyParser
                 // Yes this is an MD5 hash and 1 round, PKCS#1 is old and uses
                 // some weak cryptography components.
                 byte[] key = Pbkdf1(HashAlgorithmName.MD5, passphrase, iv.AsSpan(0, 8), 1, keySize);
-                keyData = AesDecrypter.DecryptCbc(key, iv, keyData, PaddingMode.PKCS7);
+
+                using Aes aes = Aes.Create();
+                aes.Key = key;
+                keyData = aes.DecryptCbc(keyData, iv, PaddingMode.PKCS7);
             }
 
             rsa.ImportRSAPrivateKey(keyData, out int bytesRead);

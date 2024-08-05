@@ -140,12 +140,15 @@ partial class PrivateKeyParser
         ReadOnlySequence<byte> kdfSalt = kdfReader.ReadStringAsBytes();
         uint rounds = kdfReader.ReadUInt32();
 
-        EncryptionAlgorithm encAlgo;
+        if (!OpenSshKeyCipher.TryGetCipher(cipher, out var keyCipher))
+        {
+            error = new NotSupportedException($"Unsupported Cipher: '{cipher}'.");
+            return false;
+        }
+
         try
         {
-            encAlgo = EncryptionAlgorithm.Find(cipher);
-
-            byte[] derivedKey = new byte[encAlgo.KeyLength + encAlgo.IVLength];
+            byte[] derivedKey = new byte[keyCipher.KeyLength + keyCipher.IVLength];
             new BCrypt().Pbkdf(
                 passphrase,
                 kdfSalt.IsSingleSegment ? kdfSalt.FirstSpan : kdfSalt.ToArray(),
@@ -154,18 +157,18 @@ partial class PrivateKeyParser
 
             ReadOnlySequence<byte> encryptedKey = reader.ReadStringAsBytes();
             ReadOnlySequence<byte> tag = default;
-            if (encAlgo.IsAuthenticated && encAlgo.TagLength > 0)
+            if (keyCipher.IsAuthenticated && keyCipher.TagLength > 0)
             {
-                if (!reader.TryRead(encAlgo.TagLength, out tag))
+                if (!reader.TryRead(keyCipher.TagLength, out tag))
                 {
                     error = new FormatException($"Failed to read {cipher} encryption tag for encrypted OpenSSH key.");
                     return false;
                 }
             }
 
-            privateKey = encAlgo.DecryptData(
-                derivedKey.AsSpan(0, encAlgo.KeyLength),
-                derivedKey.AsSpan(encAlgo.KeyLength, encAlgo.IVLength),
+            privateKey = keyCipher.Decrypt(
+                derivedKey.AsSpan(0, keyCipher.KeyLength),
+                derivedKey.AsSpan(keyCipher.KeyLength, keyCipher.IVLength),
                 encryptedKey.IsSingleSegment ? encryptedKey.FirstSpan : encryptedKey.ToArray(),
                 tag.IsSingleSegment ? tag.FirstSpan : tag.ToArray());
             error = null;

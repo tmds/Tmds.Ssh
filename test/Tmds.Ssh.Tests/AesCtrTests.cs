@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Tmds.Ssh.Tests;
 
-public class AesDecrypterTests
+public class AesCtrTests
 {
     // https://datatracker.ietf.org/doc/html/rfc3686.html#section-6
     [Theory]
@@ -73,7 +73,7 @@ public class AesDecrypterTests
         ivBytes.CopyTo(counter.Slice(nonceBytes.Length));
         counter[15] = 1;
 
-        byte[] actual = AesDecrypter.DecryptCtr(keyBytes, counter, ciphertextBytes);
+        byte[] actual = AesCtr.DecryptCtr(keyBytes, counter, ciphertextBytes);
         Assert.Equal(plaintext, Convert.ToHexString(actual));
     }
 }

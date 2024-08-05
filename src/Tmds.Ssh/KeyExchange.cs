@@ -41,8 +41,8 @@ sealed class KeyExchange
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common compression algorithm.", connectionInfo);
         }
 
-        EncryptionAlgorithm encC2SAlg = EncryptionAlgorithm.Find(encC2S);
-        EncryptionAlgorithm encS2CAlg = EncryptionAlgorithm.Find(encS2C);
+        PackingAlgorithms encC2SAlg = PackingAlgorithms.Find(encC2S);
+        PackingAlgorithms encS2CAlg = PackingAlgorithms.Find(encS2C);
 
         if ((!encC2SAlg.IsAuthenticated && macC2S.IsEmpty) ||
             (!encS2CAlg.IsAuthenticated && macS2C.IsEmpty))
@@ -96,9 +96,9 @@ sealed class KeyExchange
                 }
             }
 
-            encC2SAlg = EncryptionAlgorithm.Find(encC2S);
+            encC2SAlg = PackingAlgorithms.Find(encC2S);
             hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
-            encS2CAlg = EncryptionAlgorithm.Find(encS2C);
+            encS2CAlg = PackingAlgorithms.Find(encS2C);
             hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
             var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
