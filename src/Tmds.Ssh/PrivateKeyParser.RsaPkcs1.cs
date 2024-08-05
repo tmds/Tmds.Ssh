@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-partial class PrivateKeyCredential
+partial class PrivateKeyParser
 {
     /// <summary>
     /// Parses an RSA PKCS#1 PEM formatted key. This is a legacy format used

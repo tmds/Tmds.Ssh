@@ -9,8 +9,12 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-partial class PrivateKeyCredential
+partial class PrivateKeyParser
 {
+    /// <summary>
+    /// Parses an OpenSSH PEM formatted key. This is a new key format used by
+    /// OpenSSH for private keys.
+    /// </summary>
     internal static bool TryParseOpenSshKey(
         byte[] keyData,
         ReadOnlySpan<byte> passphrase,

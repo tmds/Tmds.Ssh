@@ -2,12 +2,10 @@
 // See file LICENSE for full license details.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 
 namespace Tmds.Ssh;
 
@@ -29,7 +27,7 @@ partial class UserAuthentication
                 return false;
             }
 
-            if (TryParsePrivateKeyFile(keyCredential.FilePath, keyCredential.Passphrase, out PrivateKey? pk, out Exception? error))
+            if (PrivateKeyParser.TryParsePrivateKeyFile(keyCredential.FilePath, keyCredential.Passphrase, out PrivateKey? pk, out Exception? error))
             {
                 using (pk)
                 {
@@ -70,107 +68,6 @@ partial class UserAuthentication
             }
 
             return false;
-        }
-
-        internal static bool TryParsePrivateKeyFile(string filename, ReadOnlySpan<byte> passphrase, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
-        {
-            privateKey = null;
-
-            ReadOnlySpan<char> keyFormat;
-            ReadOnlySpan<char> keyDataBase64;
-            // MAYDO verify file doesn't have permissions for group/other.
-            if (!File.Exists(filename))
-            {
-                error = new FileNotFoundException(filename);
-                return false;
-            }
-
-            string fileContent;
-            try
-            {
-                fileContent = File.ReadAllText(filename);
-            }
-            catch (IOException ex)
-            {
-                error = ex;
-                return false;
-            }
-
-            int formatStart = fileContent.IndexOf("-----BEGIN");
-            if (formatStart == -1)
-            {
-                error = new FormatException($"No start marker.");
-                return false;
-            }
-            int formatStartEnd = fileContent.IndexOf('\n', formatStart);
-            if (formatStartEnd == -1)
-            {
-                error = new FormatException($"No start marker.");
-                return false;
-            }
-
-            // While not part of RFC 7468, PKCS#1 RSA keys have extra metadata
-            // after the begin marker and before the base64 data. We need to
-            // parse that information for decryption and so it doesn't break
-            // our validator.
-            int keyStart = formatStartEnd + 1;
-            Dictionary<string, string> metadata = new Dictionary<string, string>();
-            while (true)
-            {
-                int nextNewline = fileContent.IndexOf('\n', keyStart);
-                if (nextNewline == -1)
-                {
-                    error = new FormatException($"No end marker.");
-                    return false;
-                }
-                else if (nextNewline == keyStart)
-                {
-                    keyStart++;
-                    continue;
-                }
-
-                int headerColon = fileContent.IndexOf(':', keyStart);
-                if (headerColon == -1)
-                {
-                    break;
-                }
-
-                string key = fileContent[keyStart..headerColon];
-                metadata[key] = fileContent[(headerColon + 2)..nextNewline];
-
-                keyStart = nextNewline + 1;
-            }
-
-            int keyEnd = fileContent.IndexOf("-----END");
-            if (keyEnd == -1)
-            {
-                error = new FormatException($"No end marker.");
-                return false;
-            }
-            keyFormat = fileContent.AsSpan(formatStart, formatStartEnd).Trim();
-            keyDataBase64 = fileContent.AsSpan(keyStart, keyEnd - keyStart - 1);
-
-            byte[] keyData;
-            try
-            {
-                keyData = Convert.FromBase64String(keyDataBase64.ToString());
-            }
-            catch (FormatException)
-            {
-                error = new FormatException($"Invalid base64 data.");
-                return false;
-            }
-
-            switch (keyFormat)
-            {
-                case "-----BEGIN RSA PRIVATE KEY-----":
-                    return PrivateKeyCredential.TryParseRsaPkcs1PemKey(keyData, metadata, passphrase, out privateKey, out error);
-                case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                    return PrivateKeyCredential.TryParseOpenSshKey(keyData, passphrase, out privateKey, out error);
-                default:
-                    error = new NotSupportedException($"Unsupported format: '{keyFormat}'.");
-                    return false;
-            }
         }
 
         private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)
