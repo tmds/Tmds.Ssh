@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
@@ -85,10 +84,4 @@ sealed class EncryptionAlgorithm
                         isAuthenticated: true,
                         tagLength: 16) },
         };
-
-    private static IPacketEncoder CreatePacketEncoder(IDisposableCryptoTransform encodeTransform, IHMac hmac)
-        => new TransformAndHMacPacketEncoder(encodeTransform, hmac);
-
-    private static IPacketDecoder CreatePacketDecoder(SequencePool sequencePool, IDisposableCryptoTransform encodeTransform, IHMac hmac)
-        => new TransformAndHMacPacketDecoder(sequencePool, encodeTransform, hmac);
 }
