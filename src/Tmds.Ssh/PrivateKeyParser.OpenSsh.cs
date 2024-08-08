@@ -149,7 +149,7 @@ partial class PrivateKeyParser
         try
         {
             byte[] derivedKey = new byte[keyCipher.KeyLength + keyCipher.IVLength];
-            BCrypt.Pbkdf(
+            BCrypt.DeriveKeyFromPassword(
                 password,
                 kdfSalt.IsSingleSegment ? kdfSalt.FirstSpan : kdfSalt.ToArray(),
                 (int)rounds,

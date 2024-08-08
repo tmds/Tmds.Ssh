@@ -29,7 +29,7 @@ public class BCryptTests
         byte[] saltBytes = System.Text.Encoding.UTF8.GetBytes(salt);
         byte[] actualBytes = new byte[expected.Length / 2];
 
-        BCrypt.Pbkdf(passwordBytes, saltBytes, rounds, actualBytes);
+        BCrypt.DeriveKeyFromPassword(passwordBytes, saltBytes, rounds, actualBytes);
         Assert.Equal(expected, Convert.ToHexString(actualBytes));
     }
 }

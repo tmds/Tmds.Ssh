@@ -485,7 +485,7 @@ internal sealed class BCrypt
     /// <param name="salt"></param>
     /// <param name="rounds"></param>
     /// <param name="output"></param>
-    public static void Pbkdf(ReadOnlySpan<byte> password, ReadOnlySpan<byte> salt, int rounds, Span<byte> output)
+    public static void DeriveKeyFromPassword(ReadOnlySpan<byte> password, ReadOnlySpan<byte> salt, int rounds, Span<byte> output)
     {
         var bcrypt = new BCrypt();
         using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
