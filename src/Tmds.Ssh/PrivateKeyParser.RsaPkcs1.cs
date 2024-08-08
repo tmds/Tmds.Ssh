@@ -17,7 +17,7 @@ partial class PrivateKeyParser
     internal static bool TryParseRsaPkcs1PemKey(
         ReadOnlySpan<byte> keyData,
         Dictionary<string, string> metadata,
-        ReadOnlySpan<byte> passphrase,
+        ReadOnlySpan<byte> password,
         [NotNullWhen(true)] out PrivateKey? privateKey,
         [NotNullWhen(false)] out Exception? error)
     {
@@ -27,9 +27,9 @@ partial class PrivateKeyParser
         {
             if (metadata.TryGetValue("DEK-Info", out var dekInfo))
             {
-                if (passphrase.Length == 0)
+                if (password.Length == 0)
                 {
-                    error = new FormatException($"The key is encrypted but no passphrase was provided.");
+                    error = new FormatException($"The key is encrypted but no password was provided.");
                     return false;
                 }
 
@@ -64,7 +64,7 @@ partial class PrivateKeyParser
 
                 // Yes this is an MD5 hash and 1 round, PKCS#1 is old and uses
                 // some weak cryptography components.
-                byte[] key = Pbkdf1(HashAlgorithmName.MD5, passphrase, iv.AsSpan(0, 8), 1, keySize);
+                byte[] key = Pbkdf1(HashAlgorithmName.MD5, password, iv.AsSpan(0, 8), 1, keySize);
 
                 using Aes aes = Aes.Create();
                 aes.Key = key;

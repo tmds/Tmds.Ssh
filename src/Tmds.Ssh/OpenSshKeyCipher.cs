@@ -69,28 +69,34 @@ sealed class OpenSshKeyCipher
     private static OpenSshKeyCipher CreateAesCbcCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 16,
             (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
-                => DecryptCbc(key, iv, data));
+                => DecryptAesCbc(key, iv, data));
 
     private static OpenSshKeyCipher CreateAesCtrCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 16,
             (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
-                => AesCtr.DecryptCtr(key, iv, data));
+                => DecryptAesCtr(key, iv, data));
 
     private static OpenSshKeyCipher CreateAesGcmCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 12,
-                DecryptGcm,
-                isAuthenticated: true,
-                tagLength: 16);
+            DecryptAesGcm,
+            isAuthenticated: true,
+            tagLength: 16);
 
-    private static byte[] DecryptCbc(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)
+    private static byte[] DecryptAesCbc(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)
     {
         using Aes aes = Aes.Create();
         aes.Key = key.ToArray();
-
         return aes.DecryptCbc(data, iv, PaddingMode.None);
     }
 
-    public static byte[] DecryptGcm(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
+    private static byte[] DecryptAesCtr(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)
+    {
+        byte[] plaintext = new byte[data.Length];
+        AesCtr.DecryptCtr(key, iv, data, plaintext);
+        return plaintext;
+    }
+
+    private static byte[] DecryptAesGcm(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
     {
         using AesGcm aesGcm = new AesGcm(key, tag.Length);
         byte[] plaintext = new byte[data.Length];

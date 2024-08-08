@@ -17,7 +17,7 @@ partial class PrivateKeyParser
     /// </summary>
     internal static bool TryParseOpenSshKey(
         byte[] keyData,
-        ReadOnlySpan<byte> passphrase,
+        ReadOnlySpan<byte> password,
         [NotNullWhen(true)] out PrivateKey? privateKey,
         [NotNullWhen(false)] out Exception? error)
     {
@@ -60,14 +60,14 @@ partial class PrivateKeyParser
         {
             privateKeyList = reader.ReadStringAsBytes();
         }
-        else if (passphrase.Length == 0)
+        else if (password.Length == 0)
         {
-            error = new FormatException("Key was encrypted but no passphrase was provided.");
+            error = new FormatException("Key was encrypted but no password was provided.");
             return false;
         }
         else
         {
-            if (!TryDecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, passphrase, out var decryptedKey, out error))
+            if (!TryDecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, password, out var decryptedKey, out error))
             {
                 return false;
             }
@@ -95,7 +95,7 @@ partial class PrivateKeyParser
         uint checkint2 = reader.ReadUInt32();
         if (checkInt1 != checkint2)
         {
-            error = new FormatException($"The checkints mismatch. The key is invalid or the passphrase is wrong.");
+            error = new FormatException($"The checkints mismatch. The key is invalid or the password is wrong.");
             return false;
         }
 
@@ -120,13 +120,13 @@ partial class PrivateKeyParser
         Name cipher,
         Name kdf,
         ReadOnlySequence<byte> kdfOptions,
-        ReadOnlySpan<byte> passphrase,
+        ReadOnlySpan<byte> password,
         [NotNullWhen(true)] out byte[]? privateKey,
         [NotNullWhen(false)] out Exception? error)
     {
         privateKey = null;
 
-        if (kdf != AlgorithmNames.Bcrypt)
+        if (kdf != AlgorithmNames.BCrypt)
         {
             error = new NotSupportedException($"Unsupported KDF: '{kdf}'.");
             return false;
@@ -149,8 +149,8 @@ partial class PrivateKeyParser
         try
         {
             byte[] derivedKey = new byte[keyCipher.KeyLength + keyCipher.IVLength];
-            new BCrypt().Pbkdf(
-                passphrase,
+            BCrypt.Pbkdf(
+                password,
                 kdfSalt.IsSingleSegment ? kdfSalt.FirstSpan : kdfSalt.ToArray(),
                 (int)rounds,
                 derivedKey);

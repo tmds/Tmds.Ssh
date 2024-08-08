@@ -8,8 +8,13 @@ namespace Tmds.Ssh;
 
 static class AesCtr
 {
-    public static byte[] DecryptCtr(ReadOnlySpan<byte> key, Span<byte> counter, ReadOnlySpan<byte> data)
+    public static void DecryptCtr(ReadOnlySpan<byte> key, Span<byte> counter, ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
+        if (plaintext.Length < ciphertext.Length)
+        {
+            throw new ArgumentException("Plaintext buffer is too small.");
+        }
+
         using Aes aes = Aes.Create();
         aes.Key = key.ToArray();
 
@@ -17,8 +22,7 @@ static class AesCtr
         int offset = 0;
         Span<byte> temp = stackalloc byte[blockSize];
 
-        byte[] decData = new byte[data.Length];
-        while (offset < decData.Length)
+        while (offset < ciphertext.Length)
         {
             // .NET Does not have a CTR mode but we can use ECB with out own
             // iv/counter manipulation between blocks.
@@ -34,14 +38,12 @@ static class AesCtr
                 }
             }
 
-            for (int i = 0; i < Math.Min(blockSize, decData.Length - offset); i++)
+            for (int i = 0; i < Math.Min(blockSize, ciphertext.Length - offset); i++)
             {
-                decData[i + offset] = (byte)(data[i + offset] ^ temp[i]);
+                plaintext[i + offset] = (byte)(ciphertext[i + offset] ^ temp[i]);
             }
 
             offset += blockSize;
         }
-
-        return decData;
     }
 }

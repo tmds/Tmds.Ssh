@@ -5,12 +5,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Text;
 
 namespace Tmds.Ssh;
 
 partial class PrivateKeyParser
 {
-    internal static bool TryParsePrivateKeyFile(string filename, ReadOnlySpan<byte> passphrase, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    internal static bool TryParsePrivateKeyFile(string filename, string? password, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
     {
         privateKey = null;
 
@@ -99,12 +100,13 @@ partial class PrivateKeyParser
             return false;
         }
 
+        byte[] keyPassword = string.IsNullOrEmpty(password) ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(password);
         switch (keyFormat)
         {
             case "-----BEGIN RSA PRIVATE KEY-----":
-                return TryParseRsaPkcs1PemKey(keyData, metadata, passphrase, out privateKey, out error);
+                return TryParseRsaPkcs1PemKey(keyData, metadata, keyPassword, out privateKey, out error);
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                return TryParseOpenSshKey(keyData, passphrase, out privateKey, out error);
+                return TryParseOpenSshKey(keyData, keyPassword, out privateKey, out error);
             default:
                 error = new NotSupportedException($"Unsupported format: '{keyFormat}'.");
                 return false;

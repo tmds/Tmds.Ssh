@@ -6,14 +6,14 @@ using System.Collections.Generic;
 
 namespace Tmds.Ssh;
 
-sealed class PackingAlgorithms
+sealed class EncryptionAlgorithm
 {
-    private readonly Func<PackingAlgorithms, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> _createPacketEncoder;
-    private readonly Func<PackingAlgorithms, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> _createPacketDecoder;
+    private readonly Func<EncryptionAlgorithm, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> _createPacketEncoder;
+    private readonly Func<EncryptionAlgorithm, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> _createPacketDecoder;
 
-    private PackingAlgorithms(int keyLength, int ivLength,
-            Func<PackingAlgorithms, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> createPacketEncoder,
-            Func<PackingAlgorithms, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> createPacketDecoder,
+    private EncryptionAlgorithm(int keyLength, int ivLength,
+            Func<EncryptionAlgorithm, byte[], byte[], HMacAlgorithm?, byte[], IPacketEncoder> createPacketEncoder,
+            Func<EncryptionAlgorithm, SequencePool, byte[], byte[], HMacAlgorithm?, byte[], IPacketDecoder> createPacketDecoder,
             bool isAuthenticated = false,
             int tagLength = 0)
     {
@@ -42,7 +42,7 @@ sealed class PackingAlgorithms
         return _createPacketDecoder(this, sequencePool, key, iv, hmacAlgorithm, hmacKey);
     }
 
-    private static void CheckArguments(PackingAlgorithms algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
+    private static void CheckArguments(EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
     {
         if (algorithm.IVLength != iv.Length)
         {
@@ -62,24 +62,24 @@ sealed class PackingAlgorithms
         }
     }
 
-    public static PackingAlgorithms Find(Name name)
+    public static EncryptionAlgorithm Find(Name name)
         => _algorithms[name];
 
-    private static Dictionary<Name, PackingAlgorithms> _algorithms = new()
+    private static Dictionary<Name, EncryptionAlgorithm> _algorithms = new()
         {
             { AlgorithmNames.Aes128Gcm,
-                new PackingAlgorithms(keyLength: 128 / 8, ivLength: 12,
-                    (PackingAlgorithms algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                new EncryptionAlgorithm(keyLength: 128 / 8, ivLength: 12,
+                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
                         => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
-                    (PackingAlgorithms algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
                         => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
                         isAuthenticated: true,
                         tagLength: 16) },
             { AlgorithmNames.Aes256Gcm,
-                new PackingAlgorithms(keyLength: 256 / 8, ivLength: 12,
-                    (PackingAlgorithms algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                new EncryptionAlgorithm(keyLength: 256 / 8, ivLength: 12,
+                    (EncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
                         => new AesGcmPacketEncoder(key, iv, algorithm.TagLength),
-                    (PackingAlgorithms algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    (EncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
                         => new AesGcmPacketDecoder(sequencePool, key, iv, algorithm.TagLength),
                         isAuthenticated: true,
                         tagLength: 16) },

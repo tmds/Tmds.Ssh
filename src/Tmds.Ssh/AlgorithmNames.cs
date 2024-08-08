@@ -61,8 +61,8 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name Pkcs1Aes256Cbc => new Name(Pkcs1Aes256CbcBytes);
 
     // KDF algorithms:
-    private static readonly byte[] BcryptBytes = "bcrypt"u8.ToArray();
-    public static Name Bcrypt => new Name(BcryptBytes);
+    private static readonly byte[] BCryptBytes = "bcrypt"u8.ToArray();
+    public static Name BCrypt => new Name(BCryptBytes);
 
     // Mac algorithms.
     private static readonly byte[] HMacSha2_256Bytes = "hmac-sha2-256"u8.ToArray();

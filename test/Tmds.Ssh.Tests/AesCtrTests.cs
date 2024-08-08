@@ -73,7 +73,8 @@ public class AesCtrTests
         ivBytes.CopyTo(counter.Slice(nonceBytes.Length));
         counter[15] = 1;
 
-        byte[] actual = AesCtr.DecryptCtr(keyBytes, counter, ciphertextBytes);
+        byte[] actual = new byte[ciphertextBytes.Length];
+        AesCtr.DecryptCtr(keyBytes, counter, ciphertextBytes, actual);
         Assert.Equal(plaintext, Convert.ToHexString(actual));
     }
 }

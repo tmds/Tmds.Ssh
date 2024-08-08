@@ -477,7 +477,7 @@ internal sealed class BCrypt
     }
 
     /// <summary>
-    /// Applies the Bcrypt kdf to derive a key and iv from the passphrase,
+    /// Applies the BCrypt kdf to derive a key and iv from the passphrase,
     /// the key/iv are returned in the output variable.
     /// Ported from the SSHJ library. https://github.com/hierynomus/sshj
     /// </summary>
@@ -485,8 +485,9 @@ internal sealed class BCrypt
     /// <param name="salt"></param>
     /// <param name="rounds"></param>
     /// <param name="output"></param>
-    public void Pbkdf(ReadOnlySpan<byte> password, ReadOnlySpan<byte> salt, int rounds, Span<byte> output)
+    public static void Pbkdf(ReadOnlySpan<byte> password, ReadOnlySpan<byte> salt, int rounds, Span<byte> output)
     {
+        var bcrypt = new BCrypt();
         using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
 
         int nblocks = (output.Length + 31) / 32;
@@ -510,14 +511,14 @@ internal sealed class BCrypt
             sha512.AppendData(block_b);
             sha512.GetHashAndReset(hsalt);
 ;
-            Hash(hpass, hsalt, outBytes);
+            bcrypt.Hash(hpass, hsalt, outBytes);
             outBytes.CopyTo(tmp);
 
             for (int round = 1; round < rounds; round++)
             {
                 sha512.AppendData(tmp);
                 sha512.GetHashAndReset(hsalt);
-                Hash(hpass, hsalt, tmp);
+                bcrypt.Hash(hpass, hsalt, tmp);
 
                 for (int i = 0; i < tmp.Length; i++)
                 {

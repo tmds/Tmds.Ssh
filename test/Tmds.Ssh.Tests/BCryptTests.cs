@@ -7,7 +7,7 @@ namespace Tmds.Ssh.Tests;
 // specific so I used a rust implementation for these vectors
 // https://github.com/RustCrypto/password-hashes/blob/master/bcrypt-pbkdf/tests/test_vectors.rs
 
-public class BcryptTests
+public class BCryptTests
 {
     [Theory]
     [InlineData("password", "salt", 4, "5BBF0CC293587F1C3635555C27796598D47E579071BF427E9D8FBE842ABA34D9")]
@@ -23,13 +23,13 @@ public class BcryptTests
         "salis\0",
         8,
         "10978B07253DF57F71A162EB0E8AD30A")]
-    public void BcryptKdfVectors(string password, string salt, int rounds, string expected)
+    public void BCryptKdfVectors(string password, string salt, int rounds, string expected)
     {
         byte[] passwordBytes = System.Text.Encoding.UTF8.GetBytes(password);
         byte[] saltBytes = System.Text.Encoding.UTF8.GetBytes(salt);
         byte[] actualBytes = new byte[expected.Length / 2];
 
-        new BCrypt().Pbkdf(passwordBytes, saltBytes, rounds, actualBytes);
+        BCrypt.Pbkdf(passwordBytes, saltBytes, rounds, actualBytes);
         Assert.Equal(expected, Convert.ToHexString(actualBytes));
     }
 }

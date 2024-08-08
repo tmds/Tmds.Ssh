@@ -37,7 +37,7 @@ public class PrivateKeyCredentialTests
 
             await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", $"-{algo}", "-passout", $"pass:{TestPassword}");
             File.Move($"{localKey}.rsa", localKey, overwrite: true);
-            return  new PrivateKeyCredential(localKey, TestPassword);
+            return new PrivateKeyCredential(localKey, TestPassword);
         }, async (c) => await c.ConnectAsync());
     }
 
@@ -107,12 +107,12 @@ public class PrivateKeyCredentialTests
     [Fact]
     public async Task OpenSshKeyWithWhitespacePassword()
     {
-        const string passphrase = " ";
+        const string password = " ";
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
-            await EncryptSshKey(localKey, "RFC4716", passphrase, "aes256-ctr");
+            await EncryptSshKey(localKey, "RFC4716", password, "aes256-ctr");
 
-            return new PrivateKeyCredential(localKey, passphrase);
+            return new PrivateKeyCredential(localKey, password);
         }, async (c) => await c.ConnectAsync());
     }
 

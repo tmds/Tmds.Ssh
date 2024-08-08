@@ -27,7 +27,7 @@ partial class UserAuthentication
                 return false;
             }
 
-            if (PrivateKeyParser.TryParsePrivateKeyFile(keyCredential.FilePath, keyCredential.Passphrase, out PrivateKey? pk, out Exception? error))
+            if (PrivateKeyParser.TryParsePrivateKeyFile(keyCredential.FilePath, keyCredential.Password, out PrivateKey? pk, out Exception? error))
             {
                 using (pk)
                 {
