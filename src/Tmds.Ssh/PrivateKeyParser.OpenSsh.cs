@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Tmds.Ssh;
 
@@ -17,7 +18,7 @@ partial class PrivateKeyParser
     /// </summary>
     internal static bool TryParseOpenSshKey(
         byte[] keyData,
-        ReadOnlySpan<byte> password,
+        Func<string?> passwordPrompt,
         [NotNullWhen(true)] out PrivateKey? privateKey,
         [NotNullWhen(false)] out Exception? error)
     {
@@ -60,14 +61,17 @@ partial class PrivateKeyParser
         {
             privateKeyList = reader.ReadStringAsBytes();
         }
-        else if (password.Length == 0)
-        {
-            error = new FormatException("Key was encrypted but no password was provided.");
-            return false;
-        }
         else
         {
-            if (!TryDecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, password, out var decryptedKey, out error))
+            string? password = passwordPrompt();
+            if (password is null)
+            {
+                error = new FormatException("Key was encrypted but no password was provided.");
+                return false;
+            }
+
+            byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
+            if (!TryDecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, passwordBytes, out var decryptedKey, out error))
             {
                 return false;
             }
@@ -157,7 +161,7 @@ partial class PrivateKeyParser
 
             ReadOnlySequence<byte> encryptedKey = reader.ReadStringAsBytes();
             ReadOnlySequence<byte> tag = default;
-            if (keyCipher.IsAuthenticated && keyCipher.TagLength > 0)
+            if (keyCipher.TagLength > 0)
             {
                 if (!reader.TryRead(keyCipher.TagLength, out tag))
                 {

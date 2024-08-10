@@ -390,6 +390,7 @@ abstract class Credential
 class PrivateKeyCredential : Credential
 {
   PrivateKeyCredential(string path, string? password = null);
+  PrivateKeyCredential(string path, Func<string?> passwordPrompt);
 }
 class PasswordCredential : Credential
 {

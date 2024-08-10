@@ -18,20 +18,17 @@ sealed class OpenSshKeyCipher
         int keyLength,
         int ivLength,
         DecryptDelegate decryptData,
-        bool isAuthenticated = false,
         int tagLength = 0)
     {
         KeyLength = keyLength;
         IVLength = ivLength;
-        IsAuthenticated = isAuthenticated;
         TagLength = tagLength;
         _decryptData = decryptData;
     }
 
     public int KeyLength { get; }
     public int IVLength { get; }
-    public bool IsAuthenticated { get; }
-    public int TagLength { get; } // When IsAuthenticated == true
+    public int TagLength { get; }
 
     public byte[] Decrypt(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
     {
@@ -43,7 +40,7 @@ sealed class OpenSshKeyCipher
         {
             throw new ArgumentException(nameof(iv));
         }
-        if (IsAuthenticated && tag.Length != TagLength)
+        if (tag.Length != TagLength)
         {
             throw new ArgumentException(nameof(tag));
         }
@@ -79,7 +76,6 @@ sealed class OpenSshKeyCipher
     private static OpenSshKeyCipher CreateAesGcmCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 12,
             DecryptAesGcm,
-            isAuthenticated: true,
             tagLength: 16);
 
     private static byte[] DecryptAesCbc(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)

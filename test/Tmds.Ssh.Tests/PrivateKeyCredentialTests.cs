@@ -41,6 +41,28 @@ public class PrivateKeyCredentialTests
         }, async (c) => await c.ConnectAsync());
     }
 
+    [Fact]
+    public async Task Pkcs1RsaKeyWithPrompt()
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            await EncryptSshKey(localKey, "PEM", null, null);
+            await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", "-aes256", "-passout", $"pass:{TestPassword}");
+            File.Move($"{localKey}.rsa", localKey, overwrite: true);
+            return new PrivateKeyCredential(localKey, () => TestPassword);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Fact]
+    public async Task Pkcs1RsaKeyPromptNotCalledForPlaintextKey()
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            await EncryptSshKey(localKey, "PEM", null, null);
+            return new PrivateKeyCredential(localKey, () => throw new Exception("should not be called"));
+        }, async (c) => await c.ConnectAsync());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("aes128-cbc")]
@@ -101,6 +123,25 @@ public class PrivateKeyCredentialTests
             await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
 
             return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Fact]
+    public async Task OpenSshKeyPromptNotCalledForPlaintextKey()
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            return new PrivateKeyCredential(localKey, () => throw new Exception("should not be called"));
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Fact]
+    public async Task OpenSshKeyWithPrompt()
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            await EncryptSshKey(localKey, "RFC4716", TestPassword, "aes256-ctr");
+            return new PrivateKeyCredential(localKey, () => TestPassword);
         }, async (c) => await c.ConnectAsync());
     }
 

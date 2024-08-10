@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Tmds.Ssh;
 
@@ -17,7 +18,7 @@ partial class PrivateKeyParser
     internal static bool TryParseRsaPkcs1PemKey(
         ReadOnlySpan<byte> keyData,
         Dictionary<string, string> metadata,
-        ReadOnlySpan<byte> password,
+        Func<string?> passwordPrompt,
         [NotNullWhen(true)] out PrivateKey? privateKey,
         [NotNullWhen(false)] out Exception? error)
     {
@@ -27,7 +28,8 @@ partial class PrivateKeyParser
         {
             if (metadata.TryGetValue("DEK-Info", out var dekInfo))
             {
-                if (password.Length == 0)
+                string? password = passwordPrompt();
+                if (password is null)
                 {
                     error = new FormatException($"The key is encrypted but no password was provided.");
                     return false;
@@ -64,7 +66,12 @@ partial class PrivateKeyParser
 
                 // Yes this is an MD5 hash and 1 round, PKCS#1 is old and uses
                 // some weak cryptography components.
-                byte[] key = Pbkdf1(HashAlgorithmName.MD5, password, iv.AsSpan(0, 8), 1, keySize);
+                byte[] key = Pbkdf1(
+                    HashAlgorithmName.MD5,
+                    Encoding.UTF8.GetBytes(password),
+                    iv.AsSpan(0, 8),
+                    1,
+                    keySize);
 
                 using Aes aes = Aes.Create();
                 aes.Key = key;
