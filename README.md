@@ -427,8 +427,6 @@ Supported private key formats:
 - RSA, ECDSA in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
 
 Supported private key encryption cyphers:
-- RSA PKCS#1 Keys `RSA PRIVATE KEY`
-  - AES-[128|192|256]-CBC
 - OpenSSH Keys `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
   - aes[128|192|256]-[cbc|ctr]
   - aes[128|256]-gcm@openssh.com

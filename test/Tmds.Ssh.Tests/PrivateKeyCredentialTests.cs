@@ -19,48 +19,30 @@ public class PrivateKeyCredentialTests
         _sshServer = sshServer;
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("aes128")]
-    [InlineData("aes192")]
-    [InlineData("aes256")]
-    public async Task Pkcs1RsaKey(string? algo)
+    [Fact]
+    public async Task Pkcs1RsaKey()
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, "PEM", null, null);
-
-            if (string.IsNullOrWhiteSpace(algo))
-            {
-                return new PrivateKeyCredential(localKey);
-            }
-
-            await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", $"-{algo}", "-passout", $"pass:{TestPassword}");
-            File.Move($"{localKey}.rsa", localKey, overwrite: true);
-            return new PrivateKeyCredential(localKey, TestPassword);
+            return new PrivateKeyCredential(localKey);
         }, async (c) => await c.ConnectAsync());
     }
 
     [Fact]
-    public async Task Pkcs1RsaKeyWithPrompt()
+    public async Task FailPkcs1EncryptedRsaKey()
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
             await EncryptSshKey(localKey, "PEM", null, null);
             await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", "-aes256", "-passout", $"pass:{TestPassword}");
             File.Move($"{localKey}.rsa", localKey, overwrite: true);
-            return new PrivateKeyCredential(localKey, () => TestPassword);
-        }, async (c) => await c.ConnectAsync());
-    }
-
-    [Fact]
-    public async Task Pkcs1RsaKeyPromptNotCalledForPlaintextKey()
-    {
-        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+            return new PrivateKeyCredential(localKey, TestPassword);
+        }, async (SshClient client) =>
         {
-            await EncryptSshKey(localKey, "PEM", null, null);
-            return new PrivateKeyCredential(localKey, () => throw new Exception("should not be called"));
-        }, async (c) => await c.ConnectAsync());
+            var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
+            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
+        });
     }
 
     [Theory]
@@ -129,9 +111,9 @@ public class PrivateKeyCredentialTests
     [Fact]
     public async Task OpenSshKeyPromptNotCalledForPlaintextKey()
     {
-        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, (string localKey) =>
         {
-            return new PrivateKeyCredential(localKey, () => throw new Exception("should not be called"));
+            return Task.FromResult(new PrivateKeyCredential(localKey, () => throw new Exception("should not be called")));
         }, async (c) => await c.ConnectAsync());
     }
 
@@ -157,14 +139,12 @@ public class PrivateKeyCredentialTests
         }, async (c) => await c.ConnectAsync());
     }
 
-    [Theory]
-    [InlineData("PEM")]
-    [InlineData("RFC4716")]
-    public async Task FailWithEncryptedKeyAndNoPassword(string format)
+    [Fact]
+    public async Task FailWithEncryptedKeyAndNoPassword()
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
-            await EncryptSshKey(localKey, format, "password", null);
+            await EncryptSshKey(localKey, "RFC4716", "password", null);
             return new PrivateKeyCredential(localKey);
         }, async (SshClient client) =>
         {
@@ -173,14 +153,12 @@ public class PrivateKeyCredentialTests
         });
     }
 
-    [Theory]
-    [InlineData("PEM")]
-    [InlineData("RFC4716")]
-    public async Task FailWithEncryptedKeyAndIncorrectPassword(string format)
+    [Fact]
+    public async Task FailWithEncryptedKeyAndIncorrectPassword()
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
         {
-            await EncryptSshKey(localKey, format, "password", null);
+            await EncryptSshKey(localKey, "RFC4716", "password", null);
             return new PrivateKeyCredential(localKey, "invalid");
         }, async (SshClient client) =>
         {
