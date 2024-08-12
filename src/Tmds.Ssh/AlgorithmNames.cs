@@ -35,10 +35,26 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name EcdsaSha2Nistp521 => new Name(EcdsaSha2Nistp521Bytes);
 
     // Encryption algorithms.
+    private static readonly byte[] Aes128CbcBytes = "aes128-cbc"u8.ToArray();
+    public static Name Aes128Cbc => new Name(Aes128CbcBytes);
+    private static readonly byte[] Aes192CbcBytes = "aes192-cbc"u8.ToArray();
+    public static Name Aes192Cbc => new Name(Aes192CbcBytes);
+    private static readonly byte[] Aes256CbcBytes = "aes256-cbc"u8.ToArray();
+    public static Name Aes256Cbc => new Name(Aes256CbcBytes);
+    private static readonly byte[] Aes128CtrBytes = "aes128-ctr"u8.ToArray();
+    public static Name Aes128Ctr => new Name(Aes128CtrBytes);
+    private static readonly byte[] Aes192CtrBytes = "aes192-ctr"u8.ToArray();
+    public static Name Aes192Ctr => new Name(Aes192CtrBytes);
+    private static readonly byte[] Aes256CtrBytes = "aes256-ctr"u8.ToArray();
+    public static Name Aes256Ctr => new Name(Aes256CtrBytes);
     private static readonly byte[] Aes128GcmBytes = "aes128-gcm@openssh.com"u8.ToArray();
     public static Name Aes128Gcm => new Name(Aes128GcmBytes);
     private static readonly byte[] Aes256GcmBytes = "aes256-gcm@openssh.com"u8.ToArray();
     public static Name Aes256Gcm => new Name(Aes256GcmBytes);
+
+    // KDF algorithms:
+    private static readonly byte[] BCryptBytes = "bcrypt"u8.ToArray();
+    public static Name BCrypt => new Name(BCryptBytes);
 
     // Mac algorithms.
     private static readonly byte[] HMacSha2_256Bytes = "hmac-sha2-256"u8.ToArray();

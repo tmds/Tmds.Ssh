@@ -9,8 +9,14 @@ public sealed class PrivateKeyCredential : Credential
 {
     internal string FilePath { get; }
 
-    public PrivateKeyCredential(string path)
+    internal Func<string?> PasswordPrompt { get; }
+
+    public PrivateKeyCredential(string path, string? password = null) : this(path, () => password)
+    { }
+
+    public PrivateKeyCredential(string path, Func<string?> passwordPrompt)
     {
         FilePath = path ?? throw new ArgumentNullException(nameof(path));
+        PasswordPrompt = passwordPrompt;
     }
 }

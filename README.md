@@ -389,7 +389,8 @@ abstract class Credential
 { }
 class PrivateKeyCredential : Credential
 {
-  PrivateKeyCredential(string path);
+  PrivateKeyCredential(string path, string? password = null);
+  PrivateKeyCredential(string path, Func<string?> passwordPrompt);
 }
 class PasswordCredential : Credential
 {
@@ -426,7 +427,9 @@ Supported private key formats:
 - RSA, ECDSA in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
 
 Supported private key encryption cyphers:
-- none
+- OpenSSH Keys `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
+  - aes[128|192|256]-[cbc|ctr]
+  - aes[128|256]-gcm@openssh.com
 
 Supported client key algorithms:
 - ecdsa-sha2-nistp521
