@@ -1,21 +1,18 @@
-// This file is part of Tmds.Ssh which is released under MIT.
+﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeKeysAsyncDelegate(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct);
-sealed class KeyExchange
+sealed partial class SshSession
 {
-    public static readonly ExchangeKeysAsyncDelegate Default = PerformDefaultExchange;
-
-    private async static Task PerformDefaultExchange(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+    private async Task PerformKeyExchangeAsync(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, CancellationToken ct)
     {
         // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
         SequencePool sequencePool = connection.SequencePool;
@@ -33,12 +30,12 @@ sealed class KeyExchange
 
         if (encC2S.IsEmpty || encS2C.IsEmpty)
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption algorithm.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common encryption algorithm.", ConnectionInfo);
         }
 
         if (comC2S.IsEmpty || comS2C.IsEmpty)
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common compression algorithm.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common compression algorithm.", ConnectionInfo);
         }
 
         EncryptionAlgorithm encC2SAlg = EncryptionAlgorithm.Find(encC2S);
@@ -47,7 +44,7 @@ sealed class KeyExchange
         if ((!encC2SAlg.IsAuthenticated && macC2S.IsEmpty) ||
             (!encS2CAlg.IsAuthenticated && macS2C.IsEmpty))
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common integrity algorithm.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common integrity algorithm.", ConnectionInfo);
         }
 
         HMacAlgorithm? hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
@@ -69,12 +66,30 @@ sealed class KeyExchange
                 remoteInit.kex_algorithms.Length == 0 ||
                 context.KeyExchangeAlgorithms[0] != remoteInit.kex_algorithms[0] ? default(Name) : context.KeyExchangeAlgorithms[0];
 
+        List<Name> kexAlgorithms;
+        if (matchingKex.IsEmpty)
+        {
+            kexAlgorithms = new List<Name>(capacity: context.KeyExchangeAlgorithms.Count);
+            foreach (var keyAlgorithm in context.KeyExchangeAlgorithms)
+            {
+                if (remoteInit.kex_algorithms.Contains(keyAlgorithm))
+                {
+                    kexAlgorithms.Add(keyAlgorithm);
+                }
+            }
+        }
+        else
+        {
+            kexAlgorithms = [ matchingKex ];
+        }
+
         KeyExchangeOutput? keyExchangeOutput = null;
         Packet exchangeInitMsg = default;
         try
         {
             if (remoteInit.first_kex_packet_follows)
             {
+                // guess is accepted when both the kex algorithm and host key algorithm match.
                 exchangeInitMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
 
                 if (matchingKex.IsEmpty ||
@@ -88,7 +103,7 @@ sealed class KeyExchange
                 }
                 else
                 {
-                    // Only accept the first hostKeyAlgorithm.
+                    // Only accept the matched hostKeyAlgorithm.
                     if (hostKeyAlgorithms.Count > 1)
                     {
                         hostKeyAlgorithms.RemoveRange(1, hostKeyAlgorithms.Count - 1);
@@ -101,31 +116,27 @@ sealed class KeyExchange
             encS2CAlg = EncryptionAlgorithm.Find(encS2C);
             hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
 
-            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, connectionInfo,
+            Logger.KexAlgorithms(kexAlgorithms, hostKeyAlgorithms,
+                encC2S, encS2C, macC2S, macS2C, comC2S, comS2C);
+
+            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, ConnectionInfo,
                 encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0,
                 context.MinimumRSAKeySize);
 
-            foreach (var keyAlgorithm in context.KeyExchangeAlgorithms)
+            foreach (var keyAlgorithm in kexAlgorithms)
             {
-                if (remoteInit.kex_algorithms.Contains(keyAlgorithm))
+                Logger.ExchangingKeys(keyAlgorithm);
+
+                using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                 {
-                    logger.KeyExchangeAlgorithm(keyAlgorithm);
+                    keyExchangeOutput = await algorithm.TryExchangeAsync(connection, context.HostKeyVerification, keyExchangeInput, Logger, ct).ConfigureAwait(false);
+                }
+                if (keyExchangeOutput != null)
+                {
+                    Logger.KeyExchangeCompleted();
 
-                    using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
-                    {
-                        keyExchangeOutput = await algorithm.TryExchangeAsync(connection, context.HostKeyVerification, keyExchangeInput, logger, ct).ConfigureAwait(false);
-                    }
-                    if (keyExchangeOutput != null)
-                    {
-                        connectionInfo.SessionId ??= keyExchangeOutput.ExchangeHash;
-                        break;
-                    }
-
-                    // Preferred algorithm must be used.
-                    if (!matchingKex.IsEmpty)
-                    {
-                        throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Preferred key exchange algorithm failed.", connectionInfo);
-                    }
+                    ConnectionInfo.SessionId ??= keyExchangeOutput.ExchangeHash;
+                    break;
                 }
             }
 
@@ -133,16 +144,13 @@ sealed class KeyExchange
             // connection fails, and both sides MUST disconnect.
             if (keyExchangeOutput == null)
             {
-                throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Key exchange failed.", connectionInfo);
+                throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Key exchange failed.", ConnectionInfo);
             }
         }
         finally
         {
             exchangeInitMsg.Dispose();
         }
-
-        logger.AlgorithmsServerToClient(encS2C, macS2C, comS2C);
-        logger.AlgorithmsClientToServer(encC2S, macC2S, comC2S);
 
         // Send SSH_MSG_NEWKEYS.
         await connection.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct).ConfigureAwait(false);
@@ -186,7 +194,7 @@ sealed class KeyExchange
         uint32       0 (reserved for future extension)
     */
 
-    private static (
+    private (
         Name[] kex_algorithms,
         Name[] server_host_key_algorithms,
         Name[] encryption_algorithms_client_to_server,
@@ -216,6 +224,21 @@ sealed class KeyExchange
         bool first_kex_packet_follows = reader.ReadBoolean();
         reader.ReadUInt32(0);
         reader.ReadEnd();
+
+        Logger.ServerKexInit(
+            kex_algorithms,
+            server_host_key_algorithms,
+            encryption_algorithms_client_to_server,
+            encryption_algorithms_server_to_client,
+            mac_algorithms_client_to_server,
+            mac_algorithms_server_to_client,
+            compression_algorithms_client_to_server,
+            compression_algorithms_server_to_client,
+            languages_client_to_server,
+            languages_server_to_client,
+            first_kex_packet_follows
+        );
+
         return (
             kex_algorithms,
             server_host_key_algorithms,
@@ -243,5 +266,90 @@ sealed class KeyExchange
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_NEWKEYS);
         reader.ReadEnd();
+    }
+
+    private KeyExchangeContext CreateKeyExchangeContext()
+    {
+        Debug.Assert(_settings is not null);
+
+        TrustedHostKeys trustedKeys = GetKnownHostKeys();
+
+        // Sort algorithms to prefer those we have keys for.
+        List<Name> serverHostKeyAlgorithms = new List<Name>(_settings.ServerHostKeyAlgorithms);
+        trustedKeys.SortAlgorithms(serverHostKeyAlgorithms);
+
+        // TODO: remove old keys from KnownHostsFilePaths?
+        // Add keys to first KnownHostsFilePaths.
+        string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && _settings.UserKnownHostsFilePaths.Count > 0 ? _settings.UserKnownHostsFilePaths[0] : null;
+        IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
+
+        return new KeyExchangeContext()
+        {
+            KeyExchangeAlgorithms = _settings.KeyExchangeAlgorithms,
+            ServerHostKeyAlgorithms = serverHostKeyAlgorithms,
+            EncryptionAlgorithmsClientToServer = _settings.EncryptionAlgorithmsClientToServer,
+            EncryptionAlgorithmsServerToClient = _settings.EncryptionAlgorithmsServerToClient,
+            MacAlgorithmsClientToServer = _settings.MacAlgorithmsClientToServer,
+            MacAlgorithmsServerToClient = _settings.MacAlgorithmsServerToClient,
+            CompressionAlgorithmsClientToServer = _settings.CompressionAlgorithmsClientToServer,
+            CompressionAlgorithmsServerToClient = _settings.CompressionAlgorithmsServerToClient,
+            LanguagesClientToServer = _settings.LanguagesClientToServer,
+            LanguagesServerToClient = _settings.LanguagesServerToClient,
+            HostKeyVerification = hostKeyVerification,
+            MinimumRSAKeySize = _settings.MinimumRSAKeySize
+        };
+    }
+
+    private TrustedHostKeys GetKnownHostKeys()
+    {
+        Debug.Assert(_settings is not null);
+
+        string? ip = ConnectionInfo.IPAddress?.ToString();
+
+        IEnumerable<string> knownHostsFiles = _settings.GlobalKnownHostsFilePaths.Concat(_settings.UserKnownHostsFilePaths);
+
+        TrustedHostKeys knownHostsKeys = new();
+
+        foreach (var knownHostFile in knownHostsFiles)
+        {
+            KnownHostsFile.AddHostKeysFromFile(knownHostFile, knownHostsKeys, ConnectionInfo.HostName, ip, ConnectionInfo.Port, Logger);
+        }
+
+        return knownHostsKeys;
+    }
+
+    private Packet CreateKeyExchangeInitMessage(KeyExchangeContext context)
+    {
+        using var packet = _sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_KEXINIT);
+        writer.WriteRandomBytes(16);
+        writer.WriteNameList(context.KeyExchangeAlgorithms);
+        writer.WriteNameList(context.ServerHostKeyAlgorithms);
+        writer.WriteNameList(context.EncryptionAlgorithmsClientToServer);
+        writer.WriteNameList(context.EncryptionAlgorithmsServerToClient);
+        writer.WriteNameList(context.MacAlgorithmsClientToServer);
+        writer.WriteNameList(context.MacAlgorithmsServerToClient);
+        writer.WriteNameList(context.CompressionAlgorithmsClientToServer);
+        writer.WriteNameList(context.CompressionAlgorithmsServerToClient);
+        writer.WriteNameList(context.LanguagesClientToServer);
+        writer.WriteNameList(context.LanguagesServerToClient);
+        writer.WriteBoolean(false);
+        writer.WriteUInt32(0);
+
+        Logger.ClientKexInit(
+            context.KeyExchangeAlgorithms,
+            context.ServerHostKeyAlgorithms,
+            context.EncryptionAlgorithmsClientToServer,
+            context.EncryptionAlgorithmsServerToClient,
+            context.MacAlgorithmsClientToServer,
+            context.MacAlgorithmsServerToClient,
+            context.CompressionAlgorithmsClientToServer,
+            context.CompressionAlgorithmsServerToClient,
+            context.LanguagesClientToServer,
+            context.LanguagesServerToClient
+        );
+
+        return packet.Move();
     }
 }

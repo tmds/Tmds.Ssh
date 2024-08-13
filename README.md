@@ -42,9 +42,9 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination); // uses SshConfigOptions.DefaultConfig.
-  SshClient(string destination, SshConfigOptions configOptions);
-  SshClient(SshClientSettings settings);
+  SshClient(string destination, ILoggerFactory? loggerFactory = null); // uses SshConfigOptions.DefaultConfig.
+  SshClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null);
+  SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
   Task ConnectAsync(CancellationToken cancellationToken);
@@ -106,8 +106,8 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null);
-  SftpClient(SshClientSettings settings, SftpClientOptions? options = null);
+  SftpClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
+  SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
   SftpClient(SshClient client, SftpClientOptions? options = null);

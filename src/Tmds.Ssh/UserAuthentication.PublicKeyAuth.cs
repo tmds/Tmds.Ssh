@@ -2,6 +2,9 @@
 // See file LICENSE for full license details.
 
 using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,11 +15,12 @@ namespace Tmds.Ssh;
 partial class UserAuthentication
 {
     // https://datatracker.ietf.org/doc/html/rfc4252 - Public Key Authentication Method: "publickey"
-    sealed class PublicKeyAuth
+    public sealed class PublicKeyAuth
     {
-        public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+        public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            if (!context.IsAuthenticationAllowed(AlgorithmNames.PublicKey))
+            // Early check for 'TryStartAuth'
+            if (context.SkipMethod(AlgorithmNames.PublicKey))
             {
                 return false;
             }
@@ -40,6 +44,7 @@ partial class UserAuthentication
                         }
                     }
 
+                    bool acceptedAlgorithm = false;
                     foreach (var keyAlgorithm in pk.Algorithms)
                     {
                         if (!context.PublicKeyAcceptedAlgorithms.Contains(keyAlgorithm))
@@ -47,7 +52,15 @@ partial class UserAuthentication
                             continue;
                         }
 
-                        logger.AuthenticationMethodPublicKey(keyCredential.FilePath);
+                        if (!context.TryStartAuth(AlgorithmNames.PublicKey))
+                        {
+                            Debug.Assert(false); // Already did an eary SkipMethod check.
+                            return false;
+                        }
+
+                        acceptedAlgorithm = true;
+                        logger.PublicKeyAuth(keyCredential.FilePath, keyAlgorithm);
+
                         {
                             using var userAuthMsg = CreatePublicKeyRequestMessage(
                                 keyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk!);
@@ -60,11 +73,24 @@ partial class UserAuthentication
                             return true;
                         }
                     }
+
+                    if (!acceptedAlgorithm)
+                    {
+                        logger.PublicKeyAlgorithmsNotAccepted(keyCredential.FilePath, context.PublicKeyAcceptedAlgorithms);
+                    }
                 }
             }
             else
             {
-                throw new PrivateKeyLoadException(filename, error);
+                if (error is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    logger.PublicKeyFileNotFound(filename);
+                }
+                else
+                {
+                    logger.PublicKeyCanNotLoad(filename, error);
+                    throw new PrivateKeyLoadException(filename, error); // TODO: throw or skip?
+                }
             }
 
             return false;

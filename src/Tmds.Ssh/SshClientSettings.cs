@@ -3,10 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -33,7 +29,7 @@ public sealed partial class SshClientSettings
         _port = port ?? DefaultPort;
     }
 
-    private static (string? user, string host, int? port) ParseDestination(string destination)
+    internal static (string? user, string host, int? port) ParseDestination(string destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
 
@@ -169,14 +165,4 @@ public sealed partial class SshClientSettings
     internal List<Name> CompressionAlgorithmsServerToClient { get; set; } = DefaultCompressionAlgorithms;
     internal List<Name> LanguagesClientToServer { get; set; } = EmptyList;
     internal List<Name> LanguagesServerToClient { get; set; } = EmptyList;
-
-    // For testing:
-    internal delegate Task<SshConnection> EstablishConnectionAsyncDelegate(ILogger logger, SequencePool sequencePool, SshClientSettings settings, SshConnectionInfo connectionInfo, CancellationToken ct);
-    internal EstablishConnectionAsyncDelegate EstablishConnectionAsync = SshSession.EstablishConnectionAsync;
-    internal ExchangeProtocolVersionAsyncDelegate ExchangeProtocolVersionAsync = ProtocolVersionExchange.Default;
-    internal ExchangeKeysAsyncDelegate ExchangeKeysAsync = KeyExchange.Default;
-    internal AuthenticateUserAsyncDelegate AuthenticateUserAsync = UserAuthentication.Default;
-    internal bool NoProtocolVersionExchange = false;
-    internal bool NoKeyExchange = false;
-    internal bool NoUserAuthentication = false;         
 }

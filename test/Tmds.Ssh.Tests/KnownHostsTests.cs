@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Tmds.Ssh.Managed.Tests;
@@ -125,8 +127,9 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
 
     private KnownHostResult CheckHost(string host, string? ip, int port, HostKey serverKey)
     {
+        ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         TrustedHostKeys hostKeys = new();
-        KnownHostsFile.AddHostKeysFromFile(_knownHostsFilename, hostKeys, host, ip, port);
+        KnownHostsFile.AddHostKeysFromFile(_knownHostsFilename, hostKeys, host, ip, port, logger);
         return hostKeys.IsTrusted(serverKey);
     }
 }

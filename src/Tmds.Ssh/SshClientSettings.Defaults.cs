@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using static System.Environment;
 
 namespace Tmds.Ssh;
@@ -55,9 +54,10 @@ partial class SshClientSettings
     private static IReadOnlyList<Credential> CreateDefaultCredentials()
     {
         List<Credential> credentials = new();
+        credentials.Add(new KerberosCredential());
         foreach (var identityFile in DefaultIdentityFiles)
         {
-            new PrivateKeyCredential(identityFile);
+            credentials.Add(new PrivateKeyCredential(identityFile));
         }
         credentials.Add(new KerberosCredential());
         return credentials.AsReadOnly();

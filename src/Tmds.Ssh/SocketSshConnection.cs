@@ -17,7 +17,7 @@ sealed class SocketSshConnection : SshConnection
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
     private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    private readonly ILogger _logger;
+    private readonly ILogger<SshClient> _logger;
     private readonly Socket _socket;
     private readonly Sequence _receiveBuffer;
     private readonly Sequence _sendBuffer;
@@ -26,7 +26,7 @@ sealed class SocketSshConnection : SshConnection
     private uint _sendSequenceNumber;
     private uint _receiveSequenceNumber;
 
-    public SocketSshConnection(ILogger logger, SequencePool sequencePool, Socket socket) :
+    public SocketSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Socket socket) :
         base(sequencePool)
     {
         _logger = logger;
@@ -108,7 +108,7 @@ sealed class SocketSshConnection : SshConnection
                 _receiveSequenceNumber++;
 
                 using Packet p = packet;
-                _logger.Received(packet);
+                _logger.PacketReceived(packet);
                 return p.Move();
             }
 
@@ -129,7 +129,7 @@ sealed class SocketSshConnection : SshConnection
 
     public override async ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
     {
-        _logger.Send(packet);
+        _logger.PacketSend(packet);
 
         _encoder.Encode(_sendSequenceNumber, packet.Move(), _sendBuffer);
         var encodedData = _sendBuffer.AsReadOnlySequence();

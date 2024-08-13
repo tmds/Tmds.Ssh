@@ -1,24 +1,22 @@
-// This file is part of Tmds.Ssh which is released under MIT.
+﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
 using System;
-using System.Collections.Generic;
-using System.IO;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+using static Tmds.Ssh.UserAuthentication;
 
 namespace Tmds.Ssh;
 
-internal delegate Task AuthenticateUserAsyncDelegate(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken token);
-
-// Authentication Protocol: https://tools.ietf.org/html/rfc4252.
-sealed partial class UserAuthentication
+sealed partial class SshSession
 {
-    public static readonly AuthenticateUserAsyncDelegate Default = PerformDefaultAuthentication;
-
-    private async static Task PerformDefaultAuthentication(SshConnection connection, string userName, IReadOnlyList<Credential> credentials, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+    private async Task AuthenticateAsync(SshConnection connection, CancellationToken ct)
     {
+        Debug.Assert(_settings is not null);
+
+        Logger.Authenticating(ConnectionInfo.HostName, _settings.UserName);
+
         // Request ssh-userauth service
         {
             using var serviceRequestMsg = CreateServiceRequestMessage(connection.SequencePool);
@@ -29,24 +27,24 @@ sealed partial class UserAuthentication
             ParseServiceAccept(serviceAcceptMsg);
         }
 
-        UserAuthContext context = new UserAuthContext(connection, userName, publicKeyAcceptedAlgorithms, minimumRSAKeySize, logger);
+        UserAuthContext context = new UserAuthContext(connection, _settings.UserName, _settings.PublicKeyAcceptedAlgorithms, _settings.MinimumRSAKeySize, Logger);
 
-        bool authSuccess = false;
+        bool authSuccess;
 
         // Try credentials.
-        foreach (var credential in credentials)
+        foreach (var credential in _settings.Credentials)
         {
             if (credential is PasswordCredential passwordCredential)
             {
-                authSuccess = await PasswordAuth.TryAuthenticate(passwordCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);
+                authSuccess = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
             else if (credential is PrivateKeyCredential keyCredential)
             {
-                authSuccess = await PublicKeyAuth.TryAuthenticate(keyCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);
+                authSuccess = await PublicKeyAuth.TryAuthenticate(keyCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
             else if (credential is KerberosCredential kerberosCredential)
             {
-                authSuccess = await GssApiAuth.TryAuthenticate(kerberosCredential, context, connectionInfo, logger, ct).ConfigureAwait(false);
+                authSuccess = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
             else
             {
@@ -59,8 +57,17 @@ sealed partial class UserAuthentication
             }
         }
 
-        throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", connectionInfo);
+        throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", ConnectionInfo);
     }
+
+    private static Name GetAuthenticationMethod(Credential credential)
+        => credential switch
+        {
+            PasswordCredential => AlgorithmNames.Password,
+            PrivateKeyCredential => AlgorithmNames.PublicKey,
+            KerberosCredential => AlgorithmNames.GssApiWithMic,
+            _ => throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName)
+        };
 
     private static Packet CreateServiceRequestMessage(SequencePool sequencePool)
     {

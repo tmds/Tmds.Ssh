@@ -8,5 +8,5 @@ namespace Tmds.Ssh;
 
 interface IHostKeyVerification
 {
-    ValueTask<bool> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
+    ValueTask VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
 }

@@ -14,33 +14,6 @@ public class ConnectTests
 {
     private readonly SshServer _sshServer;
 
-    [Fact]
-    public async Task ClientCanConnectToServerSocket()
-    {
-        TaskCompletionSource<Packet> serverReceivedTcs = new TaskCompletionSource<Packet>();
-
-        await using var server = new TestServer(
-            async conn =>
-            {
-                var packet = await conn.ReceivePacketAsync(default).ConfigureAwait(false);
-                serverReceivedTcs.SetResult(packet);
-            }
-        );
-        using var client = await server.CreateClientAsync(
-            s =>
-            {
-                s.NoKeyExchange = true;
-                s.NoProtocolVersionExchange = true;
-                s.NoUserAuthentication = true;
-            }
-        );
-        client.Dispose();
-
-        // Check the server received an EOF.
-        var serverReceivedPacket = await serverReceivedTcs.Task;
-        Assert.True(serverReceivedPacket.IsEmpty);
-    }
-
     public ConnectTests(SshServer sshServer)
     {
         _sshServer = sshServer;
@@ -57,7 +30,7 @@ public class ConnectTests
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
-                settings.UserKnownHostsFilePaths = [ "/" ]
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ]
             ));
     }
 
@@ -66,7 +39,7 @@ public class ConnectTests
     {
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
-                settings.UserKnownHostsFilePaths = [ "/" ];
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -108,7 +81,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.UserKnownHostsFilePaths = [ "/" ];
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -245,7 +218,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.UserKnownHostsFilePaths = [ "/" ];
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -265,7 +238,7 @@ public class ConnectTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.UserKnownHostsFilePaths = [ "/" ];
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
@@ -285,7 +258,7 @@ public class ConnectTests
         var ex = await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
             _sshServer.CreateClientAsync(settings =>
             {
-                settings.UserKnownHostsFilePaths = [ "/" ];
+                settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {

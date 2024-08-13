@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh.Tests;
@@ -40,8 +41,9 @@ sealed class TestServer : IAsyncDisposable
 
     private async Task HandleClientAsync()
     {
+        ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         Socket clientSocket = await _serverSocket.AcceptAsync().ConfigureAwait(false);
-        using SocketSshConnection socketSshConnection = new SocketSshConnection(NullLogger.Instance, new SequencePool(), clientSocket);
+        using SocketSshConnection socketSshConnection = new SocketSshConnection(logger, new SequencePool(), clientSocket);
         await _handler(socketSshConnection);
     }
 

@@ -10,20 +10,20 @@ namespace Tmds.Ssh;
 partial class UserAuthentication
 {
     // https://datatracker.ietf.org/doc/html/rfc4252 - Password Authentication Method: "password"
-    sealed class PasswordAuth
+    public sealed class PasswordAuth
     {
-        public static async Task<bool> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger logger, CancellationToken ct)
+        public static async Task<bool> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            if (!context.IsAuthenticationAllowed(AlgorithmNames.Password))
-            {
-                return false;
-            }
-
-            logger.AuthenticationMethod("password");
-
             string? password = passwordCredential.GetPassword();
             if (password is not null)
             {
+                if (!context.TryStartAuth(AlgorithmNames.Password))
+                {
+                    return false;
+                }
+
+                logger.PasswordAuth();
+
                 {
                     using var userAuthMsg = CreatePasswordRequestMessage(context.SequencePool, context.UserName, password);
                     await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
