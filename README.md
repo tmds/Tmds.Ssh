@@ -17,13 +17,16 @@ Create a new Console application:
 dotnet new console -o example
 cd example
 dotnet add package Tmds.Ssh
+dotnet add package Microsoft.Extensions.Logging.Console
 ```
 
 Update `Program.cs`:
 ```cs
+using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
-using var sshClient = new SshClient("localhost");
+using ILoggerFactory? loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+using var sshClient = new SshClient("localhost", loggerFactory);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
