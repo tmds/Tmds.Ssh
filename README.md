@@ -10,6 +10,8 @@ The library targets modern .NET (Core). It does not support .NET Framework due t
 
 A curated set of secure algorithms are supported. These should enable to connect to (OpenSSH) servers on distributions/operating systems that are still in support. See [Algorithms](#algorithms).
 
+The library supports logging through `Microsoft.Extensions.Logging`. See [Logging](#logging).
+
 ## Getting Started
 
 Create a new Console application:
@@ -467,6 +469,22 @@ Authentications:
 - publickey (`PrivateKeyCredential`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
+
+## Logging
+
+The library supports logging through `Microsoft.Extensions.Logging`.
+
+In production, the log level should be set to `Information` or higher.
+
+Under these levels, the logged messages may include:
+- usernames
+- hostnames
+- key types
+- authentication methods
+- public keys
+- file paths (including those of private keys)
+
+The `Debug` and `Trace` loglevels should not be used in production. Under the `Trace` level all packets are logged. This will expose sensitive data related to the SSH connection and the application itself.
 
 ## CI Feed
 

@@ -29,13 +29,13 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 3,
         Level = LogLevel.Information,
-        Message = "Local version '{IdentificationString}'")]
+        Message = "Local version: '{IdentificationString}'")]
     public static partial void LocalVersion(this ILogger<SshClient> logger, string identificationString);
 
     [LoggerMessage(
         EventId = 4,
         Level = LogLevel.Information,
-        Message = "Remote version '{IdentificationString}'")]
+        Message = "Remote version: '{IdentificationString}'")]
     public static partial void RemoteVersion(this ILogger<SshClient> logger, string identificationString);
 
     [LoggerMessage(
