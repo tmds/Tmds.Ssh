@@ -4,14 +4,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.IO.Enumeration;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Tmds.Ssh;
 
@@ -26,10 +20,14 @@ partial class SshClientSettings
             AlgorithmNames.Password
         ];
 
-    internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string destination, SshConfigOptions options, CancellationToken cancellationToken = default)
+    internal static ValueTask<SshClientSettings> LoadFromConfigAsync(string destination, SshConfigOptions options, CancellationToken cancellationToken = default)
     {
         (string? userName, string host, int? port) = ParseDestination(destination);
+        return LoadFromConfigAsync(userName, host, port, options, cancellationToken);
+    }
 
+    internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigOptions options, CancellationToken cancellationToken = default)
+    {
         SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.ConfigFilePaths, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);

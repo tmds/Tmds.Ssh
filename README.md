@@ -10,6 +10,8 @@ The library targets modern .NET (Core). It does not support .NET Framework due t
 
 A curated set of secure algorithms are supported. These should enable to connect to (OpenSSH) servers on distributions/operating systems that are still in support. See [Algorithms](#algorithms).
 
+The library supports logging through `Microsoft.Extensions.Logging`. See [Logging](#logging).
+
 ## Getting Started
 
 Create a new Console application:
@@ -17,13 +19,16 @@ Create a new Console application:
 dotnet new console -o example
 cd example
 dotnet add package Tmds.Ssh
+dotnet add package Microsoft.Extensions.Logging.Console
 ```
 
 Update `Program.cs`:
 ```cs
+using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
-using var sshClient = new SshClient("localhost");
+using ILoggerFactory? loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+using var sshClient = new SshClient("localhost", loggerFactory);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -42,9 +47,9 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination); // uses SshConfigOptions.DefaultConfig.
-  SshClient(string destination, SshConfigOptions configOptions);
-  SshClient(SshClientSettings settings);
+  SshClient(string destination, ILoggerFactory? loggerFactory = null); // uses SshConfigOptions.DefaultConfig.
+  SshClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null);
+  SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
   Task ConnectAsync(CancellationToken cancellationToken);
@@ -106,8 +111,8 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null);
-  SftpClient(SshClientSettings settings, SftpClientOptions? options = null);
+  SftpClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
+  SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
   SftpClient(SshClient client, SftpClientOptions? options = null);
@@ -464,6 +469,22 @@ Authentications:
 - publickey (`PrivateKeyCredential`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
+
+## Logging
+
+The library supports logging through `Microsoft.Extensions.Logging`.
+
+In production, the log level should be set to `Information` or higher.
+
+Under these levels, the logged messages may include:
+- usernames
+- hostnames
+- key types
+- authentication methods
+- public keys
+- file paths (including those of private keys)
+
+The `Debug` and `Trace` loglevels should not be used in production. Under the `Trace` level all packets are logged. This will expose sensitive data related to the SSH connection and the application itself.
 
 ## CI Feed
 

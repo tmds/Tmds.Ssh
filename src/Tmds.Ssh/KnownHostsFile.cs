@@ -5,11 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using static System.Environment;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -68,22 +67,17 @@ static class KnownHostsFile
         return $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
     }
 
-    public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port)
+    public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port, ILogger<SshClient> logger)
     {
         IEnumerable<string> lines;
         try
         {
-            if (File.Exists(filename))
-            {
-                lines = File.ReadLines(filename);
-            }
-            else
-            {
-                return;
-            }
+            lines = File.ReadLines(filename);
+            logger.LoadingKnownHostKeys(filename);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            logger.CanNotReadKnownHostKeys(filename, ex.Message);
             return;
         }
 

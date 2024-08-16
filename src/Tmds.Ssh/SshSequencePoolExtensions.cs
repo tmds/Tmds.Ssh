@@ -22,27 +22,6 @@ static class SshSequencePoolExtensions
         return packet;
     }
 
-    public static Packet CreateKeyExchangeInitMessage(this SequencePool sequencePool, KeyExchangeContext context)
-    {
-        using var packet = sequencePool.RentPacket();
-        var writer = packet.GetWriter();
-        writer.WriteMessageId(MessageId.SSH_MSG_KEXINIT);
-        writer.WriteRandomBytes(16);
-        writer.WriteNameList(context.KeyExchangeAlgorithms);
-        writer.WriteNameList(context.ServerHostKeyAlgorithms);
-        writer.WriteNameList(context.EncryptionAlgorithmsClientToServer);
-        writer.WriteNameList(context.EncryptionAlgorithmsServerToClient);
-        writer.WriteNameList(context.MacAlgorithmsClientToServer);
-        writer.WriteNameList(context.MacAlgorithmsServerToClient);
-        writer.WriteNameList(context.CompressionAlgorithmsClientToServer);
-        writer.WriteNameList(context.CompressionAlgorithmsServerToClient);
-        writer.WriteNameList(context.LanguagesClientToServer);
-        writer.WriteNameList(context.LanguagesServerToClient);
-        writer.WriteBoolean(false);
-        writer.WriteUInt32(0);
-        return packet.Move();
-    }
-
     public static Packet CreateChannelCloseMessage(this SequencePool sequencePool, uint remoteChannel)
     {
         /*

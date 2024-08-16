@@ -1,12 +1,9 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -16,34 +13,55 @@ sealed class HostKeyVerification : IHostKeyVerification
     private readonly string? _updateKnownHostsFile;
     private readonly TrustedHostKeys _knownHostKeys;
     private readonly bool _hashKnownHosts;
+    private readonly ILogger<SshClient> _logger;
 
-    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile, bool hashKnownHost)
+    public HostKeyVerification(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile, bool hashKnownHost, ILogger<SshClient> logger)
     {
         _knownHostKeys = knownHostKeys;
         _hostAuthentication = hostAuthentication;
         _updateKnownHostsFile = updateKnownHostsFile;
         _hashKnownHosts = hashKnownHost;
+        _logger = logger;
     }
 
-    public async ValueTask<bool> VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
+    public async ValueTask VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         HostKey serverKey = connectionInfo.ServerKey!;
 
         KnownHostResult result = _knownHostKeys.IsTrusted(serverKey);
         bool isTrusted = result == KnownHostResult.Trusted;
 
-        if (!isTrusted && result != KnownHostResult.Revoked)
+        if (isTrusted)
+        {
+            _logger.ServerKeyIsKnownHost(connectionInfo.HostName, serverKey.Type, serverKey.SHA256FingerPrint);
+            return;
+        }
+        else if (result == KnownHostResult.Revoked)
+        { }
+        else
         {
             if (_hostAuthentication is not null)
             {
                 isTrusted = await _hostAuthentication(result, connectionInfo, ct);
-                if (isTrusted && !string.IsNullOrEmpty(_updateKnownHostsFile))
+                if (isTrusted)
                 {
-                    KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, serverKey, _hashKnownHosts);
+                    _logger.ServerKeyIsApproved(serverKey.Type, serverKey.SHA256FingerPrint);
+
+                    if (!string.IsNullOrEmpty(_updateKnownHostsFile))
+                    {
+                        KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, serverKey, _hashKnownHosts);
+                        _logger.ServerKeyAddKnownHost(connectionInfo.HostName, serverKey.Type, serverKey.SHA256FingerPrint, _updateKnownHostsFile);
+                    }
+
+                    return;
                 }
             }
         }
 
-        return isTrusted;
+        if (!isTrusted)
+        {
+            string message = $"The key type {serverKey.Type} SHA256:{serverKey.SHA256FingerPrint} is not trusted.";
+            throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -19,7 +20,10 @@ public sealed partial class SshClient : IDisposable
     private readonly bool _autoConnect;
     private readonly bool _autoReconnect;
     private readonly TimeSpan _connectTimeout;
-    private readonly Func<CancellationToken, ValueTask<SshClientSettings>> _getClientSettings;
+    private readonly SshClientSettings? _settings;
+    private readonly string? _destination;
+    private readonly SshConfigOptions? _sshConfigOptions;
+    private readonly SshLoggers _loggers;
     private State _state = State.Initial;
 
     enum State
@@ -34,29 +38,43 @@ public sealed partial class SshClient : IDisposable
     // For testing.
     internal bool IsDisposed => _state == State.Disposed;
 
-    public SshClient(string destination) :
-        this(destination, SshConfigOptions.DefaultConfig)
+    public SshClient(string destination, ILoggerFactory? loggerFactory = null) :
+        this(destination, SshConfigOptions.DefaultConfig, loggerFactory)
     { }
 
-    public SshClient(SshClientSettings settings)
+    public SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null) :
+        this(settings, destination: null, configOptions: null,
+             settings?.AutoConnect ?? default, settings?.AutoReconnect ?? default, settings?.ConnectTimeout ?? default,
+             loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(settings);
-
-        _getClientSettings = delegate { return ValueTask.FromResult(settings); };
-        _autoConnect = settings.AutoConnect;
-        _autoReconnect = settings.AutoReconnect;
-        _connectTimeout = settings.ConnectTimeout;
     }
 
-    public SshClient(string destination, SshConfigOptions configOptions)
+    public SshClient(string destination, SshConfigOptions sshConfigOptions, ILoggerFactory? loggerFactory = null) :
+        this(settings: null, destination, sshConfigOptions,
+             sshConfigOptions?.AutoConnect ?? default, sshConfigOptions?.AutoReconnect ?? default, sshConfigOptions?.ConnectTimeout ?? default,
+             loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        ArgumentNullException.ThrowIfNull(configOptions);
+        ArgumentNullException.ThrowIfNull(sshConfigOptions);
+    }
 
-        _getClientSettings = (CancellationToken cancellationToken) => SshClientSettings.LoadFromConfigAsync(destination, configOptions, cancellationToken);
-        _autoConnect = configOptions.AutoConnect;
-        _autoReconnect = configOptions.AutoReconnect;
-        _connectTimeout = configOptions.ConnectTimeout;
+    private SshClient(
+        SshClientSettings? settings,
+        string? destination,
+        SshConfigOptions? configOptions,
+        bool autoConnect,
+        bool autoReconnect,
+        TimeSpan connectTimeout,
+        ILoggerFactory? loggerFactory)
+    {
+        _settings = settings;
+        _destination = destination;
+        _sshConfigOptions = configOptions;
+        _autoConnect = autoConnect;
+        _autoReconnect = autoReconnect;
+        _connectTimeout = connectTimeout;
+        _loggers = new SshLoggers(loggerFactory);
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -149,7 +167,7 @@ public sealed partial class SshClient : IDisposable
         Debug.Assert(Monitor.IsEntered(_gate));
         Debug.Assert(_state == State.Connecting);
 
-        SshSession session = new SshSession(_getClientSettings, this);
+        SshSession session = new SshSession(_settings, _destination, _sshConfigOptions, this, _loggers);
         _session = session;
 
         bool success = false;

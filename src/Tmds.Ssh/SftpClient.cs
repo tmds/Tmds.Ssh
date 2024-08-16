@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -53,12 +54,12 @@ public sealed partial class SftpClient : IDisposable
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
 
-    public SftpClient(string destination, SshConfigOptions configOptions, SftpClientOptions? options = null) :
-        this(new SshClient(destination, configOptions), options, ownsClient: true)
+    public SftpClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
+        this(new SshClient(destination, configOptions, loggerFactory), options, ownsClient: true)
     { }
 
-    public SftpClient(SshClientSettings settings, SftpClientOptions? options = null) :
-        this(new SshClient(settings), options, ownsClient: true)
+    public SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
+        this(new SshClient(settings, loggerFactory), options, ownsClient: true)
     { }
 
     public SftpClient(SshClient client, SftpClientOptions? options = null) :

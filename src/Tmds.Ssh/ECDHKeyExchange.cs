@@ -3,13 +3,11 @@
 
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Numerics;
-using System.Text;
 
 namespace Tmds.Ssh;
 
@@ -47,13 +45,7 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
 
         // Verify received key is valid.
         connectionInfo.ServerKey = ecdhReply.public_host_key;
-        bool isTrusted = await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
-        if (!isTrusted)
-        {
-            string knownHostsLine = KnownHostsFile.FormatLine(connectionInfo.HostName, connectionInfo.Port, connectionInfo.ServerKey);
-            string message = $"The host '{knownHostsLine}' is not trusted.";
-            throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
-        }
+        await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
 
         var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
         if (publicHostKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < input.MinimumRSAKeySize)

@@ -1,20 +1,16 @@
-// This file is part of Tmds.Ssh which is released under MIT.
+﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
 using System;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-internal delegate Task ExchangeProtocolVersionAsyncDelegate(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken token);
-sealed class ProtocolVersionExchange
+sealed partial class SshSession
 {
-    public static readonly ExchangeProtocolVersionAsyncDelegate Default = PerformDefaultExchange;
-
-    private static async Task PerformDefaultExchange(SshConnection connection, SshConnectionInfo connectionInfo, ILogger logger, SshClientSettings settings, CancellationToken ct)
+    private async Task ProtocolVersionExchangeAsync(SshConnection connection, CancellationToken ct)
     {
         // Protocol Version Exchange: https://tools.ietf.org/html/rfc4253#section-4.2.
 
@@ -27,22 +23,22 @@ sealed class ProtocolVersionExchange
         string version = versionAttribute?.InformationalVersion ?? "0.0";
         version = version.Replace('-', '_');
         string identificationString = $"SSH-2.0-TmdsSsh_{version}";
-        connectionInfo.ClientIdentificationString = identificationString;
+        ConnectionInfo.ClientIdentificationString = identificationString;
 
         // Send our identification string.
-        logger.LogInformation("Local version string {identificationString}", identificationString);
+        Logger.LocalVersion(identificationString);
         await connection.WriteLineAsync(identificationString, ct).ConfigureAwait(false);
 
         // Receive peer identification string.
         for (int i = 0; i < MaxLineReads; i++)
         {
             string line = await connection.ReceiveLineAsync(MaxLineLength, ct).ConfigureAwait(false);
+            Logger.RemoteVersion(line);
             if (line.StartsWith("SSH-", StringComparison.Ordinal))
             {
-                connectionInfo.ServerIdentificationString = line;
+                ConnectionInfo.ServerIdentificationString = line;
                 if (line.StartsWith("SSH-2.0-", StringComparison.Ordinal))
                 {
-                    logger.LogInformation("Remote version string {identificationString}", connectionInfo.ServerIdentificationString);
                     return;
                 }
                 ThrowHelper.ThrowProtocolUnsupportedVersion(line);
