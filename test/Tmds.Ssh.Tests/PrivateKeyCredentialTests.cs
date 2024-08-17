@@ -108,6 +108,20 @@ public class PrivateKeyCredentialTests
         }, async (c) => await c.ConnectAsync());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task OpenSshEd25519Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEd25519, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
     [Fact]
     public async Task OpenSshKeyPromptNotCalledForPlaintextKey()
     {
