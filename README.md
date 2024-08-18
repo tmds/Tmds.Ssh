@@ -429,7 +429,7 @@ This section lists the currently supported algorithms. If you would like support
 
 Supported private key formats:
 - RSA in `RSA PRIVATE KEY`
-- RSA, ECDSA in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
+- RSA, ECDSA, ED25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
 
 Supported private key encryption cyphers:
 - OpenSSH Keys `OPENSSH PRIVATE KEY` (`openssh-key-v1`)

@@ -33,6 +33,8 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name EcdsaSha2Nistp384 => new Name(EcdsaSha2Nistp384Bytes);
     private static readonly byte[] EcdsaSha2Nistp521Bytes = "ecdsa-sha2-nistp521"u8.ToArray();
     public static Name EcdsaSha2Nistp521 => new Name(EcdsaSha2Nistp521Bytes);
+    private static readonly byte[] SshEd25519Bytes = "ssh-ed25519"u8.ToArray();
+    public static Name SshEd25519 => new Name(SshEd25519Bytes);
 
     // Encryption algorithms.
     private static readonly byte[] Aes128CbcBytes = "aes128-cbc"u8.ToArray();

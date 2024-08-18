@@ -108,9 +108,13 @@ partial class PrivateKeyParser
         {
             return TryParseOpenSshRsaKey(reader, out privateKey, out error);
         }
-        if (keyType.ToString().StartsWith("ecdsa-sha2-"))
+        else if (keyType.ToString().StartsWith("ecdsa-sha2-"))
         {
             return TryParseOpenSshEcdsaKey(keyType, reader, out privateKey, out error);
+        }
+        else if (keyType == AlgorithmNames.SshEd25519)
+        {
+            return TryParseOpenSshEd25519Key(reader, out privateKey, out error);
         }
         else
         {
@@ -277,6 +281,38 @@ partial class PrivateKeyParser
         {
             error = new FormatException($"The data can not be parsed into an ECDSA key.", ex);
             ecdsa.Dispose();
+            return false;
+        }
+    }
+
+    private static bool TryParseOpenSshEd25519Key(SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    {
+        privateKey = null;
+
+        // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
+        /*
+            string           ENC(A)
+            string           k || ENC(A)
+
+        The first value is the EDDSA public key ENC(A). The second value is a
+        concatenation of the private key k and the public ENC(A) key. Why it is
+        repeated, I have no idea.
+        */
+
+        try
+        {
+            ReadOnlySequence<byte> publicKey = reader.ReadStringAsBytes();
+            ReadOnlySequence<byte> keyData = reader.ReadStringAsBytes();
+
+            privateKey = new Ed25519PrivateKey(
+                keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
+                publicKey.ToArray());
+            error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = new FormatException($"The data can not be parsed into an ED25519 key.", ex);
             return false;
         }
     }

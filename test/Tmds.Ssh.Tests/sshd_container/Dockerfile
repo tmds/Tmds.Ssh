@@ -27,6 +27,7 @@ COPY user_key_rsa.pub /home/testuser/.ssh/user_key_rsa.pub
 COPY user_key_ecdsa_256.pub /home/testuser/.ssh/user_key_ecdsa_256.pub
 COPY user_key_ecdsa_384.pub /home/testuser/.ssh/user_key_ecdsa_384.pub
 COPY user_key_ecdsa_521.pub /home/testuser/.ssh/user_key_ecdsa_521.pub
+COPY user_key_ed25519.pub /home/testuser/.ssh/user_key_ed25519.pub
 RUN cat /home/testuser/.ssh/user_key_*.pub > /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
