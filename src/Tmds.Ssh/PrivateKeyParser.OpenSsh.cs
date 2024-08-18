@@ -301,10 +301,12 @@ partial class PrivateKeyParser
 
         try
         {
-            reader.SkipString();
+            ReadOnlySequence<byte> publicKey = reader.ReadStringAsBytes();
             ReadOnlySequence<byte> keyData = reader.ReadStringAsBytes();
 
-            privateKey = new Ed25519PrivateKey(keyData.ToArray());
+            privateKey = new Ed25519PrivateKey(
+                keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
+                publicKey.ToArray());
             error = null;
             return true;
         }

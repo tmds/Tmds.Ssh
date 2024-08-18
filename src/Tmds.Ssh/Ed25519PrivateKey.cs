@@ -1,7 +1,6 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System;
 using System.Buffers;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 
@@ -9,16 +8,16 @@ namespace Tmds.Ssh;
 
 sealed class Ed25519PrivateKey : PrivateKey
 {
-    private const int _privateKeySize = 32;
-
     // Contains the private and public key as one block of bytes from the
     // serialized OpenSSH key data.
-    private readonly byte[] _keyData;
+    private readonly byte[] _privateKey;
+    private readonly byte[] _publicKey;
 
-    public Ed25519PrivateKey(byte[] keyData) :
+    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey) :
         base([AlgorithmNames.SshEd25519])
     {
-        _keyData = keyData;
+        _privateKey = privateKey;
+        _publicKey = publicKey;
     }
 
     public override void Dispose()
@@ -29,7 +28,7 @@ sealed class Ed25519PrivateKey : PrivateKey
         using var innerData = writer.SequencePool.RentSequence();
         var innerWriter = new SequenceWriter(innerData);
         innerWriter.WriteString(Algorithms[0]);
-        innerWriter.WriteString(_keyData.AsSpan(_privateKeySize));
+        innerWriter.WriteString(_publicKey);
 
         writer.WriteString(innerData.AsReadOnlySequence());
     }
@@ -44,12 +43,10 @@ sealed class Ed25519PrivateKey : PrivateKey
 
         byte[] signature = new byte[Ed25519.SignatureSize];
         Ed25519.Sign(
-            // private key
-            _keyData,
+            _privateKey,
             0,
-            // public key
-            _keyData,
-            _privateKeySize,
+            _publicKey,
+            0,
             data.ToArray(),
             0,
             (int)data.Length,
