@@ -190,6 +190,15 @@ sealed partial class SshChannel : ISshChannel
             int sendWindow = Volatile.Read(ref _sendWindow);
             if (sendWindow > 0)
             {
+                // We need to check the cancellation token in case we send a huge amount of data
+                // and the peer can keep up (and the send window never becomes zero).
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Cancel();
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
                 int toSend = Math.Min(sendWindow, memory.Length);
                 toSend = Math.Min(toSend, SendMaxPacket);
                 if (Interlocked.CompareExchange(ref _sendWindow, sendWindow - toSend, sendWindow) == sendWindow)
@@ -213,8 +222,7 @@ sealed partial class SshChannel : ISshChannel
                 {
                     Cancel();
 
-                    cancellationToken.ThrowIfCancellationRequested();
-                    throw CreateCloseException();
+                    throw;
                 }
             }
         }

@@ -38,7 +38,7 @@ partial class SshClientSettings
     private readonly static List<Name> EmptyList = [];
     internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [ AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 ];
     internal readonly static List<Name> SupportedServerHostKeyAlgorithms = [ AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
-    internal readonly static List<Name> SupportedEncryptionAlgorithms = [ AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm ];
+    internal readonly static List<Name> SupportedEncryptionAlgorithms = [ AlgorithmNames.ChaCha20Poly1305, AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm ];
     internal readonly static List<Name> SupportedPublicKeyAcceptedAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedMacAlgorithms = EmptyList;
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];

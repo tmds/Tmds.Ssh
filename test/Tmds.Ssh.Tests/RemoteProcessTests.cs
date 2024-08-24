@@ -223,8 +223,11 @@ public class RemoteProcess
         {
             cts.Cancel();
         }
-        var task = Assert.ThrowsAsync<OperationCanceledException>(() =>
-            process.WriteAsync(writeBuffer, cts.Token).AsTask());
+        var task = Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await Task.Yield(); // make sure we reach '!preNotPost'
+            await process.WriteAsync(writeBuffer, cts.Token);
+        });
         if (!preNotPost)
         {
             cts.Cancel();
