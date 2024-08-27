@@ -458,6 +458,7 @@ Supported key exchange methods:
 Supported encryption algorithms:
 - aes256-gcm@openssh.com
 - aes128-gcm@openssh.com
+- chacha20-poly1305@openssh.com
 
 Supported message authentication code algorithms:
 - none

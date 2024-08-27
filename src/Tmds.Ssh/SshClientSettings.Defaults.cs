@@ -3,7 +3,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using static System.Environment;
 
 namespace Tmds.Ssh;
@@ -38,7 +40,7 @@ partial class SshClientSettings
     private readonly static List<Name> EmptyList = [];
     internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [ AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 ];
     internal readonly static List<Name> SupportedServerHostKeyAlgorithms = [ AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
-    internal readonly static List<Name> SupportedEncryptionAlgorithms = [ AlgorithmNames.Aes256Gcm, AlgorithmNames.Aes128Gcm ];
+    internal readonly static List<Name> SupportedEncryptionAlgorithms = CreatePreferredEncryptionAlgorithms();
     internal readonly static List<Name> SupportedPublicKeyAcceptedAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedMacAlgorithms = EmptyList;
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];
@@ -61,6 +63,43 @@ partial class SshClientSettings
         }
         credentials.Add(new KerberosCredential());
         return credentials.AsReadOnly();
+    }
+
+    private static List<Name> CreatePreferredEncryptionAlgorithms()
+    {
+        // The preferred encryption algorithms must only include algorithms that are considered secure.
+        // We make an attempt to order them fastest to slowest.
+
+        // Prefer AesGcm over ChaCha20Poly when the platform has AES instructions.
+        bool addAesGcm = AesGcm.IsSupported;
+        bool hasAesInstructions = System.Runtime.Intrinsics.X86.Aes.X64.IsSupported ||
+                                  System.Runtime.Intrinsics.X86.Aes.IsSupported ||
+                                  System.Runtime.Intrinsics.Arm.Aes.IsSupported ||
+                                  System.Runtime.Intrinsics.Arm.Aes.Arm64.IsSupported;
+
+        List<Name> algorithms = new List<Name>();
+
+        if (addAesGcm && hasAesInstructions)
+        {
+            AddAesGcmAlgorithms(algorithms);
+            addAesGcm = false;
+        }
+
+        algorithms.Add(AlgorithmNames.ChaCha20Poly1305);
+
+        if (addAesGcm)
+        {
+            Debug.Assert(!hasAesInstructions);
+            AddAesGcmAlgorithms(algorithms);
+        }
+
+        return algorithms;
+
+        static void AddAesGcmAlgorithms(List<Name> algorithms)
+        {
+            algorithms.Add(AlgorithmNames.Aes256Gcm);
+            algorithms.Add(AlgorithmNames.Aes128Gcm);
+        }
     }
 
     private static IReadOnlyList<string> CreateDefaultGlobalKnownHostsFilePaths()
