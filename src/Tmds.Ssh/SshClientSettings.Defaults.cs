@@ -67,12 +67,15 @@ partial class SshClientSettings
 
     private static List<Name> CreatePreferredEncryptionAlgorithms()
     {
+        // The preferred encryption algorithms must only include algorithms that are considered secure.
+        // We make an attempt to order them fastest to slowest.
+
         // Prefer AesGcm over ChaCha20Poly when the platform has AES instructions.
         bool addAesGcm = AesGcm.IsSupported;
-        bool hasAesInstructions =  System.Runtime.Intrinsics.X86.Aes.X64.IsSupported ||
-                                    System.Runtime.Intrinsics.X86.Aes.IsSupported ||
-                                    System.Runtime.Intrinsics.Arm.Aes.IsSupported ||
-                                    System.Runtime.Intrinsics.Arm.Aes.Arm64.IsSupported;
+        bool hasAesInstructions = System.Runtime.Intrinsics.X86.Aes.X64.IsSupported ||
+                                  System.Runtime.Intrinsics.X86.Aes.IsSupported ||
+                                  System.Runtime.Intrinsics.Arm.Aes.IsSupported ||
+                                  System.Runtime.Intrinsics.Arm.Aes.Arm64.IsSupported;
 
         List<Name> algorithms = new List<Name>();
 
