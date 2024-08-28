@@ -398,7 +398,7 @@ sealed partial class SshSession
                     // The send loop waits for us to signal kex completion.
                     try
                     {
-                        await PerformKeyExchangeAsync(context, packet, clientKexInitMsg, abortToken).ConfigureAwait(false);
+                        await PerformKeyExchangeAsync(context, serverKexInitMsg: packet, clientKexInitMsg, abortToken).ConfigureAwait(false);
                     }
                     finally
                     {
@@ -419,7 +419,7 @@ sealed partial class SshSession
 
     internal void HandleNonKexPacket(MessageId msgId, Packet _p)
     {
-        using Packet packet = _p; // own the dispose.
+        using Packet packet = _p; // Ensure dispose
 
         // Connection Protocol: https://tools.ietf.org/html/rfc4254.
         switch (msgId)

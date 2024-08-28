@@ -22,8 +22,15 @@ sealed class KeyExchangeContext
 
     public SequencePool SequencePool => _connection.SequencePool;
 
-    public ValueTask<Packet> ReceivePacketAsync(CancellationToken ct)
-        => _connection.ReceivePacketAsync(ct);
+    public async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct)
+    {
+        var packet = await _connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+        if (packet.IsEmpty)
+        {
+            ThrowHelper.ThrowProtocolUnexpectedPeerClose();
+        }
+        return packet;
+    }
 
     public async ValueTask<Packet> ReceivePacketAsync(MessageId expected, CancellationToken ct)
     {

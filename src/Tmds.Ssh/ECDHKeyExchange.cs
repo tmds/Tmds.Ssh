@@ -35,8 +35,8 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
         await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
-        using Packet exchangeInitMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParceEcdhReply(exchangeInitMsg);
+        using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
+        var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
         connectionInfo.ServerKey = ecdhReply.public_host_key;
