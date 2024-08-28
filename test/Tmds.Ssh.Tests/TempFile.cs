@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace Tmds.Ssh.Tests;
 
 struct TempFile : IDisposable

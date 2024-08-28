@@ -1,13 +1,8 @@
-using System;
 using Xunit;
-
-using System.Threading.Tasks;
 using System.Net;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using Tmds.Utils;
-using System.Collections.Generic;
 
 namespace Tmds.Ssh.Tests;
 

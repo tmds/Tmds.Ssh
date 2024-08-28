@@ -1,5 +1,3 @@
-using System;
-
 namespace Tmds.Ssh;
 
 static class PatternMatcher
