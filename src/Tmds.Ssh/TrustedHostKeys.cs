@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Tmds.Ssh;
 
 sealed class TrustedHostKeys

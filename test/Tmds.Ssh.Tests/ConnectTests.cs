@@ -1,11 +1,6 @@
-using System;
 using Xunit;
-
-using System.Threading;
-using System.Threading.Tasks;
 using System.Net;
 using System.Net.Sockets;
-using System.IO;
 
 namespace Tmds.Ssh.Tests;
 

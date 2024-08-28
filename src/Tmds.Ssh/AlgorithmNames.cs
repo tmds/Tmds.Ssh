@@ -1,8 +1,6 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Collections.Immutable;
-
 namespace Tmds.Ssh;
 
 static class AlgorithmNames // TODO: rename to KnownNames

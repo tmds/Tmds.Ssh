@@ -1,11 +1,8 @@
-using System;
-using System.Buffers;
-using System.Diagnostics;
 using System.Net.Security;
+#if NET8_0
+using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Primitives;
+#endif
 
 namespace Tmds.Ssh;
 
