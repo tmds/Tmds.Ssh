@@ -5,18 +5,18 @@ using System.Buffers.Binary;
 
 namespace Tmds.Ssh;
 
-sealed class TransformAndHMacPacketEncoder : IPacketEncoder
+sealed class TransformAndHMacPacketEncryptor : IPacketEncryptor
 {
     private readonly IDisposableCryptoTransform _transform;
     private readonly IHMac _mac;
 
-    public TransformAndHMacPacketEncoder(IDisposableCryptoTransform transform, IHMac mac)
+    public TransformAndHMacPacketEncryptor(IDisposableCryptoTransform transform, IHMac mac)
     {
         _transform = transform;
         _mac = mac;
     }
 
-    public void Encode(uint sequenceNumber, Packet packet, Sequence buffer)
+    public void Encrypt(uint sequenceNumber, Packet packet, Sequence buffer)
     {
         using var pkt = packet.Move(); // Dispose the packet.
 
@@ -38,7 +38,7 @@ sealed class TransformAndHMacPacketEncoder : IPacketEncoder
         uint minSize = (uint)Math.Max(16U, _transform.BlockSize);
 
         uint payload_length = (uint)pkt.PayloadLength;
-        byte padding_length = IPacketEncoder.DeterminePaddingLength(payload_length + 4 + 1, multipleOf);
+        byte padding_length = IPacketEncryptor.DeterminePaddingLength(payload_length + 4 + 1, multipleOf);
         uint packet_length = payload_length + 1 + padding_length;
         while (packet_length < minSize)
         {
@@ -51,7 +51,7 @@ sealed class TransformAndHMacPacketEncoder : IPacketEncoder
 
         var unencrypted_packet = pkt.AsReadOnlySequence();
 
-        // Encode
+        // Encrypt
         _transform.Transform(unencrypted_packet, buffer);
 
         // Mac

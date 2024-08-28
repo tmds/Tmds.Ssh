@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-sealed class AesGcmPacketDecoder : IPacketDecoder
+sealed class AesGcmPacketDecryptor : IPacketDecryptor
 {
     private const int AesBlockSize = 16;
 
@@ -16,7 +16,7 @@ sealed class AesGcmPacketDecoder : IPacketDecoder
     private readonly SequencePool _sequencePool;
     private readonly int _tagLength;
 
-    public AesGcmPacketDecoder(SequencePool sequencePool, byte[] key, byte[] iv, int tagLength)
+    public AesGcmPacketDecryptor(SequencePool sequencePool, byte[] key, byte[] iv, int tagLength)
     {
         _iv = iv;
         _tagLength = tagLength;
@@ -29,7 +29,7 @@ sealed class AesGcmPacketDecoder : IPacketDecoder
         _aesGcm.Dispose();
     }
 
-    public bool TryDecodePacket(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
+    public bool TryDecrypt(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
     {
         packet = new Packet(null);
 

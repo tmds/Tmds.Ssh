@@ -77,8 +77,8 @@ sealed class KeyExchangeContext
     public ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         => _connection.SendPacketAsync(packet, ct);
 
-    public void SetEncoderDecoder(IPacketEncoder packetEncoder, IPacketDecoder packetDecoder)
-        => _connection.SetEncoderDecoder(packetEncoder, packetDecoder);
+    public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor)
+        => _connection.SetEncryptorDecryptor(encryptor, decryptor);
 
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
