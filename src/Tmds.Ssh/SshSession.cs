@@ -191,7 +191,7 @@ sealed partial class SshSession
             // Setup ssh connection
             await ProtocolVersionExchangeAsync(connection, connectCts.Token).ConfigureAwait(false);
 
-            KeyExchangeContext context = CreateKeyExchangeContext();
+            KeyExchangeContext context = CreateKeyExchangeContext(connection);
 
             using Packet localExchangeInitMsg = CreateKeyExchangeInitMessage(context);
             await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCts.Token).ConfigureAwait(false);
@@ -201,7 +201,7 @@ sealed partial class SshSession
                 {
                     ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                 }
-                await PerformKeyExchangeAsync(connection, context, remoteExchangeInitMsg, localExchangeInitMsg, connectCts.Token).ConfigureAwait(false);
+                await PerformKeyExchangeAsync(context, remoteExchangeInitMsg, localExchangeInitMsg, connectCts.Token).ConfigureAwait(false);
             }
 
             await AuthenticateAsync(connection, connectCts.Token).ConfigureAwait(false);
@@ -378,81 +378,90 @@ sealed partial class SshSession
 
                 MessageId msgId = packet.MessageId!.Value;
 
-                // Connection Protocol: https://tools.ietf.org/html/rfc4254.
-                switch (msgId)
+                if (msgId == MessageId.SSH_MSG_KEXINIT)
                 {
-                    case MessageId.SSH_MSG_KEXINIT:
-                        // Key Re-Exchange: https://tools.ietf.org/html/rfc4253#section-9.
-                        // The peer requested a key exchange. We queue a SSH_MSG_KEXINIT and when the send loop detects it
-                        // it will stop sending other packets until we release the key exchange semaphore to signal the key exchange is completed.
-                        {
-                            KeyExchangeContext context = CreateKeyExchangeContext();
-                            using Packet clientKexInitMsg = CreateKeyExchangeInitMessage(context);
+                    // Key Re-Exchange: https://tools.ietf.org/html/rfc4253#section-9.
+                    // The peer requested a key exchange. We queue a SSH_MSG_KEXINIT and when the send loop detects it
+                    // it will stop sending other packets until we release the key exchange semaphore to signal the key exchange is completed.
+                    KeyExchangeContext context = CreateKeyExchangeContext(connection, isInitialKex: false);
+                    using Packet clientKexInitMsg = CreateKeyExchangeInitMessage(context);
 
-                            // Assign _keyReExchangeSemaphore before sending packet through the send queue.
-                            var kexInitSent = _keyReExchangeSemaphore = new SemaphoreSlim(0, 1);
-                            // Wait for the send loop to send the packet.
-                            TrySendPacket(clientKexInitMsg.Clone());
-                            await kexInitSent.WaitAsync(abortToken).ConfigureAwait(false);
+                    // Assign _keyReExchangeSemaphore before sending packet through the send queue.
+                    var kexInitSent = _keyReExchangeSemaphore = new SemaphoreSlim(0, 1);
+                    // Wait for the send loop to send the packet.
+                    TrySendPacket(clientKexInitMsg.Clone());
+                    await kexInitSent.WaitAsync(abortToken).ConfigureAwait(false);
 
-                            // Send loop has re-assigned _keyReExchangeSemaphore for us to signal kex completion.
-                            var kexComplete = _keyReExchangeSemaphore;
-                            _keyReExchangeSemaphore = null;
-                            // The send loop waits for us to signal kex completion.
-                            try
-                            {
-                                await PerformKeyExchangeAsync(connection, context, packet, clientKexInitMsg, abortToken).ConfigureAwait(false);
-                            }
-                            finally
-                            {
-                                kexComplete.Release();
-                            }
-                        }
-                        break;
-                    case MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
-                    case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
-                    case MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST:
-                    case MessageId.SSH_MSG_CHANNEL_DATA:
-                    case MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA:
-                    case MessageId.SSH_MSG_CHANNEL_EOF:
-                    case MessageId.SSH_MSG_CHANNEL_CLOSE:
-                    case MessageId.SSH_MSG_CHANNEL_REQUEST:
-                    case MessageId.SSH_MSG_CHANNEL_SUCCESS:
-                    case MessageId.SSH_MSG_CHANNEL_FAILURE:
-                        uint channelNumber = GetChannelNumber(packet);
-                        SshChannel channel;
-                        lock (_gate)
-                        {
-                            channel = _channels[channelNumber];
-                        }
-                        channel.QueueReceivedPacket(packet.Move());
-                        if (msgId is MessageId.SSH_MSG_CHANNEL_CLOSE or
-                                     MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE)
-                        {
-                            lock (_gate)
-                            {
-                                FreeChannel(channelNumber);
-                                _channels.Remove(channelNumber);
-                            }
-                        }
-                        break;
-                    case MessageId.SSH_MSG_GLOBAL_REQUEST:
-                        TrySendPacket(_sequencePool.CreateRequestFailureMessage());
-                        break;
-                    case MessageId.SSH_MSG_DEBUG:
-                        break;
-                    case MessageId.SSH_MSG_DISCONNECT:
-                        HandleDisconnectMessage(packet);
-                        break;
-                    default:
-                        ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
-                        break;
+                    // Send loop has re-assigned _keyReExchangeSemaphore for us to signal kex completion.
+                    var kexComplete = _keyReExchangeSemaphore;
+                    _keyReExchangeSemaphore = null;
+                    // The send loop waits for us to signal kex completion.
+                    try
+                    {
+                        await PerformKeyExchangeAsync(context, serverKexInitMsg: packet, clientKexInitMsg, abortToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        kexComplete.Release();
+                    }
+                }
+                else
+                {
+                    HandleNonKexPacket(msgId, packet.Move());
                 }
             }
         }
         catch (Exception ex)
         {
             Abort(ex);
+        }
+    }
+
+    internal void HandleNonKexPacket(MessageId msgId, Packet _p)
+    {
+        using Packet packet = _p; // Ensure dispose
+
+        // Connection Protocol: https://tools.ietf.org/html/rfc4254.
+        switch (msgId)
+        {
+            case MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
+            case MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE:
+            case MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST:
+            case MessageId.SSH_MSG_CHANNEL_DATA:
+            case MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA:
+            case MessageId.SSH_MSG_CHANNEL_EOF:
+            case MessageId.SSH_MSG_CHANNEL_CLOSE:
+            case MessageId.SSH_MSG_CHANNEL_REQUEST:
+            case MessageId.SSH_MSG_CHANNEL_SUCCESS:
+            case MessageId.SSH_MSG_CHANNEL_FAILURE:
+                uint channelNumber = GetChannelNumber(packet);
+                SshChannel channel;
+                lock (_gate)
+                {
+                    channel = _channels[channelNumber];
+                }
+                channel.QueueReceivedPacket(packet.Move());
+                if (msgId is MessageId.SSH_MSG_CHANNEL_CLOSE or
+                                MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE)
+                {
+                    lock (_gate)
+                    {
+                        FreeChannel(channelNumber);
+                        _channels.Remove(channelNumber);
+                    }
+                }
+                break;
+            case MessageId.SSH_MSG_GLOBAL_REQUEST:
+                TrySendPacket(_sequencePool.CreateRequestFailureMessage());
+                break;
+            case MessageId.SSH_MSG_DEBUG:
+                break;
+            case MessageId.SSH_MSG_DISCONNECT:
+                HandleDisconnectMessage(packet);
+                break;
+            default:
+                ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
+                break;
         }
 
         static uint GetChannelNumber(ReadOnlyPacket packet)
