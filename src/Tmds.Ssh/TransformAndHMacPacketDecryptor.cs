@@ -6,7 +6,7 @@ using System.Buffers.Binary;
 
 namespace Tmds.Ssh;
 
-sealed class TransformAndHMacPacketDecoder : IPacketDecoder
+sealed class TransformAndHMacPacketDecryptor : IPacketDecryptor
 {
     private readonly IDisposableCryptoTransform _transform;
     private readonly IHMac _mac;
@@ -14,7 +14,7 @@ sealed class TransformAndHMacPacketDecoder : IPacketDecoder
     private readonly SequencePool _sequencePool;
     private Sequence? _decodedPacket;
 
-    public TransformAndHMacPacketDecoder(SequencePool sequencePool, IDisposableCryptoTransform transform, IHMac mac)
+    public TransformAndHMacPacketDecryptor(SequencePool sequencePool, IDisposableCryptoTransform transform, IHMac mac)
     {
         _transform = transform;
         _mac = mac;
@@ -22,7 +22,7 @@ sealed class TransformAndHMacPacketDecoder : IPacketDecoder
         _sequencePool = sequencePool;
     }
 
-    public bool TryDecodePacket(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
+    public bool TryDecrypt(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
     {
         // Binary Packet Protocol: https://tools.ietf.org/html/rfc4253#section-6.
         /*

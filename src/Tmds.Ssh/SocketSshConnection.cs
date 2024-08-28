@@ -18,8 +18,8 @@ sealed class SocketSshConnection : SshConnection
     private readonly Socket _socket;
     private readonly Sequence _receiveBuffer;
     private readonly Sequence _sendBuffer;
-    private IPacketDecoder _decoder;
-    private IPacketEncoder _encoder;
+    private IPacketDecryptor _decryptor;
+    private IPacketEncryptor _encryptor;
     private uint _sendSequenceNumber;
     private uint _receiveSequenceNumber;
 
@@ -30,8 +30,8 @@ sealed class SocketSshConnection : SshConnection
         _socket = socket;
         _receiveBuffer = sequencePool.RentSequence();
         _sendBuffer = sequencePool.RentSequence();
-        _decoder = new TransformAndHMacPacketDecoder(SequencePool, EncryptionCryptoTransform.None, HMac.None);
-        _encoder = new TransformAndHMacPacketEncoder(EncryptionCryptoTransform.None, HMac.None);
+        _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, EncryptionCryptoTransform.None, HMac.None);
+        _encryptor = new TransformAndHMacPacketEncryptor(EncryptionCryptoTransform.None, HMac.None);
     }
 
     public override async ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct)
@@ -100,7 +100,7 @@ sealed class SocketSshConnection : SshConnection
     {
         while (true)
         {
-            if (_decoder.TryDecodePacket(_receiveBuffer, _receiveSequenceNumber, maxLength, out Packet packet))
+            if (_decryptor.TryDecrypt(_receiveBuffer, _receiveSequenceNumber, maxLength, out Packet packet))
             {
                 _receiveSequenceNumber++;
 
@@ -128,16 +128,16 @@ sealed class SocketSshConnection : SshConnection
     {
         _logger.PacketSend(packet);
 
-        _encoder.Encode(_sendSequenceNumber, packet.Move(), _sendBuffer);
-        var encodedData = _sendBuffer.AsReadOnlySequence();
+        _encryptor.Encrypt(_sendSequenceNumber, packet.Move(), _sendBuffer);
+        var encryptedData = _sendBuffer.AsReadOnlySequence();
 
-        if (encodedData.IsSingleSegment)
+        if (encryptedData.IsSingleSegment)
         {
-            await _socket.SendAsync(encodedData.First, SocketFlags.None, ct).ConfigureAwait(false);
+            await _socket.SendAsync(encryptedData.First, SocketFlags.None, ct).ConfigureAwait(false);
         }
         else
         {
-            foreach (var memory in encodedData)
+            foreach (var memory in encryptedData)
             {
                 await _socket.SendAsync(memory, SocketFlags.None, ct).ConfigureAwait(false);
             }
@@ -153,20 +153,20 @@ sealed class SocketSshConnection : SshConnection
         await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct).ConfigureAwait(false);
     }
 
-    public override void SetEncoderDecoder(IPacketEncoder packetEncoder, IPacketDecoder packetDecoder)
+    public override void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder)
     {
-        _encoder?.Dispose();
-        _decoder?.Dispose();
-        _encoder = packetEncoder;
-        _decoder = packetDecoder;
+        _encryptor?.Dispose();
+        _decryptor?.Dispose();
+        _encryptor = packetEncoder;
+        _decryptor = packetDecoder;
     }
 
     public override void Dispose()
     {
         _receiveBuffer.Dispose();
         _sendBuffer.Dispose();
-        _encoder.Dispose();
-        _decoder.Dispose();
+        _encryptor.Dispose();
+        _decryptor.Dispose();
         _socket.Dispose();
     }
 }

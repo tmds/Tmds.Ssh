@@ -34,8 +34,8 @@ sealed partial class SshSession
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "No common compression algorithm.", ConnectionInfo);
         }
 
-        EncryptionAlgorithm encC2SAlg = EncryptionAlgorithm.Find(encC2S);
-        EncryptionAlgorithm encS2CAlg = EncryptionAlgorithm.Find(encS2C);
+        var encC2SAlg = PacketEncryptionAlgorithm.Find(encC2S);
+        var encS2CAlg = PacketEncryptionAlgorithm.Find(encS2C);
 
         if ((!encC2SAlg.IsAuthenticated && macC2S.IsEmpty) ||
             (!encS2CAlg.IsAuthenticated && macS2C.IsEmpty))
@@ -107,11 +107,6 @@ sealed partial class SshSession
                 }
             }
 
-            encC2SAlg = EncryptionAlgorithm.Find(encC2S);
-            hmacC2SAlg = encC2SAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macC2S);
-            encS2CAlg = EncryptionAlgorithm.Find(encS2C);
-            hmacS2CAlg = encS2CAlg.IsAuthenticated ? null : HMacAlgorithm.Find(macS2C);
-
             Logger.KexAlgorithms(kexAlgorithms, hostKeyAlgorithms,
                 encC2S, encS2C, macC2S, macS2C, comC2S, comS2C);
 
@@ -155,10 +150,10 @@ sealed partial class SshSession
         using Packet newKeysReceivedMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_NEWKEYS, ct).ConfigureAwait(false);
         ParseNewKeysMessage(newKeysReceivedMsg);
 
-        IPacketEncoder packetEncoder = encC2SAlg.CreatePacketEncoder(keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S, hmacC2SAlg, keyExchangeOutput.IntegrityKeyC2S);
-        IPacketDecoder packetDecoder = encS2CAlg.CreatePacketDecoder(sequencePool, keyExchangeOutput.EncryptionKeyS2C, keyExchangeOutput.InitialIVS2C, hmacS2CAlg, keyExchangeOutput.IntegrityKeyS2C);
+        IPacketEncryptor encryptor = encC2SAlg.CreatePacketEncryptor(keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S, hmacC2SAlg, keyExchangeOutput.IntegrityKeyC2S);
+        IPacketDecryptor decryptor = encS2CAlg.CreatePacketDecryptor(sequencePool, keyExchangeOutput.EncryptionKeyS2C, keyExchangeOutput.InitialIVS2C, hmacS2CAlg, keyExchangeOutput.IntegrityKeyS2C);
 
-        context.SetEncoderDecoder(packetEncoder, packetDecoder);
+        context.SetEncryptorDecryptor(encryptor, decryptor);
 
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {

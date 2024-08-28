@@ -6,16 +6,16 @@ using System.Buffers;
 namespace Tmds.Ssh;
 
 // https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.chacha20poly1305?annotate=HEAD
-sealed class ChaCha20Poly1305PacketEncoder : ChaCha20Poly1305PacketEncDecBase, IPacketEncoder
+sealed class ChaCha20Poly1305PacketEncryptor : ChaCha20Poly1305PacketEncDecBase, IPacketEncryptor
 {
-    public ChaCha20Poly1305PacketEncoder(byte[] key) :
+    public ChaCha20Poly1305PacketEncryptor(byte[] key) :
         base(key)
     { }
 
     public void Dispose()
     { }
 
-    public void Encode(uint sequenceNumber, Packet packet, Sequence output)
+    public void Encrypt(uint sequenceNumber, Packet packet, Sequence output)
     {
         using var pkt = packet.Move(); // Dispose the packet.
 
@@ -27,7 +27,7 @@ sealed class ChaCha20Poly1305PacketEncoder : ChaCha20Poly1305PacketEncDecBase, I
         //     byte      padding_length; // 4 <= padding_length < 256
         //     byte[n1]  payload;        // n1 = packet_length-padding_length-1
         //     byte[n2]  random_padding; // n2 = padding_length
-        byte padding_length = IPacketEncoder.DeterminePaddingLength(payload_length + 1, multipleOf: PaddTo);
+        byte padding_length = IPacketEncryptor.DeterminePaddingLength(payload_length + 1, multipleOf: PaddTo);
         pkt.WriteHeaderAndPadding(padding_length);
 
         var unencrypted_packet = pkt.AsReadOnlySequence();

@@ -3,9 +3,9 @@
 
 namespace Tmds.Ssh;
 
-interface IPacketEncoder : IDisposable
+interface IPacketEncryptor : IDisposable
 {
-    public void Encode(uint sequenceNumber, Packet packet, Sequence buffer);
+    public void Encrypt(uint sequenceNumber, Packet packet, Sequence buffer);
 
     protected static byte DeterminePaddingLength(uint length, uint multipleOf)
     {

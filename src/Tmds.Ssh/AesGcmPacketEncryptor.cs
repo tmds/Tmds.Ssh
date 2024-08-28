@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-sealed class AesGcmPacketEncoder : IPacketEncoder
+sealed class AesGcmPacketEncryptor : IPacketEncryptor
 {
     private const int AesBlockSize = 16;
 
@@ -15,7 +15,7 @@ sealed class AesGcmPacketEncoder : IPacketEncoder
     private readonly byte[] _iv;
     private readonly int _tagLength;
 
-    public AesGcmPacketEncoder(byte[] key, byte[] iv, int tagLength)
+    public AesGcmPacketEncryptor(byte[] key, byte[] iv, int tagLength)
     {
         _iv = iv;
         _tagLength = tagLength;
@@ -27,7 +27,7 @@ sealed class AesGcmPacketEncoder : IPacketEncoder
         _aesGcm.Dispose();
     }
 
-    public void Encode(uint sequenceNumber, Packet packet, Sequence output)
+    public void Encrypt(uint sequenceNumber, Packet packet, Sequence output)
     {
         using var pkt = packet.Move(); // Dispose the packet.
 
@@ -37,7 +37,7 @@ sealed class AesGcmPacketEncoder : IPacketEncoder
         //     byte      padding_length; // 4 <= padding_length < 256
         //     byte[n1]  payload;        // n1 = packet_length-padding_length-1
         //     byte[n2]  random_padding; // n2 = padding_length
-        byte padding_length = IPacketEncoder.DeterminePaddingLength(payload_length + 1, multipleOf: AesBlockSize);
+        byte padding_length = IPacketEncryptor.DeterminePaddingLength(payload_length + 1, multipleOf: AesBlockSize);
         pkt.WriteHeaderAndPadding(padding_length);
 
         var unencrypted_packet = pkt.AsReadOnlySequence();
