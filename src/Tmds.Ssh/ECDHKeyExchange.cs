@@ -23,24 +23,19 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
         _hashAlgorithmName = hashAlgorithmName;
     }
 
-    public async Task<KeyExchangeOutput> TryExchangeAsync(SshConnection connection, IHostKeyVerification hostKeyVerification, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    public async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
-        var sequencePool = connection.SequencePool;
+        var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
         using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
 
         // Send ECDH_INIT.
         using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
         ECPoint q_c = myPublicKey.ExportParameters().Q;
-        await connection.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
+        await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
-        ReadOnlyPacket exchangeInitMsg = input.ExchangeInitMsg;
-        using Packet exchangeInitMsgDispose = exchangeInitMsg.IsEmpty ? await connection.ReceivePacketAsync(ct).ConfigureAwait(false) : default(Packet);
-        if (!exchangeInitMsgDispose.IsEmpty)
-        {
-            exchangeInitMsg = exchangeInitMsgDispose;
-        }
+        using Packet exchangeInitMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
         var ecdhReply = ParceEcdhReply(exchangeInitMsg);
 
         // Verify received key is valid.

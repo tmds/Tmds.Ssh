@@ -44,6 +44,11 @@ sealed class UserAuthContext
         while (true)
         {
             var packet = await _connection.ReceivePacketAsync(ct, maxLength);
+            if (packet.IsEmpty)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedPeerClose();
+            }
+
             MessageId messageId = packet.MessageId!.Value;
 
             if (messageId == MessageId.SSH_MSG_USERAUTH_BANNER)

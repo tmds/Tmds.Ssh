@@ -12,11 +12,12 @@ namespace Tmds.Ssh;
 
 sealed partial class SshSession
 {
-    private async Task PerformKeyExchangeAsync(SshConnection connection, KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, CancellationToken ct)
+    private async Task PerformKeyExchangeAsync(KeyExchangeContext context, ReadOnlyPacket serverKexInitMsg, ReadOnlyPacket clientKexInitMsg, CancellationToken ct)
     {
         // Key Exchange: https://tools.ietf.org/html/rfc4253#section-7.
-        SequencePool sequencePool = connection.SequencePool;
+        SequencePool sequencePool = context.SequencePool;
 
+        // This throws when serverKexInitMsg is not SSH2_MSG_KEXINIT which is required for strict kex.
         var remoteInit = ParseKeyExchangeInitMessage(serverKexInitMsg);
 
         // The chosen algorithm MUST be the first algorithm on the client's name-list
@@ -84,13 +85,13 @@ sealed partial class SshSession
         }
 
         KeyExchangeOutput? keyExchangeOutput = null;
-        Packet exchangeInitMsg = default;
+        Packet firstPacket = default;
         try
         {
             if (remoteInit.first_kex_packet_follows)
             {
                 // guess is accepted when both the kex algorithm and host key algorithm match.
-                exchangeInitMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+                firstPacket = await context.ReceivePacketAsync(ct).ConfigureAwait(false);
 
                 if (matchingKex.IsEmpty ||
                     context.ServerHostKeyAlgorithms.Count == 0 ||
@@ -98,8 +99,8 @@ sealed partial class SshSession
                     context.ServerHostKeyAlgorithms[0] != remoteInit.server_host_key_algorithms[0])
                 {
                     // Silently ignore if guessed wrong.
-                    exchangeInitMsg.Dispose();
-                    exchangeInitMsg = default;
+                    firstPacket.Dispose();
+                    firstPacket = default;
                 }
                 else
                 {
@@ -119,7 +120,7 @@ sealed partial class SshSession
             Logger.KexAlgorithms(kexAlgorithms, hostKeyAlgorithms,
                 encC2S, encS2C, macC2S, macS2C, comC2S, comS2C);
 
-            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, exchangeInitMsg, clientKexInitMsg, serverKexInitMsg, ConnectionInfo,
+            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, clientKexInitMsg, serverKexInitMsg, ConnectionInfo,
                 encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0,
                 context.MinimumRSAKeySize);
 
@@ -129,7 +130,7 @@ sealed partial class SshSession
 
                 using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                 {
-                    keyExchangeOutput = await algorithm.TryExchangeAsync(connection, context.HostKeyVerification, keyExchangeInput, Logger, ct).ConfigureAwait(false);
+                    keyExchangeOutput = await algorithm.TryExchangeAsync(context, context.HostKeyVerification, firstPacket.Move(), keyExchangeInput, Logger, ct).ConfigureAwait(false);
                 }
                 if (keyExchangeOutput != null)
                 {
@@ -149,20 +150,20 @@ sealed partial class SshSession
         }
         finally
         {
-            exchangeInitMsg.Dispose();
+            firstPacket.Dispose();
         }
 
         // Send SSH_MSG_NEWKEYS.
-        await connection.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct).ConfigureAwait(false);
+        await context.SendPacketAsync(CreateNewKeysMessage(sequencePool), ct).ConfigureAwait(false);
 
         // Receive SSH_MSG_NEWKEYS.
-        using Packet newKeysReceivedMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+        using Packet newKeysReceivedMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_NEWKEYS, ct).ConfigureAwait(false);
         ParseNewKeysMessage(newKeysReceivedMsg);
 
         IPacketEncoder packetEncoder = encC2SAlg.CreatePacketEncoder(keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S, hmacC2SAlg, keyExchangeOutput.IntegrityKeyC2S);
         IPacketDecoder packetDecoder = encS2CAlg.CreatePacketDecoder(sequencePool, keyExchangeOutput.EncryptionKeyS2C, keyExchangeOutput.InitialIVS2C, hmacS2CAlg, keyExchangeOutput.IntegrityKeyS2C);
 
-        connection.SetEncoderDecoder(packetEncoder, packetDecoder);
+        context.SetEncoderDecoder(packetEncoder, packetDecoder);
 
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {
@@ -268,7 +269,7 @@ sealed partial class SshSession
         reader.ReadEnd();
     }
 
-    private KeyExchangeContext CreateKeyExchangeContext()
+    private KeyExchangeContext CreateKeyExchangeContext(SshConnection connection, bool isInitialKex = true)
     {
         Debug.Assert(_settings is not null);
 
@@ -283,7 +284,7 @@ sealed partial class SshSession
         string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && _settings.UserKnownHostsFilePaths.Count > 0 ? _settings.UserKnownHostsFilePaths[0] : null;
         IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
 
-        return new KeyExchangeContext()
+        return new KeyExchangeContext(connection, this, isInitialKex)
         {
             KeyExchangeAlgorithms = _settings.KeyExchangeAlgorithms,
             ServerHostKeyAlgorithms = serverHostKeyAlgorithms,
