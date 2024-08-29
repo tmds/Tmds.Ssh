@@ -645,6 +645,18 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task DownloadFileThrowsWhenNotFound()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+        string destinationPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        SftpException ex = await Assert.ThrowsAsync<SftpException>(() => sftpClient.DownloadFileAsync(remotePath, destinationPath).AsTask());
+        Assert.Equal(SftpError.NoSuchFile, ex.Error);
+    }
+
+    [Fact]
     public async Task ReadCreateLink()
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();

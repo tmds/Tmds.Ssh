@@ -363,7 +363,7 @@ public sealed partial class SftpClient : IDisposable
     public async ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        await channel.DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, cancellationToken);
+        await channel.DownloadFileAsync(remoteFilePath, localFilePath, overwrite, cancellationToken);
     }
 
     private ObjectDisposedException NewObjectDisposedException()

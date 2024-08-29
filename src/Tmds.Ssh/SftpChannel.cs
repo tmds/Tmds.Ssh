@@ -694,7 +694,7 @@ sealed partial class SftpChannel : IDisposable
                         break;
                     case UnixFileType.RegularFile:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, item.Permissions, cancellationToken));
+                        onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
                         break;
                     case UnixFileType.SymbolicLink:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
@@ -794,22 +794,31 @@ sealed partial class SftpChannel : IDisposable
         File.CreateSymbolicLink(localPath, targetPath);
     }
 
-    public async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
+    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
+        => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
+
+    private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
     {
+        // Call GetAttributesAsync in parallel with OpenFileAsync.
+        // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
         ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(remotePath, followLinks: true) : default;
 
         using SftpFile? remoteFile = await OpenFileAsync(remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
         if (remoteFile is null)
         {
+            if (throwIfNotFound)
+            {
+                throw new SftpException(SftpError.NoSuchFile);
+            }
             return;
         }
 
         if (length == null || permissions == null)
         {
             FileEntryAttributes? attributes = await getAttributes.ConfigureAwait(false);
-            if (attributes is null)
+            if (attributes is null) // unlikely
             {
-                throw new SftpException(SftpError.NoSuchFile);
+                attributes = await remoteFile.GetAttributesAsync(cancellationToken). ConfigureAwait(false);
             }
             length = attributes.Length;
             permissions = attributes.Permissions;
