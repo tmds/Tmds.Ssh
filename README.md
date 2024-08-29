@@ -6,9 +6,9 @@ It has an async [API](#api) and leverages the modern .NET primitives, like `Span
 
 The library supports OpenSSH file formats for private keys, known hosts and config.
 
-The library targets modern .NET (Core). It does not support .NET Framework due to missing BCL APIs to implement the SSH key exchange.
+The library is available for modern .NET (Core) versions.
 
-A curated set of secure algorithms are supported. These should enable to connect to (OpenSSH) servers on distributions/operating systems that are still in support. See [Algorithms](#algorithms).
+The supported algorithms enable securely connecting to a broad set of SSH servers. See [Algorithms](#algorithms).
 
 The library supports logging through `Microsoft.Extensions.Logging`. See [Logging](#logging).
 
@@ -27,7 +27,7 @@ Update `Program.cs`:
 using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
-using ILoggerFactory? loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 using var sshClient = new SshClient("localhost", loggerFactory);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
@@ -437,6 +437,7 @@ Supported private key encryption cyphers:
   - aes[128|256]-gcm@openssh.com
 
 Supported client key algorithms:
+- ssh-ed25519
 - ecdsa-sha2-nistp521
 - ecdsa-sha2-nistp384
 - ecdsa-sha2-nistp256
