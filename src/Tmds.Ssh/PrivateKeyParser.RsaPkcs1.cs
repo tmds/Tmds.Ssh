@@ -12,38 +12,30 @@ partial class PrivateKeyParser
     /// Parses an RSA PKCS#1 PEM formatted key. This is a legacy format used
     /// by older ssh-keygen and openssl versions for RSA based keys.
     /// </summary>
-    internal static bool TryParseRsaPkcs1PemKey(
+    internal static PrivateKey ParseRsaPkcs1PemKey(
         ReadOnlySpan<byte> keyData,
-        Dictionary<string, string> metadata,
-        [NotNullWhen(true)] out PrivateKey? privateKey,
-        [NotNullWhen(false)] out Exception? error)
+        Dictionary<string, string> metadata)
     {
-        privateKey = null;
         RSA? rsa = RSA.Create();
         try
         {
             if (metadata.TryGetValue("DEK-Info", out var dekInfo))
             {
-                error = new NotImplementedException($"PKCS#1 key decryption is not implemented.");
-                return false;
+                throw new NotImplementedException($"PKCS#1 key decryption is not implemented.");
             }
 
             rsa.ImportRSAPrivateKey(keyData, out int bytesRead);
             if (bytesRead != keyData.Length)
             {
                 rsa.Dispose();
-                error = new FormatException($"There is additional data after the RSA key.");
-                return false;
+                throw new FormatException($"There is additional data after the RSA key.");
             }
-            privateKey = new RsaPrivateKey(rsa);
-            error = null;
-            return true;
+            return new RsaPrivateKey(rsa);
         }
         catch (Exception ex)
         {
             rsa?.Dispose();
-            error = new FormatException($"The data can not be parsed into an RSA key.", ex);
-            return false;
+            throw new FormatException($"The data can not be parsed into an RSA key.", ex);
         }
     }
 }

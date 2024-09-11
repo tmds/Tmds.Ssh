@@ -394,8 +394,20 @@ abstract class Credential
 { }
 class PrivateKeyCredential : Credential
 {
-  PrivateKeyCredential(string path, string? password = null);
-  PrivateKeyCredential(string path, Func<string?> passwordPrompt);
+  PrivateKeyCredential(string path, string? password = null, string? identifier ??= path);
+  PrivateKeyCredential(string path, Func<string?> passwordPrompt, string? identifier ??= path);
+
+  PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]");
+  PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, string identifier = "[raw key]");
+
+  // Enable using private keys from other sources.
+  protected PrivateKeyCredential(Func<CancellationToken, ValueTask<Key>> loadKey, string identifier);
+  protected struct Key
+  {
+    Key(RSA rsa);
+    Key(ECDsa ecdsa);
+    Key(ReadOnlyMemory<char> rawKey, Func<string?>? passwordPrompt = null);
+  }
 }
 class PasswordCredential : Credential
 {

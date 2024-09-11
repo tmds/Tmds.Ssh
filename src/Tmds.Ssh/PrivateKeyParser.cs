@@ -7,41 +7,19 @@ namespace Tmds.Ssh;
 
 partial class PrivateKeyParser
 {
-    internal static bool TryParsePrivateKeyFile(string filename, Func<string?> passwordPrompt, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    internal static PrivateKey ParsePrivateKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
     {
-        privateKey = null;
+        ReadOnlySpan<char> contents = rawKey.Span;
 
-        ReadOnlySpan<char> keyFormat;
-        ReadOnlySpan<char> keyDataBase64;
-        // MAYDO verify file doesn't have permissions for group/other.
-        if (!File.Exists(filename))
-        {
-            error = new FileNotFoundException(filename);
-            return false;
-        }
-
-        string fileContent;
-        try
-        {
-            fileContent = File.ReadAllText(filename);
-        }
-        catch (IOException ex)
-        {
-            error = ex;
-            return false;
-        }
-
-        int formatStart = fileContent.IndexOf("-----BEGIN");
+        int formatStart = contents.IndexOf("-----BEGIN");
         if (formatStart == -1)
         {
-            error = new FormatException($"No start marker.");
-            return false;
+            throw new FormatException($"No start marker.");
         }
-        int formatStartEnd = fileContent.IndexOf('\n', formatStart);
+        int formatStartEnd = contents.Slice(formatStart).IndexOf('\n');
         if (formatStartEnd == -1)
         {
-            error = new FormatException($"No start marker.");
-            return false;
+            throw new FormatException($"No start marker.");
         }
 
         // While not part of RFC 7468, PKCS#1 RSA keys have extra metadata
@@ -52,11 +30,10 @@ partial class PrivateKeyParser
         Dictionary<string, string> metadata = new Dictionary<string, string>();
         while (true)
         {
-            int nextNewline = fileContent.IndexOf('\n', keyStart);
+            int nextNewline = contents.Slice(keyStart).IndexOf('\n');
             if (nextNewline == -1)
             {
-                error = new FormatException($"No end marker.");
-                return false;
+                throw new FormatException($"No end marker.");
             }
             else if (nextNewline == keyStart)
             {
@@ -64,26 +41,25 @@ partial class PrivateKeyParser
                 continue;
             }
 
-            int headerColon = fileContent.IndexOf(':', keyStart);
+            int headerColon = contents.Slice(keyStart).IndexOf(':');
             if (headerColon == -1)
             {
                 break;
             }
 
-            string key = fileContent[keyStart..headerColon];
-            metadata[key] = fileContent[(headerColon + 2)..nextNewline];
+            string key = rawKey[keyStart..headerColon].ToString();
+            metadata[key] = rawKey[(headerColon + 2)..nextNewline].ToString();
 
             keyStart = nextNewline + 1;
         }
 
-        int keyEnd = fileContent.IndexOf("-----END");
+        int keyEnd = contents.IndexOf("-----END");
         if (keyEnd == -1)
         {
-            error = new FormatException($"No end marker.");
-            return false;
+            throw new FormatException($"No end marker.");
         }
-        keyFormat = fileContent.AsSpan(formatStart, formatStartEnd).Trim();
-        keyDataBase64 = fileContent.AsSpan(keyStart, keyEnd - keyStart - 1);
+        ReadOnlySpan<char> keyFormat = contents.Slice(formatStart, formatStartEnd).Trim();
+        ReadOnlySpan<char> keyDataBase64 = contents.Slice(keyStart, keyEnd - keyStart - 1);
 
         byte[] keyData;
         try
@@ -92,19 +68,17 @@ partial class PrivateKeyParser
         }
         catch (FormatException)
         {
-            error = new FormatException($"Invalid base64 data.");
-            return false;
+            throw new FormatException($"Invalid base64 data.");
         }
 
         switch (keyFormat)
         {
             case "-----BEGIN RSA PRIVATE KEY-----":
-                return TryParseRsaPkcs1PemKey(keyData, metadata, out privateKey, out error);
+                return ParseRsaPkcs1PemKey(keyData, metadata);
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                return TryParseOpenSshKey(keyData, passwordPrompt, out privateKey, out error);
+                return ParseOpenSshKey(keyData, passwordPrompt);
             default:
-                error = new NotSupportedException($"Unsupported format: '{keyFormat}'.");
-                return false;
+                throw new NotSupportedException($"Unsupported format: '{keyFormat}'.");
         }
     }
 }
