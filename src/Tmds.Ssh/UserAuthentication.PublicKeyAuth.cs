@@ -19,71 +19,66 @@ partial class UserAuthentication
                 return false;
             }
 
-            string filename = keyCredential.FilePath;
-            if (!File.Exists(filename))
+            PrivateKey? pk;
+            try
             {
-                return false;
-            }
-
-            if (PrivateKeyParser.TryParsePrivateKeyFile(keyCredential.FilePath, keyCredential.PasswordPrompt, out PrivateKey? pk, out Exception? error))
-            {
-                using (pk)
+                pk = await keyCredential.LoadKeyAsync(ct);
+                if (pk is null)
                 {
-                    if (pk is RsaPrivateKey rsaKey)
-                    {
-                        if (rsaKey.KeySize < context.MinimumRSAKeySize)
-                        {
-                            // TODO: log
-                            return false;
-                        }
-                    }
-
-                    bool acceptedAlgorithm = false;
-                    foreach (var keyAlgorithm in pk.Algorithms)
-                    {
-                        if (!context.PublicKeyAcceptedAlgorithms.Contains(keyAlgorithm))
-                        {
-                            continue;
-                        }
-
-                        if (!context.TryStartAuth(AlgorithmNames.PublicKey))
-                        {
-                            Debug.Assert(false); // Already did an eary SkipMethod check.
-                            return false;
-                        }
-
-                        acceptedAlgorithm = true;
-                        logger.PublicKeyAuth(keyCredential.FilePath, keyAlgorithm);
-
-                        {
-                            using var userAuthMsg = CreatePublicKeyRequestMessage(
-                                keyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk!);
-                            await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
-                        }
-
-                        bool success = await context.ReceiveAuthIsSuccesfullAsync(ct).ConfigureAwait(false);
-                        if (success)
-                        {
-                            return true;
-                        }
-                    }
-
-                    if (!acceptedAlgorithm)
-                    {
-                        logger.PublicKeyAlgorithmsNotAccepted(keyCredential.FilePath, context.PublicKeyAcceptedAlgorithms);
-                    }
+                    logger.PublicKeyFileNotFound(keyCredential.Identifier);
+                    return false;
                 }
             }
-            else
+            catch (Exception error)
             {
-                if (error is FileNotFoundException or DirectoryNotFoundException)
+                logger.PublicKeyCanNotLoad(keyCredential.Identifier, error);
+                throw new PrivateKeyLoadException(keyCredential.Identifier, error);
+            }
+
+            using (pk)
+            {
+                if (pk is RsaPrivateKey rsaKey)
                 {
-                    logger.PublicKeyFileNotFound(filename);
+                    if (rsaKey.KeySize < context.MinimumRSAKeySize)
+                    {
+                        // TODO: log
+                        return false;
+                    }
                 }
-                else
+
+                bool acceptedAlgorithm = false;
+                foreach (var keyAlgorithm in pk.Algorithms)
                 {
-                    logger.PublicKeyCanNotLoad(filename, error);
-                    throw new PrivateKeyLoadException(filename, error); // TODO: throw or skip?
+                    if (!context.PublicKeyAcceptedAlgorithms.Contains(keyAlgorithm))
+                    {
+                        continue;
+                    }
+
+                    if (!context.TryStartAuth(AlgorithmNames.PublicKey))
+                    {
+                        Debug.Assert(false); // Already did an eary SkipMethod check.
+                        return false;
+                    }
+
+                    acceptedAlgorithm = true;
+                    logger.PublicKeyAuth(keyCredential.Identifier, keyAlgorithm);
+
+                    {
+                        using var userAuthMsg = CreatePublicKeyRequestMessage(
+                            keyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk!);
+                        await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                    }
+
+                    bool success = await context.ReceiveAuthIsSuccesfullAsync(ct).ConfigureAwait(false);
+                    if (success)
+                    {
+                        return true;
+                    }
+                }
+
+                if (!acceptedAlgorithm)
+                {
+                    logger.PublicKeyAlgorithmsNotAccepted(keyCredential.Identifier, context.PublicKeyAcceptedAlgorithms);
                 }
             }
 

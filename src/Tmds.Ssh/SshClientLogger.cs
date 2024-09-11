@@ -193,8 +193,8 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 19,
         Level = LogLevel.Information,
-        Message = "Auth using publickey from '{FileName}' with {SignatureAlgorithm} signature")]
-    public static partial void PublicKeyAuth(this ILogger<SshClient> logger, string fileName, Name signatureAlgorithm);
+        Message = "Auth using publickey '{keyIdentifier}' with {SignatureAlgorithm} signature")]
+    public static partial void PublicKeyAuth(this ILogger<SshClient> logger, string keyIdentifier, Name signatureAlgorithm);
 
     [LoggerMessage(
         EventId = 20,
@@ -211,20 +211,20 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 22,
         Level = LogLevel.Information,
-        Message = "Public key file '{FileName}' not found.")]
-    public static partial void PublicKeyFileNotFound(this ILogger<SshClient> logger, string fileName);
+        Message = "Public key '{KeyIdentifier}' not found.")]
+    public static partial void PublicKeyFileNotFound(this ILogger<SshClient> logger, string keyIdentifier);
 
     [LoggerMessage(
         EventId = 23,
         Level = LogLevel.Error,
-        Message = "Failed to load public key file '{FileName}'.")]
-    public static partial void PublicKeyCanNotLoad(this ILogger<SshClient> logger, string fileName, Exception exception);
+        Message = "Failed to load public key '{KeyIdentifier}'.")]
+    public static partial void PublicKeyCanNotLoad(this ILogger<SshClient> logger, string keyIdentifier, Exception exception);
 
     [LoggerMessage(
         EventId = 24,
         Level = LogLevel.Information,
-        Message = "Public key file '{FileName}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
-    public static partial void PublicKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string fileName, List<Name> acceptedAlgorithms);
+        Message = "Public key '{KeyIdentifier}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
+    public static partial void PublicKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, List<Name> acceptedAlgorithms);
 
     [LoggerMessage(
         EventId = 25,
