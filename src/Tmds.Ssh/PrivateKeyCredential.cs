@@ -19,27 +19,55 @@ public class PrivateKeyCredential : Credential
         this(LoadKeyFromFile(path ?? throw new ArgumentNullException(nameof(path)), passwordPrompt), identifier ?? path)
     { }
 
+    public PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]") :
+        this(rawKey, () => password, identifier)
+    { }
+
+    public PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, string identifier = "[raw key]") :
+        this(LoadRawKey(ValidateRawKeyArgument(rawKey), passwordPrompt), identifier)
+    { }
+
     // Allows the user to implement derived classes that represent a private key.
     protected PrivateKeyCredential(Func<CancellationToken, ValueTask<Key>> loadKey, string identifier)
     {
+        ArgumentNullException.ThrowIfNull(identifier);
+        ArgumentNullException.ThrowIfNull(loadKey);
+
         LoadKey = loadKey;
         Identifier = identifier;
     }
 
+    private static char[] ValidateRawKeyArgument(char[] rawKey)
+    {
+        ArgumentNullException.ThrowIfNull(rawKey);
+        return rawKey;
+    }
+
+    private static Func<CancellationToken, ValueTask<Key>> LoadRawKey(char[] rawKey, Func<string?>? passwordPrompt)
+        => (CancellationToken cancellationToken) =>
+        {
+            Key key = new Key(rawKey.AsMemory(), passwordPrompt);
+
+            return ValueTask.FromResult(key);
+        };
+
     private static Func<CancellationToken, ValueTask<Key>> LoadKeyFromFile(string path, Func<string?> passwordPrompt)
         => (CancellationToken cancellationToken) =>
         {
-            if (PrivateKeyParser.TryParsePrivateKeyFile(path, passwordPrompt, out PrivateKey? privateKey, out Exception? error))
+            string rawKey;
+            try
             {
-                return ValueTask.FromResult(new Key(privateKey));
+                // We read the file so we get UnauthorizedAccessException in case it is not accessible
+                rawKey = File.ReadAllText(path);
+            }
+            catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
+            {
+                return ValueTask.FromResult(default(Key)); // not found.
             }
 
-            if (error is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return ValueTask.FromResult(default(Key));
-            }
+            Key key = new Key(rawKey.AsMemory(), passwordPrompt);
 
-            throw error;
+            return ValueTask.FromResult(key);
         };
 
     // This is a type we expose to our derive types to avoid having to expose PrivateKey and a bunch of other internals.
@@ -50,6 +78,13 @@ public class PrivateKeyCredential : Credential
         public Key(RSA rsa)
         {
             PrivateKey = new RsaPrivateKey(rsa);
+        }
+
+        public Key(ReadOnlyMemory<char> rawKey, Func<string?>? passwordPrompt = null)
+        {
+            passwordPrompt ??= delegate { return null; };
+
+            PrivateKey = PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt);
         }
 
         public Key(ECDsa ecdsa)

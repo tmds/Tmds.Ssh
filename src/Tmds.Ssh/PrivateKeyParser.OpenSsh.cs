@@ -15,14 +15,10 @@ partial class PrivateKeyParser
     /// Parses an OpenSSH PEM formatted key. This is a new key format used by
     /// OpenSSH for private keys.
     /// </summary>
-    internal static bool TryParseOpenSshKey(
+    internal static PrivateKey ParseOpenSshKey(
         byte[] keyData,
-        Func<string?> passwordPrompt,
-        [NotNullWhen(true)] out PrivateKey? privateKey,
-        [NotNullWhen(false)] out Exception? error)
+        Func<string?> passwordPrompt)
     {
-        privateKey = null;
-
         // https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.key
         /*
             byte[]	AUTH_MAGIC
@@ -39,8 +35,7 @@ partial class PrivateKeyParser
         ReadOnlySpan<byte> AUTH_MAGIC = "openssh-key-v1\0"u8;
         if (!keyData.AsSpan().StartsWith(AUTH_MAGIC))
         {
-            error = new FormatException($"Unknown OpenSSH key format.");
-            return false;
+            throw new FormatException($"Unknown OpenSSH key format.");
         }
         ReadOnlySequence<byte> ros = new ReadOnlySequence<byte>(keyData);
         ros = ros.Slice(AUTH_MAGIC.Length);
@@ -51,8 +46,7 @@ partial class PrivateKeyParser
         uint nrOfKeys = reader.ReadUInt32();
         if (nrOfKeys != 1)
         {
-            error = new FormatException($"The data contains multiple keys.");
-            return false; // Multiple keys are not supported.
+            throw new FormatException($"The data contains multiple keys.");
         }
         reader.SkipString(); // skip the public key
         ReadOnlySequence<byte> privateKeyList;
@@ -65,15 +59,11 @@ partial class PrivateKeyParser
             string? password = passwordPrompt();
             if (password is null)
             {
-                error = new FormatException("Key was encrypted but no password was provided.");
-                return false;
+                throw new FormatException("Key was encrypted but no password was provided.");
             }
 
             byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
-            if (!TryDecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, passwordBytes, out var decryptedKey, out error))
-            {
-                return false;
-            }
+            byte[] decryptedKey = DecryptOpenSshPrivateKey(reader, cipherName, kdfName, kdfOptions, passwordBytes);
             privateKeyList = new ReadOnlySequence<byte>(decryptedKey);
         }
 
@@ -98,45 +88,38 @@ partial class PrivateKeyParser
         uint checkint2 = reader.ReadUInt32();
         if (checkInt1 != checkint2)
         {
-            error = new FormatException($"The checkints mismatch. The key is invalid or the password is wrong.");
-            return false;
+            throw new FormatException($"The checkints mismatch. The key is invalid or the password is wrong.");
         }
 
         Name keyType = reader.ReadName();
         if (keyType == AlgorithmNames.SshRsa)
         {
-            return TryParseOpenSshRsaKey(reader, out privateKey, out error);
+            return ParseOpenSshRsaKey(reader);
         }
         else if (keyType.ToString().StartsWith("ecdsa-sha2-"))
         {
-            return TryParseOpenSshEcdsaKey(keyType, reader, out privateKey, out error);
+            return ParseOpenSshEcdsaKey(keyType, reader);
         }
         else if (keyType == AlgorithmNames.SshEd25519)
         {
-            return TryParseOpenSshEd25519Key(reader, out privateKey, out error);
+            return ParseOpenSshEd25519Key(reader);
         }
         else
         {
-            error = new NotSupportedException($"The key type is unsupported: '{keyType}'.");
-            return false;
+            throw new NotSupportedException($"The key type is unsupported: '{keyType}'.");
         }
     }
 
-    private static bool TryDecryptOpenSshPrivateKey(
+    private static byte[] DecryptOpenSshPrivateKey(
         SequenceReader reader,
         Name cipher,
         Name kdf,
         ReadOnlySequence<byte> kdfOptions,
-        ReadOnlySpan<byte> password,
-        [NotNullWhen(true)] out byte[]? privateKey,
-        [NotNullWhen(false)] out Exception? error)
+        ReadOnlySpan<byte> password)
     {
-        privateKey = null;
-
         if (kdf != AlgorithmNames.BCrypt)
         {
-            error = new NotSupportedException($"Unsupported KDF: '{kdf}'.");
-            return false;
+            throw new NotSupportedException($"Unsupported KDF: '{kdf}'.");
         }
 
         /*
@@ -149,8 +132,7 @@ partial class PrivateKeyParser
 
         if (!OpenSshKeyCipher.TryGetCipher(cipher, out var keyCipher))
         {
-            error = new NotSupportedException($"Unsupported Cipher: '{cipher}'.");
-            return false;
+            throw new NotSupportedException($"Unsupported Cipher: '{cipher}'.");
         }
 
         try
@@ -168,30 +150,24 @@ partial class PrivateKeyParser
             {
                 if (!reader.TryRead(keyCipher.TagLength, out tag))
                 {
-                    error = new FormatException($"Failed to read {cipher} encryption tag for encrypted OpenSSH key.");
-                    return false;
+                    throw new FormatException($"Failed to read {cipher} encryption tag for encrypted OpenSSH key.");
                 }
             }
 
-            privateKey = keyCipher.Decrypt(
+            return keyCipher.Decrypt(
                 derivedKey.AsSpan(0, keyCipher.KeyLength),
                 derivedKey.AsSpan(keyCipher.KeyLength, keyCipher.IVLength),
                 encryptedKey.IsSingleSegment ? encryptedKey.FirstSpan : encryptedKey.ToArray(),
                 tag.IsSingleSegment ? tag.FirstSpan : tag.ToArray());
-            error = null;
-            return true;
         }
         catch (Exception ex)
         {
-            error = new FormatException($"Failed to decrypt OpenSSH key with cipher {cipher}.", ex);
-            return false;
+            throw new FormatException($"Failed to decrypt OpenSSH key with cipher {cipher}.", ex);
         }
     }
 
-    private static bool TryParseOpenSshRsaKey(SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    private static PrivateKey ParseOpenSshRsaKey(SequenceReader reader)
     {
-        privateKey = null;
-
         byte[] modulus = reader.ReadMPIntAsByteArray(isUnsigned: true);
         byte[] exponent = reader.ReadMPIntAsByteArray(isUnsigned: true);
         BigInteger d = reader.ReadMPInt();
@@ -217,22 +193,17 @@ partial class PrivateKeyParser
         try
         {
             rsa.ImportParameters(parameters);
-            privateKey = new RsaPrivateKey(rsa);
-            error = null;
-            return true;
+            return new RsaPrivateKey(rsa);
         }
         catch (Exception ex)
         {
-            error = new FormatException($"The data can not be parsed into an RSA key.", ex);
             rsa.Dispose();
-            return false;
+            throw new FormatException($"The data can not be parsed into an RSA key.", ex);
         }
     }
 
-    private static bool TryParseOpenSshEcdsaKey(Name keyIdentifier, SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    private static PrivateKey ParseOpenSshEcdsaKey(Name keyIdentifier, SequenceReader reader)
     {
-        privateKey = null;
-
         Name curveName = reader.ReadName();
 
         HashAlgorithmName allowedHashAlgo;
@@ -254,8 +225,7 @@ partial class PrivateKeyParser
         }
         else
         {
-            error = new NotSupportedException($"ECDSA curve '{curveName}' is unsupported.");
-            return false;
+            throw new NotSupportedException($"ECDSA curve '{curveName}' is unsupported.");
         }
 
         ECPoint q = reader.ReadStringAsECPoint();
@@ -272,22 +242,17 @@ partial class PrivateKeyParser
             };
 
             ecdsa.ImportParameters(parameters);
-            privateKey = new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
-            error = null;
-            return true;
+            return new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
         }
         catch (Exception ex)
         {
-            error = new FormatException($"The data can not be parsed into an ECDSA key.", ex);
             ecdsa.Dispose();
-            return false;
+            throw new FormatException($"The data can not be parsed into an ECDSA key.", ex);
         }
     }
 
-    private static bool TryParseOpenSshEd25519Key(SequenceReader reader, [NotNullWhen(true)] out PrivateKey? privateKey, [NotNullWhen(false)] out Exception? error)
+    private static PrivateKey ParseOpenSshEd25519Key(SequenceReader reader)
     {
-        privateKey = null;
-
         // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
         /*
             string           ENC(A)
@@ -303,16 +268,13 @@ partial class PrivateKeyParser
             ReadOnlySequence<byte> publicKey = reader.ReadStringAsBytes();
             ReadOnlySequence<byte> keyData = reader.ReadStringAsBytes();
 
-            privateKey = new Ed25519PrivateKey(
+            return new Ed25519PrivateKey(
                 keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
                 publicKey.ToArray());
-            error = null;
-            return true;
         }
         catch (Exception ex)
         {
-            error = new FormatException($"The data can not be parsed into an ED25519 key.", ex);
-            return false;
+            throw new FormatException($"The data can not be parsed into an ED25519 key.", ex);
         }
     }
 }
