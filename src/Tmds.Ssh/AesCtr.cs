@@ -7,8 +7,11 @@ namespace Tmds.Ssh;
 
 static class AesCtr
 {
-    public static void DecryptCtr(ReadOnlySpan<byte> key, Span<byte> counter, ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+    public static void DecryptCtr(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
+        Span<byte> counter = stackalloc byte[iv.Length];
+        iv.CopyTo(counter);
+
         if (plaintext.Length < ciphertext.Length)
         {
             throw new ArgumentException("Plaintext buffer is too small.");
