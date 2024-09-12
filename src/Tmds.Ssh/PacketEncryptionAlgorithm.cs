@@ -16,7 +16,6 @@ sealed class PacketEncryptionAlgorithm
     {
         KeyLength = keyLength;
         IVLength = ivLength;
-        IsAuthenticated = isAuthenticated;
         TagLength = tagLength;
         _createPacketEncryptor = createPacketEncryptor;
         _createPacketDecryptor = createPacketDecryptor;
@@ -24,8 +23,8 @@ sealed class PacketEncryptionAlgorithm
 
     public int KeyLength { get; }
     public int IVLength { get; }
-    public bool IsAuthenticated { get; }
-    public int TagLength { get; } // When IsAuthenticated == true
+    public bool IsAuthenticated => TagLength > 0;
+    private int TagLength { get; }
 
     public IPacketEncryptor CreatePacketEncryptor(byte[] key, byte[] iv, HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
     {

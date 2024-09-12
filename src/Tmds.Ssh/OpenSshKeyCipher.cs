@@ -3,12 +3,15 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Macs;
+using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Tmds.Ssh;
 
 sealed class OpenSshKeyCipher
 {
-    private delegate byte[] DecryptDelegate(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag);
+    private delegate byte[] DecryptDelegate(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag);
 
     private readonly DecryptDelegate _decryptData;
 
@@ -28,7 +31,7 @@ sealed class OpenSshKeyCipher
     public int IVLength { get; }
     public int TagLength { get; }
 
-    public byte[] Decrypt(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
+    public byte[] Decrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
     {
         if (KeyLength != key.Length)
         {
@@ -59,16 +62,22 @@ sealed class OpenSshKeyCipher
             { AlgorithmNames.Aes256Ctr, CreateAesCtrCipher(32) },
             { AlgorithmNames.Aes128Gcm, CreateAesGcmCipher(16) },
             { AlgorithmNames.Aes256Gcm, CreateAesGcmCipher(32) },
+            {AlgorithmNames.ChaCha20Poly1305,
+                new OpenSshKeyCipher(
+                    keyLength: 64,
+                    ivLength: 0,
+                    DecryptChaCha20Poly1305,
+                    tagLength: 16) },
         };
 
     private static OpenSshKeyCipher CreateAesCbcCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 16,
-            (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
+            (ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
                 => DecryptAesCbc(key, iv, data));
 
     private static OpenSshKeyCipher CreateAesCtrCipher(int keyLength)
         => new OpenSshKeyCipher(keyLength: keyLength, ivLength: 16,
-            (ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
+            (ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> _)
                 => DecryptAesCtr(key, iv, data));
 
     private static OpenSshKeyCipher CreateAesGcmCipher(int keyLength)
@@ -76,25 +85,57 @@ sealed class OpenSshKeyCipher
             DecryptAesGcm,
             tagLength: 16);
 
-    private static byte[] DecryptAesCbc(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)
+    private static byte[] DecryptAesCbc(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data)
     {
         using Aes aes = Aes.Create();
         aes.Key = key.ToArray();
         return aes.DecryptCbc(data, iv, PaddingMode.None);
     }
 
-    private static byte[] DecryptAesCtr(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data)
+    private static byte[] DecryptAesCtr(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data)
     {
         byte[] plaintext = new byte[data.Length];
         AesCtr.DecryptCtr(key, iv, data, plaintext);
         return plaintext;
     }
 
-    private static byte[] DecryptAesGcm(ReadOnlySpan<byte> key, Span<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
+    private static byte[] DecryptAesGcm(ReadOnlySpan<byte> key, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
     {
         using AesGcm aesGcm = new AesGcm(key, tag.Length);
         byte[] plaintext = new byte[data.Length];
         aesGcm.Decrypt(iv, data, tag, plaintext, null);
+        return plaintext;
+    }
+
+    private static byte[] DecryptChaCha20Poly1305(ReadOnlySpan<byte> key, ReadOnlySpan<byte> _, ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> tag)
+    {
+        ReadOnlySpan<byte> iv = stackalloc byte[12];
+        ReadOnlySpan<byte> K_1 = key[..32];
+
+        ChaCha7539Engine chacha = new();
+        chacha.Init(forEncryption: false, new ParametersWithIV(new KeyParameter(K_1), iv));
+
+        // Calculate poly key
+        Span<byte> polyKey = stackalloc byte[64];
+        chacha.ProcessBytes(input: polyKey, output: polyKey);
+
+        // Calculate mac
+        Poly1305 poly = new();
+        poly.Init(new KeyParameter(polyKey[..32]));
+        poly.BlockUpdate(ciphertext);
+        Span<byte> ciphertextTag = stackalloc byte[16];
+        poly.DoFinal(ciphertextTag);
+
+        // Check mac
+        if (!CryptographicOperations.FixedTimeEquals(ciphertextTag, tag))
+        {
+            throw new CryptographicException();
+        }
+
+        // Decode plaintext
+        byte[] plaintext = new byte[ciphertext.Length];
+        chacha.ProcessBytes(ciphertext, plaintext);
+
         return plaintext;
     }
 }

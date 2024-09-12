@@ -101,6 +101,7 @@ public class PrivateKeyCredentialTests
     [InlineData("aes256-ctr")]
     [InlineData("aes128-gcm@openssh.com")]
     [InlineData("aes256-gcm@openssh.com")]
+    [InlineData("chacha20-poly1305@openssh.com")]
     public async Task OpenSshRsaKey(string? cipher)
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
