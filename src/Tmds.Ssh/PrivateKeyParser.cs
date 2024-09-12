@@ -9,14 +9,14 @@ partial class PrivateKeyParser
 {
     internal static PrivateKey ParsePrivateKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
     {
-        ReadOnlySpan<char> contents = rawKey.Span;
+        ReadOnlySpan<char> content = rawKey.Span;
 
-        int formatStart = contents.IndexOf("-----BEGIN");
+        int formatStart = content.IndexOf("-----BEGIN");
         if (formatStart == -1)
         {
             throw new FormatException($"No start marker.");
         }
-        int formatStartEnd = contents.Slice(formatStart).IndexOf('\n');
+        int formatStartEnd = content.Slice(formatStart).IndexOf('\n');
         if (formatStartEnd == -1)
         {
             throw new FormatException($"No start marker.");
@@ -30,7 +30,7 @@ partial class PrivateKeyParser
         Dictionary<string, string> metadata = new Dictionary<string, string>();
         while (true)
         {
-            int nextNewline = contents.Slice(keyStart).IndexOf('\n');
+            int nextNewline = content.Slice(keyStart).IndexOf('\n');
             if (nextNewline == -1)
             {
                 throw new FormatException($"No end marker.");
@@ -41,7 +41,7 @@ partial class PrivateKeyParser
                 continue;
             }
 
-            int headerColon = contents.Slice(keyStart).IndexOf(':');
+            int headerColon = content.Slice(keyStart).IndexOf(':');
             if (headerColon == -1)
             {
                 break;
@@ -53,13 +53,13 @@ partial class PrivateKeyParser
             keyStart = nextNewline + 1;
         }
 
-        int keyEnd = contents.IndexOf("-----END");
+        int keyEnd = content.IndexOf("-----END");
         if (keyEnd == -1)
         {
             throw new FormatException($"No end marker.");
         }
-        ReadOnlySpan<char> keyFormat = contents.Slice(formatStart, formatStartEnd).Trim();
-        ReadOnlySpan<char> keyDataBase64 = contents.Slice(keyStart, keyEnd - keyStart - 1);
+        ReadOnlySpan<char> keyFormat = content.Slice(formatStart, formatStartEnd).Trim();
+        ReadOnlySpan<char> keyDataBase64 = content.Slice(keyStart, keyEnd - keyStart - 1);
 
         byte[] keyData;
         try

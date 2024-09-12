@@ -400,7 +400,7 @@ class PrivateKeyCredential : Credential
   PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]");
   PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, string identifier = "[raw key]");
 
-  // Enable using private keys from other sources.
+  // Enable derived classes to use private keys from other sources.
   protected PrivateKeyCredential(Func<CancellationToken, ValueTask<Key>> loadKey, string identifier);
   protected struct Key
   {
