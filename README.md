@@ -501,6 +501,14 @@ Under these levels, the logged messages may include:
 
 The `Debug` and `Trace` loglevels should not be used in production. Under the `Trace` level all packets are logged. This will expose sensitive data related to the SSH connection and the application itself.
 
+## Examples
+
+The following are some example projects that show how Tmds.Ssh can be used:
+
+- [scp](./examples/scp) - SCP client to copy/fetch files
+- [ssh](./examples/ssh) - SSH client
+- [azure_key](./examples/azure_key) - SSH client with private keys stored in Azure Key Vault.
+
 ## CI Feed
 
 You can obtain packages from the CI NuGet feed: https://www.myget.org/F/tmds/api/v3/index.json.
