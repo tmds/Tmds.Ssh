@@ -40,6 +40,14 @@ $ dotnet run
 hello world!
 ```
 
+## Examples
+
+The following are some example projects that show how Tmds.Ssh can be used:
+
+- [scp](./examples/scp) - SCP client to copy/fetch files
+- [ssh](./examples/ssh) - SSH client
+- [azure_key](./examples/azure_key) - SSH client with private keys stored in Azure Key Vault.
+
 ## API
 
 ```cs

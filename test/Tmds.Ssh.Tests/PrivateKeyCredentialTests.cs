@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using Xunit;
 
 namespace Tmds.Ssh.Tests;
@@ -6,6 +7,13 @@ namespace Tmds.Ssh.Tests;
 [Collection(nameof(SshServerCollection))]
 public class PrivateKeyCredentialTests
 {
+    class ECDsaKeyCredential : PrivateKeyCredential
+    {
+        public ECDsaKeyCredential(ECCurve curve)
+            : base((c) => ValueTask.FromResult(new Key(ECDsa.Create(curve))), "ECDsa")
+        { }
+    }
+
     private const string PrivateRsaKey =
     """
     -----BEGIN OPENSSH PRIVATE KEY-----
@@ -153,6 +161,52 @@ public class PrivateKeyCredentialTests
 
             return new PrivateKeyCredential(localKey, keyPass);
         }, async (c) => await c.ConnectAsync());
+    }
+
+    [Fact]
+    public async Task Ecdsa256InMemoryKey()
+    {
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp256"u8.ToArray());
+
+        var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP256);
+        using var privateKey = await credential.LoadKeyAsync(default);
+        Assert.NotNull(privateKey);
+        Assert.Single(privateKey.Algorithms);
+        Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
+    }
+
+    [Fact]
+    public async Task Ecdsa384InMemoryKey()
+    {
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp384"u8.ToArray());
+
+        var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP384);
+        using var privateKey = await credential.LoadKeyAsync(default);
+        Assert.NotNull(privateKey);
+        Assert.Single(privateKey.Algorithms);
+        Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
+    }
+
+    [Fact]
+    public async Task Ecdsa521InMemoryKey()
+    {
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp521"u8.ToArray());
+
+        var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP521);
+        using var privateKey = await credential.LoadKeyAsync(default);
+        Assert.NotNull(privateKey);
+        Assert.Single(privateKey.Algorithms);
+        Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
+    }
+
+    [Fact]
+    public async Task FailEcdsaKeyWithInvalidCurve()
+    {
+        const string expected = "Curve 'brainpoolP256r1' is not known.";
+
+        var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.brainpoolP256r1);
+        NotSupportedException exc = await Assert.ThrowsAsync<NotSupportedException>(async () => await credential.LoadKeyAsync(default));
+        Assert.Equal(expected, exc.Message);
     }
 
     [Theory]

@@ -95,21 +95,21 @@ public class PrivateKeyCredential : Credential
             Name algorithm;
             Name curveName;
             HashAlgorithmName hashAlgorithm;
-            if (oid.Equals(ECCurve.NamedCurves.nistP256.Oid))
+            if (OidEquals(oid, ECCurve.NamedCurves.nistP256.Oid))
             {
                 (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.Nistp256, HashAlgorithmName.SHA256);
             }
-            else if (oid.Equals(ECCurve.NamedCurves.nistP384.Oid))
+            else if (OidEquals(oid, ECCurve.NamedCurves.nistP384.Oid))
             {
                 (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.Nistp384, HashAlgorithmName.SHA384);
             }
-            else if (oid.Equals(ECCurve.NamedCurves.nistP521.Oid))
+            else if (OidEquals(oid, ECCurve.NamedCurves.nistP521.Oid))
             {
                 (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.Nistp521, HashAlgorithmName.SHA512);
             }
             else
             {
-                throw new NotSupportedException($"Curve {oid} is not known.");
+                throw new NotSupportedException($"Curve '{oid.FriendlyName ?? oid.Value}' is not known.");
             }
 
             PrivateKey = new ECDsaPrivateKey(ecdsa, algorithm, curveName, hashAlgorithm);
@@ -119,6 +119,9 @@ public class PrivateKeyCredential : Credential
         {
             PrivateKey = key;
         }
+
+        private static bool OidEquals(Oid oidA, Oid oidB)
+            => oidA.Value is not null && oidB.Value is not null && oidA.Value == oidB.Value;
     }
 
     internal async ValueTask<PrivateKey?> LoadKeyAsync(CancellationToken cancellationToken)
