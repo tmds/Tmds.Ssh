@@ -235,7 +235,7 @@ public class SshConfigTests
 
             string configFile = Path.Combine(configDir, "ssh_config");
             File.WriteAllText(configFile, IncludeConfig);
-            SshConfig config = await SshConfig.DetermineConfigForHost(userName: null, host: "", port: null, [configFile], cancellationToken: default);
+            SshConfig config = await SshConfig.DetermineConfigForHost(userName: null, host: "", port: null, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [configFile], cancellationToken: default);
 
             Assert.Equal(2000, config.ConnectTimeout);
             Assert.Equal(6000, config.RequiredRSASize);
@@ -410,6 +410,6 @@ public class SshConfigTests
     {
         using TempFile tempFile = new TempFile(Path.GetTempFileName());
         File.WriteAllText(tempFile.Path, config);
-        return await SshConfig.DetermineConfigForHost(username, host, port, [tempFile.Path], cancellationToken: default);
+        return await SshConfig.DetermineConfigForHost(username, host, port, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [tempFile.Path], cancellationToken: default);
     }
 }

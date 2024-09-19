@@ -6,6 +6,9 @@ using static System.Environment;
 
 namespace Tmds.Ssh;
 
+// Because we're a library the default of these options differs from the default 'ssh' command:
+// - BatchMode=yes: not user interactive
+// - ClearAllForwardings=yes: don't do any forwardings automatically
 public sealed class SshConfigOptions
 {
     public static IReadOnlyList<string> DefaultConfigFilePaths { get; } = CreateDefaultConfigFilePaths();
@@ -16,6 +19,7 @@ public sealed class SshConfigOptions
     private bool _locked;
 
     private IReadOnlyList<string> _configFilePaths;
+    private IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> _options;
     private bool _autoConnect = true;
     private bool _autoReconnect = false;
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
@@ -24,6 +28,7 @@ public sealed class SshConfigOptions
     public SshConfigOptions(IReadOnlyList<string> configFilePaths)
     {
         _configFilePaths = ValidateConfigFilePaths(configFilePaths);
+        _options = new Dictionary<SshConfigOption, SshConfigOptionValue>();
     }
 
     public IReadOnlyList<string> ConfigFilePaths
@@ -35,6 +40,24 @@ public sealed class SshConfigOptions
 
             _configFilePaths = ValidateConfigFilePaths(value);
         }
+    }
+
+    public IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> Options
+    {
+        get => _options;
+        set
+        {
+            ThrowIfLocked();
+
+            _options = ValidateOptions(value);
+        }
+    }
+
+    private static IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> ValidateOptions(IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        return value;
     }
 
     public bool AutoConnect
