@@ -199,7 +199,7 @@ public class ConnectTests
         s.Listen();
         int port = (s.LocalEndPoint as IPEndPoint)!.Port;
 
-        using var client = new SshClient($"user@{address}:{port}", SshConfigOptions.NoConfig);
+        using var client = new SshClient($"user@{address}:{port}", SshConfigSettings.NoConfig);
 
         CancellationTokenSource cts = new();
         cts.CancelAfter(msTimeout);
@@ -344,7 +344,7 @@ public class ConnectTests
     public async Task SshConfig_AutoConnect(bool autoConnect)
     {
         using var client = await _sshServer.CreateClientAsync(
-            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            new SshConfigSettings([_sshServer.SshConfigFilePath])
             {
                 AutoConnect = autoConnect
             },
@@ -367,7 +367,7 @@ public class ConnectTests
     public async Task SshConfig_AutoReconnect(bool autoReconnect)
     {
         using var client = await _sshServer.CreateClientAsync(
-            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            new SshConfigSettings([_sshServer.SshConfigFilePath])
             {
                 AutoReconnect = autoReconnect
             }
@@ -399,7 +399,7 @@ public class ConnectTests
         int port = (s.LocalEndPoint as IPEndPoint)!.Port;
 
         using var client = new SshClient($"user@{address}:{port}",
-            new SshConfigOptions([_sshServer.SshConfigFilePath])
+            new SshConfigSettings([_sshServer.SshConfigFilePath])
             {
                 ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout)
             });
@@ -412,7 +412,7 @@ public class ConnectTests
     public async Task SshConfig_ConnectFailure()
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
-            _sshServer.CreateClientAsync(SshConfigOptions.NoConfig));
+            _sshServer.CreateClientAsync(SshConfigSettings.NoConfig));
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public class ConnectTests
             UserKnownHostsFile {Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())}
             """);
         using var _ = await _sshServer.CreateClientAsync(
-            new SshConfigOptions([configFile.Path])
+            new SshConfigSettings([configFile.Path])
             {
                 HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
@@ -449,7 +449,7 @@ public class ConnectTests
     [Fact]
     public async Task SshConfig_Options()
     {
-        var options = new SshConfigOptions(configFilePaths: [])
+        var options = new SshConfigSettings(configFilePaths: [])
         {
             Options = new Dictionary<SshConfigOption, SshConfigOptionValue>()
             {

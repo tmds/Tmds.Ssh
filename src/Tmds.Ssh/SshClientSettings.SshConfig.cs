@@ -16,7 +16,7 @@ partial class SshClientSettings
             AlgorithmNames.Password
         ];
 
-    internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigOptions options, CancellationToken cancellationToken = default)
+    internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigSettings options, CancellationToken cancellationToken = default)
     {
         SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.Options, options.ConfigFilePaths, cancellationToken);
 

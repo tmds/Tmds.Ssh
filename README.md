@@ -55,8 +55,8 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination, ILoggerFactory? loggerFactory = null); // uses SshConfigOptions.DefaultConfig.
-  SshClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null);
+  SshClient(string destination, ILoggerFactory? loggerFactory = null); // uses SshConfigSettings.DefaultConfig.
+  SshClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null);
   SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
@@ -119,7 +119,7 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
-  SftpClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
+  SftpClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
   SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
 
   // The SshClient owns the connection.
@@ -230,10 +230,10 @@ class SshClientSettings
 
   IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
 }
-class SshConfigOptions
+class SshConfigSettings
 {
-  static SshConfigOptions DefaultConfig { get; }  // use DefaultConfigFilePaths.
-  static SshConfigOptions NoConfig { get; } // use [ ]
+  static SshConfigSettings DefaultConfig { get; }  // use DefaultConfigFilePaths.
+  static SshConfigSettings NoConfig { get; } // use [ ]
   static IReadOnlyList<string> DefaultConfigFilePaths { get; } // [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
 
   IReadOnlyList<string> ConfigFilePaths { get; set; }

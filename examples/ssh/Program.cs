@@ -43,9 +43,9 @@ class Program
                 }
             });
 
-        SshConfigOptions configOptions = CreateSshConfigOptions(options);
+        SshConfigSettings configSettings = CreateSshConfigSettings(options);
 
-        using SshClient client = new SshClient(destination, configOptions, loggerFactory);
+        using SshClient client = new SshClient(destination, configSettings, loggerFactory);
 
         using var process = await client.ExecuteAsync(command);
         Task[] tasks = new[]
@@ -94,9 +94,9 @@ class Program
         }
     }
 
-    private static SshConfigOptions CreateSshConfigOptions(string[] options)
+    private static SshConfigSettings CreateSshConfigSettings(string[] options)
     {
-        SshConfigOptions configOptions = new SshConfigOptions(SshConfigOptions.DefaultConfigFilePaths);
+        SshConfigSettings configSettings = new SshConfigSettings(SshConfigSettings.DefaultConfigFilePaths);
 
         Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
         foreach (var option in options)
@@ -115,9 +115,9 @@ class Program
                 throw new ArgumentException($"Unsupported option: {option}.");
             }
         }
-        configOptions.Options = optionsDict;
+        configSettings.Options = optionsDict;
 
-        return configOptions;
+        return configSettings;
     }
 
     static bool IsEnvvarTrue(string variableName)

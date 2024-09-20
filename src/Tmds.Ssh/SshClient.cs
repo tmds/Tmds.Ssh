@@ -19,7 +19,7 @@ public sealed partial class SshClient : IDisposable
     private readonly TimeSpan _connectTimeout;
     private readonly SshClientSettings? _settings;
     private readonly string? _destination;
-    private readonly SshConfigOptions? _sshConfigOptions;
+    private readonly SshConfigSettings? _sshConfigOptions;
     private readonly SshLoggers _loggers;
     private State _state = State.Initial;
 
@@ -36,18 +36,18 @@ public sealed partial class SshClient : IDisposable
     internal bool IsDisposed => _state == State.Disposed;
 
     public SshClient(string destination, ILoggerFactory? loggerFactory = null) :
-        this(destination, SshConfigOptions.DefaultConfig, loggerFactory)
+        this(destination, SshConfigSettings.DefaultConfig, loggerFactory)
     { }
 
     public SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null) :
-        this(settings, destination: null, configOptions: null,
+        this(settings, destination: null, configSettings: null,
              settings?.AutoConnect ?? default, settings?.AutoReconnect ?? default, settings?.ConnectTimeout ?? default,
              loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(settings);
     }
 
-    public SshClient(string destination, SshConfigOptions sshConfigOptions, ILoggerFactory? loggerFactory = null) :
+    public SshClient(string destination, SshConfigSettings sshConfigOptions, ILoggerFactory? loggerFactory = null) :
         this(settings: null, destination, sshConfigOptions,
              sshConfigOptions?.AutoConnect ?? default, sshConfigOptions?.AutoReconnect ?? default, sshConfigOptions?.ConnectTimeout ?? default,
              loggerFactory)
@@ -59,7 +59,7 @@ public sealed partial class SshClient : IDisposable
     private SshClient(
         SshClientSettings? settings,
         string? destination,
-        SshConfigOptions? configOptions,
+        SshConfigSettings? configSettings,
         bool autoConnect,
         bool autoReconnect,
         TimeSpan connectTimeout,
@@ -67,7 +67,7 @@ public sealed partial class SshClient : IDisposable
     {
         _settings = settings;
         _destination = destination;
-        _sshConfigOptions = configOptions;
+        _sshConfigOptions = configSettings;
         _autoConnect = autoConnect;
         _autoReconnect = autoReconnect;
         _connectTimeout = connectTimeout;

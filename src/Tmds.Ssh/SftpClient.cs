@@ -49,8 +49,8 @@ public sealed partial class SftpClient : IDisposable
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
 
-    public SftpClient(string destination, SshConfigOptions configOptions, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
-        this(new SshClient(destination, configOptions, loggerFactory), options, ownsClient: true)
+    public SftpClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
+        this(new SshClient(destination, configSettings, loggerFactory), options, ownsClient: true)
     { }
 
     public SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :

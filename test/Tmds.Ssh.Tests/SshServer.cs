@@ -267,9 +267,9 @@ public class SshServer : IDisposable
         Assert.Contains(HelloWorld, output);
     }
 
-    public async Task<SshClient> CreateClientAsync(SshConfigOptions configOptions, CancellationToken cancellationToken = default, bool connect = true)
+    public async Task<SshClient> CreateClientAsync(SshConfigSettings configSettings, CancellationToken cancellationToken = default, bool connect = true)
     {
-        var client = new SshClient(Destination, configOptions);
+        var client = new SshClient(Destination, configSettings);
 
         if (connect)
         {
