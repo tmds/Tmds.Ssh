@@ -16,7 +16,7 @@ sealed partial class SshSession
 
     private readonly SshClient _client;
     private readonly string? _destination;
-    private readonly SshConfigOptions? _sshConfigOptions;
+    private readonly SshConfigSettings? _sshConfigOptions;
     private readonly object _gate = new object();
     private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
     private SshClientSettings? _settings;
@@ -38,13 +38,13 @@ sealed partial class SshSession
     internal SshSession(
         SshClientSettings? settings,
         string? destination,
-        SshConfigOptions? configOptions, SshClient client, SshLoggers loggers)
+        SshConfigSettings? configSettings, SshClient client, SshLoggers loggers)
     {
         _abortCts = new CancellationTokenSource();
 
         _settings = settings;
         _destination = destination;
-        _sshConfigOptions = configOptions;
+        _sshConfigOptions = configSettings;
 
         ConnectionInfo = new SshConnectionInfo();
 

@@ -9,12 +9,12 @@ namespace Tmds.Ssh;
 // Because we're a library the default of these options differs from the default 'ssh' command:
 // - BatchMode=yes: not user interactive
 // - ClearAllForwardings=yes: don't do any forwardings automatically
-public sealed class SshConfigOptions
+public sealed class SshConfigSettings
 {
     public static IReadOnlyList<string> DefaultConfigFilePaths { get; } = CreateDefaultConfigFilePaths();
-    public static SshConfigOptions DefaultConfig { get; }= CreateDefault();
+    public static SshConfigSettings DefaultConfig { get; }= CreateDefault();
 
-    public static SshConfigOptions NoConfig { get; }= CreateNoConfig();
+    public static SshConfigSettings NoConfig { get; }= CreateNoConfig();
 
     private bool _locked;
 
@@ -25,7 +25,7 @@ public sealed class SshConfigOptions
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
     private HostAuthentication? _hostAuthentication;
 
-    public SshConfigOptions(IReadOnlyList<string> configFilePaths)
+    public SshConfigSettings(IReadOnlyList<string> configFilePaths)
     {
         _configFilePaths = ValidateConfigFilePaths(configFilePaths);
         _options = new Dictionary<SshConfigOption, SshConfigOptionValue>();
@@ -130,11 +130,11 @@ public sealed class SshConfigOptions
     {
         if (_locked)
         {
-            throw new InvalidOperationException($"{nameof(SshConfigOptions)} can not be changed.");
+            throw new InvalidOperationException($"{nameof(SshConfigSettings)} can not be changed.");
         }
     }
 
-    private static SshConfigOptions CreateDefault()
+    private static SshConfigSettings CreateDefault()
     {
         string userConfigFilePath = Path.Combine(SshClientSettings.Home, ".ssh", "config");
         string systemConfigFilePath;
@@ -146,16 +146,16 @@ public sealed class SshConfigOptions
         {
             systemConfigFilePath = "/etc/ssh/ssh_config";
         }
-        var config = new SshConfigOptions([userConfigFilePath, systemConfigFilePath]);
+        var config = new SshConfigSettings([userConfigFilePath, systemConfigFilePath]);
 
         config.Lock();
 
         return config;
     }
 
-    private static SshConfigOptions CreateNoConfig()
+    private static SshConfigSettings CreateNoConfig()
     {
-        var config = new SshConfigOptions(DefaultConfigFilePaths);
+        var config = new SshConfigSettings(DefaultConfigFilePaths);
 
         config.Lock();
 
