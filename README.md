@@ -28,7 +28,7 @@ using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
 using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-using var sshClient = new SshClient("localhost", loggerFactory);
+using var sshClient = new SshClient("localhost", SshConfigSettings.DefaultConfig, loggerFactory);
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -55,8 +55,11 @@ namespace Tmds.Ssh;
 
 class SshClient : IDisposable
 {
-  SshClient(string destination, ILoggerFactory? loggerFactory = null); // uses SshConfigSettings.DefaultConfig.
+  // Connect to the destination. No additional config.
+  SshClient(string destination, ILoggerFactory? loggerFactory = null);
+  // Use OpenSSH config files and options to configure the client.
   SshClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null);
+  // Use the .NET SshClientSettings API to configure the client.
   SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null);
 
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
@@ -119,6 +122,7 @@ class SftpClient : IDisposable
   const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
 
   // The SftpClient owns the connection.
+  SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
   SftpClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
   SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
 
