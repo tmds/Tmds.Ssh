@@ -36,7 +36,7 @@ public sealed partial class SshClient : IDisposable
     internal bool IsDisposed => _state == State.Disposed;
 
     public SshClient(string destination, ILoggerFactory? loggerFactory = null) :
-        this(destination, SshConfigSettings.DefaultConfig, loggerFactory)
+        this(destination, SshConfigSettings.NoConfig, loggerFactory)
     { }
 
     public SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null) :
