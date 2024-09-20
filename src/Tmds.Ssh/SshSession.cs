@@ -139,7 +139,13 @@ sealed partial class SshSession
             else
             {
                 Debug.Assert(_destination is not null);
+                Debug.Assert(_sshConfigOptions is not null);
                 (userName, host, port) = SshClientSettings.ParseDestination(_destination);
+
+                if (string.IsNullOrEmpty(host) && _sshConfigOptions.Options.TryGetValue(SshConfigOption.Hostname, out SshConfigOptionValue value))
+                {
+                    host = value.FirstValue ?? "";
+                }
             }
             ConnectionInfo.HostName = host;
             ConnectionInfo.Port = port ?? 22;

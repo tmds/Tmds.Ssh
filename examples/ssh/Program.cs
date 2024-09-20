@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.CommandLine;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +9,26 @@ namespace Tmds.Ssh;
 
 class Program
 {
-    static async Task Main(string[] args)
+    static Task<int> Main(string[] args)
+    {
+        var destinationArg = new Argument<string>(name: "destination", () => "localhost")
+        { Arity = ArgumentArity.ZeroOrOne };
+        var commandArg = new Argument<string>(name: "command", () => "echo 'hello world'")
+        { Arity = ArgumentArity.ZeroOrOne };
+        var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
+            description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
+        { Arity = ArgumentArity.ZeroOrMore };
+
+        var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
+        rootCommand.AddOption(sshConfigOptions);
+        rootCommand.AddArgument(destinationArg);
+        rootCommand.AddArgument(commandArg);
+        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, sshConfigOptions);
+
+        return rootCommand.InvokeAsync(args);
+    }
+
+    static async Task ExecuteAsync(string destination, string command, string[] options)
     {
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
@@ -21,10 +43,9 @@ class Program
                 }
             });
 
-        string destination = args.Length >= 1 ? args[0] : "localhost";
-        string command = args.Length >= 2 ? args[1] : "echo 'hello world'";
+        SshConfigOptions configOptions = CreateSshConfigOptions(options);
 
-        using SshClient client = new SshClient(destination, loggerFactory);
+        using SshClient client = new SshClient(destination, configOptions, loggerFactory);
 
         using var process = await client.ExecuteAsync(command);
         Task[] tasks = new[]
@@ -71,6 +92,32 @@ class Program
                 }
             }
         }
+    }
+
+    private static SshConfigOptions CreateSshConfigOptions(string[] options)
+    {
+        SshConfigOptions configOptions = new SshConfigOptions(SshConfigOptions.DefaultConfigFilePaths);
+
+        Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
+        foreach (var option in options)
+        {
+            string[] split = option.Split('=', 2);
+            if (split.Length != 2)
+            {
+                throw new ArgumentException($"Option '{option}' is not in the <Key>=<Value> format.");
+            }
+            if (Enum.TryParse<SshConfigOption>(split[0], ignoreCase: true, out var key))
+            {
+                optionsDict[key] = split[1];
+            }
+            else
+            {
+                throw new ArgumentException($"Unsupported option: {option}.");
+            }
+        }
+        configOptions.Options = optionsDict;
+
+        return configOptions;
     }
 
     static bool IsEnvvarTrue(string variableName)

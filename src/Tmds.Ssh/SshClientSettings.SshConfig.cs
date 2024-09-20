@@ -16,15 +16,9 @@ partial class SshClientSettings
             AlgorithmNames.Password
         ];
 
-    internal static ValueTask<SshClientSettings> LoadFromConfigAsync(string destination, SshConfigOptions options, CancellationToken cancellationToken = default)
-    {
-        (string? userName, string host, int? port) = ParseDestination(destination);
-        return LoadFromConfigAsync(userName, host, port, options, cancellationToken);
-    }
-
     internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigOptions options, CancellationToken cancellationToken = default)
     {
-        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.ConfigFilePaths, cancellationToken);
+        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.Options, options.ConfigFilePaths, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);

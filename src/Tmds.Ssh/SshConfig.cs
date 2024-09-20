@@ -8,6 +8,7 @@ namespace Tmds.Ssh;
 
 sealed class SshConfig
 {
+    private const int MaxKeywordLength = 50; // large enough to fit keywords.
     private const string WhiteSpace = " \t";
     private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
     private static readonly List<string> ListOfNone = [];
@@ -59,13 +60,15 @@ sealed class SshConfig
     public bool? HashKnownHosts { get; set; }
     public List<string>? SendEnv { get; set; }
 
-    internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
+    internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
         SshConfig config = new SshConfig()
         {
             UserName = userName,
             Port = port
         };
+
+        ConfigureFromOptions(config, options);
 
         string originalhost = host;
 
@@ -91,6 +94,33 @@ sealed class SshConfig
         return ValueTask.FromResult(config);
     }
 
+    private static void ConfigureFromOptions(SshConfig config, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> options)
+    {
+        Span<char> keywordBuffer = stackalloc char[MaxKeywordLength];
+        Span<char> keywordBufferLowerBuffer = stackalloc char[MaxKeywordLength];
+        foreach (var option in options)
+        {
+            if (!Enum.TryFormat(option.Key, keywordBuffer, out int length))
+            {
+                throw new NotSupportedException($"Can not format keyword: {option.Value}.");
+            }
+            ReadOnlySpan<char> keyword = keywordBuffer.Slice(0, length);
+            length = keyword.Slice(0, length).ToLowerInvariant(keywordBufferLowerBuffer);
+            keyword = keywordBufferLowerBuffer.Slice(0, length);
+            if (option.Value.IsSingleValue)
+            {
+                HandleMatchedKeyword(config, keyword, option.Value.FirstValue);
+            }
+            else
+            {
+                foreach (var value in option.Value.Values)
+                {
+                    HandleMatchedKeyword(config, keyword, value);
+                }
+            }
+        }
+    }
+
     private static void ConfigureFromConfigFile(SshConfig config, string host, string originalhost, string filename, string includeBasePath, ref bool performSecondPass, bool isSecondPass)
     {
         IEnumerable<string> lines;
@@ -110,7 +140,7 @@ sealed class SshConfig
             return;
         }
 
-        Span<char> keywordBuffer = stackalloc char[50]; // large enough to fit keywords.
+        Span<char> keywordBuffer = stackalloc char[MaxKeywordLength];
         bool isMatch = true;
         foreach (var l in lines)
         {
@@ -164,353 +194,357 @@ sealed class SshConfig
                     continue;
                 }
 
-                switch (keyword)
+                if (keyword.SequenceEqual("include"))
                 {
-                    case "hostname":
-                        config.HostName ??= NextTokenAsStringOrDefault(ref remainder);
-                        break;
-                    case "user":
-                        config.UserName ??= NextTokenAsStringOrDefault(ref remainder);
-                        break;
-                    case "include":
-                        while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
-                        {
-                            string path = TildeExpand(pathPattern);
-                            if (!Path.IsPathRooted(path))
-                            {
-                                path = Path.Join(includeBasePath, path);
-                            }
-                            foreach (var includefile in Glob(path))
-                            {
-                                ConfigureFromConfigFile(config, host, originalhost, includefile, includeBasePath, ref performSecondPass, isSecondPass);
-                            }
-                        }
-                        break;
-
-                    case "port":
-                        config.Port ??= NextTokenAsInt(keyword, ref remainder);
-                        break;
-
-                    case "connecttimeout":
-                        config.ConnectTimeout ??= NextTokenAsInt(keyword, ref remainder);
-                        break;
-
-                    case "tag":
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
-
-                    // host key options
-                    case "globalknownhostsfile":
-                        if (config.GlobalKnownHostsFiles == null)
-                        {
-                            config.GlobalKnownHostsFiles = new();
-                            while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
-                            {
-                                if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    break;
-                                }
-
-                                string path = TildeExpand(pathPattern);
-                                config.GlobalKnownHostsFiles.Add(path);
-                            }
-                        }
-                        break;
-                    case "userknownhostsfile":
-                        if (config.UserKnownHostsFiles == null)
-                        {
-                            config.UserKnownHostsFiles = new();
-                            while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
-                            {
-                                if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    break;
-                                }
-
-                                string path = TildeExpand(pathPattern);
-                                // TODO: TOKEN expand.
-                                // TODO: envvar expand.
-                                config.UserKnownHostsFiles.Add(path);
-                            }
-                        }
-                        break;
-                    case "hashknownhosts":
-                        config.HashKnownHosts ??= ParseYesNoKeywordValue(keyword, ref remainder);
-                        break;
-                    case "hostkeyalias":
-                    case "knownhostscommand":
-                    case "revokedhostkeys":
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
-
-                    case "stricthostkeychecking":
-                        if (!config.HostKeyChecking.HasValue)
-                        {
-                            ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-
-                            if (value.Equals("no", StringComparison.OrdinalIgnoreCase) ||
-                                value.Equals("off", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.HostKeyChecking = StrictHostKeyChecking.No;
-                            }
-                            else if (value.Equals("accept-new", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.HostKeyChecking = StrictHostKeyChecking.AcceptNew;
-                            }
-                            else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.HostKeyChecking = StrictHostKeyChecking.Yes;
-                            }
-                            else
-                            {
-                                ThrowUnsupportedKeywordValue(keyword, value);
-                            }
-                        }
-                        break;
-
-                    // we don't support running local/remote commands.
-                    case "permitlocalcommand":
-                        ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
-                        break;
-                    case "localcommand":
-                        break; // throw for permitlocalcommand.
-                    case "remotecommand":
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
-
-                    // we don't support establishing the connection through a proxy.
-                    case "proxycommand":
-                    case "proxyjump":
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
-
-                    case "preferredauthentications":
+                    while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
                     {
-                        ReadOnlySpan<char> authentications = GetKeywordValue(keyword, ref remainder);
-                        config.PreferredAuthentications ??= ParseNameList(authentications);
-                        break;
-                    }
-                    case "pubkeyauthentication":
-                    {
-                        if (!config.PubKeyAuthentication.HasValue)
+                        string path = TildeExpand(pathPattern);
+                        if (!Path.IsPathRooted(path))
                         {
-                            ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-
-                            if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.PubKeyAuthentication = false;
-                            }
-                            else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
-                                     value.Equals("unbound", StringComparison.OrdinalIgnoreCase) ||
-                                     value.Equals("host-bound", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.PubKeyAuthentication = true;
-                            }
-                            else
-                            {
-                                ThrowUnsupportedKeywordValue(keyword, value);
-                            }
+                            path = Path.Join(includeBasePath, path);
                         }
-                        break;
-                    }
-                    case "identityfile":
-                    {
-                        ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
-
-                        if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+                        foreach (var includefile in Glob(path))
                         {
-                            config.IdentityFiles = ListOfNone;
+                            ConfigureFromConfigFile(config, host, originalhost, includefile, includeBasePath, ref performSecondPass, isSecondPass);
                         }
-
-                        if (!object.ReferenceEquals(config.IdentityFiles, ListOfNone))
-                        {
-                            config.IdentityFiles ??= new();
-
-                            // Don't add duplicates.
-                            bool found = false;
-                            string path = TildeExpand(value);
-                            // TODO: TOKEN expand.
-                            for (int i = 0; i < config.IdentityFiles.Count; i++)
-                            {
-                                StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-                                if (string.Equals(path, config.IdentityFiles[i], comparison))
-                                {
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found)
-                            {
-                                config.IdentityFiles.Add(path);
-                            }
-                        }
-                        break;
-                    }
-                    case "gssapiauthentication":
-                    {
-                        config.GssApiAuthentication ??= ParseYesNoKeywordValue(keyword, ref remainder);
-                        break;
-                    }
-                    case "gssapidelegatecredentials":
-                    {
-                        config.GssApiDelegateCredentials ??= ParseYesNoKeywordValue(keyword, ref remainder);
-                        break;
-                    }
-                    case "gssapiserveridentity":
-                    {
-                        config.GssApiServerIdentity ??= NextTokenAsStringOrDefault(ref remainder);
-                        break;
                     }
 
-                    case "requiredrsasize":
-                        config.RequiredRSASize ??= NextTokenAsInt(keyword, ref remainder);
-                        break;
-
-                    case "sendenv":
-                        while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pattern))
-                        {
-                            if (pattern.StartsWith("-"))
-                            {
-                                pattern = pattern.Slice(1);
-                                if (config.SendEnv != null)
-                                {
-                                    for (int i = 0; i < config.SendEnv.Count;)
-                                    {
-                                        if (PatternMatcher.IsPatternMatch(pattern, config.SendEnv[i]))
-                                        {
-                                            config.SendEnv.RemoveAt(i);
-                                        }
-                                        else
-                                        {
-                                            i++;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                config.SendEnv ??= new();
-                                config.SendEnv.Add(pattern.ToString());
-                            }
-                        }
-                        break;
-
-                    case "compression":
-                    {
-                        config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
-                        break;
-                    }
-
-                    case "ciphers":
-                        config.Ciphers ??= ReadAlgorithmList(keyword, remainder);
-                        break;
-                    case "hostkeyalgorithms":
-                        config.HostKeyAlgorithms ??= ReadAlgorithmList(keyword, remainder);
-                        break;
-                    case "kexalgorithms":
-                        config.KexAlgorithms ??= ReadAlgorithmList(keyword, remainder);
-                        break;
-                    case "macs":
-                        config.Macs ??= ReadAlgorithmList(keyword, remainder);
-                        break;
-                    case "pubkeyacceptedalgorithms":
-                        config.PublicKeyAcceptedAlgorithms ??= new AlgorithmList()
-                        {
-                            Algorithms = Array.Empty<Name>(),
-                            Operation = AlgorithmListOperation.Filter,
-                            PatternList = remainder.Trim(WhiteSpace).ToString()
-                        };
-                        break;
-
-                    case "checkhostip":
-                        ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
-                        break;
-
-                    // canonicalize
-                    case "canonicalizehostname":
-                        ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
-                        // If this is implemented, it needs to set performSecondPass = true.
-                        break;
-                    case "canonicaldomains":
-                    case "canonicalizefallbacklocal":
-                    case "canonicalizemaxdots":
-                    case "canonicalizepermittedcnames":
-                        break; // throw for canonicalizehostname.
-
-                    /*** Ignored options ***/
-                    // Forwarding related options
-                    case "clearallforwardings":
-                    case "dynamicforward":
-                    case "exitonforwardfailure":
-                    case "forwardagent":
-                    case "forwardx11":
-                    case "forwardx11timeout":
-                    case "forwardx11trusted":
-                    case "gatewayports":
-                    case "localforward":
-                    case "permitremoteopen":
-                    case "remoteforward":
-                    // Logging related options
-                    case "loglevel":
-                    case "logverbose":
-                    case "syslogfacility":
-                    // Application/UX options
-                    case "enableescapecommandline":
-                    case "escapechar":
-                    case "requestty":
-                    case "sessiontype":
-                    case "stdinnull":
-                    case "forkafterauthentication":
-                    case "channeltimeout":
-                    case "obsecurekeystroketiming":
-                    case "visualhostkey":
-                    case "batchmode":
-                    case "fingerprinthash":
-                    // Session sharing options
-                    case "controlmaster":
-                    case "controlsocket":
-                    case "controlpersist":
-                    // Unsupported options - support may be added later.
-                    case "verifyhostkeydns":        // DNS based key verification is not supported
-                    case "hostbasedauthentication": // host-based auth is not supported
-                    case "enablesshkeysign":        // host-based auth is not supported
-                    case "hostbasedacceptedalgorithms": // host-based auth is not supported
-                    case "connectionattempts":      // Only a single attempt is supported (currently)
-                    case "certificatefile":         // certificate based auth is not supported
-                    case "casignaturealgorithms":   // certificate based auth is not supported
-                    case "addkeystoagent":          // auth agent is not supported
-                    case "identitiesonly":          // auth agent is not supported
-                    case "identityagent":           // auth agent is not supported
-                    case "pkcs11provider":          // not supported
-                    case "securitykeyprovider":     // not supported
-                    case "kbdinteractiveauthentication": // keyboard-interactive auth is not supported
-                    case "kbdinteractivedevices":   // keyboard-interactive auth is not supported
-                    case "gssapikeyexchange":       // gssapikeyexchange is not supported
-                    case "gssapikexalgorithms":     // gssapikeyexchange is not supported
-                    case "nohostauthenticationforlocalhost": // not supported
-                    case "updatehostkeys":          // unsupported. This is for updating the known hosts file with keys the server sends us
-                    case "ignoreunknown":           // unsupported.
-                    case "rekeylimit":
-                    case "addressfamily":
-                    case "bindaddress":
-                    case "bindinterface":
-                    case "ipqos":
-                    case "streamlocalbindmask":
-                    case "streamlocalbindunlink":
-                    case "serveralivecountmax":
-                    case "serveraliveinterval":
-                    case "tcpkeepalive":
-                    case "setenv":
-                    // No password prompt
-                    case "passwordauthentication":
-                    /*** End of ignored options ***/
-                        break;
-
-                    default:
-                        ThrowUnsupportedKeyword(keyword, remainder);
-                        break;
+                    continue;
                 }
+
+                HandleMatchedKeyword(config, keyword, remainder);
             }
+        }
+    }
+
+    private static void HandleMatchedKeyword(SshConfig config, ReadOnlySpan<char> keyword, ReadOnlySpan<char> keywordValue)
+    {
+        ReadOnlySpan<char> remainder = keywordValue;
+
+        switch (keyword)
+        {
+            case "hostname":
+                config.HostName ??= NextTokenAsStringOrDefault(ref remainder);
+                break;
+
+            case "user":
+                config.UserName ??= NextTokenAsStringOrDefault(ref remainder);
+                break;
+
+            case "port":
+                config.Port ??= NextTokenAsInt(keyword, ref remainder);
+                break;
+
+            case "connecttimeout":
+                config.ConnectTimeout ??= NextTokenAsInt(keyword, ref remainder);
+                break;
+
+            // host key options
+            case "globalknownhostsfile":
+                if (config.GlobalKnownHostsFiles == null)
+                {
+                    config.GlobalKnownHostsFiles = new();
+                    while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
+                    {
+                        if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+
+                        string path = TildeExpand(pathPattern);
+                        config.GlobalKnownHostsFiles.Add(path);
+                    }
+                }
+                break;
+            case "userknownhostsfile":
+                if (config.UserKnownHostsFiles == null)
+                {
+                    config.UserKnownHostsFiles = new();
+                    while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pathPattern))
+                    {
+                        if (pathPattern.Equals("none", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+
+                        string path = TildeExpand(pathPattern);
+                        // TODO: TOKEN expand.
+                        // TODO: envvar expand.
+                        config.UserKnownHostsFiles.Add(path);
+                    }
+                }
+                break;
+
+            case "hashknownhosts":
+                config.HashKnownHosts ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+
+            case "stricthostkeychecking":
+                if (!config.HostKeyChecking.HasValue)
+                {
+                    ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                    if (value.Equals("no", StringComparison.OrdinalIgnoreCase) ||
+                        value.Equals("off", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.HostKeyChecking = StrictHostKeyChecking.No;
+                    }
+                    else if (value.Equals("accept-new", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.HostKeyChecking = StrictHostKeyChecking.AcceptNew;
+                    }
+                    else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.HostKeyChecking = StrictHostKeyChecking.Yes;
+                    }
+                    else
+                    {
+                        ThrowUnsupportedKeywordValue(keyword, value);
+                    }
+                }
+                break;
+
+            case "preferredauthentications":
+            {
+                ReadOnlySpan<char> authentications = GetKeywordValue(keyword, ref remainder);
+                config.PreferredAuthentications ??= ParseNameList(authentications);
+                break;
+            }
+            case "pubkeyauthentication":
+            {
+                if (!config.PubKeyAuthentication.HasValue)
+                {
+                    ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                    if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.PubKeyAuthentication = false;
+                    }
+                    else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+                                value.Equals("unbound", StringComparison.OrdinalIgnoreCase) ||
+                                value.Equals("host-bound", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.PubKeyAuthentication = true;
+                    }
+                    else
+                    {
+                        ThrowUnsupportedKeywordValue(keyword, value);
+                    }
+                }
+                break;
+            }
+            case "identityfile":
+            {
+                ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+                {
+                    config.IdentityFiles = ListOfNone;
+                }
+
+                if (!object.ReferenceEquals(config.IdentityFiles, ListOfNone))
+                {
+                    config.IdentityFiles ??= new();
+
+                    // Don't add duplicates.
+                    bool found = false;
+                    string path = TildeExpand(value);
+                    // TODO: TOKEN expand.
+                    for (int i = 0; i < config.IdentityFiles.Count; i++)
+                    {
+                        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                        if (string.Equals(path, config.IdentityFiles[i], comparison))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found)
+                    {
+                        config.IdentityFiles.Add(path);
+                    }
+                }
+                break;
+            }
+            case "gssapiauthentication":
+            {
+                config.GssApiAuthentication ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+            }
+            case "gssapidelegatecredentials":
+            {
+                config.GssApiDelegateCredentials ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+            }
+            case "gssapiserveridentity":
+            {
+                config.GssApiServerIdentity ??= NextTokenAsStringOrDefault(ref remainder);
+                break;
+            }
+
+            case "requiredrsasize":
+                config.RequiredRSASize ??= NextTokenAsInt(keyword, ref remainder);
+                break;
+
+            case "sendenv":
+                while (TryGetNextToken(ref remainder, out ReadOnlySpan<char> pattern))
+                {
+                    if (pattern.StartsWith("-"))
+                    {
+                        pattern = pattern.Slice(1);
+                        if (config.SendEnv != null)
+                        {
+                            for (int i = 0; i < config.SendEnv.Count;)
+                            {
+                                if (PatternMatcher.IsPatternMatch(pattern, config.SendEnv[i]))
+                                {
+                                    config.SendEnv.RemoveAt(i);
+                                }
+                                else
+                                {
+                                    i++;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        config.SendEnv ??= new();
+                        config.SendEnv.Add(pattern.ToString());
+                    }
+                }
+                break;
+
+            case "ciphers":
+                config.Ciphers ??= ReadAlgorithmList(keyword, remainder);
+                break;
+            case "hostkeyalgorithms":
+                config.HostKeyAlgorithms ??= ReadAlgorithmList(keyword, remainder);
+                break;
+            case "kexalgorithms":
+                config.KexAlgorithms ??= ReadAlgorithmList(keyword, remainder);
+                break;
+            case "macs":
+                config.Macs ??= ReadAlgorithmList(keyword, remainder);
+                break;
+            case "pubkeyacceptedalgorithms":
+                config.PublicKeyAcceptedAlgorithms ??= new AlgorithmList()
+                {
+                    Algorithms = Array.Empty<Name>(),
+                    Operation = AlgorithmListOperation.Filter,
+                    PatternList = remainder.Trim(WhiteSpace).ToString()
+                };
+                break;
+            case "compression":
+                config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+
+            /* The following options are unsupported,
+               we have some basic handling that checks the option value indicates the feature is disabled */
+            case "permitlocalcommand":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                break;
+            case "localcommand":
+                break; // throw for permitlocalcommand.
+            case "checkhostip":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                break;
+            case "canonicalizehostname":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                // If this is implemented, it needs to set performSecondPass = true.
+                break;
+            case "canonicaldomains":
+            case "canonicalizefallbacklocal":
+            case "canonicalizemaxdots":
+            case "canonicalizepermittedcnames":
+                break; // throw for canonicalizehostname.
+            case "clearallforwardings":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                break;
+            case "dynamicforward":
+            case "exitonforwardfailure":
+            case "forwardagent":
+            case "forwardx11":
+            case "forwardx11timeout":
+            case "forwardx11trusted":
+            case "gatewayports":
+            case "localforward":
+            case "permitremoteopen":
+            case "remoteforward":
+                break; // throw for clearallforwardings.
+            case "passwordauthentication":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                break;
+            case "batchmode":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");
+                break;
+            case "kbdinteractiveauthentication":
+                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");
+                break;
+
+            /* Ignored options */
+            // Logging related options
+            case "loglevel":
+            case "logverbose":
+            case "syslogfacility":
+            // Application/UX options
+            case "enableescapecommandline":
+            case "escapechar":
+            case "requestty":
+            case "sessiontype":
+            case "stdinnull":
+            case "forkafterauthentication":
+            case "channeltimeout":
+            case "obsecurekeystroketiming":
+            case "visualhostkey":
+            case "fingerprinthash":
+            // Session sharing options
+            case "controlmaster":
+            case "controlsocket":
+            case "controlpersist":
+            // Unsupported options - support may be added later.
+            case "verifyhostkeydns":        // DNS based key verification is not supported
+            case "hostbasedauthentication": // host-based auth is not supported
+            case "enablesshkeysign":        // host-based auth is not supported
+            case "hostbasedacceptedalgorithms": // host-based auth is not supported
+            case "connectionattempts":      // Only a single attempt is supported (currently)
+            case "certificatefile":         // certificate based auth is not supported
+            case "casignaturealgorithms":   // certificate based auth is not supported
+            case "addkeystoagent":          // auth agent is not supported
+            case "identitiesonly":          // auth agent is not supported
+            case "identityagent":           // auth agent is not supported
+            case "pkcs11provider":          // not supported
+            case "securitykeyprovider":     // not supported
+            case "kbdinteractivedevices":   // keyboard-interactive auth is not supported
+            case "gssapikeyexchange":       // gssapikeyexchange is not supported
+            case "gssapikexalgorithms":     // gssapikeyexchange is not supported
+            case "nohostauthenticationforlocalhost": // not supported
+            case "updatehostkeys":          // unsupported. This is for updating the known hosts file with keys the server sends us
+            case "ignoreunknown":           // unsupported.
+                break;
+
+            /* Unsupported options */
+            // case "rekeylimit":
+            // case "addressfamily":
+            // case "bindaddress":
+            // case "bindinterface":
+            // case "ipqos":
+            // case "streamlocalbindmask":
+            // case "streamlocalbindunlink":
+            // case "serveralivecountmax":
+            // case "serveraliveinterval":
+            // case "tcpkeepalive":
+            // case "setenv":
+            // case "tag":
+            // case "proxycommand":
+            // case "proxyjump":
+            // case "hostkeyalias":
+            // case "knownhostscommand":
+            // case "revokedhostkeys":
+            // case "remotecommand":
+            default:
+                ThrowUnsupportedKeyword(keyword, remainder);
+                break;
         }
     }
 

@@ -445,4 +445,23 @@ public class ConnectTests
             }
         );
     }
+
+    [Fact]
+    public async Task SshConfig_Options()
+    {
+        var options = new SshConfigOptions(configFilePaths: [])
+        {
+            Options = new Dictionary<SshConfigOption, SshConfigOptionValue>()
+            {
+                { SshConfigOption.Hostname, "localhost" },
+                { SshConfigOption.User, _sshServer.TestUser },
+                { SshConfigOption.Port, _sshServer.ServerPort.ToString() },
+                { SshConfigOption.IdentityFile, _sshServer.TestUserIdentityFile },
+                { SshConfigOption.StrictHostKeyChecking, "no" },
+                { SshConfigOption.UserKnownHostsFile, Path.Combine(Path.GetTempPath(), Path.GetTempFileName()) },
+            }
+        };
+        using var client = new SshClient("", options);
+        await client.ConnectAsync();
+    }
 }

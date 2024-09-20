@@ -237,6 +237,7 @@ class SshConfigOptions
   static IReadOnlyList<string> DefaultConfigFilePaths { get; } // [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
 
   IReadOnlyList<string> ConfigFilePaths { get; set; }
+  IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> Options { get; set; }
 
   TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
 
@@ -244,6 +245,41 @@ class SshConfigOptions
   bool AutoReconnect { get; set; }
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
+}
+public enum SshConfigOption
+{
+    Hostname,
+    User,
+    Port,
+    ConnectTimeout,
+    GlobalKnownHostsFile,
+    UserKnownHostsFile,
+    HashKnownHosts,
+    StrictHostKeyChecking,
+    PreferredAuthentications,
+    PubkeyAuthentication,
+    IdentityFile,
+    GSSAPIAuthentication,
+    GSSAPIDelegateCredentials,
+    GSSAPIServerIdentity,
+    RequiredRSASize,
+    SendEnv,
+    Ciphers,
+    HostKeyAlgorithms,
+    KexAlgorithms,
+    MACs,
+    PubkeyAcceptedAlgorithms
+}
+struct SshConfigOptionValue
+{
+    SshConfigOptionValue(string value);
+    SshConfigOptionValue(IEnumerable<string> values);
+    static implicit operator SshConfigOptionValue(string value);
+
+    bool IsEmpty { get; }
+    bool IsSingleValue { get; }
+    string? FirstValue { get; }
+    IEnumerable<string> Values { get; }
 }
 class SftpClientOptions
 { }
