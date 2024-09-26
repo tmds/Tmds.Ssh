@@ -110,6 +110,8 @@ class RemoteProcess : IDisposable
 
   // Exit code.
   int ExitCode { get; }
+  // Exit signal (if terminated by a signal).
+  string? ExitSignal { get; }
 }
 class SshDataStream : Stream
 {

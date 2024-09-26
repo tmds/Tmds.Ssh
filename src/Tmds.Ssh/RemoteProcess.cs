@@ -202,16 +202,31 @@ public sealed class RemoteProcess : IDisposable
     {
         get
         {
-            if (_readMode == ReadMode.Disposed)
-            {
-                ThrowObjectDisposedException();
-            }
-            else if (_readMode != ReadMode.Exited)
-            {
-                throw new InvalidOperationException("The process has not yet exited.");
-            }
+            EnsureExited();
 
             return _channel.ExitCode!.Value;
+        }
+    }
+
+    public string? ExitSignal
+    {
+        get
+        {
+            EnsureExited();
+
+            return _channel.ExitSignal;
+        }
+    }
+
+    private void EnsureExited()
+    {
+        if (_readMode == ReadMode.Disposed)
+        {
+            ThrowObjectDisposedException();
+        }
+        else if (_readMode != ReadMode.Exited)
+        {
+            throw new InvalidOperationException("The process has not yet exited.");
         }
     }
 
