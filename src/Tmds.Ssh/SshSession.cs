@@ -142,7 +142,7 @@ sealed partial class SshSession
                 Debug.Assert(_sshConfigOptions is not null);
                 (userName, host, port) = SshClientSettings.ParseDestination(_destination);
 
-                if (string.IsNullOrEmpty(host) && _sshConfigOptions.Options.TryGetValue(SshConfigOption.Hostname, out SshConfigOptionValue value))
+                if (string.IsNullOrEmpty(host) && _sshConfigOptions.OptionsOrDefault?.TryGetValue(SshConfigOption.Hostname, out SshConfigOptionValue value) == true)
                 {
                     host = value.FirstValue ?? "";
                 }
@@ -654,7 +654,7 @@ sealed partial class SshSession
                 await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            SendEnv(channel, _settings.EnvironmentVariables);
+            SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
 
             // Request command execution.
             {

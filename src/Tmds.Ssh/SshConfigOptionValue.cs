@@ -27,7 +27,7 @@ public readonly struct SshConfigOptionValue
     public static implicit operator SshConfigOptionValue(string value)
         => new SshConfigOptionValue(value);
 
-    public bool IsEmpty => FirstValue is not null;
+    public bool IsEmpty => FirstValue is null;
 
     public bool IsSingleValue =>
         _value is string || (_value is string[] values && values.Length == 1);

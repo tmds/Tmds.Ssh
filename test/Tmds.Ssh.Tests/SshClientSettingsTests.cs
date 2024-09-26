@@ -12,7 +12,7 @@ public class ClientSettingsTests
         Assert.Equal(TimeSpan.FromSeconds(15), settings.ConnectTimeout);
         Assert.Equal(22, settings.Port);
         Assert.Equal(2048, settings.MinimumRSAKeySize);
-        Assert.Equal(string.Empty, settings.UserName);
+        Assert.Equal(Environment.UserName, settings.UserName);
         Assert.Equal(string.Empty, settings.HostName);
         Assert.Equal(SshClientSettings.DefaultCredentials, settings.Credentials);
         Assert.False(settings.UpdateKnownHostsFileAfterAuthentication);

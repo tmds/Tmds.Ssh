@@ -18,7 +18,7 @@ partial class SshClientSettings
 
     internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigSettings options, CancellationToken cancellationToken = default)
     {
-        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.Options, options.ConfigFilePaths, cancellationToken);
+        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.OptionsOrDefault, options.ConfigFilePaths, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
@@ -32,8 +32,6 @@ partial class SshClientSettings
             HostName = sshConfig.HostName ?? host,
             UserName = sshConfig.UserName ?? Environment.UserName,
             Port = sshConfig.Port ?? DefaultPort,
-            UserKnownHostsFilePaths = sshConfig.UserKnownHostsFiles ?? DefaultUserKnownHostsFilePaths,
-            GlobalKnownHostsFilePaths = sshConfig.GlobalKnownHostsFiles ?? DefaultGlobalKnownHostsFilePaths,
             ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : options.ConnectTimeout,
             KeyExchangeAlgorithms = kexAlgorithms,
             ServerHostKeyAlgorithms = hostKeyAlgorithms,
@@ -47,8 +45,20 @@ partial class SshClientSettings
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig),
             HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts,
-            EnvironmentVariables = CreateEnvironmentVariables(Environment.GetEnvironmentVariables(), sshConfig.SendEnv)
         };
+        if (sshConfig.UserKnownHostsFiles is not null)
+        {
+            settings.UserKnownHostsFilePaths = sshConfig.UserKnownHostsFiles;
+        }
+        if (sshConfig.GlobalKnownHostsFiles is not null)
+        {
+            settings.GlobalKnownHostsFilePaths = sshConfig.GlobalKnownHostsFiles;
+        }
+        var envvars = CreateEnvironmentVariables(Environment.GetEnvironmentVariables(), sshConfig.SendEnv);
+        if (envvars is not null)
+        {
+            settings.EnvironmentVariables = envvars;
+        }
 
         SshConfig.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfig.StrictHostKeyChecking.Ask;
         switch (hostKeyChecking)
@@ -100,7 +110,7 @@ partial class SshClientSettings
         return settings;
     }
 
-    internal static IReadOnlyDictionary<string, string>? CreateEnvironmentVariables(IDictionary systemEnvironment, List<System.String>? sendEnv)
+    internal static Dictionary<string, string>? CreateEnvironmentVariables(IDictionary systemEnvironment, List<System.String>? sendEnv)
     {
         if (sendEnv is null || sendEnv.Count == 0)
         {
@@ -123,7 +133,7 @@ partial class SshClientSettings
         return envvars;
     }
 
-    private static IReadOnlyList<Credential> DetermineCredentials(SshConfig config)
+    private static List<Credential> DetermineCredentials(SshConfig config)
     {
         bool addPubKeyCredentials = config.PubKeyAuthentication ?? true;
         bool addGssApiCredentials = config.GssApiAuthentication ?? false;

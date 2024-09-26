@@ -271,7 +271,8 @@ sealed partial class SshSession
 
         // TODO: remove old keys from KnownHostsFilePaths?
         // Add keys to first KnownHostsFilePaths.
-        string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && _settings.UserKnownHostsFilePaths.Count > 0 ? _settings.UserKnownHostsFilePaths[0] : null;
+        IReadOnlyList<string> userKnownHostsFilePaths = _settings.UserKnownHostsFilePathsOrDefault;
+        string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && userKnownHostsFilePaths.Count > 0 ? userKnownHostsFilePaths[0] : null;
         IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
 
         return new KeyExchangeContext(connection, this, isInitialKex)
@@ -297,7 +298,7 @@ sealed partial class SshSession
 
         string? ip = ConnectionInfo.IPAddress?.ToString();
 
-        IEnumerable<string> knownHostsFiles = _settings.GlobalKnownHostsFilePaths.Concat(_settings.UserKnownHostsFilePaths);
+        IEnumerable<string> knownHostsFiles = _settings.GlobalKnownHostsFilePathsOrDefault.Concat(_settings.UserKnownHostsFilePathsOrDefault);
 
         TrustedHostKeys knownHostsKeys = new();
 

@@ -29,7 +29,7 @@ sealed partial class SshSession
         bool authSuccess;
 
         // Try credentials.
-        foreach (var credential in _settings.Credentials)
+        foreach (var credential in _settings.CredentialsOrDefault)
         {
             if (credential is PasswordCredential passwordCredential)
             {

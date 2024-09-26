@@ -65,6 +65,9 @@ public sealed partial class SshClient : IDisposable
         TimeSpan connectTimeout,
         ILoggerFactory? loggerFactory)
     {
+        settings?.Validate();
+        configSettings?.Validate();
+
         _settings = settings;
         _destination = destination;
         _sshConfigOptions = configSettings;

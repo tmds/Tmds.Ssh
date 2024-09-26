@@ -9,12 +9,24 @@ public sealed partial class SshClientSettings
     private int _port = DefaultPort;
     private string _hostName = "";
     private string _userName = "";
-    private IReadOnlyList<Credential> _credentials = DefaultCredentials;
+    private List<Credential>? _credentials;
     private TimeSpan _connectTimeout = DefaultConnectTimeout;
-    private IReadOnlyList<string> _userKnownHostsFilePaths = DefaultUserKnownHostsFilePaths;
-    private IReadOnlyList<string> _globalKnownHostsFilePaths = DefaultGlobalKnownHostsFilePaths;
+    private List<string>? _userKnownHostsFilePaths;
+    private List<string>? _globalKnownHostsFilePaths;
+    private Dictionary<string, string>? _environmentVariables;
 
-    public SshClientSettings()
+    // Avoid allocations from the public getters.
+    internal IReadOnlyList<Credential> CredentialsOrDefault
+        => _credentials ?? DefaultCredentials;
+    internal IReadOnlyList<string> UserKnownHostsFilePathsOrDefault
+        => _userKnownHostsFilePaths ?? DefaultUserKnownHostsFilePaths;
+    internal IReadOnlyList<string> GlobalKnownHostsFilePathsOrDefault
+        => _globalKnownHostsFilePaths ?? DefaultGlobalKnownHostsFilePaths;
+    internal Dictionary<string, string>? EnvironmentVariablesOrDefault
+        => _environmentVariables;
+
+    public SshClientSettings() :
+        this("")
     { }
 
     public SshClientSettings(string destination)
@@ -71,9 +83,9 @@ public sealed partial class SshClientSettings
         }
     }
 
-    public IReadOnlyList<Credential> Credentials
+    public List<Credential> Credentials
     {
-        get => _credentials;
+        get => _credentials ??= new List<Credential>(DefaultCredentials);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
@@ -95,6 +107,54 @@ public sealed partial class SshClientSettings
         }
     }
 
+    internal void Validate()
+    {
+        if (_credentials is not null)
+        {
+            foreach (var item in _credentials)
+            {
+                if (item is null)
+                {
+                    throw new ArgumentException($"{nameof(Credentials)} contains 'null'." , $"{nameof(Credentials)}");
+                }
+            }
+        }
+        if (_userKnownHostsFilePaths is not null)
+        {
+            foreach (var item in _userKnownHostsFilePaths)
+            {
+                if (item is null)
+                {
+                    throw new ArgumentException($"{nameof(UserKnownHostsFilePaths)} contains 'null'." , $"{nameof(UserKnownHostsFilePaths)}");
+                }
+            }
+        }
+        if (_globalKnownHostsFilePaths is not null)
+        {
+            foreach (var item in _globalKnownHostsFilePaths)
+            {
+                if (item is null)
+                {
+                    throw new ArgumentException($"{nameof(GlobalKnownHostsFilePaths)} contains 'null'." , $"{nameof(GlobalKnownHostsFilePaths)}");
+                }
+            }
+        }
+        if (_environmentVariables is not null)
+        {
+            foreach (var item in _environmentVariables)
+            {
+                if (item.Key.Length == 0)
+                {
+                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains empty key." , $"{nameof(EnvironmentVariables)}");
+                }
+                if (item.Value is null)
+                {
+                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains 'null' value for key '{item.Key}'." , $"{nameof(EnvironmentVariables)}");
+                }
+            }
+        }
+    }
+
     public int Port
     {
         get => _port;
@@ -108,30 +168,22 @@ public sealed partial class SshClientSettings
         }
     }
 
-    public IReadOnlyList<string> UserKnownHostsFilePaths
+    public List<string> UserKnownHostsFilePaths
     {
-        get => _userKnownHostsFilePaths;
+        get => _userKnownHostsFilePaths ??= new List<string>(DefaultUserKnownHostsFilePaths);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            foreach (var item in value)
-            {
-                ArgumentNullException.ThrowIfNullOrEmpty(item);
-            }
             _userKnownHostsFilePaths = value;
         }
     }
 
-    public IReadOnlyList<string> GlobalKnownHostsFilePaths
+    public List<string> GlobalKnownHostsFilePaths
     {
-        get => _globalKnownHostsFilePaths;
+        get => _globalKnownHostsFilePaths ??= new List<string>(DefaultGlobalKnownHostsFilePaths);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            foreach (var item in value)
-            {
-                ArgumentNullException.ThrowIfNullOrEmpty(item);
-            }
             _globalKnownHostsFilePaths = value;
         }
     }
@@ -146,7 +198,15 @@ public sealed partial class SshClientSettings
 
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
-    public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
+    public Dictionary<string, string>? EnvironmentVariables
+    {
+        get => _environmentVariables ??= new();
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _environmentVariables = value;
+        }
+    }
 
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
