@@ -243,6 +243,20 @@ public class RemoteProcess
         Assert.Equal(0, bytesRead);
 
         Assert.Equal(exitCode, process.ExitCode);
+        Assert.Null(process.ExitSignal);
+    }
+
+    [Theory]
+    [InlineData("TERM", 128 + 15)]
+    [InlineData("KILL", 128 + 9)]
+    public async Task ExitCodeSignal(string signal, int expectedExitCode)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync($"kill -s {signal} $$");
+        await process.WaitForExitAsync();
+
+        Assert.Equal(signal, process.ExitSignal);
+        Assert.Equal(expectedExitCode, process.ExitCode);
     }
 
     [Fact]

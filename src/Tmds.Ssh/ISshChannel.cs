@@ -6,6 +6,7 @@ interface ISshChannel
     int SendMaxPacket { get; }
     CancellationToken ChannelAborted { get; }
     int? ExitCode { get; }
+    string? ExitSignal { get; }
 
     void Dispose();
     void Abort(Exception exception);
