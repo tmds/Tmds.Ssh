@@ -206,33 +206,33 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  static IReadOnlyList<Credential> DefaultCredentials { get; } // = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
-  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } // = [ '~/.ssh/known_hosts' ]
-  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } // = [ '/etc/ssh/known_hosts' ]
+  static IReadOnlyList<Credential> DefaultCredentials { get; } = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
+  static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } = [ '~/.ssh/known_hosts' ]
+  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = [ '/etc/ssh/known_hosts' ]
 
   SshClientSettings();
   SshClientSettings(string destination);
 
   TimeSpan ConnectTimeout { get; set; } // = 15s
 
-  string UserName { get; set; }
-  string HostName { get; set; }
-  int Port { get; set; }
+  string UserName { get; set; } = Environment.UserName;
+  string HostName { get; set; } = "";
+  int Port { get; set; } = 22;
 
   IReadOnlyList<Credential> Credentials { get; set; } = DefaultCredentials;
 
   bool AutoConnect { get; set; } = true;
-  bool AutoReconnect { get; set; }
+  bool AutoReconnect { get; set; } = false;
 
-  IReadOnlyList<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
-  IReadOnlyList<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
+  List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
+  List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
   bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
   bool HashKnownHosts { get; set; } = false;
 
   int MinimumRSAKeySize { get; set; } = 2048;
 
-  IReadOnlyDictionary<string, string>? EnvironmentVariables { get; set; }
+  Dictionary<string, string> EnvironmentVariables { get; set; } = [];
 }
 class SshConfigSettings
 {
@@ -240,8 +240,8 @@ class SshConfigSettings
   static SshConfigSettings NoConfig { get; } // use [ ]
   static IReadOnlyList<string> DefaultConfigFilePaths { get; } // [ '~/.ssh/config', '/etc/ssh/ssh_config' ]
 
-  IReadOnlyList<string> ConfigFilePaths { get; set; }
-  IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> Options { get; set; }
+  List<string> ConfigFilePaths { get; set; } = DefaultConfigFilePaths;
+  Dictionary<SshConfigOption, SshConfigOptionValue> Options { get; set; }
 
   TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
 

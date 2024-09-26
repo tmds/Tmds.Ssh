@@ -96,7 +96,7 @@ class Program
 
     private static SshConfigSettings CreateSshConfigSettings(string[] options)
     {
-        SshConfigSettings configSettings = new SshConfigSettings(SshConfigSettings.DefaultConfigFilePaths);
+        SshConfigSettings configSettings = new SshConfigSettings();
 
         Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
         foreach (var option in options)

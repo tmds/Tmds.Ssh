@@ -18,38 +18,45 @@ public sealed class SshConfigSettings
 
     private bool _locked;
 
-    private IReadOnlyList<string> _configFilePaths;
-    private IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> _options;
+    private List<string>? _configFilePaths;
+    private Dictionary<SshConfigOption, SshConfigOptionValue>? _options;
     private bool _autoConnect = true;
     private bool _autoReconnect = false;
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
     private HostAuthentication? _hostAuthentication;
 
-    public SshConfigSettings(IReadOnlyList<string> configFilePaths)
-    {
-        _configFilePaths = ValidateConfigFilePaths(configFilePaths);
-        _options = new Dictionary<SshConfigOption, SshConfigOptionValue>();
-    }
+    // Avoid allocations from the public getters.
+    internal IReadOnlyList<string> ConfigFilePathsOrDefault
+        => _configFilePaths ?? DefaultConfigFilePaths;
+    internal IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? OptionsOrDefault
+        => _options;
 
-    public IReadOnlyList<string> ConfigFilePaths
+    public SshConfigSettings()
+    { }
+
+    public List<string> ConfigFilePaths
     {
-        get => _configFilePaths;
+        get => _configFilePaths ??= new(DefaultConfigFilePaths);
         set
         {
             ThrowIfLocked();
 
-            _configFilePaths = ValidateConfigFilePaths(value);
+            ArgumentNullException.ThrowIfNull(value);
+
+            _configFilePaths = value;
         }
     }
 
-    public IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> Options
+    public Dictionary<SshConfigOption, SshConfigOptionValue> Options
     {
-        get => _options;
+        get => _options ??= new();
         set
         {
             ThrowIfLocked();
 
-            _options = ValidateOptions(value);
+            ArgumentNullException.ThrowIfNull(value);
+
+            _options = value;
         }
     }
 
@@ -106,19 +113,36 @@ public sealed class SshConfigSettings
         }
     }
 
-    private IReadOnlyList<string> ValidateConfigFilePaths(IReadOnlyList<string> argument, [CallerArgumentExpression(nameof(argument))] string? paramName = null)
+    internal void Validate()
     {
-        ArgumentNullException.ThrowIfNull(argument, paramName);
-
-        foreach (var path in argument)
+        if (_configFilePaths is not null)
         {
-            if (!Path.IsPathRooted(path))
+            foreach (var item in _configFilePaths)
             {
-                throw new ArgumentException("Config file paths must be rooted.", paramName);
+                if (item is null)
+                {
+                    throw new ArgumentException($"{nameof(ConfigFilePaths)} contains 'null'." , $"{nameof(ConfigFilePaths)}");
+                }
+                if (!Path.IsPathRooted(item))
+                {
+                    throw new ArgumentException("Config file paths must be rooted.", $"{nameof(ConfigFilePaths)}");
+                }
             }
         }
-
-        return argument;
+        if (_options is not null)
+        {
+            foreach (var item in _options)
+            {
+                if (!Enum.IsDefined(item.Key))
+                {
+                    throw new ArgumentException($"{nameof(Options)} contains unknown key '{item.Key}'." , $"{nameof(Options)}");
+                }
+                if (item.Value.IsEmpty)
+                {
+                    throw new ArgumentException($"{nameof(Options)} contains 'null' value for key '{item.Key}'." , $"{nameof(Options)}");
+                }
+            }
+        }
     }
 
     private void Lock()
@@ -136,17 +160,7 @@ public sealed class SshConfigSettings
 
     private static SshConfigSettings CreateDefault()
     {
-        string userConfigFilePath = Path.Combine(SshClientSettings.Home, ".ssh", "config");
-        string systemConfigFilePath;
-        if (Platform.IsWindows)
-        {
-            systemConfigFilePath = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "ssh_config");
-        }
-        else
-        {
-            systemConfigFilePath = "/etc/ssh/ssh_config";
-        }
-        var config = new SshConfigSettings([userConfigFilePath, systemConfigFilePath]);
+        var config = new SshConfigSettings();
 
         config.Lock();
 
@@ -155,7 +169,10 @@ public sealed class SshConfigSettings
 
     private static SshConfigSettings CreateNoConfig()
     {
-        var config = new SshConfigSettings(DefaultConfigFilePaths);
+        var config = new SshConfigSettings()
+        {
+            ConfigFilePaths = []
+        };
 
         config.Lock();
 

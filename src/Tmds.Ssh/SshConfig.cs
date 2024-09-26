@@ -60,7 +60,7 @@ sealed class SshConfig
     public bool? HashKnownHosts { get; set; }
     public List<string>? SendEnv { get; set; }
 
-    internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue> options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
+    internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
         SshConfig config = new SshConfig()
         {
@@ -68,7 +68,10 @@ sealed class SshConfig
             Port = port
         };
 
-        ConfigureFromOptions(config, options);
+        if (options is not null)
+        {
+            ConfigureFromOptions(config, options);
+        }
 
         string originalhost = host;
 

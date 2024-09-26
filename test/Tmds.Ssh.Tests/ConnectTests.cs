@@ -344,9 +344,10 @@ public class ConnectTests
     public async Task SshConfig_AutoConnect(bool autoConnect)
     {
         using var client = await _sshServer.CreateClientAsync(
-            new SshConfigSettings([_sshServer.SshConfigFilePath])
+            new SshConfigSettings()
             {
-                AutoConnect = autoConnect
+                AutoConnect = autoConnect,
+                ConfigFilePaths = [ _sshServer.SshConfigFilePath ]
             },
             connect: false
         );
@@ -367,9 +368,10 @@ public class ConnectTests
     public async Task SshConfig_AutoReconnect(bool autoReconnect)
     {
         using var client = await _sshServer.CreateClientAsync(
-            new SshConfigSettings([_sshServer.SshConfigFilePath])
+            new SshConfigSettings()
             {
-                AutoReconnect = autoReconnect
+                AutoReconnect = autoReconnect,
+                ConfigFilePaths = [ _sshServer.SshConfigFilePath ]
             }
         );
 
@@ -399,9 +401,10 @@ public class ConnectTests
         int port = (s.LocalEndPoint as IPEndPoint)!.Port;
 
         using var client = new SshClient($"user@{address}:{port}",
-            new SshConfigSettings([_sshServer.SshConfigFilePath])
+            new SshConfigSettings()
             {
-                ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout)
+                ConnectTimeout = TimeSpan.FromMilliseconds(msTimeout),
+                ConfigFilePaths = [ _sshServer.SshConfigFilePath ]
             });
 
         SshConnectionException exception = await Assert.ThrowsAnyAsync<SshConnectionException>(() => client.ConnectAsync());
@@ -425,7 +428,7 @@ public class ConnectTests
             UserKnownHostsFile {Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())}
             """);
         using var _ = await _sshServer.CreateClientAsync(
-            new SshConfigSettings([configFile.Path])
+            new SshConfigSettings()
             {
                 HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
@@ -441,7 +444,8 @@ public class ConnectTests
                     ];
                     Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
-                }
+                },
+                ConfigFilePaths = [ configFile.Path ]
             }
         );
     }
@@ -449,8 +453,9 @@ public class ConnectTests
     [Fact]
     public async Task SshConfig_Options()
     {
-        var options = new SshConfigSettings(configFilePaths: [])
+        var options = new SshConfigSettings()
         {
+            ConfigFilePaths = [],
             Options = new Dictionary<SshConfigOption, SshConfigOptionValue>()
             {
                 { SshConfigOption.Hostname, "localhost" },
