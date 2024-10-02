@@ -17,12 +17,9 @@ partial class UserAuthentication
         // Kerberos - 1.2.840.113554.1.2.2 - This is DER encoding of the OID.
         private static readonly byte[] KRB5_OID = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02];
 
-        public static async Task<bool> TryAuthenticate(KerberosCredential credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static async Task<AuthResult> TryAuthenticate(KerberosCredential credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            if (!context.TryStartAuth(AlgorithmNames.GssApiWithMic))
-            {
-                return false;
-            }
+            context.StartAuth(AlgorithmNames.GssApiWithMic);
 
             // RFC uses hostbased SPN format "service@host" but Windows SSPI needs the service/host format.
             // .NET converts this format to the hostbased format expected by GSSAPI for us.
@@ -37,7 +34,7 @@ partial class UserAuthentication
             bool isOidSuccess = await TryStageOid(context, logger, context.UserName, ct).ConfigureAwait(false);
             if (!isOidSuccess)
             {
-                return false;
+                return AuthResult.Failure;
             }
 
             var negotiateOptions = new NegotiateAuthenticationClientOptions()
@@ -61,7 +58,7 @@ partial class UserAuthentication
             bool isAuthSuccess = await TryStageAuthentication(context, logger, authContext, ct).ConfigureAwait(false);
             if (!isAuthSuccess)
             {
-                return false;
+                return AuthResult.Failure;
             }
 
             try
@@ -75,10 +72,10 @@ partial class UserAuthentication
             catch (MissingMethodException)
             {
                 // Remove once .NET 8 is no longer the minimum and we get rid of reflection.
-                return false;
+                return AuthResult.Failure;
             }
 
-            return await context.ReceiveAuthIsSuccesfullAsync(ct).ConfigureAwait(false);
+            return await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
         }
 
         private static async Task<bool> TryStageOid(UserAuthContext context, ILogger logger, string userName, CancellationToken ct)

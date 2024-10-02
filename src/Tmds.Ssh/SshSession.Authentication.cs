@@ -26,45 +26,85 @@ sealed partial class SshSession
 
         UserAuthContext context = new UserAuthContext(connection, _settings.UserName, _settings.PublicKeyAcceptedAlgorithms, _settings.MinimumRSAKeySize, Logger);
 
-        bool authSuccess;
-
+        int partialAuthAttempts = 0;
         // Try credentials.
-        foreach (var credential in _settings.CredentialsOrDefault)
+        List<Credential> credentials = new(_settings.CredentialsOrDefault);
+        for (int i = 0; i < credentials.Count; i++)
         {
-            if (credential is PasswordCredential passwordCredential)
+            Credential credential = credentials[i];
+
+            AuthResult authResult;
+            bool? methodAccepted;
+            Name method;
+            if (credential is PasswordCredential passwordCredential &&
+                TryMethod(AlgorithmNames.Password))
             {
-                authSuccess = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                authResult = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
-            else if (credential is PrivateKeyCredential keyCredential)
+            else if (credential is PrivateKeyCredential keyCredential &&
+                     TryMethod(AlgorithmNames.PublicKey))
             {
-                authSuccess = await PublicKeyAuth.TryAuthenticate(keyCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                authResult = await PublicKeyAuth.TryAuthenticate(keyCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
-            else if (credential is KerberosCredential kerberosCredential)
+            else if (credential is KerberosCredential kerberosCredential &&
+                     TryMethod(AlgorithmNames.PublicKey))
             {
-                authSuccess = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                authResult = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
             }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
             }
 
-            if (authSuccess)
+            if (authResult == AuthResult.Success)
             {
                 return;
+            }
+
+            if (authResult == AuthResult.Failure)
+            {
+                // If we didn't know if the method was accepted before, check the context which was updated by SSH_MSG_USERAUTH_FAILURE.
+                if (methodAccepted == null)
+                {
+                    methodAccepted = context.IsMethodAccepted(method);
+                }
+                // Don't try a failed credential again if it matched an accepted method.
+                if (methodAccepted == true || methodAccepted == null)
+                {
+                    credentials.RemoveAt(i);
+                    i--;
+                }
+            }
+
+            if (authResult == AuthResult.Partial)
+            {
+                // The same method may be requested multiple times with partial auth.
+                // The client should be providing different credentials when the same method is tried again.
+                // Move the current credential to the back of the list so we don't try it as the first one once more.
+                credentials.RemoveAt(i);
+                credentials.Add(credential);
+
+                // Start over (but limit the amount of times we want to start over to avoid an infinite loop).
+                if (++partialAuthAttempts == Constants.MaxPartialAuths)
+                {
+                    break;
+                }
+                else
+                {
+                    i = 0;
+                }
+            }
+
+            bool TryMethod(Name credentialMethod)
+            {
+                method = credentialMethod;
+                methodAccepted = context.IsMethodAccepted(method);
+                return methodAccepted != false;
             }
         }
 
         throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", ConnectionInfo);
     }
-
-    private static Name GetAuthenticationMethod(Credential credential)
-        => credential switch
-        {
-            PasswordCredential => AlgorithmNames.Password,
-            PrivateKeyCredential => AlgorithmNames.PublicKey,
-            KerberosCredential => AlgorithmNames.GssApiWithMic,
-            _ => throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName)
-        };
 
     private static Packet CreateServiceRequestMessage(SequencePool sequencePool)
     {
