@@ -33,27 +33,39 @@ sealed partial class SshSession
         {
             Credential credential = credentials[i];
 
-            AuthResult authResult;
+            AuthResult authResult = AuthResult.Failure;
             bool? methodAccepted;
             Name method;
-            if (credential is PasswordCredential passwordCredential &&
-                TryMethod(AlgorithmNames.Password))
+            if (credential is PasswordCredential passwordCredential)
             {
-                authResult = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                if (TryMethod(AlgorithmNames.Password))
+                {
+                    authResult = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
             }
-            else if (credential is PrivateKeyCredential keyCredential &&
-                     TryMethod(AlgorithmNames.PublicKey))
+            else if (credential is PrivateKeyCredential keyCredential)
             {
-                authResult = await PublicKeyAuth.TryAuthenticate(keyCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                if (TryMethod(AlgorithmNames.PublicKey))
+                {
+                    authResult = await PublicKeyAuth.TryAuthenticate(keyCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
             }
-            else if (credential is KerberosCredential kerberosCredential &&
-                     TryMethod(AlgorithmNames.PublicKey))
+            else if (credential is KerberosCredential kerberosCredential)
             {
-                authResult = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                if (TryMethod(AlgorithmNames.GssApiWithMic))
+                {
+                    authResult = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
             }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
+            }
+
+            // We didn't try the method, skip to the next credential.
+            if (methodAccepted == false)
+            {
+                continue;
             }
 
             if (authResult == AuthResult.Success)
@@ -91,7 +103,7 @@ sealed partial class SshSession
                 }
                 else
                 {
-                    i = 0;
+                    i = -1;
                 }
             }
 

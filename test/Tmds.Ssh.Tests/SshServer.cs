@@ -39,9 +39,14 @@ public class SshServer : IDisposable
     private readonly string _knownHostsFile;
     private readonly string _krbConfigFilePath;
     private readonly string _sshConfigFilePath;
+    private readonly string? _sshdConfigFilePath;
     private bool _useDockerInstead;
 
-    public SshServer()
+    public SshServer() :
+        this(null)
+    { }
+
+    protected SshServer(string? sshdConfig)
     {
         Console.WriteLine("Starting SSH server for tests.");
 
@@ -55,7 +60,22 @@ public class SshServer : IDisposable
             _host = interfaceAddress.ToString();
             _port = PickFreePort(interfaceAddress);
             int kdcPort = PickFreePort(interfaceAddress);
-            _containerId = LastWord(Run("podman", "run", "-d", "-p", $"{_host}:{_port}:22", "-p", $"{_host}:{kdcPort}:88/tcp", "-p", $"{_host}:{kdcPort}:88/udp", "-h", "localhost", ContainerImageName));
+            List<string> runArgs =
+            [
+                "-d",
+                "-p", $"{_host}:{_port}:22",
+                "-p", $"{_host}:{kdcPort}:88/tcp", "-p", $"{_host}:{kdcPort}:88/udp",
+                "-h", "localhost"
+            ];
+            if (sshdConfig is not null)
+            {
+                _sshdConfigFilePath = Path.GetTempFileName();
+                File.WriteAllText(_sshdConfigFilePath, sshdConfig);
+                runArgs.AddRange(
+                    [ "-v", $"{_sshdConfigFilePath}:/etc/ssh/sshd_config.d/10-custom.conf:z" ]
+                );
+            }
+            _containerId = LastWord(Run("podman", ["run", ..runArgs, ContainerImageName]));
             do
             {
                 string[] log = Run("podman", "logs", _containerId);
@@ -86,7 +106,10 @@ public class SshServer : IDisposable
                 Run("chmod", "600", TestUserIdentityFile);
             }
 
-            VerifyServerWorks();
+            if (sshdConfig is null)
+            {
+                VerifyServerWorks();
+            }
 
             Console.WriteLine("SSH server is running.");
         }
@@ -199,6 +222,10 @@ public class SshServer : IDisposable
             {
                 File.Delete(_sshConfigFilePath);
             }
+            if (_sshdConfigFilePath != null)
+            {
+                File.Delete(_sshdConfigFilePath);
+            }
             if (_containerId != null)
             {
                 Run("podman", "rm", "-f", _containerId);
@@ -211,6 +238,9 @@ public class SshServer : IDisposable
     }
 
     private string[] Run(string filename, params string[] arguments)
+        => Run(filename, arguments as IEnumerable<string>);
+
+    private string[] Run(string filename, IEnumerable<string> arguments)
     {
         if (filename == "podman" && _useDockerInstead)
         {
@@ -321,6 +351,32 @@ public class SshServer : IDisposable
 
 [CollectionDefinition(nameof(SshServerCollection))]
 public class SshServerCollection : ICollectionFixture<SshServer>
+{
+    // This class has no code, and is never created. Its purpose is simply
+    // to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
+}
+
+public class MultiMethodAuthSshServer : SshServer
+{
+    public const string Config =
+        """
+        AuthenticationMethods publickey,password
+        """;
+
+    public Credential FirstCredential { get; }    
+    public Credential SecondCredential { get; }
+
+    public MultiMethodAuthSshServer() :
+        base(Config)
+    {
+        FirstCredential = new PrivateKeyCredential(TestUserIdentityFile);
+        SecondCredential = new PasswordCredential(TestUserPassword);
+    }
+}
+
+[CollectionDefinition(nameof(MultiMethodAuthSshServerCollection))]
+public class MultiMethodAuthSshServerCollection : ICollectionFixture<MultiMethodAuthSshServer>
 {
     // This class has no code, and is never created. Its purpose is simply
     // to be the place to apply [CollectionDefinition] and all the
