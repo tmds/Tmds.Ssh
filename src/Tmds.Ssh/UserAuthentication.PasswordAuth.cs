@@ -10,15 +10,12 @@ partial class UserAuthentication
     // https://datatracker.ietf.org/doc/html/rfc4252 - Password Authentication Method: "password"
     public sealed class PasswordAuth
     {
-        public static async Task<bool> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static async Task<AuthResult> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
             string? password = passwordCredential.GetPassword();
             if (password is not null)
             {
-                if (!context.TryStartAuth(AlgorithmNames.Password))
-                {
-                    return false;
-                }
+                context.StartAuth(AlgorithmNames.Password);
 
                 logger.PasswordAuth();
 
@@ -27,14 +24,10 @@ partial class UserAuthentication
                     await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                 }
 
-                bool success = await context.ReceiveAuthIsSuccesfullAsync(ct).ConfigureAwait(false);
-                if (success)
-                {
-                    return true;
-                }
+                return await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
             }
 
-            return false;
+            return AuthResult.Failure;
         }
 
         private static Packet CreatePasswordRequestMessage(SequencePool sequencePool, string userName, string password)

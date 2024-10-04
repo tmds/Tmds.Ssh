@@ -256,6 +256,12 @@ static partial class SshClientLogger
         Message = "Connection aborted")]
     public static partial void ConnectionAborted(this ILogger<SshClient> logger, Exception exception);
 
+    [LoggerMessage(
+        EventId = 29,
+        Level = LogLevel.Information,
+        Message = "Auth {AuthMethod} method partial success, continue with: {AllowedMethods}")]
+    public static partial void PartialSuccessAuth(this ILogger<SshClient> logger, Name authMethod, Name[] allowedMethods);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private ReadOnlyPacket _packet;

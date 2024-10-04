@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
@@ -11,6 +12,7 @@ sealed class UserAuthContext
     private readonly ILogger<SshClient> _logger;
     private int _bannerPacketCount = 0;
     private Name[]? _allowedAuthentications;
+    private bool _wasPartial;
     private Name _currentMethod;
 
     public UserAuthContext(SshConnection connection, string userName, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, ILogger<SshClient> logger)
@@ -92,50 +94,47 @@ sealed class UserAuthContext
         return _connection.SendPacketAsync(packet, ct);
     }
 
-    public async Task<bool> ReceiveAuthIsSuccesfullAsync(CancellationToken ct)
+    public async Task<AuthResult> ReceiveAuthResultAsync(CancellationToken ct)
     {
         using Packet response = await ReceivePacketAsync(ct).ConfigureAwait(false);
-        bool isSuccess = IsAuthSuccesfull(response);
-        return isSuccess;
+        return GetAuthResult(response);
     }
 
-    private bool IsAuthSuccesfull(ReadOnlyPacket packet)
+    private AuthResult GetAuthResult(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         MessageId b = reader.ReadMessageId();
         switch (b)
         {
             case MessageId.SSH_MSG_USERAUTH_SUCCESS:
-                return true;
+                return AuthResult.Success;
             case MessageId.SSH_MSG_USERAUTH_FAILURE:
-                return false;
+                return _wasPartial ? AuthResult.Partial : AuthResult.Failure;
             default:
                 ThrowHelper.ThrowProtocolUnexpectedValue();
-                return false;
+                return AuthResult.Failure;
         }
     }
 
-    public bool TryStartAuth(Name method)
+    public bool? IsMethodAccepted(Name method)
+    {
+        if (_allowedAuthentications == null)
+        {
+            return null;
+        }
+        return Array.IndexOf(_allowedAuthentications, method) >= 0;
+    }
+
+    public void StartAuth(Name method)
     {
         if (!_currentMethod.IsEmpty)
         {
             throw new InvalidOperationException("Already authenticating using an other method.");
         }
 
-        bool shouldStart = !SkipMethod(method);
+        Debug.Assert(IsMethodAccepted(method) != false);
 
-        if (shouldStart)
-        {
-            _currentMethod = method;
-        }
-
-        return shouldStart;
-    }
-
-    public bool SkipMethod(Name method)
-    {
-        bool isAllowed = _allowedAuthentications == null ? true : Array.IndexOf(_allowedAuthentications, method) >= 0;
-        return !isAllowed;
+        _currentMethod = method;
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)
@@ -148,13 +147,15 @@ sealed class UserAuthContext
         */
         reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_FAILURE);
         _allowedAuthentications = reader.ReadNameList();
-        bool partial_success = reader.ReadBoolean();
+        _wasPartial = reader.ReadBoolean();
 
-        _logger.AuthMethodFailed(_currentMethod, _allowedAuthentications);
-
-        if (partial_success)
+        if (_wasPartial)
         {
-            throw new NotImplementedException("Partial success auth is not implemented.");
+            _logger.PartialSuccessAuth(_currentMethod, _allowedAuthentications);
+        }
+        else
+        {
+            _logger.AuthMethodFailed(_currentMethod, _allowedAuthentications);
         }
     }
 }

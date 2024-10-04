@@ -11,14 +11,8 @@ partial class UserAuthentication
     // https://datatracker.ietf.org/doc/html/rfc4252 - Public Key Authentication Method: "publickey"
     public sealed class PublicKeyAuth
     {
-        public static async Task<bool> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static async Task<AuthResult> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            // Early check for 'TryStartAuth'
-            if (context.SkipMethod(AlgorithmNames.PublicKey))
-            {
-                return false;
-            }
-
             PrivateKey? pk;
             try
             {
@@ -26,7 +20,7 @@ partial class UserAuthentication
                 if (pk is null)
                 {
                     logger.PublicKeyFileNotFound(keyCredential.Identifier);
-                    return false;
+                    return AuthResult.Failure;
                 }
             }
             catch (Exception error)
@@ -42,7 +36,7 @@ partial class UserAuthentication
                     if (rsaKey.KeySize < context.MinimumRSAKeySize)
                     {
                         // TODO: log
-                        return false;
+                        return AuthResult.Failure;
                     }
                 }
 
@@ -54,11 +48,7 @@ partial class UserAuthentication
                         continue;
                     }
 
-                    if (!context.TryStartAuth(AlgorithmNames.PublicKey))
-                    {
-                        Debug.Assert(false); // Already did an eary SkipMethod check.
-                        return false;
-                    }
+                    context.StartAuth(AlgorithmNames.PublicKey);
 
                     acceptedAlgorithm = true;
                     logger.PublicKeyAuth(keyCredential.Identifier, keyAlgorithm);
@@ -69,10 +59,10 @@ partial class UserAuthentication
                         await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                     }
 
-                    bool success = await context.ReceiveAuthIsSuccesfullAsync(ct).ConfigureAwait(false);
-                    if (success)
+                    AuthResult result = await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
+                    if (result != AuthResult.Failure)
                     {
-                        return true;
+                        return result;
                     }
                 }
 
@@ -82,7 +72,7 @@ partial class UserAuthentication
                 }
             }
 
-            return false;
+            return AuthResult.Failure;
         }
 
         private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)

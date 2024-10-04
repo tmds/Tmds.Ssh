@@ -16,4 +16,5 @@ static class Constants
     public const int MaxKeyLength = 1024;        // Arbitrary limit, may be increased.
     public const int MaxMPIntLength = 1024;      // Arbitrary limit, may be increased.
     public const int MaxBannerPackets = 1024;    // Abitrary limit
+    public const int MaxPartialAuths = 16;       // Abitrary limit
 }
