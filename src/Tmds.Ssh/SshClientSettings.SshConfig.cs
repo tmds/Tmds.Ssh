@@ -45,6 +45,7 @@ partial class SshClientSettings
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig),
             HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts,
+            TcpKeepAlive = sshConfig.TcpKeepAlive ?? DefaultTcpKeepAlive
         };
         if (sshConfig.UserKnownHostsFiles is not null)
         {

@@ -221,10 +221,12 @@ class SshClientSettings
   string HostName { get; set; } = "";
   int Port { get; set; } = 22;
 
-  IReadOnlyList<Credential> Credentials { get; set; } = DefaultCredentials;
+  List<Credential> Credentials { get; set; } = DefaultCredentials;
 
   bool AutoConnect { get; set; } = true;
   bool AutoReconnect { get; set; } = false;
+
+  bool TcpKeepAlive { get; set; } = true;
 
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;

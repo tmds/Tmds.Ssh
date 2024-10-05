@@ -102,6 +102,11 @@ sealed partial class SshSession
             ConnectionInfo.IPAddress = (socket.RemoteEndPoint as IPEndPoint)?.Address;
             socket.NoDelay = true;
 
+            if (_settings.TcpKeepAlive)
+            {
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            }
+
             Logger.ConnectionEstablished();
 
             return new SocketSshConnection(Logger, _sequencePool, socket);
