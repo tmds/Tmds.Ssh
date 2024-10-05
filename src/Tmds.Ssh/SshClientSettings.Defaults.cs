@@ -33,6 +33,8 @@ partial class SshClientSettings
 
     private static bool DefaultHashKnownHosts => false;
 
+    private static bool DefaultTcpKeepAlive => true;
+
     // Algorithms are in **order of preference**.
     private readonly static List<Name> EmptyList = [];
     internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [ AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 ];

@@ -59,6 +59,7 @@ sealed class SshConfig
     public StrictHostKeyChecking? HostKeyChecking { get; set; }
     public bool? HashKnownHosts { get; set; }
     public List<string>? SendEnv { get; set; }
+    public bool? TcpKeepAlive { get; set; }
 
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
@@ -442,6 +443,10 @@ sealed class SshConfig
                 config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
 
+            case "tcpkeepalive":
+                config.TcpKeepAlive ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+
             /* The following options are unsupported,
                we have some basic handling that checks the option value indicates the feature is disabled */
             case "permitlocalcommand":
@@ -536,7 +541,6 @@ sealed class SshConfig
             // case "streamlocalbindunlink":
             // case "serveralivecountmax":
             // case "serveraliveinterval":
-            // case "tcpkeepalive":
             // case "setenv":
             // case "tag":
             // case "proxycommand":
