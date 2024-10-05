@@ -31,5 +31,6 @@ public enum SshConfigOption
     HostKeyAlgorithms,
     KexAlgorithms,
     MACs,
-    PubkeyAcceptedAlgorithms
+    PubkeyAcceptedAlgorithms,
+    TCPKeepAlive
 }
