@@ -39,11 +39,18 @@ public ref struct SftpFileEntry
         {
             if (_pathLength == 0)
             {
-                _directoryPath.AsSpan().CopyTo(_pathBuffer);
                 int length = _directoryPath.Length;
+                if (length > 0)
+                {
+                    _directoryPath.AsSpan().CopyTo(_pathBuffer);
 
-                _pathBuffer[length] = RemotePath.DirectorySeparatorChar;
-                length++;
+                    // Append '/' unless _directorPath == '/'.
+                    if (length != 1 || _directoryPath[0] != RemotePath.DirectorySeparatorChar)
+                    {
+                        _pathBuffer[length] = RemotePath.DirectorySeparatorChar;
+                        length++;
+                    }
+                }
 
                 ReadOnlySpan<char> filename = FileName;
                 filename.CopyTo(_pathBuffer.AsSpan(length));

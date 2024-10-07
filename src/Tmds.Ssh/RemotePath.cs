@@ -30,7 +30,7 @@ static class RemotePath
         return path;
     }
 
-    private static bool EndsInDirectorySeparator(ReadOnlySpan<char> path) =>
+    public static bool EndsInDirectorySeparator(ReadOnlySpan<char> path) =>
         path.Length > 0 && IsDirectorySeparator(path[path.Length - 1]);
 
     private static bool IsDirectorySeparator(char c)

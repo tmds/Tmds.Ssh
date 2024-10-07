@@ -620,7 +620,7 @@ sealed partial class SftpChannel : IDisposable
         DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
 
         int trimRemoteDirectory = remoteDirPath.Length;
-        if (!LocalPath.EndsInDirectorySeparator(remoteDirPath))
+        if (remoteDirPath.Length != 0 && !RemotePath.EndsInDirectorySeparator(remoteDirPath))
         {
             trimRemoteDirectory++;
         }

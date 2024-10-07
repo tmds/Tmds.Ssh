@@ -521,6 +521,23 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task EnumerateRootDirectory()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        var entries = await sftpClient.GetDirectoryEntriesAsync("/").ToListAsync();
+        Assert.NotEmpty(entries);
+
+        foreach (var entry in entries)
+        {
+            string path = entry.Path;
+            Assert.True(path.Length > 2);
+            Assert.StartsWith("/", path);
+            Assert.False(path.StartsWith("//"));
+        }
+    }
+
+    [Fact]
     public void DefaultEnumerationOptions()
     {
         var options = new EnumerationOptions();
