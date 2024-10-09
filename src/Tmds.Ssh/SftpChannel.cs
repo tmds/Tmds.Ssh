@@ -446,6 +446,27 @@ sealed partial class SftpChannel : IDisposable
                             RecurseSubdirectories = recurse
                         });
 
+        LocalFileEntryPredicate? shouldRecurse = options.ShouldRecurse;
+        if (recurse && (!followDirectoryLinks || shouldRecurse is not null))
+        {
+            fse.ShouldRecursePredicate = (ref FileSystemEntry entry) =>
+            {
+                bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
+                if (isLink && !followDirectoryLinks)
+                {
+                    return false;
+                }
+
+                if (shouldRecurse is null)
+                {
+                    return true;
+                }
+
+                LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
+                return shouldRecurse(ref localFileEntry);
+            };
+        }
+
         var onGoing = new Queue<ValueTask>();
         var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
         try
