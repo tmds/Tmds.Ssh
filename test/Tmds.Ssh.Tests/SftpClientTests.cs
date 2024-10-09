@@ -787,6 +787,44 @@ public class SftpClientTests
         }
     }
 
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task UploadShouldRecurse(bool recurse)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+        string childDir = $"{sourceDir}/dir";
+        Directory.CreateDirectory(childDir);
+        File.OpenWrite($"{childDir}/file").Dispose();
+
+        string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(remoteDir);
+        await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
+        {
+            ShouldRecurse = (ref LocalFileEntry entry) =>
+            {
+                Assert.Equal(childDir, entry.ToFullPath());
+                return recurse;
+            }
+        });
+
+        var fileAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/dir/file");
+        if (recurse)
+        {
+            Assert.NotNull(fileAttributes);
+        }
+        else
+        {
+            Assert.Null(fileAttributes);
+        }
+
+        var dirAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/dir");
+        Assert.NotNull(dirAttributes);
+    }
+
     [Fact]
     public async Task FullPath()
     {

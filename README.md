@@ -363,6 +363,7 @@ class UploadEntriesOptions
   bool RecurseSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;
+  LocalFileEntryPredicate? ShouldRecurse { get; set; }
 }
 delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
 delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
@@ -379,7 +380,12 @@ ref struct SftpFileEntry
   ReadOnlySpan<char> FileName { get; }
 
   FileEntryAttributes ToAttributes();
-  string ToPath()
+  string ToPath();
+}
+delegate bool LocalFileEntryPredicate(ref LocalFileEntry entry);
+ref struct LocalFileEntry
+{
+    string ToFullPath();
 }
 enum UnixFileType
 {

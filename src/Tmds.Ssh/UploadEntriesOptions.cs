@@ -9,4 +9,5 @@ public sealed class UploadEntriesOptions
     public bool RecurseSubdirectories { get; set; } = true;
     public bool FollowFileLinks { get; set; } = true;
     public bool FollowDirectoryLinks { get; set; } = true;
+    public LocalFileEntryPredicate? ShouldRecurse { get; set; }
 }
