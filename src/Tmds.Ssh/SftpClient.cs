@@ -267,6 +267,12 @@ public sealed partial class SftpClient : IDisposable
         await channel.RenameAsync(oldPath, newPath, cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
+        await channel.CopyFileAsync(sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
