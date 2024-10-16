@@ -271,13 +271,13 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    internal async Task<SftpChannel> OpenSftpChannelAsync(Action<SshChannel> onAbort, bool explicitConnect, CancellationToken cancellationToken)
+    internal async Task<SftpChannel> OpenSftpChannelAsync(Action<SshChannel> onAbort, bool explicitConnect, SftpClientOptions options, CancellationToken cancellationToken)
     {
         SshSession session = await GetSessionAsync(cancellationToken, explicitConnect).ConfigureAwait(false);
 
         var channel = await session.OpenSftpClientChannelAsync(onAbort, cancellationToken).ConfigureAwait(false);
 
-        var sftpChannel = new SftpChannel(channel);
+        var sftpChannel = new SftpChannel(channel, options);
 
         try
         {

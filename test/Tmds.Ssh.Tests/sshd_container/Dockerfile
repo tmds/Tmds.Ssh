@@ -1,4 +1,4 @@
-FROM quay.io/centos/centos:stream9
+FROM registry.fedoraproject.org/fedora:40
 
 EXPOSE 88/tcp
 EXPOSE 88/udp

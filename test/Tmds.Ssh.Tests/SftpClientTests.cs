@@ -6,6 +6,7 @@ namespace Tmds.Ssh.Tests;
 public class SftpClientTests
 {
     const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
+    const int MultiPacketSize = 2 * PacketSize + 1024;
 
     private readonly SshServer _sshServer;
 
@@ -54,7 +55,7 @@ public class SftpClientTests
 
     [InlineData(10)]
     [InlineData(10 * 1024)] // 10 kiB
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task ReadWriteFile(int fileSize)
     {
@@ -615,7 +616,7 @@ public class SftpClientTests
 
     [InlineData(0)]
     [InlineData(10)]
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task UploadDownloadFile(int fileSize)
     {
@@ -991,6 +992,36 @@ public class SftpClientTests
             Assert.Equal(truncatedLength, file.Position);
             Assert.Equal(truncatedLength, file.Length);
         }
+    }
+
+    [InlineData(0, true)]
+    [InlineData(10, true)]
+    [InlineData(MultiPacketSize, true)]
+    [InlineData(0, false)]
+    [InlineData(10, false)]
+    [InlineData(MultiPacketSize, false)]
+    [Theory]
+    public async Task CopyFile(int fileSize, bool enableCopyExtension)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(
+            configureSftp: options => options.DisableExtensions = enableCopyExtension ? default : SftpExtensions.CopyData
+        );
+        Assert.Equal(enableCopyExtension, (sftpClient.EnabledExtensions & SftpExtensions.CopyData) != 0);
+        string sourceFileName = $"/tmp/{Path.GetRandomFileName()}";
+        byte[] sourceData = new byte[fileSize];
+        Random.Shared.NextBytes(sourceData);
+        {
+            using var writeFile = await sftpClient.CreateNewFileAsync(sourceFileName, FileAccess.Write);
+            await writeFile.WriteAsync(sourceData.AsMemory(0, fileSize));
+        }
+
+        string destinationFileName = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CopyFileAsync(sourceFileName, destinationFileName);
+
+        using var readFile = await sftpClient.OpenFileAsync(destinationFileName, FileAccess.Read);
+        var memoryStream = new MemoryStream();
+        await readFile.CopyToAsync(memoryStream);
+        Assert.Equal(sourceData, memoryStream.ToArray());
     }
 
     [InlineData(true)]

@@ -22,28 +22,23 @@ sealed partial class SftpChannel : IDisposable
     // This is the version implemented by OpenSSH.
     const uint ProtocolVersion = 3;
 
-    [Flags]
-    enum Extensions
-    {
-        // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-extensions-00
-        CopyData = 1 // copy-data 1
-    }
-
     const int MaxConcurrentOperations = 64;
     // Limit the number of buffers allocated for copying.
     // An onGoing ValueTask may allocate multiple buffers.
     const int MaxConcurrentBuffers = 64;
 
-    internal SftpChannel(ISshChannel channel)
+    internal SftpChannel(ISshChannel channel, SftpClientOptions options)
     {
         _channel = channel;
         _receivePacketSize = _channel.ReceiveMaxPacket;
+        _options = options;
     }
 
     public CancellationToken ChannelAborted
         => _channel.ChannelAborted;
 
     private readonly ISshChannel _channel;
+    private readonly SftpClientOptions _options;
 
     // Limits the number of buffers concurrently used for uploading/downloading.
     private readonly SemaphoreSlim s_downloadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
@@ -53,7 +48,7 @@ sealed partial class SftpChannel : IDisposable
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
-    private Extensions _supportedExtensions;
+    private SftpExtensions _supportedExtensions;
 
     internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
         => _channel.SendMaxPacket
@@ -67,7 +62,10 @@ sealed partial class SftpChannel : IDisposable
     internal int GetCopyBetweenSftpFilesBufferSize(byte[] destinationHandle)
         => Math.Min(MaxReadPayload, GetMaxWritePayload(destinationHandle));
 
-    internal bool SupportsCopyData => (_supportedExtensions & Extensions.CopyData) != 0;
+    internal SftpExtensions EnabledExtensions => _supportedExtensions;
+
+
+    private bool SupportsCopyData => (_supportedExtensions & SftpExtensions.CopyData) != 0;
 
     public void Dispose()
     {
@@ -276,7 +274,7 @@ sealed partial class SftpChannel : IDisposable
     // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-extensions-00#section-7
     private ValueTask CopyDataAsync(byte[] sourceFileHandle, ulong sourceOffset, byte[] destinationFileHandle, ulong destinationOffset, ulong? length, CancellationToken cancellationToken = default)
     {
-        Debug.Assert((_supportedExtensions & Extensions.CopyData) != 0);
+        Debug.Assert((_supportedExtensions & SftpExtensions.CopyData) != 0);
 
         if (length == 0)
         {
@@ -1212,7 +1210,7 @@ sealed partial class SftpChannel : IDisposable
             throw new SshOperationException($"Unsupported protocol version {version}.");
         }
 
-        Extensions supportedExtensions = default;
+        SftpExtensions supportedExtensions = default;
         while (!reader.Remainder.IsEmpty)
         {
             string extensionName = reader.ReadString();
@@ -1221,11 +1219,11 @@ sealed partial class SftpChannel : IDisposable
             switch (extensionName, extensionData)
             {
                 case ("copy-data", "1"):
-                    supportedExtensions |= Extensions.CopyData;
+                    supportedExtensions |= SftpExtensions.CopyData;
                     break;
             }
         }
-        _supportedExtensions = supportedExtensions;
+        _supportedExtensions = supportedExtensions & ~_options.DisableExtensions;
     }
 
     internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
