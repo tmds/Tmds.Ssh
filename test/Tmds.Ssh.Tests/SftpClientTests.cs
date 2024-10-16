@@ -994,19 +994,29 @@ public class SftpClientTests
         }
     }
 
+    private void SkipIfExtensionsNotSupported(SftpClient client, SftpExtensions extensions)
+    {
+        if ((client.EnabledExtensions & extensions) != extensions)
+        {
+            throw new SkipException($"The test server does not support the required {extensions & ~client.EnabledExtensions} extensions.");
+        }
+    }
+
     [InlineData(0, true)]
     [InlineData(10, true)]
     [InlineData(MultiPacketSize, true)]
     [InlineData(0, false)]
     [InlineData(10, false)]
     [InlineData(MultiPacketSize, false)]
-    [Theory]
+    [SkippableTheory]
     public async Task CopyFile(int fileSize, bool enableCopyExtension)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync(
             configureSftp: options => options.DisableExtensions = enableCopyExtension ? default : SftpExtensions.CopyData
         );
+        SkipIfExtensionsNotSupported(sftpClient, SftpExtensions.CopyData);
         Assert.Equal(enableCopyExtension, (sftpClient.EnabledExtensions & SftpExtensions.CopyData) != 0);
+
         string sourceFileName = $"/tmp/{Path.GetRandomFileName()}";
         byte[] sourceData = new byte[fileSize];
         Random.Shared.NextBytes(sourceData);
