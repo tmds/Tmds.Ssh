@@ -347,11 +347,18 @@ public class SshServer : IDisposable
         return client;
     }
 
-    public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, CancellationToken cancellationToken = default, bool connect = true)
+    public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, Action<SftpClientOptions>? configureSftp = null, CancellationToken cancellationToken = default, bool connect = true)
     {
         var settings = CreateSshClientSettings(configureSsh);
 
-        var client = new SftpClient(settings);
+        SftpClientOptions? sftpClientOptions = null;
+        if (configureSftp is not null)
+        {
+            sftpClientOptions = new();
+            configureSftp.Invoke(sftpClientOptions);
+        }
+
+        var client = new SftpClient(settings, options: sftpClientOptions);
 
         if (connect)
         {

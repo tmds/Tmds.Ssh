@@ -4,4 +4,7 @@
 namespace Tmds.Ssh;
 
 public sealed partial class SftpClientOptions
-{ }
+{
+    // For testing.
+    internal SftpExtensions DisableExtensions { get; set; }
+}

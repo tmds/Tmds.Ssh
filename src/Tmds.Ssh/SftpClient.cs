@@ -48,6 +48,14 @@ public sealed partial class SftpClient : IDisposable
     // For testing.
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
+    internal SftpExtensions EnabledExtensions
+    {
+        get
+        {
+            SftpChannel channel = _channel ?? throw new InvalidOperationException();
+            return channel.EnabledExtensions;
+        }
+    }
 
     public SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory, options)
@@ -175,7 +183,7 @@ public sealed partial class SftpClient : IDisposable
         bool success = false;
         try
         {
-            SftpChannel channel = await _client.OpenSftpChannelAsync(OnChannelAbort, explicitConnect, cancellationToken).ConfigureAwait(false);
+            SftpChannel channel = await _client.OpenSftpChannelAsync(OnChannelAbort, explicitConnect, _options, cancellationToken).ConfigureAwait(false);
             _channel = channel;
             success = true;
             return channel;
