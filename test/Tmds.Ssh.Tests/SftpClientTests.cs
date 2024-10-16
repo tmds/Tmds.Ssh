@@ -996,7 +996,7 @@ public class SftpClientTests
 
     private void SkipIfExtensionsNotSupported(SftpClient client, SftpExtensions extensions)
     {
-        if ((client.EnabledExtensions & extensions) != extensions)
+        if (extensions != 0 && (client.EnabledExtensions & extensions) != extensions)
         {
             throw new SkipException($"The test server does not support the required {extensions & ~client.EnabledExtensions} extensions.");
         }
