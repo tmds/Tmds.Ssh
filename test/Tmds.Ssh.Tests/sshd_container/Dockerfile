@@ -1,4 +1,4 @@
-FROM quay.io/centos/centos:stream9
+FROM quay.io/centos/centos:stream10-development
 
 EXPOSE 88/tcp
 EXPOSE 88/udp
