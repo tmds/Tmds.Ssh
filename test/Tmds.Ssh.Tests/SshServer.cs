@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Tmds.Ssh.Tests;
 
@@ -40,15 +42,22 @@ public class SshServer : IDisposable
     private readonly string _krbConfigFilePath;
     private readonly string _sshConfigFilePath;
     private readonly string? _sshdConfigFilePath;
+    private readonly IMessageSink _messageSink;
     private bool _useDockerInstead;
 
-    public SshServer() :
-        this(null)
+    public SshServer(IMessageSink messageSink) :
+        this(null, messageSink)
     { }
 
-    protected SshServer(string? sshdConfig)
+    private void WriteMessage(string message)
     {
-        Console.WriteLine("Starting SSH server for tests.");
+        _messageSink.OnMessage(new DiagnosticMessage(message));
+    }
+
+    protected SshServer(string? sshdConfig, IMessageSink messageSink)
+    {
+        _messageSink = messageSink;
+        WriteMessage("Starting SSH server for tests.");
 
         _useDockerInstead = !HasContainerEngine("podman") &&
                             HasContainerEngine("docker");
@@ -111,7 +120,7 @@ public class SshServer : IDisposable
                 VerifyServerWorks();
             }
 
-            Console.WriteLine("SSH server is running.");
+            WriteMessage("SSH server is running.");
         }
         catch
         {
@@ -207,7 +216,7 @@ public class SshServer : IDisposable
 
     public void Dispose()
     {
-        System.Console.WriteLine("Stopping SSH server.");
+        WriteMessage("Stopping SSH server.");
         try
         {
             if (_knownHostsFile != null)
@@ -247,7 +256,7 @@ public class SshServer : IDisposable
             filename = "docker";
         }
 
-        Console.WriteLine($"  exec: {filename} {string.Join(' ', arguments)}");
+        WriteMessage($"  exec: {filename} {string.Join(' ', arguments)}");
         var psi = new ProcessStartInfo()
         {
             FileName = filename,
@@ -269,7 +278,7 @@ public class SshServer : IDisposable
             }
             lock (lines)
             {
-                // System.Console.WriteLine(e.Data);
+                // System.WriteMessage(e.Data);
                 lines.Add(e.Data);
             }
         };
@@ -284,17 +293,32 @@ public class SshServer : IDisposable
 
     private void VerifyServerWorks()
     {
-        const string HelloWorld = "Hello world!";
-        string[] output = Run("ssh",
-                                "-i", TestUserIdentityFile,
-                                "-o", "BatchMode=yes",
-                                "-o", $"UserKnownHostsFile={KnownHostsFilePath}",
-                                "-p", ServerPort.ToString(),
-                                $"{TestUser}@{ServerHost}",
-                                $"echo '{HelloWorld}'"
-        );
-        Assert.NotEmpty(output);
-        Assert.Contains(HelloWorld, output);
+        try
+        {
+            const string HelloWorld = "Hello world!";
+            string[] output = Run("ssh",
+                                    "-i", TestUserIdentityFile,
+                                    "-o", "BatchMode=yes",
+                                    "-o", $"UserKnownHostsFile={KnownHostsFilePath}",
+                                    "-p", ServerPort.ToString(),
+                                    $"{TestUser}@{ServerHost}",
+                                    $"echo '{HelloWorld}'"
+            );
+            Assert.NotEmpty(output);
+            Assert.Contains(HelloWorld, output);
+        }
+        catch (Exception ex)
+        {
+            WriteMessage($"Verifying server works failed with: {ex}");
+            WriteMessage("SSH server logs:");
+            string[] log = Run("podman", "logs", _containerId);
+            foreach (var line in log)
+            {
+                WriteMessage(line);
+            }
+
+            throw;
+        }
     }
 
     public async Task<SshClient> CreateClientAsync(SshConfigSettings configSettings, CancellationToken cancellationToken = default, bool connect = true)
@@ -367,8 +391,8 @@ public class MultiMethodAuthSshServer : SshServer
     public Credential FirstCredential { get; }    
     public Credential SecondCredential { get; }
 
-    public MultiMethodAuthSshServer() :
-        base(Config)
+    public MultiMethodAuthSshServer(IMessageSink messageSink) :
+        base(Config, messageSink)
     {
         FirstCredential = new PrivateKeyCredential(TestUserIdentityFile);
         SecondCredential = new PasswordCredential(TestUserPassword);
