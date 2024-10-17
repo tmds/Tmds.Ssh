@@ -48,7 +48,7 @@ sealed partial class SftpChannel : IDisposable
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
-    private SftpExtensions _supportedExtensions;
+    private SftpExtension _supportedExtensions;
 
     internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
         => _channel.SendMaxPacket
@@ -62,10 +62,10 @@ sealed partial class SftpChannel : IDisposable
     internal int GetCopyBetweenSftpFilesBufferSize(byte[] destinationHandle)
         => Math.Min(MaxReadPayload, GetMaxWritePayload(destinationHandle));
 
-    internal SftpExtensions EnabledExtensions => _supportedExtensions;
+    internal SftpExtension EnabledExtensions => _supportedExtensions;
 
 
-    private bool SupportsCopyData => (_supportedExtensions & SftpExtensions.CopyData) != 0;
+    private bool SupportsCopyData => (_supportedExtensions & SftpExtension.CopyData) != 0;
 
     public void Dispose()
     {
@@ -235,7 +235,8 @@ sealed partial class SftpChannel : IDisposable
                         await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
                         doCopyAsync = false;
                     }
-                    catch (SftpException ex) when (ex.Error == SftpError.Eof) // source has less data than copyLength (unlikely).
+                    catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
+                                                   ex.Error == SftpError.Failure) // (maybe) source and destination are same path
                     {
                         // Fall through to async copy.
                     }
@@ -274,7 +275,7 @@ sealed partial class SftpChannel : IDisposable
     // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-extensions-00#section-7
     private ValueTask CopyDataAsync(byte[] sourceFileHandle, ulong sourceOffset, byte[] destinationFileHandle, ulong destinationOffset, ulong? length, CancellationToken cancellationToken = default)
     {
-        Debug.Assert((_supportedExtensions & SftpExtensions.CopyData) != 0);
+        Debug.Assert((_supportedExtensions & SftpExtension.CopyData) != 0);
 
         if (length == 0)
         {
@@ -1210,7 +1211,7 @@ sealed partial class SftpChannel : IDisposable
             throw new SshOperationException($"Unsupported protocol version {version}.");
         }
 
-        SftpExtensions supportedExtensions = default;
+        SftpExtension supportedExtensions = default;
         while (!reader.Remainder.IsEmpty)
         {
             string extensionName = reader.ReadString();
@@ -1219,11 +1220,12 @@ sealed partial class SftpChannel : IDisposable
             switch (extensionName, extensionData)
             {
                 case ("copy-data", "1"):
-                    supportedExtensions |= SftpExtensions.CopyData;
+                    supportedExtensions |= SftpExtension.CopyData;
                     break;
             }
         }
-        _supportedExtensions = supportedExtensions & ~_options.DisableExtensions;
+
+        _supportedExtensions = supportedExtensions & ~_options.DisabledExtensions;
     }
 
     internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
