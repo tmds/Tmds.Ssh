@@ -48,7 +48,7 @@ public sealed partial class SftpClient : IDisposable
     // For testing.
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
-    internal SftpExtensions EnabledExtensions
+    internal SftpExtension EnabledExtensions
     {
         get
         {
