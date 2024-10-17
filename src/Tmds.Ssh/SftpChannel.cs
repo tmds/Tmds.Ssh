@@ -27,16 +27,18 @@ sealed partial class SftpChannel : IDisposable
     // An onGoing ValueTask may allocate multiple buffers.
     const int MaxConcurrentBuffers = 64;
 
-    internal SftpChannel(ISshChannel channel)
+    internal SftpChannel(ISshChannel channel, SftpClientOptions options)
     {
         _channel = channel;
         _receivePacketSize = _channel.ReceiveMaxPacket;
+        _options = options;
     }
 
     public CancellationToken ChannelAborted
         => _channel.ChannelAborted;
 
     private readonly ISshChannel _channel;
+    private readonly SftpClientOptions _options;
 
     // Limits the number of buffers concurrently used for uploading/downloading.
     private readonly SemaphoreSlim s_downloadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
@@ -46,6 +48,7 @@ sealed partial class SftpChannel : IDisposable
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
+    private SftpExtension _supportedExtensions;
 
     internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
         => _channel.SendMaxPacket
@@ -55,6 +58,14 @@ sealed partial class SftpChannel : IDisposable
     internal int MaxReadPayload // SSH_FXP_DATA payload
         => _channel.ReceiveMaxPacket
             - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
+
+    internal int GetCopyBetweenSftpFilesBufferSize(byte[] destinationHandle)
+        => Math.Min(MaxReadPayload, GetMaxWritePayload(destinationHandle));
+
+    internal SftpExtension EnabledExtensions => _supportedExtensions;
+
+
+    private bool SupportsCopyData => (_supportedExtensions & SftpExtension.CopyData) != 0;
 
     public void Dispose()
     {
@@ -165,6 +176,133 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteString(oldPath);
         packet.WriteString(newPath);
 
+        return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        // Get the source file attributes and open it in parallel.
+        // We get the attribute to dermine the permissions for the destination path.
+        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(sourcePath, followLinks: true, cancellationToken);
+        using SftpFile? sourceFile = await OpenFileCoreAsync(sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+        if (sourceFile is null)
+        {
+            throw new SftpException(SftpError.NoSuchFile);
+        }
+        // Get the attributes ignoring any errors and falling back to getting them from the handle (unlikely).
+        FileEntryAttributes? sourceAttributes = null;
+        try
+        {        
+            sourceAttributes = await sourceAttributesTask;
+        }
+        catch
+        { }
+        if (sourceAttributes is null)
+        {
+            sourceAttributes = await sourceFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        UnixFilePermissions permissions = sourceAttributes.Permissions & OwnershipPermissions; // Do not preserve setid bits (since the owner may change).
+
+        if (overwrite)
+        {
+            // We are overwriting. The file may exists and be larger than the source file.
+            // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
+            // To avoid that, we'll truncate after copying the data instead.
+
+            // Refresh our source length from the handle (in parallel with with opening the destination file).
+            if (SupportsCopyData)
+            {
+                sourceAttributesTask = sourceFile.GetAttributesAsync(cancellationToken);
+            }
+
+            // We don't specify Truncate to guard the user from loosing data in case sourcePath and destinationPath are the same file.
+            using SftpFile destinationFile = (await OpenFileCoreAsync(destinationPath, SftpOpenFlags.OpenOrCreate | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+
+            // Get the length before we start writing so we know if we've overwritten all existing data or if we need to truncate.
+            ValueTask<long> initialLengthTask = destinationFile.GetLengthAsync(cancellationToken);
+
+            long copyLength = 0;
+            bool doCopyAsync = true;
+            if (SupportsCopyData)
+            {
+                copyLength = (await sourceAttributesTask.ConfigureAwait(false))!.Length;
+                // For copyLength zero, we fall through to the async copy to do a real copy and establish a length (in case the file system doesn't report a proper length).
+                if (copyLength > 0)
+                {
+                    try
+                    {
+                        await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
+                        doCopyAsync = false;
+                    }
+                    catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
+                                                   ex.Error == SftpError.Failure) // (maybe) source and destination are same path
+                    {
+                        // Fall through to async copy.
+                    }
+                }
+            }
+
+            if (doCopyAsync)
+            {
+                await sourceFile.CopyToAsync(destinationFile, GetCopyBetweenSftpFilesBufferSize(destinationFile.Handle)).ConfigureAwait(false);
+                copyLength = destinationFile.Position;
+            }
+
+            // Truncate if the sourceFile is smaller than the destination file's initial length.
+            long initialLength = await initialLengthTask.ConfigureAwait(false);
+            if (initialLength > copyLength)
+            {
+                await destinationFile.SetLengthAsync(copyLength);
+            }
+        }
+        else
+        {
+            // We're not overwriting, the open will throw if the file exists.
+            using SftpFile destinationFile = (await OpenFileCoreAsync(destinationPath, SftpOpenFlags.CreateNew | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+
+            if (SupportsCopyData)
+            {
+                await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, length: null /* till eof */, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await sourceFile.CopyToAsync(destinationFile, GetCopyBetweenSftpFilesBufferSize(destinationFile.Handle)).ConfigureAwait(false);
+            }
+        }
+    }
+
+    // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-extensions-00#section-7
+    private ValueTask CopyDataAsync(byte[] sourceFileHandle, ulong sourceOffset, byte[] destinationFileHandle, ulong destinationOffset, ulong? length, CancellationToken cancellationToken = default)
+    {
+        Debug.Assert((_supportedExtensions & SftpExtension.CopyData) != 0);
+
+        if (length == 0)
+        {
+            return default;
+        }
+
+        /*
+            byte   SSH_FXP_EXTENDED
+            uint32 request-id
+            string "copy-data"
+            string read-from-handle
+            uint64 read-from-offset
+            uint64 read-data-length
+            string write-to-handle
+            uint64 write-to-offset
+        */
+        PacketType packetType = PacketType.SSH_FXP_EXTENDED;
+        int id = GetNextId();
+        PendingOperation pendingOperation = CreatePendingOperation(PacketType.SSH_SFTP_STATUS_RESPONSE);
+        Packet packet = new Packet(packetType);
+        packet.WriteInt(id);
+        packet.WriteString("copy-data");
+        packet.WriteString(sourceFileHandle);
+        packet.WriteUInt64(sourceOffset);
+        packet.WriteUInt64(length ?? 0);
+        packet.WriteString(destinationFileHandle);
+        packet.WriteUInt64(destinationOffset);
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
@@ -1058,11 +1196,36 @@ sealed partial class SftpChannel : IDisposable
 
     private void HandleVersionPacket(ReadOnlySpan<byte> packet)
     {
-        PacketType type = (PacketType)packet[0];
+        PacketReader reader = new(packet);
+
+        PacketType type = reader.ReadPacketType();
+
         if (type != PacketType.SSH_FXP_VERSION)
         {
             throw new SshChannelException($"Expected packet SSH_FXP_VERSION, but received {type}.");
         }
+
+        uint version = reader.ReadUInt();
+        if (version != ProtocolVersion)
+        {
+            throw new SshOperationException($"Unsupported protocol version {version}.");
+        }
+
+        SftpExtension supportedExtensions = default;
+        while (!reader.Remainder.IsEmpty)
+        {
+            string extensionName = reader.ReadString();
+            string extensionData = reader.ReadString();
+
+            switch (extensionName, extensionData)
+            {
+                case ("copy-data", "1"):
+                    supportedExtensions |= SftpExtension.CopyData;
+                    break;
+            }
+        }
+
+        _supportedExtensions = supportedExtensions & ~_options.DisabledExtensions;
     }
 
     internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)

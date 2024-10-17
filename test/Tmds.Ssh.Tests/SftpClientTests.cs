@@ -6,6 +6,7 @@ namespace Tmds.Ssh.Tests;
 public class SftpClientTests
 {
     const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
+    const int MultiPacketSize = 2 * PacketSize + 1024;
 
     private readonly SshServer _sshServer;
 
@@ -54,7 +55,7 @@ public class SftpClientTests
 
     [InlineData(10)]
     [InlineData(10 * 1024)] // 10 kiB
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task ReadWriteFile(int fileSize)
     {
@@ -615,7 +616,7 @@ public class SftpClientTests
 
     [InlineData(0)]
     [InlineData(10)]
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task UploadDownloadFile(int fileSize)
     {
@@ -991,6 +992,105 @@ public class SftpClientTests
             Assert.Equal(truncatedLength, file.Position);
             Assert.Equal(truncatedLength, file.Length);
         }
+    }
+
+    private void SkipIfExtensionsNotSupported(SftpClient client, SftpExtension extensions)
+    {
+        if ((client.EnabledExtensions & extensions) != extensions)
+        {
+            throw new SkipException($"The test server does not support the required {extensions & ~client.EnabledExtensions} extensions.");
+        }
+    }
+
+    [InlineData(0, true)]
+    [InlineData(10, true)]
+    [InlineData(MultiPacketSize, true)]
+    [InlineData(0, false)]
+    [InlineData(10, false)]
+    [InlineData(MultiPacketSize, false)]
+    [SkippableTheory]
+    public async Task CopyFile(int fileSize, bool enableCopyExtension)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(
+            configureSftp: options => options.DisabledExtensions = enableCopyExtension ? default : SftpExtension.CopyData
+        );
+        SkipIfExtensionsNotSupported(sftpClient, enableCopyExtension ? SftpExtension.CopyData : default);
+        Assert.Equal(enableCopyExtension, (sftpClient.EnabledExtensions & SftpExtension.CopyData) != 0);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, fileSize);
+
+        string destinationFileName = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CopyFileAsync(sourceFileName, destinationFileName);
+
+        await AssertRemoteFileContentEqualsAsync(sftpClient, sourceData, destinationFileName);
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [SkippableTheory]
+    public async Task CopyFileOverwrite(bool overwrite, bool enableCopyExtension)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(
+            configureSftp: options => options.DisabledExtensions = enableCopyExtension ? default : SftpExtension.CopyData
+        );
+        SkipIfExtensionsNotSupported(sftpClient, enableCopyExtension ? SftpExtension.CopyData : default);
+        Assert.Equal(enableCopyExtension, (sftpClient.EnabledExtensions & SftpExtension.CopyData) != 0);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+        (string destinationFileName, byte[] destinationData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+
+        Task copyTask = sftpClient.CopyFileAsync(sourceFileName, destinationFileName, overwrite).AsTask();
+
+        if (overwrite)
+        {
+            await copyTask;
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SftpException>(() => copyTask);
+        }
+
+        byte[] expectedData = overwrite ? sourceData : destinationData;
+        await AssertRemoteFileContentEqualsAsync(sftpClient, expectedData, destinationFileName);
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [SkippableTheory]
+    public async Task CopyFileToSelfDoesntLooseData(bool enableCopyExtension)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(
+            configureSftp: options => options.DisabledExtensions = enableCopyExtension ? default : SftpExtension.CopyData
+        );
+        SkipIfExtensionsNotSupported(sftpClient, enableCopyExtension ? SftpExtension.CopyData : default);
+        Assert.Equal(enableCopyExtension, (sftpClient.EnabledExtensions & SftpExtension.CopyData) != 0);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+
+        await sftpClient.CopyFileAsync(sourceFileName, sourceFileName, overwrite: true);
+
+        await AssertRemoteFileContentEqualsAsync(sftpClient, sourceData, sourceFileName);
+    }
+
+    private async Task AssertRemoteFileContentEqualsAsync(SftpClient client, byte[] expected, string remoteFileName)
+    {
+        using var readFile = await client.OpenFileAsync(remoteFileName, FileAccess.Read);
+        Assert.NotNull(readFile);
+        var memoryStream = new MemoryStream();
+        await readFile.CopyToAsync(memoryStream);
+        Assert.Equal(expected, memoryStream.ToArray());
+    }
+
+    private async Task<(string filename, byte[] data)> CreateRemoteFileWithRandomDataAsync(SftpClient client, int length)
+    {
+        string filename = $"/tmp/{Path.GetRandomFileName()}";
+        byte[] data = new byte[10];
+        Random.Shared.NextBytes(data);
+        using var writeFile = await client.CreateNewFileAsync(filename, FileAccess.Write);
+        await writeFile.WriteAsync(data.AsMemory());
+        return (filename, data);
     }
 
     [InlineData(true)]
