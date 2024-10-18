@@ -347,6 +347,27 @@ public class SshServer : IDisposable
         return client;
     }
 
+    public async Task<SftpClient> CreateSftpClientAsync(Tmds.Ssh.Tests.SftpExtension enabledExtensions, Action<SshClientSettings>? configureSsh = null, CancellationToken cancellationToken = default)
+    {
+        var settings = CreateSshClientSettings(configureSsh);
+
+        SftpClientOptions? options = new()
+        {
+            DisabledExtensions = (Tmds.Ssh.SftpExtension)~enabledExtensions
+        };
+
+        var client = new SftpClient(settings, options: options);
+
+        await client.ConnectAsync(cancellationToken);
+
+        if (client.EnabledExtensions != (Tmds.Ssh.SftpExtension)enabledExtensions)
+        {
+            throw new SkipException($"The test server does not support the required {((Tmds.Ssh.SftpExtension)enabledExtensions) & ~client.EnabledExtensions} extensions.");
+        }
+
+        return client;
+    }
+
     public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, Action<SftpClientOptions>? configureSftp = null, CancellationToken cancellationToken = default, bool connect = true)
     {
         var settings = CreateSshClientSettings(configureSsh);
