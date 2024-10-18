@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
+using SkipException = Xunit.SkipException;
 
 namespace Tmds.Ssh.Tests;
 
