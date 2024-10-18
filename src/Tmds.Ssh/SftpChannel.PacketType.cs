@@ -34,5 +34,7 @@ partial class SftpChannel
         SSH_FXP_ATTRS = 105,
         SSH_FXP_EXTENDED = 200,
         SSH_FXP_EXTENDED_REPLY = 201,
+
+        SSH_SFTP_STATUS_RESPONSE = 0
     }
 }

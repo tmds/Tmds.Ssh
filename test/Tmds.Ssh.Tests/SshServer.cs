@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
+using SkipException = Xunit.SkipException;
 
 namespace Tmds.Ssh.Tests;
 
@@ -347,11 +348,39 @@ public class SshServer : IDisposable
         return client;
     }
 
-    public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, CancellationToken cancellationToken = default, bool connect = true)
+    public async Task<SftpClient> CreateSftpClientAsync(Tmds.Ssh.Tests.SftpExtension enabledExtensions, Action<SshClientSettings>? configureSsh = null, CancellationToken cancellationToken = default)
     {
         var settings = CreateSshClientSettings(configureSsh);
 
-        var client = new SftpClient(settings);
+        SftpClientOptions? options = new()
+        {
+            DisabledExtensions = (Tmds.Ssh.SftpExtension)~enabledExtensions
+        };
+
+        var client = new SftpClient(settings, options: options);
+
+        await client.ConnectAsync(cancellationToken);
+
+        if (client.EnabledExtensions != (Tmds.Ssh.SftpExtension)enabledExtensions)
+        {
+            throw new SkipException($"The test server does not support the required {((Tmds.Ssh.SftpExtension)enabledExtensions) & ~client.EnabledExtensions} extensions.");
+        }
+
+        return client;
+    }
+
+    public async Task<SftpClient> CreateSftpClientAsync(Action<SshClientSettings>? configureSsh = null, Action<SftpClientOptions>? configureSftp = null, CancellationToken cancellationToken = default, bool connect = true)
+    {
+        var settings = CreateSshClientSettings(configureSsh);
+
+        SftpClientOptions? sftpClientOptions = null;
+        if (configureSftp is not null)
+        {
+            sftpClientOptions = new();
+            configureSftp.Invoke(sftpClientOptions);
+        }
+
+        var client = new SftpClient(settings, options: sftpClientOptions);
 
         if (connect)
         {

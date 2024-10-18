@@ -6,6 +6,7 @@ namespace Tmds.Ssh.Tests;
 public class SftpClientTests
 {
     const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
+    const int MultiPacketSize = 2 * PacketSize + 1024;
 
     private readonly SshServer _sshServer;
 
@@ -54,7 +55,7 @@ public class SftpClientTests
 
     [InlineData(10)]
     [InlineData(10 * 1024)] // 10 kiB
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task ReadWriteFile(int fileSize)
     {
@@ -615,7 +616,7 @@ public class SftpClientTests
 
     [InlineData(0)]
     [InlineData(10)]
-    [InlineData(2 * PacketSize + 1024)]
+    [InlineData(MultiPacketSize)]
     [Theory]
     public async Task UploadDownloadFile(int fileSize)
     {
@@ -991,6 +992,102 @@ public class SftpClientTests
             Assert.Equal(truncatedLength, file.Position);
             Assert.Equal(truncatedLength, file.Length);
         }
+    }
+
+    [InlineData(0, SftpExtension.CopyData)]
+    [InlineData(10, SftpExtension.CopyData)]
+    [InlineData(MultiPacketSize, SftpExtension.CopyData)]
+    [InlineData(0, SftpExtension.None)]
+    [InlineData(10, SftpExtension.None)]
+    [InlineData(MultiPacketSize, SftpExtension.None)]
+    [SkippableTheory]
+    public async Task CopyFile(int fileSize, SftpExtension sftpExtensions)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, fileSize);
+
+        string destinationFileName = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CopyFileAsync(sourceFileName, destinationFileName);
+
+        await AssertRemoteFileContentEqualsAsync(sftpClient, sourceData, destinationFileName);
+    }
+
+    [InlineData(true, SftpExtension.CopyData)]
+    [InlineData(false, SftpExtension.CopyData)]
+    [InlineData(true, SftpExtension.None)]
+    [InlineData(false, SftpExtension.None)]
+    [SkippableTheory]
+    public async Task CopyFileOverwrite(bool overwrite, SftpExtension sftpExtensions)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+        (string destinationFileName, byte[] destinationData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+
+        Task copyTask = sftpClient.CopyFileAsync(sourceFileName, destinationFileName, overwrite).AsTask();
+
+        if (overwrite)
+        {
+            await copyTask;
+        }
+        else
+        {
+            await Assert.ThrowsAsync<SftpException>(() => copyTask);
+        }
+
+        byte[] expectedData = overwrite ? sourceData : destinationData;
+        await AssertRemoteFileContentEqualsAsync(sftpClient, expectedData, destinationFileName);
+    }
+
+    [InlineData(SftpExtension.CopyData)]
+    [InlineData(SftpExtension.None)]
+    [SkippableTheory]
+    public async Task CopyFileToSelfDoesntLooseData(SftpExtension sftpExtensions)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
+
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+
+        await sftpClient.CopyFileAsync(sourceFileName, sourceFileName, overwrite: true);
+
+        await AssertRemoteFileContentEqualsAsync(sftpClient, sourceData, sourceFileName);
+    }
+
+    [InlineData(SftpExtension.CopyData)]
+    [InlineData(SftpExtension.None)]
+    [SkippableTheory]
+    public async Task CopyFileOverwriteToLargerTruncates(SftpExtension sftpExtensions)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
+
+        const int SourceLength = 10;
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: SourceLength);
+        const int DestinationLength = SourceLength + SourceLength;
+        (string destinationFileName, byte[] destinationData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: DestinationLength);
+
+        await sftpClient.CopyFileAsync(sourceFileName, destinationFileName, overwrite: true).AsTask();
+
+        await AssertRemoteFileContentEqualsAsync(sftpClient, sourceData, destinationFileName);
+    }
+
+    private async Task AssertRemoteFileContentEqualsAsync(SftpClient client, byte[] expected, string remoteFileName)
+    {
+        using var readFile = await client.OpenFileAsync(remoteFileName, FileAccess.Read);
+        Assert.NotNull(readFile);
+        var memoryStream = new MemoryStream();
+        await readFile.CopyToAsync(memoryStream);
+        Assert.Equal(expected, memoryStream.ToArray());
+    }
+
+    private async Task<(string filename, byte[] data)> CreateRemoteFileWithRandomDataAsync(SftpClient client, int length)
+    {
+        string filename = $"/tmp/{Path.GetRandomFileName()}";
+        byte[] data = new byte[10];
+        Random.Shared.NextBytes(data);
+        using var writeFile = await client.CreateNewFileAsync(filename, FileAccess.Write);
+        await writeFile.WriteAsync(data.AsMemory());
+        return (filename, data);
     }
 
     [InlineData(true)]
