@@ -282,6 +282,10 @@ sealed partial class SftpChannel : IDisposable
                             int bytesRead;
                             try
                             {
+                                if (breakLoop.IsCancellationRequested)
+                                {
+                                    return;
+                                }
                                 buffer = ArrayPool<byte>.Shared.Rent(length);
                                 bytesRead = await sourceFile.ReadAtAsync(buffer, sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
                                 if (bytesRead == 0)
@@ -802,6 +806,10 @@ sealed partial class SftpChannel : IDisposable
                 byte[]? buffer = null;
                 try
                 {
+                    if (breakLoop.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     buffer = ArrayPool<byte>.Shared.Rent(length);
                     do
                     {
@@ -1088,6 +1096,10 @@ sealed partial class SftpChannel : IDisposable
                 byte[]? buffer = null;
                 try
                 {
+                    if (breakLoop.IsCancellationRequested)
+                    {
+                        return;
+                    }
                     buffer = ArrayPool<byte>.Shared.Rent(length);
                     do
                     {
