@@ -1,3 +1,5 @@
+[![NuGet](https://img.shields.io/nuget/v/Tmds.Ssh.svg)](https://www.nuget.org/packages/Tmds.Ssh)
+
 # Tmds.Ssh
 
 The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
