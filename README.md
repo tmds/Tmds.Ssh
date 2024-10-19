@@ -158,6 +158,8 @@ class SftpClient : IDisposable
 
   ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
 
+  ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default);
+
   ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
   ValueTask SetAttributesAsync(
     string path,

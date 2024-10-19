@@ -48,6 +48,14 @@ public sealed partial class SftpClient : IDisposable
     // For testing.
     internal SshClient SshClient => _client;
     internal bool IsDisposed => _state == State.Disposed;
+    internal SftpExtension EnabledExtensions
+    {
+        get
+        {
+            SftpChannel channel = _channel ?? throw new InvalidOperationException();
+            return channel.EnabledExtensions;
+        }
+    }
 
     public SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory, options)
@@ -175,7 +183,7 @@ public sealed partial class SftpClient : IDisposable
         bool success = false;
         try
         {
-            SftpChannel channel = await _client.OpenSftpChannelAsync(OnChannelAbort, explicitConnect, cancellationToken).ConfigureAwait(false);
+            SftpChannel channel = await _client.OpenSftpChannelAsync(OnChannelAbort, explicitConnect, _options, cancellationToken).ConfigureAwait(false);
             _channel = channel;
             success = true;
             return channel;
@@ -265,6 +273,12 @@ public sealed partial class SftpClient : IDisposable
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
         await channel.RenameAsync(oldPath, newPath, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
+        await channel.CopyFileAsync(sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)

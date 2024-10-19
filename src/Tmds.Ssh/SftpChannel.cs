@@ -27,16 +27,18 @@ sealed partial class SftpChannel : IDisposable
     // An onGoing ValueTask may allocate multiple buffers.
     const int MaxConcurrentBuffers = 64;
 
-    internal SftpChannel(ISshChannel channel)
+    internal SftpChannel(ISshChannel channel, SftpClientOptions options)
     {
         _channel = channel;
         _receivePacketSize = _channel.ReceiveMaxPacket;
+        _options = options;
     }
 
     public CancellationToken ChannelAborted
         => _channel.ChannelAborted;
 
     private readonly ISshChannel _channel;
+    private readonly SftpClientOptions _options;
 
     // Limits the number of buffers concurrently used for uploading/downloading.
     private readonly SemaphoreSlim s_downloadBufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
@@ -46,6 +48,7 @@ sealed partial class SftpChannel : IDisposable
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
+    private SftpExtension _supportedExtensions;
 
     internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
         => _channel.SendMaxPacket
@@ -55,6 +58,13 @@ sealed partial class SftpChannel : IDisposable
     internal int MaxReadPayload // SSH_FXP_DATA payload
         => _channel.ReceiveMaxPacket
             - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
+
+    internal int GetCopyBetweenSftpFilesBufferSize(byte[] destinationHandle)
+        => Math.Min(MaxReadPayload, GetMaxWritePayload(destinationHandle));
+
+    internal SftpExtension EnabledExtensions => _supportedExtensions;
+
+    private bool SupportsCopyData => (_supportedExtensions & SftpExtension.CopyData) != 0;
 
     public void Dispose()
     {
@@ -165,6 +175,209 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteString(oldPath);
         packet.WriteString(newPath);
 
+        return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        // Get the source file attributes and open it in parallel.
+        // We get the attribute to dermine the permissions for the destination path.
+        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(sourcePath, followLinks: true, cancellationToken);
+        using SftpFile? sourceFile = await OpenFileCoreAsync(sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+        if (sourceFile is null)
+        {
+            throw new SftpException(SftpError.NoSuchFile);
+        }
+        // Get the attributes ignoring any errors and falling back to getting them from the handle (unlikely).
+        FileEntryAttributes? sourceAttributes = null;
+        try
+        {
+            sourceAttributes = await sourceAttributesTask;
+        }
+        catch
+        { }
+        if (sourceAttributes is null)
+        {
+            sourceAttributes = await sourceFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        UnixFilePermissions permissions = sourceAttributes.Permissions & OwnershipPermissions; // Do not preserve setid bits (since the owner may change).
+
+        // Refresh our source length from the handle (in parallel with with opening the destination file).
+#pragma warning disable CS8619 // Nullability of reference types in value doesn't match target type.
+        sourceAttributesTask = sourceFile.GetAttributesAsync(cancellationToken);
+#pragma warning restore CS8619
+
+        // When we are overwriting, the file may exists and be larger than the source file.
+        // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
+        // To avoid that, we'll truncate after copying the data instead.
+        SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
+        using SftpFile destinationFile = (await OpenFileCoreAsync(destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+
+        // Get the length before we start writing so we know if we need to truncate.
+        ValueTask<long> initialLengthTask = overwrite ? destinationFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
+
+        long copyLength = (await sourceAttributesTask.ConfigureAwait(false))!.Length;
+        if (copyLength > 0)
+        {
+            bool doCopyAsync = true;
+            if (SupportsCopyData)
+            {
+                try
+                {
+                    await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
+                    doCopyAsync = false;
+                }
+                catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
+                                                ex.Error == SftpError.Failure) // (maybe) source and destination are same path
+                {
+                    // Fall through to async copy.
+                }
+            }
+
+            if (doCopyAsync)
+            {
+                await CopyAsync(copyLength, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // Truncate if the sourceFile is smaller than the destination file's initial length.
+        long initialLength = await initialLengthTask.ConfigureAwait(false);
+        if (initialLength > copyLength)
+        {
+            await destinationFile.SetLengthAsync(copyLength).ConfigureAwait(false);
+        }
+
+        async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
+        {
+            Debug.Assert(length > 0);
+
+            int bufferSize = GetCopyBetweenSftpFilesBufferSize(destinationFile.Handle);
+
+            ValueTask previous = default;
+
+            CancellationTokenSource breakLoop = new();
+
+            for (long offset = 0; offset < length; offset += bufferSize)
+            {
+                if (!breakLoop.IsCancellationRequested)
+                {
+                    await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    previous = CopyBuffer(previous, offset, bufferSize);
+                }
+            }
+
+            await previous.ConfigureAwait(false);
+
+            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+            {
+                try
+                {
+                    do
+                    {
+                        byte[]? buffer = null;
+                        try
+                        {
+                            int bytesRead;
+                            try
+                            {
+                                if (breakLoop.IsCancellationRequested)
+                                {
+                                    return;
+                                }
+
+                                buffer = ArrayPool<byte>.Shared.Rent(length);
+                                bytesRead = await sourceFile.ReadAtAsync(buffer, sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
+                                if (bytesRead == 0)
+                                {
+                                    break;
+                                }
+
+                                // Our download buffer becomes an upload buffer.
+                                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                            }
+                            catch
+                            {
+                                breakLoop.Cancel();
+                                throw;
+                            }
+                            finally
+                            {
+                                s_downloadBufferSemaphore.Release();
+                            }
+                            try
+                            {
+                                await destinationFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset).ConfigureAwait(false);
+                                length -= bytesRead;
+                                offset += bytesRead;
+                            }
+                            catch
+                            {
+                                breakLoop.Cancel();
+                                throw;
+                            }
+                            finally
+                            {
+                                if (buffer != null)
+                                {
+                                    ArrayPool<byte>.Shared.Return(buffer);
+                                    buffer = null;
+                                }
+                                s_uploadBufferSemaphore.Release();
+                            }
+                        }
+                        finally
+                        {
+                            if (buffer != null)
+                            {
+                                ArrayPool<byte>.Shared.Return(buffer);
+                            }
+                        }
+                        if (length > 0)
+                        {
+                            await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                    } while (length > 0);
+                }
+                finally
+                {
+                    await previousCopy.ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
+    // https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-extensions-00#section-7
+    private ValueTask CopyDataAsync(byte[] sourceFileHandle, ulong sourceOffset, byte[] destinationFileHandle, ulong destinationOffset, ulong? length, CancellationToken cancellationToken = default)
+    {
+        Debug.Assert((_supportedExtensions & SftpExtension.CopyData) != 0);
+
+        if (length == 0)
+        {
+            return default;
+        }
+
+        /*
+            byte   SSH_FXP_EXTENDED
+            uint32 request-id
+            string "copy-data"
+            string read-from-handle
+            uint64 read-from-offset
+            uint64 read-data-length
+            string write-to-handle
+            uint64 write-to-offset
+        */
+        PacketType packetType = PacketType.SSH_FXP_EXTENDED;
+        int id = GetNextId();
+        PendingOperation pendingOperation = CreatePendingOperation(PacketType.SSH_SFTP_STATUS_RESPONSE);
+        Packet packet = new Packet(packetType);
+        packet.WriteInt(id);
+        packet.WriteString("copy-data");
+        packet.WriteString(sourceFileHandle);
+        packet.WriteUInt64(sourceOffset);
+        packet.WriteUInt64(length ?? 0);
+        packet.WriteString(destinationFileHandle);
+        packet.WriteUInt64(destinationOffset);
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
@@ -541,11 +754,11 @@ sealed partial class SftpChannel : IDisposable
     {
         const UnixFilePermissions Default = SftpClient.DefaultCreateDirectoryPermissions & ~PretendUMask;
 #if NET7_0_OR_GREATER
-            if (!OperatingSystem.IsWindows())
-            {
-                return File.GetUnixFileMode(directoryPath).ToUnixFilePermissions();
-            }
-            return Default; // TODO: do something better on Windows?
+        if (!OperatingSystem.IsWindows())
+        {
+            return File.GetUnixFileMode(directoryPath).ToUnixFilePermissions();
+        }
+        return Default; // TODO: do something better on Windows?
 #else
         return Default;
 #endif
@@ -555,11 +768,11 @@ sealed partial class SftpChannel : IDisposable
     {
         const UnixFilePermissions Default = SftpClient.DefaultCreateFilePermissions & ~PretendUMask;
 #if NET7_0_OR_GREATER
-            if (!OperatingSystem.IsWindows())
-            {
-                return File.GetUnixFileMode(fileHandle).ToUnixFilePermissions();
-            }
-            return Default; // TODO: do something better on Windows?
+        if (!OperatingSystem.IsWindows())
+        {
+            return File.GetUnixFileMode(fileHandle).ToUnixFilePermissions();
+        }
+        return Default; // TODO: do something better on Windows?
 #else
         return Default;
 #endif
@@ -577,12 +790,16 @@ sealed partial class SftpChannel : IDisposable
 
         ValueTask previous = default;
 
+        CancellationTokenSource? breakLoop = length > 0 ? new() : null;
+
         for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
         {
-            // Obtain a buffer before starting the copy to ensure we're not competing
-            // for buffers with the previous copy.
-            await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+            Debug.Assert(breakLoop is not null);
+            if (!breakLoop.IsCancellationRequested)
+            {
+                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+            }
         }
 
         await previous.ConfigureAwait(false);
@@ -591,31 +808,46 @@ sealed partial class SftpChannel : IDisposable
 
         async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
         {
-            byte[]? buffer = null;
             try
             {
-                buffer = ArrayPool<byte>.Shared.Rent(length);
-                do
+                byte[]? buffer = null;
+                try
                 {
-                    int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
-                    if (bytesRead == 0)
+                    if (breakLoop.IsCancellationRequested)
                     {
-                        break;
+                        return;
                     }
-                    await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken).ConfigureAwait(false);
-                    length -= bytesRead;
-                    offset += bytesRead;
-                } while (length > 0);
 
-                await previousCopy.ConfigureAwait(false);
+                    buffer = ArrayPool<byte>.Shared.Rent(length);
+                    do
+                    {
+                        int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
+                        if (bytesRead == 0)
+                        {
+                            break;
+                        }
+                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken).ConfigureAwait(false);
+                        length -= bytesRead;
+                        offset += bytesRead;
+                    } while (length > 0);
+                }
+                catch
+                {
+                    breakLoop.Cancel();
+                    throw;
+                }
+                finally
+                {
+                    if (buffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                    s_uploadBufferSemaphore.Release();
+                }
             }
             finally
             {
-                if (buffer != null)
-                {
-                    ArrayPool<byte>.Shared.Return(buffer);
-                }
-                s_uploadBufferSemaphore.Release();
+                await previousCopy.ConfigureAwait(false);
             }
         }
     }
@@ -762,14 +994,14 @@ sealed partial class SftpChannel : IDisposable
     private static void CreateLocalDirectory(string path, UnixFilePermissions permissions)
     {
 #if NET7_0_OR_GREATER
-            if (OperatingSystem.IsWindows())
-            {
-                Directory.CreateDirectory(path);
-            }
-            else
-            {
-                Directory.CreateDirectory(path, (permissions & CreateDirectoryPermissionMask).ToUnixFileMode());
-            }
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(path);
+        }
+        else
+        {
+            Directory.CreateDirectory(path, (permissions & CreateDirectoryPermissionMask).ToUnixFileMode());
+        }
 #else
         Directory.CreateDirectory(path);
 #endif
@@ -785,10 +1017,10 @@ sealed partial class SftpChannel : IDisposable
             Share = share
         };
 #if NET7_0_OR_GREATER
-            if (!OperatingSystem.IsWindows())
-            {
-                options.UnixCreateMode = (permissions & CreateFilePermissionMask).ToUnixFileMode();
-            }
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = (permissions & CreateFilePermissionMask).ToUnixFileMode();
+        }
 #endif
         return new FileStream(path, options);
     }
@@ -839,7 +1071,7 @@ sealed partial class SftpChannel : IDisposable
             FileEntryAttributes? attributes = await getAttributes.ConfigureAwait(false);
             if (attributes is null) // unlikely
             {
-                attributes = await remoteFile.GetAttributesAsync(cancellationToken). ConfigureAwait(false);
+                attributes = await remoteFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
             }
             length = attributes.Length;
             permissions = attributes.Permissions;
@@ -849,12 +1081,16 @@ sealed partial class SftpChannel : IDisposable
 
         ValueTask previous = default;
 
+        CancellationTokenSource? breakLoop = length > 0 ? new() : null;
+
         for (long offset = 0; offset < length; offset += MaxReadPayload)
         {
-            // Obtain a buffer before starting the copy to ensure we're not competing
-            // for buffers with the previous copy.
-            await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            previous = CopyBuffer(previous, offset, MaxReadPayload);
+            Debug.Assert(breakLoop is not null);
+            if (!breakLoop.IsCancellationRequested)
+            {
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                previous = CopyBuffer(previous, offset, MaxReadPayload);
+            }
         }
 
         await previous.ConfigureAwait(false);
@@ -863,31 +1099,46 @@ sealed partial class SftpChannel : IDisposable
 
         async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
         {
-            byte[]? buffer = null;
             try
             {
-                buffer = ArrayPool<byte>.Shared.Rent(length);
-                do
+                byte[]? buffer = null;
+                try
                 {
-                    int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken).ConfigureAwait(false);
-                    if (bytesRead == 0)
+                    if (breakLoop.IsCancellationRequested)
                     {
-                        break;
+                        return;
                     }
-                    RandomAccess.Write(localFile.SafeFileHandle, buffer.AsSpan(0, bytesRead), offset);
-                    length -= bytesRead;
-                    offset += bytesRead;
-                } while (length > 0);
 
-                await previousCopy.ConfigureAwait(false);
+                    buffer = ArrayPool<byte>.Shared.Rent(length);
+                    do
+                    {
+                        int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken).ConfigureAwait(false);
+                        if (bytesRead == 0)
+                        {
+                            break;
+                        }
+                        RandomAccess.Write(localFile.SafeFileHandle, buffer.AsSpan(0, bytesRead), offset);
+                        length -= bytesRead;
+                        offset += bytesRead;
+                    } while (length > 0);
+                }
+                catch
+                {
+                    breakLoop.Cancel();
+                    throw;
+                }
+                finally
+                {
+                    if (buffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                    s_downloadBufferSemaphore.Release();
+                }
             }
             finally
             {
-                if (buffer != null)
-                {
-                    ArrayPool<byte>.Shared.Return(buffer);
-                }
-                s_downloadBufferSemaphore.Release();
+                await previousCopy.ConfigureAwait(false);
             }
         }
     }
@@ -1058,11 +1309,36 @@ sealed partial class SftpChannel : IDisposable
 
     private void HandleVersionPacket(ReadOnlySpan<byte> packet)
     {
-        PacketType type = (PacketType)packet[0];
+        PacketReader reader = new(packet);
+
+        PacketType type = reader.ReadPacketType();
+
         if (type != PacketType.SSH_FXP_VERSION)
         {
             throw new SshChannelException($"Expected packet SSH_FXP_VERSION, but received {type}.");
         }
+
+        uint version = reader.ReadUInt();
+        if (version != ProtocolVersion)
+        {
+            throw new SshOperationException($"Unsupported protocol version {version}.");
+        }
+
+        SftpExtension supportedExtensions = default;
+        while (!reader.Remainder.IsEmpty)
+        {
+            string extensionName = reader.ReadString();
+            string extensionData = reader.ReadString();
+
+            switch (extensionName, extensionData)
+            {
+                case ("copy-data", "1"):
+                    supportedExtensions |= SftpExtension.CopyData;
+                    break;
+            }
+        }
+
+        _supportedExtensions = supportedExtensions & ~_options.DisabledExtensions;
     }
 
     internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)

@@ -69,6 +69,12 @@ partial class SftpChannel
             _length += 8;
         }
 
+        internal void WriteUInt64(ulong value)
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(_buffer.AsSpan(_length), value);
+            _length += 8;
+        }
+
         public void WriteAttributes(
             long? length = default,
             (int Uid, int Gid)? ids = default,
