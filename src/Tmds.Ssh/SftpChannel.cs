@@ -64,7 +64,6 @@ sealed partial class SftpChannel : IDisposable
 
     internal SftpExtension EnabledExtensions => _supportedExtensions;
 
-
     private bool SupportsCopyData => (_supportedExtensions & SftpExtension.CopyData) != 0;
 
     public void Dispose()
@@ -209,7 +208,7 @@ sealed partial class SftpChannel : IDisposable
         sourceAttributesTask = sourceFile.GetAttributesAsync(cancellationToken);
 #pragma warning restore CS8619
 
-        // When we are overwriting. The file may exists and be larger than the source file.
+        // When we are overwriting, the file may exists and be larger than the source file.
         // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
         // To avoid that, we'll truncate after copying the data instead.
         SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
@@ -246,7 +245,7 @@ sealed partial class SftpChannel : IDisposable
         long initialLength = await initialLengthTask.ConfigureAwait(false);
         if (initialLength > copyLength)
         {
-            await destinationFile.SetLengthAsync(copyLength);
+            await destinationFile.SetLengthAsync(copyLength).ConfigureAwait(false);
         }
 
         async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
@@ -286,12 +285,15 @@ sealed partial class SftpChannel : IDisposable
                                 {
                                     return;
                                 }
+
                                 buffer = ArrayPool<byte>.Shared.Rent(length);
                                 bytesRead = await sourceFile.ReadAtAsync(buffer, sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
                                 if (bytesRead == 0)
                                 {
                                     break;
                                 }
+
+                                // Our download buffer becomes an upload buffer.
                                 await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                             }
                             catch
@@ -316,6 +318,11 @@ sealed partial class SftpChannel : IDisposable
                             }
                             finally
                             {
+                                if (buffer != null)
+                                {
+                                    ArrayPool<byte>.Shared.Return(buffer);
+                                    buffer = null;
+                                }
                                 s_uploadBufferSemaphore.Release();
                             }
                         }
@@ -810,6 +817,7 @@ sealed partial class SftpChannel : IDisposable
                     {
                         return;
                     }
+
                     buffer = ArrayPool<byte>.Shared.Rent(length);
                     do
                     {
@@ -1100,6 +1108,7 @@ sealed partial class SftpChannel : IDisposable
                     {
                         return;
                     }
+
                     buffer = ArrayPool<byte>.Shared.Rent(length);
                     do
                     {
