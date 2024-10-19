@@ -251,13 +251,21 @@ sealed partial class SftpChannel : IDisposable
 
         async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
         {
+            Debug.Assert(length > 0);
+
             int bufferSize = GetCopyBetweenSftpFilesBufferSize(destinationFile.Handle);
 
             ValueTask previous = default;
 
+            CancellationTokenSource breakLoop = new();
+
             for (long offset = 0; offset < length; offset += bufferSize)
             {
-                previous = CopyBuffer(previous, offset, bufferSize);
+                if (!breakLoop.IsCancellationRequested)
+                {
+                    await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    previous = CopyBuffer(previous, offset, bufferSize);
+                }
             }
 
             await previous.ConfigureAwait(false);
@@ -268,7 +276,6 @@ sealed partial class SftpChannel : IDisposable
                 {
                     do
                     {
-                        await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                         byte[]? buffer = null;
                         try
                         {
@@ -283,6 +290,11 @@ sealed partial class SftpChannel : IDisposable
                                 }
                                 await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                             }
+                            catch
+                            {
+                                breakLoop.Cancel();
+                                throw;
+                            }
                             finally
                             {
                                 s_downloadBufferSemaphore.Release();
@@ -292,6 +304,11 @@ sealed partial class SftpChannel : IDisposable
                                 await destinationFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset).ConfigureAwait(false);
                                 length -= bytesRead;
                                 offset += bytesRead;
+                            }
+                            catch
+                            {
+                                breakLoop.Cancel();
+                                throw;
                             }
                             finally
                             {
@@ -304,6 +321,10 @@ sealed partial class SftpChannel : IDisposable
                             {
                                 ArrayPool<byte>.Shared.Return(buffer);
                             }
+                        }
+                        if (length > 0)
+                        {
+                            await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                         }
                     } while (length > 0);
                 }
@@ -758,9 +779,16 @@ sealed partial class SftpChannel : IDisposable
 
         ValueTask previous = default;
 
+        CancellationTokenSource? breakLoop = length > 0 ? new() : null;
+
         for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
         {
-            previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+            Debug.Assert(breakLoop is not null);
+            if (!breakLoop.IsCancellationRequested)
+            {
+                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
+            }
         }
 
         await previous.ConfigureAwait(false);
@@ -771,7 +799,6 @@ sealed partial class SftpChannel : IDisposable
         {
             try
             {
-                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 byte[]? buffer = null;
                 try
                 {
@@ -787,6 +814,11 @@ sealed partial class SftpChannel : IDisposable
                         length -= bytesRead;
                         offset += bytesRead;
                     } while (length > 0);
+                }
+                catch
+                {
+                    breakLoop.Cancel();
+                    throw;
                 }
                 finally
                 {
@@ -1033,9 +1065,16 @@ sealed partial class SftpChannel : IDisposable
 
         ValueTask previous = default;
 
+        CancellationTokenSource? breakLoop = length > 0 ? new() : null;
+
         for (long offset = 0; offset < length; offset += MaxReadPayload)
         {
-            previous = CopyBuffer(previous, offset, MaxReadPayload);
+            Debug.Assert(breakLoop is not null);
+            if (!breakLoop.IsCancellationRequested)
+            {
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                previous = CopyBuffer(previous, offset, MaxReadPayload);
+            }
         }
 
         await previous.ConfigureAwait(false);
@@ -1046,7 +1085,6 @@ sealed partial class SftpChannel : IDisposable
         {
             try
             {
-                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 byte[]? buffer = null;
                 try
                 {
@@ -1062,6 +1100,11 @@ sealed partial class SftpChannel : IDisposable
                         length -= bytesRead;
                         offset += bytesRead;
                     } while (length > 0);
+                }
+                catch
+                {
+                    breakLoop.Cancel();
+                    throw;
                 }
                 finally
                 {
