@@ -237,6 +237,7 @@ public class SshServer : IDisposable
             }
             if (_containerId != null)
             {
+                PrintServerLogs();
                 Run("podman", "rm", "-f", _containerId);
             }
             // Don't remove the image to make the next test run faster.
@@ -244,6 +245,16 @@ public class SshServer : IDisposable
         }
         catch
         { }
+    }
+
+    private void PrintServerLogs()
+    {
+        WriteMessage("SSH Server logs:");
+        string[] log = Run("podman", "logs", _containerId);
+        foreach (var line in log)
+        {
+            WriteMessage(line);
+        }
     }
 
     private string[] Run(string filename, params string[] arguments)
@@ -310,12 +321,7 @@ public class SshServer : IDisposable
         catch (Exception ex)
         {
             WriteMessage($"Verifying server works failed with: {ex}");
-            WriteMessage("SSH server logs:");
-            string[] log = Run("podman", "logs", _containerId);
-            foreach (var line in log)
-            {
-                WriteMessage(line);
-            }
+            PrintServerLogs();
 
             throw;
         }
