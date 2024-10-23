@@ -36,6 +36,9 @@ RUN dos2unix /home/testuser/.ssh/authorized_keys
 # Disable PAM.
 RUN sed -i 's/UsePAM yes/UsePAM no/g' /etc/ssh/sshd_config.d/50-redhat.conf
 
+# Disable penalties.
+RUN echo 'PerSourcePenaltyExemptList "0.0.0.0/0,::/0"' > /etc/ssh/sshd_config.d/99-no-per-source-penalty.conf
+
 # Configure KDC and setup keytab
 COPY krb5.conf /etc/krb5.conf
 COPY kadm5.acl /var/kerberos/krb5kdc/kadm5.acl
