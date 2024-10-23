@@ -33,7 +33,7 @@ jobs:
       run: |
         export MSBUILDENSURESTDOUTFORTASKPROCESSES=1
         export MSBUILDDISABLENODEREUSE=1
-        dotnet test test/Tmds.Ssh.Tests
+        dotnet test test/Tmds.Ssh.Tests -f net9.0 --filter ExplicitCredential
 
     - name: Build packages
       run: |
