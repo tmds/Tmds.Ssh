@@ -45,4 +45,4 @@ RUN echo 'testuser@REALM.TEST' > /home/testuser@REALM.TEST/.k5login
 COPY 90-gssapi.conf /etc/ssh/sshd_config.d/90-gssapi.conf
 
 # Run kdc and sshd.
-CMD /usr/sbin/krb5kdc && /usr/sbin/sshd -o LogLevel=DEBUG2 -De
+CMD /usr/sbin/krb5kdc && /usr/sbin/sshd -o LogLevel=DEBUG3 -De
