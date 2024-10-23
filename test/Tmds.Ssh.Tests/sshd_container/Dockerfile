@@ -33,6 +33,9 @@ RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 RUN dos2unix /home/testuser/.ssh/authorized_keys
 
+# Disable PAM.
+RUN sed -i 's/UsePAM yes/UsePAM no/g' /etc/ssh/sshd_config.d/50-redhat.conf
+
 # Configure KDC and setup keytab
 COPY krb5.conf /etc/krb5.conf
 COPY kadm5.acl /var/kerberos/krb5kdc/kadm5.acl
