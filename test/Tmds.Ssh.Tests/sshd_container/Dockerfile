@@ -1,4 +1,4 @@
-FROM quay.io/centos/centos:stream9
+FROM quay.io/centos/centos:stream10-development
 
 EXPOSE 88/tcp
 EXPOSE 88/udp
@@ -32,6 +32,12 @@ RUN cat /home/testuser/.ssh/user_key_*.pub > /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys
 RUN dos2unix /home/testuser/.ssh/authorized_keys
+
+# Disable PAM.
+RUN sed -i 's/UsePAM yes/UsePAM no/g' /etc/ssh/sshd_config.d/50-redhat.conf
+
+# Disable penalties.
+RUN echo 'PerSourcePenaltyExemptList "0.0.0.0/0,::/0"' > /etc/ssh/sshd_config.d/99-no-per-source-penalty.conf
 
 # Configure KDC and setup keytab
 COPY krb5.conf /etc/krb5.conf

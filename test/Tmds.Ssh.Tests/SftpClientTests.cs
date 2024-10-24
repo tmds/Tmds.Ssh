@@ -1140,7 +1140,7 @@ public class SftpClientTests
     }
 
     [InlineData(true)]
-    // [InlineData(false)]
+    [InlineData(false)]
     [Theory]
     public async Task AutoReconnect(bool autoReconnect)
     {
