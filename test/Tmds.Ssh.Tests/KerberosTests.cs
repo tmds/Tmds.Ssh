@@ -55,7 +55,7 @@ public class KerberosTests : IDisposable
         }
     }
 
-    // [InlineData(false, false)]
+    // [InlineData(false, false)] // Test is no longer working since we set 'UsePAM no'.
     // [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
@@ -105,7 +105,7 @@ public class KerberosTests : IDisposable
         );
     }
 
-    // [InlineData(false, false)]
+    // [InlineData(false, false)] // Test is no longer working since we set 'UsePAM no'.
     // [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]

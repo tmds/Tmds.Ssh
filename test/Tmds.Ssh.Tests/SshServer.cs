@@ -237,7 +237,6 @@ public class SshServer : IDisposable
             }
             if (_containerId != null)
             {
-                PrintServerLogs();
                 Run("podman", "rm", "-f", _containerId);
             }
             // Don't remove the image to make the next test run faster.
