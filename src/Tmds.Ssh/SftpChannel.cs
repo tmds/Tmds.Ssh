@@ -537,7 +537,7 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<SftpFile> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
+    public ValueTask<SftpFile?> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_OPENDIR;
 
@@ -549,7 +549,7 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteString(path);
 
         // note: Return as 'SftpFile' so it gets Disposed in case the open is cancelled.
-        return ExecuteAsync<SftpFile>(packet, id, pendingOperation, cancellationToken);
+        return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
     }
 
     public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)

@@ -324,12 +324,6 @@ public sealed partial class SftpClient : IDisposable
     public IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null)
         => new SftpFileSystemEnumerable<T>(this, path, transform, options ?? DefaultEnumerationOptions);
 
-    internal async ValueTask<SftpFile> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        return await channel.OpenDirectoryAsync(path, cancellationToken);
-    }
-
     public ValueTask CreateDirectoryAsync(string path, CancellationToken cancellationToken)
         => CreateDirectoryAsync(path, createParents: false, DefaultCreateDirectoryPermissions, cancellationToken);
 

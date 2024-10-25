@@ -128,6 +128,7 @@ partial class SftpChannel
                                             or (SftpError.NoSuchFile, PacketType.SSH_FXP_STAT       // GetAttributes: return null
                                                                     or PacketType.SSH_FXP_LSTAT   // GetAttributes: return null
                                                                     or PacketType.SSH_FXP_OPEN    // OpenFile: return null
+                                                                    or PacketType.SSH_FXP_OPENDIR // OpenDirectory: return null
                                                                     or PacketType.SSH_FXP_REMOVE  // DeleteFile: don't throw
                                                                     or PacketType.SSH_FXP_RMDIR   // DeleteDirectory: don't throw
                                             )
@@ -139,13 +140,18 @@ partial class SftpChannel
                 switch (RequestType, responseType)
                 {
                     case (PacketType.SSH_FXP_OPEN, _):
+                    {
                         SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsBytes(), (FileOpenOptions)Options!);
                         Options = null;
                         SetResult(file);
                         return;
+                    }
                     case (PacketType.SSH_FXP_OPENDIR, _):
-                        SetResult(new SftpFile(channel, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions));
+                    {
+                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions);
+                        SetResult(file);
                         return;
+                    }
                     case (PacketType.SSH_FXP_STAT, _):
                     case (PacketType.SSH_FXP_LSTAT, _):
                     case (PacketType.SSH_FXP_FSTAT, _):
