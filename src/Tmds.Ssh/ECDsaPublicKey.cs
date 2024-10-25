@@ -15,7 +15,7 @@ class ECDsaPublicKey : PublicKey
     private readonly ECPoint _q;
     private readonly HashAlgorithmName _hashAlgorithm;
 
-    public ECDsaPublicKey(Name name, ECCurve curve, ECPoint q, HashAlgorithmName hashAlgorithm)
+    private ECDsaPublicKey(Name name, ECCurve curve, ECPoint q, HashAlgorithmName hashAlgorithm)
     {
         _q = q;
         _curve = curve;

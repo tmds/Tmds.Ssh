@@ -22,7 +22,7 @@ public class ClientSettingsTests
         Assert.Equal(new[] { DefaultGlobalKnownHostsFile }, settings.GlobalKnownHostsFilePaths);
         Assert.Null(settings.HostAuthentication);
         Assert.Equal(new[] { new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms);
-        Assert.Equal(new[] { new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.ServerHostKeyAlgorithms);
+        Assert.Equal(new[] { new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.ServerHostKeyAlgorithms);
         Assert.Equal(new[] { new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.PublicKeyAcceptedAlgorithms);
         Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsClientToServer);
         Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsServerToClient);

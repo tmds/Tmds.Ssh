@@ -32,9 +32,35 @@ public class SshServer : IDisposable
     public string SshConfigFilePath => _sshConfigFilePath;
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
 
-    public string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
-    public string Ed25519KeySHA256FingerPrint => "Y/HuDkfhwjCreznEiaX5tshGRPXZJvZ/Nj42hCsw9II";
-    public string EcdsaKeySHA256FingerPrint => "0983BezNRxXiCSK+ZY835dHQ3tSzx+i2oHd6vKKlOeE";
+    private string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
+    private string Ed25519KeySHA256FingerPrint => "Y/HuDkfhwjCreznEiaX5tshGRPXZJvZ/Nj42hCsw9II";
+    private string EcdsaKeyNistp256SHA256FingerPrint => "0983BezNRxXiCSK+ZY835dHQ3tSzx+i2oHd6vKKlOeE";
+    private string EcdsaKeyNistp384SHA256FingerPrint => "O8vDVOPKzyWp38LkIyQwo+o9pZlV/10lCzCuWNuls+A";
+    private string EcdsaKeyNistp521SHA256FingerPrint => "ki9Csen6gPmw24YqojLm12bNuftv+PgPlPIW/lwMk40";
+
+    public string[] ServerKeySHA256FingerPrints => new string[]
+    {
+        RsaKeySHA256FingerPrint,
+        Ed25519KeySHA256FingerPrint,
+        EcdsaKeyNistp256SHA256FingerPrint,
+        EcdsaKeyNistp384SHA256FingerPrint,
+        EcdsaKeyNistp521SHA256FingerPrint,
+    };
+
+    private string RsaKeyPubFile = $"{ContainerBuildContext}/server_key_rsa.pub";
+    private string Ed25519KeyPubFile = $"{ContainerBuildContext}/server_key_ecdsa.pub";
+    private string EcdsaKeyNistp256PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp384.pub";
+    private string EcdsaKeyNistp384PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp521.pub";
+    private string EcdsaKeyNistp521PubFile = $"{ContainerBuildContext}/server_key_ed25519.pub";
+
+    private string[] KeyPubFiles => new string[]
+    {
+        RsaKeyPubFile,
+        Ed25519KeyPubFile,
+        EcdsaKeyNistp256PubFile,
+        EcdsaKeyNistp384PubFile,
+        EcdsaKeyNistp521PubFile,
+    };
 
     private readonly string _containerId;
     private readonly string _host;
@@ -139,7 +165,7 @@ public class SshServer : IDisposable
 
         string WriteKnownHostsFile(string host, int port)
         {
-            string[] lines = Run("ssh-keyscan", "-p", port.ToString(), host);
+            IEnumerable<string> lines = KeyPubFiles.Select(file => $"[{host}]:{port} {File.ReadAllText(file).Trim()}");
             string filename = Path.GetTempFileName();
             File.WriteAllLines(filename, lines);
             return filename;
