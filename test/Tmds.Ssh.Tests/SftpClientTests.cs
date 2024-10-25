@@ -563,8 +563,10 @@ public class SftpClientTests
 
         string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
         await sftpClient.CreateNewDirectoryAsync(directoryPath);
-        string childDirectoryPath = $"{directoryPath}/dir";
+        string childDirectoryPath = $"{directoryPath}/child";
         await sftpClient.CreateDirectoryAsync(childDirectoryPath);
+        string childChildDirectoryPath = $"{childDirectoryPath}/nestedchild";
+        await sftpClient.CreateDirectoryAsync(childChildDirectoryPath);
 
         bool childDirWasReturned = false;
         int count = 0;
@@ -573,7 +575,8 @@ public class SftpClientTests
             count++;
             childDirWasReturned = entry.Path == childDirectoryPath;
 
-            // Delete the directory before we can recurse into it.
+            // Delete the nested directories before we recurse into them.
+            await sftpClient.DeleteDirectoryAsync(childChildDirectoryPath);
             await sftpClient.DeleteDirectoryAsync(childDirectoryPath);
         }
 
