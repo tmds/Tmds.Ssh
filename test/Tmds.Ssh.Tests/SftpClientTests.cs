@@ -1,4 +1,5 @@
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Tmds.Ssh.Tests;
 
@@ -9,10 +10,17 @@ public class SftpClientTests
     const int MultiPacketSize = 2 * PacketSize + 1024;
 
     private readonly SshServer _sshServer;
+    private readonly ITestOutputHelper _output;
 
-    public SftpClientTests(SshServer sshServer)
+    private void WriteMessage(string message)
+    {
+        _output.WriteLine(message);
+    }
+
+    public SftpClientTests(SshServer sshServer, ITestOutputHelper output)
     {
         _sshServer = sshServer;
+        _output = output;
     }
 
     [Fact]
@@ -536,6 +544,44 @@ public class SftpClientTests
             Assert.StartsWith("/", path);
             Assert.False(path.StartsWith("//"));
         }
+    }
+
+    [Fact]
+    public async Task EnumerateRootNotFound()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string path = "/no_such_dir";
+        var exception = await Assert.ThrowsAsync<SftpException>(() => sftpClient.GetDirectoryEntriesAsync(path).ToListAsync().AsTask());
+        Assert.Equal(SftpError.NoSuchFile, exception.Error);
+    }
+
+    [Fact]
+    public async Task EnumerateNestedDirNotFoundDoesNotThrow()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(directoryPath);
+        string childDirectoryPath = $"{directoryPath}/child";
+        await sftpClient.CreateDirectoryAsync(childDirectoryPath);
+        string childChildDirectoryPath = $"{childDirectoryPath}/nestedchild";
+        await sftpClient.CreateDirectoryAsync(childChildDirectoryPath);
+
+        bool childDirWasReturned = false;
+        int count = 0;
+        await foreach (var entry in sftpClient.GetDirectoryEntriesAsync(directoryPath, new Tmds.Ssh.EnumerationOptions() { RecurseSubdirectories = true }))
+        {
+            count++;
+            childDirWasReturned = entry.Path == childDirectoryPath;
+
+            // Delete the nested directories before we recurse into them.
+            await sftpClient.DeleteDirectoryAsync(childChildDirectoryPath);
+            await sftpClient.DeleteDirectoryAsync(childDirectoryPath);
+        }
+
+        Assert.True(childDirWasReturned);
+        Assert.Equal(1, count);
     }
 
     [Fact]

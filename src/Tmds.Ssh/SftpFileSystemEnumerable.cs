@@ -55,7 +55,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly SftpFileEntryPredicate? _shouldInclude;
 
     private Queue<string>? _pending;
-    private string _path;
+    private string? _path;
     private SftpChannel? _channel;
     private SftpFile? _fileHandle;
 
@@ -141,12 +141,13 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             _fileHandle!.Dispose();
             _fileHandle = null;
+            _path = null;
+        }
 
-            if (_pending?.TryDequeue(out string? path) == true)
-            {
-                _path = path;
-            }
-            else
+        if (_fileHandle is null)
+        {
+            await OpenFileHandleAsync();
+            if (_fileHandle is null)
             {
                 return false;
             }
@@ -158,16 +159,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async ValueTask ReadNewBufferAsync()
     {
-        if (_fileHandle is null)
-        {
-            if (_channel is null)
-            {
-                Debug.Assert(_client is not null);
-                _channel = await _client.GetChannelAsync(_cancellationToken);
-            }
-            _fileHandle = await _channel.OpenDirectoryAsync(_path, _cancellationToken).ConfigureAwait(false);
-            _readAhead = _channel.ReadDirAsync(_fileHandle, _cancellationToken);
-        }
+        Debug.Assert(_fileHandle is not null);
         Debug.Assert(_channel is not null);
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
@@ -186,8 +178,48 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
     }
 
+    private async ValueTask OpenFileHandleAsync()
+    {
+        if (_channel is null)
+        {
+            Debug.Assert(_client is not null);
+            _channel = await _client.GetChannelAsync(_cancellationToken);
+        }
+
+        string? path = _path;
+        bool isRootPath = path is not null; // path passed to the constructor.
+        do
+        {
+            if (!isRootPath)
+            {
+                if (_pending?.TryDequeue(out path) != true)
+                {
+                    return;
+                }
+            }
+            Debug.Assert(path is not null);
+
+            _fileHandle = await _channel.OpenDirectoryAsync(path, _cancellationToken).ConfigureAwait(false);
+            if (_fileHandle is null)
+            {
+                if (isRootPath)
+                {
+                    throw new SftpException(SftpError.NoSuchFile);
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            _path = path;
+            _readAhead = _channel.ReadDirAsync(_fileHandle, _cancellationToken);
+            return;
+        } while (true);
+    }
+
     private bool ReadNextEntry(bool followLink, out string? linkPath, out Memory<byte> linkEntry)
     {
+        Debug.Assert(_path is not null);
         int startOffset = _bufferOffset;
         SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(startOffset), _pathBuffer, _nameBuffer, out int entryLength);
 
@@ -238,6 +270,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
+        Debug.Assert(_path is not null);
         FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
