@@ -521,6 +521,7 @@ Supported client key algorithms:
 - rsa-sha2-256
 
 Supported server key algorithms:
+- ssh-ed25519
 - ecdsa-sha2-nistp521
 - ecdsa-sha2-nistp384
 - ecdsa-sha2-nistp256

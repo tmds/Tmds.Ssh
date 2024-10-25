@@ -20,6 +20,10 @@ abstract class PublicKey
         {
             return RsaPublicKey.CreateFromSshKey(key.RawKey);
         }
+        else if (name == AlgorithmNames.SshEd25519)
+        {
+            return Ed25519PublicKey.CreateFromSshKey(key.RawKey);
+        }
         else
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();

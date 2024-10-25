@@ -41,13 +41,7 @@ public class ConnectTests
                     Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    string[] serverKeyFingerPrints =
-                    [
-                        _sshServer.RsaKeySHA256FingerPrint,
-                            _sshServer.Ed25519KeySHA256FingerPrint,
-                            _sshServer.EcdsaKeySHA256FingerPrint
-                    ];
-                    Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 };
             }
@@ -436,13 +430,7 @@ public class ConnectTests
                     Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    string[] serverKeyFingerPrints =
-                    [
-                        _sshServer.RsaKeySHA256FingerPrint,
-                            _sshServer.Ed25519KeySHA256FingerPrint,
-                            _sshServer.EcdsaKeySHA256FingerPrint
-                    ];
-                    Assert.Contains(serverKeyFingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 },
                 ConfigFilePaths = [ configFile.Path ]
