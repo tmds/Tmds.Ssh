@@ -212,4 +212,16 @@ static class SshSequencePoolExtensions
         writer.WriteUInt32(bytesToAdd);
         return packet.Move();
     }
+
+    public static Packet CreateKeepAliveMessage(this SequencePool sequencePool)
+    {
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_GLOBAL_REQUEST);
+        // The request name can be any unknown name (to trigger an SSH_MSG_REQUEST_FAILURE response).
+        // We use the same name as the OpenSSH client.
+        writer.WriteString("keepalive@openssh.com");
+        writer.WriteBoolean(true); // want reply
+        return packet.Move();
+    }
 }

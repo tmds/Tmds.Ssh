@@ -231,6 +231,8 @@ class SshClientSettings
   bool AutoReconnect { get; set; } = false;
 
   bool TcpKeepAlive { get; set; } = true;
+  TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
+  public int KeepAliveCountMax = 3;
 
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
@@ -281,7 +283,9 @@ public enum SshConfigOption
     KexAlgorithms,
     MACs,
     PubkeyAcceptedAlgorithms,
-    TCPKeepAlive
+    TCPKeepAlive,
+    ServerAliveCountMax,
+    ServerAliveInterval
 }
 struct SshConfigOptionValue
 {

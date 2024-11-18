@@ -60,6 +60,8 @@ sealed class SshConfig
     public bool? HashKnownHosts { get; set; }
     public List<string>? SendEnv { get; set; }
     public bool? TcpKeepAlive { get; set; }
+    public int? ServerAliveCountMax { get; set; }
+    public int? ServerAliveInterval { get; set; }
 
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
@@ -447,6 +449,14 @@ sealed class SshConfig
                 config.TcpKeepAlive ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
 
+            case "serveralivecountmax":
+                config.ServerAliveCountMax ??= NextTokenAsInt(keyword, ref remainder);
+                break;
+
+            case "serveraliveinterval":
+                config.ServerAliveInterval ??= NextTokenAsInt(keyword, ref remainder);
+                break;
+
             /* The following options are unsupported,
                we have some basic handling that checks the option value indicates the feature is disabled */
             case "permitlocalcommand":
@@ -539,8 +549,6 @@ sealed class SshConfig
             // case "ipqos":
             // case "streamlocalbindmask":
             // case "streamlocalbindunlink":
-            // case "serveralivecountmax":
-            // case "serveraliveinterval":
             // case "setenv":
             // case "tag":
             // case "proxycommand":

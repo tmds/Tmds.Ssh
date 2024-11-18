@@ -15,6 +15,8 @@ abstract class SshConnection : IDisposable
 
     public SequencePool SequencePool { get; }
 
+    public abstract void EnableKeepAlive(int period, Action callback);
+
     public abstract ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct);
     public abstract ValueTask WriteLineAsync(string line, CancellationToken ct);
 
