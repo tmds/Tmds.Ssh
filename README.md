@@ -231,6 +231,8 @@ class SshClientSettings
   bool AutoReconnect { get; set; } = false;
 
   bool TcpKeepAlive { get; set; } = true;
+  TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
+  int KeepAliveCountMax = 3;
 
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
@@ -258,7 +260,7 @@ class SshConfigSettings
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }
-public enum SshConfigOption
+enum SshConfigOption
 {
     Hostname,
     User,
@@ -281,7 +283,9 @@ public enum SshConfigOption
     KexAlgorithms,
     MACs,
     PubkeyAcceptedAlgorithms,
-    TCPKeepAlive
+    TCPKeepAlive,
+    ServerAliveCountMax,
+    ServerAliveInterval
 }
 struct SshConfigOptionValue
 {

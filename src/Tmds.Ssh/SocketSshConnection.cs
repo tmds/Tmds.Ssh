@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Buffers;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -10,7 +11,6 @@ namespace Tmds.Ssh;
 
 sealed class SocketSshConnection : SshConnection
 {
-
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
     private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -22,6 +22,63 @@ sealed class SocketSshConnection : SshConnection
     private IPacketEncryptor _encryptor;
     private uint _sendSequenceNumber;
     private uint _receiveSequenceNumber;
+    private int _keepAlivePeriod;
+    private Action? _keepAliveCallback;
+    private Timer? _keepAliveTimer;
+    private int _lastReceivedTime;
+
+    public override void EnableKeepAlive(int period, Action callback)
+    {
+        if (period > 0)
+        {
+            if (_keepAliveTimer is not null)
+            {
+                throw new InvalidOperationException();
+            }
+
+            _keepAlivePeriod = period;
+            _keepAliveCallback = callback;
+            _lastReceivedTime = GetTime();
+            _keepAliveTimer = new Timer(o => ((SocketSshConnection)o!).OnKeepAliveTimerCallback(), this, -1, -1);
+            // Start timer after assigning the variable to ensure it is set when the callback is invoked.
+            _keepAliveTimer.Change(_keepAlivePeriod, _keepAlivePeriod);
+        }
+    }
+
+    private static int GetTime()
+        => Environment.TickCount;
+
+    private static int GetElapsed(int previous)
+        => Math.Max(GetTime() - previous, 0);
+
+    private void OnKeepAliveTimerCallback()
+    {
+        Debug.Assert(_keepAliveTimer is not null);
+        Debug.Assert(_keepAliveCallback is not null);
+
+        int elapsedTime = GetElapsed(_lastReceivedTime);
+        lock (_keepAliveTimer)
+        {
+            // Synchronize with dispose.
+            if (_keepAlivePeriod < 0)
+            {
+                return;
+            }
+
+            if (elapsedTime < _keepAlivePeriod)
+            {
+                // Wait for the period to expire.
+                _keepAliveTimer.Change(_keepAlivePeriod - elapsedTime, _keepAlivePeriod);
+                return;
+            }
+            else
+            {
+                _keepAliveTimer.Change(_keepAlivePeriod, _keepAlivePeriod);
+            }
+        }
+
+        _keepAliveCallback();
+    }
 
     public SocketSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Socket socket) :
         base(sequencePool)
@@ -102,6 +159,8 @@ sealed class SocketSshConnection : SshConnection
         {
             if (_decryptor.TryDecrypt(_receiveBuffer, _receiveSequenceNumber, maxLength, out Packet packet))
             {
+                _lastReceivedTime = GetTime();
+
                 _receiveSequenceNumber++;
 
                 using Packet p = packet;
@@ -163,6 +222,15 @@ sealed class SocketSshConnection : SshConnection
 
     public override void Dispose()
     {
+        if (_keepAliveTimer is not null)
+        {
+            lock (_keepAliveTimer)
+            {
+                _keepAlivePeriod = -1;
+                _keepAliveTimer.Dispose();
+            }
+        }
+        _keepAliveTimer?.Dispose();
         _receiveBuffer.Dispose();
         _sendBuffer.Dispose();
         _encryptor.Dispose();

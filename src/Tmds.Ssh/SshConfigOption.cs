@@ -32,5 +32,7 @@ public enum SshConfigOption
     KexAlgorithms,
     MACs,
     PubkeyAcceptedAlgorithms,
-    TCPKeepAlive
+    TCPKeepAlive,
+    ServerAliveCountMax,
+    ServerAliveInterval
 }

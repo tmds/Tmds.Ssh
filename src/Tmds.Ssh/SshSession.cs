@@ -11,7 +11,9 @@ namespace Tmds.Ssh;
 
 sealed partial class SshSession
 {
-    private static readonly Exception ClosedByPeer = new Exception(); // Sentinel _abortReason
+    // Sentinal _abortReason. Note: these get logged.
+    private static readonly Exception ClosedByPeer = new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByPeer);
+    private static readonly Exception ClosedByKeepAliveTimeout = new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByKeepAliveTimeout);
     private static readonly ObjectDisposedException DisposedException = SshClient.NewObjectDisposedException();
 
     private readonly SshClient _client;
@@ -29,7 +31,15 @@ sealed partial class SshSession
     private SemaphoreSlim? _keyReExchangeSemaphore;
     private const int BitsPerAllocatedItem = sizeof(int) * 8;
     private readonly List<int> _allocatedChannels = new List<int>();
+    private readonly Queue<TaskCompletionSource<GlobalRequestReply>?> _pendingGlobalRequestReplies = new();
     private readonly SshLoggers _loggers;
+    private int _keepAliveMax;
+    private int _keepAliveCount;
+
+    internal struct GlobalRequestReply
+    {
+        public required MessageId Id { get; init; }
+    }
 
     private ILogger<SshClient> Logger => _loggers.SshClientLogger;
 
@@ -301,7 +311,37 @@ sealed partial class SshSession
         }
     }
 
+    private Task<GlobalRequestReply> SendGlobalRequestAsync(Packet packet, bool wantReply, bool ignoreReply = false)
+    {
+        if (!wantReply)
+        {
+            TrySendPacket(packet);
+            return Task.FromResult(default(GlobalRequestReply));
+        }
+
+        TaskCompletionSource<GlobalRequestReply>? tcs = ignoreReply ? null : new(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_pendingGlobalRequestReplies)
+        {
+            _pendingGlobalRequestReplies.Enqueue(tcs);
+            bool packetQueued = TrySendPacketCore(packet);
+            if (tcs is null)
+            {
+                return Task.FromResult(default(GlobalRequestReply));
+            }
+            if (!packetQueued)
+            {
+                // We don't remove this because a queue is a FIFO.
+                tcs.SetException(CreateCloseException());
+            }
+        }
+
+        return tcs.Task;
+    }
+
     internal void TrySendPacket(Packet packet)
+        => TrySendPacketCore(packet);
+
+    internal bool TrySendPacketCore(Packet packet)
     {
         Channel<Packet>? sendQueue = _sendQueue;
 
@@ -314,7 +354,10 @@ sealed partial class SshSession
         if (!sendQueue!.Writer.TryWrite(packet))
         {
             packet.Dispose();
+            return false;
         }
+
+        return true;
     }
 
     private async Task SendLoopAsync(SshConnection connection)
@@ -363,6 +406,17 @@ sealed partial class SshSession
                     packet.Dispose();
                 }
             }
+
+            // Do this after we've completed the sendQueue writer
+            // so SendGlobalRequestAsync can act upon not being able to send when enqueueing.
+            lock (_pendingGlobalRequestReplies)
+            {
+                while (_pendingGlobalRequestReplies.TryDequeue(out TaskCompletionSource<GlobalRequestReply>? tcs))
+                {
+                    // Use Try as we're competing with the read loop and SendGlobalRequestAsync (for failed sends).
+                    tcs?.TrySetException(CreateCloseException());
+                }
+            }
         }
     }
 
@@ -372,6 +426,8 @@ sealed partial class SshSession
 
         try
         {
+            EnableKeepAlive(connection, _settings.KeepAliveCountMax, _settings.KeepAliveInterval);
+
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
@@ -423,6 +479,30 @@ sealed partial class SshSession
         }
     }
 
+    private void EnableKeepAlive(SshConnection connection, int serverAliveCountMax, TimeSpan serverAliveInterval)
+    {
+        int period = (int)serverAliveInterval.TotalMilliseconds;
+        if (serverAliveCountMax > 0 && period > 0)
+        {
+            _keepAliveMax = serverAliveCountMax;
+            connection.EnableKeepAlive(period, OnKeepAlive);
+        }
+    }
+
+    private void OnKeepAlive()
+    {
+        if (_keepAliveCount++ > _keepAliveMax)
+        {
+            Abort(ClosedByKeepAliveTimeout);
+        }
+        else
+        {
+            Task sendTask = SendGlobalRequestAsync(_sequencePool.CreateKeepAliveMessage(), wantReply: true, ignoreReply: true);
+            Debug.Assert(sendTask.IsCompletedSuccessfully);
+            sendTask.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing).GetAwaiter().GetResult();
+        }
+    }
+
     internal void HandleNonKexPacket(MessageId msgId, Packet _p)
     {
         using Packet packet = _p; // Ensure dispose
@@ -465,6 +545,10 @@ sealed partial class SshSession
             case MessageId.SSH_MSG_DISCONNECT:
                 HandleDisconnectMessage(packet);
                 break;
+            case MessageId.SSH_MSG_REQUEST_SUCCESS:
+            case MessageId.SSH_MSG_REQUEST_FAILURE:
+                HandleGlobalRequestReply(packet);
+                break;
             default:
                 ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
                 break;
@@ -476,6 +560,18 @@ sealed partial class SshSession
             reader.ReadMessageId();
             return reader.ReadUInt32();
         }
+    }
+
+    private void HandleGlobalRequestReply(ReadOnlyPacket packet)
+    {
+        _keepAliveCount = 0;
+
+        TaskCompletionSource<GlobalRequestReply>? tcs;
+        lock (_pendingGlobalRequestReplies)
+        {
+            _pendingGlobalRequestReplies.TryDequeue(out tcs);
+        }
+        tcs?.SetResult(new GlobalRequestReply { Id = packet.MessageId!.Value });
     }
 
     private void HandleDisconnectMessage(ReadOnlyPacket packet)
@@ -575,6 +671,10 @@ sealed partial class SshSession
         if (_abortReason == ClosedByPeer)
         {
             return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByPeer);
+        }
+        else if (_abortReason == ClosedByKeepAliveTimeout)
+        {
+            return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByKeepAliveTimeout);
         }
         else if (_abortReason == DisposedException)
         {

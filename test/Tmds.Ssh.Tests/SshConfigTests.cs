@@ -30,6 +30,8 @@ public class SshConfigTests
     Macs hmac-sha2-256-etm@openssh.com,hmac-sha2-512
     PubKeyAcceptedAlgorithms rsa-sha2-256,ecdsa-sha2-nistp256
     CanonicalizeHostName no
+    ServerAliveCountMax 7
+    ServerAliveInterval 20
 
     # !!! update SupportedSettingsAlternateConfig when adding values here !!!
     """;
@@ -57,6 +59,8 @@ public class SshConfigTests
     Macs hmac-sha2-512
     PubKeyAcceptedAlgorithms ecdsa-sha2-nistp256
     CanonicalizeHostName yes
+    ServerAliveCountMax 8
+    ServerAliveInterval 30
     """;
 
     [Fact]
@@ -103,6 +107,8 @@ public class SshConfigTests
         Assert.Equal(true, config.GssApiAuthentication);
         Assert.Equal(true, config.GssApiDelegateCredentials);
         Assert.Equal("serverid", config.GssApiServerIdentity);
+        Assert.Equal(7, config.ServerAliveCountMax);
+        Assert.Equal(20, config.ServerAliveInterval);
     }
 
     [Fact]

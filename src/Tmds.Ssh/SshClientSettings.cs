@@ -11,6 +11,8 @@ public sealed partial class SshClientSettings
     private string _userName = "";
     private List<Credential>? _credentials;
     private TimeSpan _connectTimeout = DefaultConnectTimeout;
+    private TimeSpan _keepAliveInterval = TimeSpan.Zero;
+    private int _keepAliveCountMax = 3;
     private List<string>? _userKnownHostsFilePaths;
     private List<string>? _globalKnownHostsFilePaths;
     private Dictionary<string, string>? _environmentVariables;
@@ -104,6 +106,26 @@ public sealed partial class SshClientSettings
         {
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
             _connectTimeout = value;
+        }
+    }
+
+    public int KeepAliveCountMax
+    {
+        get => _keepAliveCountMax;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 0);
+            _keepAliveCountMax = value;
+        }
+    }
+
+    public TimeSpan KeepAliveInterval
+    {
+        get => _keepAliveInterval;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
+            _keepAliveInterval = value;
         }
     }
 

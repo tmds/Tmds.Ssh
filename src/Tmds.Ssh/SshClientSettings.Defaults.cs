@@ -35,6 +35,8 @@ partial class SshClientSettings
 
     private static bool DefaultTcpKeepAlive => true;
 
+    private static int DefaultKeepAliveCountMax => 3;
+
     // Algorithms are in **order of preference**.
     private readonly static List<Name> EmptyList = [];
     internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [ AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521 ];

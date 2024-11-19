@@ -6,6 +6,7 @@ namespace Tmds.Ssh;
 public class SshConnectionClosedException : SshConnectionException
 {
     internal const string ConnectionClosedByPeer = "Connection closed by peer.";
+    internal const string ConnectionClosedByKeepAliveTimeout = "Connection closed due to keep alive timeout.";
     internal const string ConnectionClosedByAbort = "Connection closed due to an unexpected error.";
     internal const string ConnectionClosedByDispose = "Connection closed by dispose.";
 
