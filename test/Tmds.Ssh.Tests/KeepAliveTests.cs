@@ -24,7 +24,7 @@ public class KeepAliveTests
         int keepAliveCountMax = 3;
 
         // Establish a proxied connection.
-        TcpListener proxyServer = new TcpListener(IPAddress.Loopback, 0);
+        using TcpListener proxyServer = new TcpListener(IPAddress.Loopback, 0);
         proxyServer.Start();
         IPEndPoint localEndPoint = (IPEndPoint)proxyServer.LocalEndpoint;
         string destination = $"{_sshServer.TestUser}@{localEndPoint.Address}:{localEndPoint.Port}";
@@ -48,7 +48,9 @@ public class KeepAliveTests
         long startTime = Stopwatch.GetTimestamp();
         Task executeHello = client.ExecuteAsync("echo 'hello world'");
 
-        Task timeoutTask = Task.Delay(keepAliveInterval * (keepAliveCountMax + 2) + TimeSpan.FromSeconds(2));
+        // Task that times out after the keep alive.
+        Task timeoutTask = Task.Delay(keepAliveInterval * (keepAliveCountMax + 1) + TimeSpan.FromSeconds(1));
+
         Task completedTask = await Task.WhenAny(executeHello, timeoutTask);
         if (enableKeepAlive)
         {
@@ -60,6 +62,10 @@ public class KeepAliveTests
         else
         {
             Assert.Equal(timeoutTask, timeoutTask);
+
+            Assert.False(executeHello.IsCompleted);
+            client.Dispose();
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => executeHello);
         }
     }
 
