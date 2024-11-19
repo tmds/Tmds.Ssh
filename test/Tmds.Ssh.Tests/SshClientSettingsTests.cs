@@ -32,6 +32,8 @@ public class ClientSettingsTests
         Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsServerToClient);
         Assert.Equal(Array.Empty<Name>(), settings.LanguagesClientToServer);
         Assert.Equal(Array.Empty<Name>(), settings.LanguagesServerToClient);
+        Assert.Equal(3, settings.KeepAliveCountMax);
+        Assert.Equal(TimeSpan.Zero, settings.KeepAliveInterval);
     }
 
     [Theory]
