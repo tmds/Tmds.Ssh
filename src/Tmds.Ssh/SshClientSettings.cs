@@ -114,16 +114,19 @@ public sealed partial class SshClientSettings
         get => _keepAliveCountMax;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 1);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 0);
             _keepAliveCountMax = value;
         }
     }
 
-    // Zero or < 0 is disabled.
     public TimeSpan KeepAliveInterval
     {
         get => _keepAliveInterval;
-        set => _keepAliveInterval = value;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
+            _keepAliveInterval = value;
+        }
     }
 
     internal void Validate()

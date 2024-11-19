@@ -40,7 +40,7 @@ sealed class SocketSshConnection : SshConnection
             _keepAliveCallback = callback;
             _lastReceivedTime = GetTime();
             _keepAliveTimer = new Timer(o => ((SocketSshConnection)o!).OnKeepAliveTimerCallback(), this, -1, -1);
-            // Start timer AFTER assigning the variable.
+            // Start timer after assigning the variable to ensure it is set when the callback is invoked.
             _keepAliveTimer.Change(_keepAlivePeriod, _keepAlivePeriod);
         }
     }
