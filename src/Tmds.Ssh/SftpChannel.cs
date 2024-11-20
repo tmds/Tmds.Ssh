@@ -1083,13 +1083,15 @@ sealed partial class SftpChannel : IDisposable
 
         CancellationTokenSource? breakLoop = length > 0 ? new() : null;
 
-        for (long offset = 0; offset < length; offset += MaxReadPayload)
+        int maxPayload = MaxReadPayload;
+        for (long offset = 0; offset < length; offset += maxPayload)
         {
             Debug.Assert(breakLoop is not null);
             if (!breakLoop.IsCancellationRequested)
             {
                 await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                previous = CopyBuffer(previous, offset, MaxReadPayload);
+                long remaining = length.Value - offset;
+                previous = CopyBuffer(previous, offset, remaining > maxPayload ? maxPayload : (int)remaining);
             }
         }
 
@@ -1097,48 +1099,54 @@ sealed partial class SftpChannel : IDisposable
 
         await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
 
-        async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+        async ValueTask CopyBuffer(ValueTask previousCopy, long fileOffset, int length)
         {
+            byte[]? buffer = null;
             try
             {
-                byte[]? buffer = null;
                 try
                 {
                     if (breakLoop.IsCancellationRequested)
                     {
+                        // previousCopy will throw.
                         return;
                     }
 
                     buffer = ArrayPool<byte>.Shared.Rent(length);
+                    int remaining = length;
+                    long position = fileOffset;
                     do
                     {
-                        int bytesRead = await remoteFile.ReadAtAsync(buffer, offset, cancellationToken).ConfigureAwait(false);
+                        int bytesRead = await remoteFile.ReadAtAsync(buffer.AsMemory(length - remaining, remaining), position, cancellationToken).ConfigureAwait(false);
                         if (bytesRead == 0)
                         {
-                            break;
+                            // Unexpected EOF.
+                            throw new SftpException(SftpError.Eof);
                         }
-                        RandomAccess.Write(localFile.SafeFileHandle, buffer.AsSpan(0, bytesRead), offset);
-                        length -= bytesRead;
-                        offset += bytesRead;
-                    } while (length > 0);
+                        position += bytesRead;
+                        remaining -= bytesRead;
+                    } while (remaining > 0);
                 }
-                catch
-                {
-                    breakLoop.Cancel();
-                    throw;
-                }
+                // Wait for the previous buffer to be written so we're writing sequentially to the file.
                 finally
                 {
-                    if (buffer != null)
-                    {
-                        ArrayPool<byte>.Shared.Return(buffer);
-                    }
-                    s_downloadBufferSemaphore.Release();
+                    await previousCopy.ConfigureAwait(false);
                 }
+
+                localFile.Write(buffer.AsSpan(0, length));
+            }
+            catch
+            {
+                breakLoop.Cancel();
+                throw;
             }
             finally
             {
-                await previousCopy.ConfigureAwait(false);
+                if (buffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+                s_downloadBufferSemaphore.Release();
             }
         }
     }
