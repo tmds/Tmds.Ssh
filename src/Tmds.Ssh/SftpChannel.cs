@@ -707,10 +707,12 @@ sealed partial class SftpChannel : IDisposable
                         break;
                     case UnixFileType.SymbolicLink:
                         FileInfo file = new FileInfo(item.LocalPath);
+                        FileSystemInfo linkTarget;
                         if (followFileLinks &&
-                            file.ResolveLinkTarget(returnFinalTarget: true)?.Exists == true)
+                            (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
                         {
-                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
+                            // Pass linkTarget.Length because item.Length is the length of the link target path.
+                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, cancellationToken));
                         }
                         else
                         {
