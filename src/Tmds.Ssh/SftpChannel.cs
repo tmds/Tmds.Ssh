@@ -707,7 +707,7 @@ sealed partial class SftpChannel : IDisposable
                         break;
                     case UnixFileType.SymbolicLink:
                         FileInfo file = new FileInfo(item.LocalPath);
-                        FileSystemInfo linkTarget;
+                        FileSystemInfo? linkTarget;
                         if (followFileLinks &&
                             (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
                         {
