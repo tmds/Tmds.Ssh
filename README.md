@@ -2,17 +2,7 @@
 
 # Tmds.Ssh
 
-The `Tmds.Ssh` library provides a managed .NET SSH client implementation.
-
-It has an async [API](#api) and leverages the modern .NET primitives, like `Span`, to minimize allocations.
-
-The library supports OpenSSH file formats for private keys, known hosts and config.
-
-The library is available for modern .NET (Core) versions.
-
-The supported algorithms enable securely connecting to a broad set of SSH servers. See [Algorithms](#algorithms).
-
-The library supports logging through `Microsoft.Extensions.Logging`. See [Logging](#logging).
+The `Tmds.Ssh` is a modern, managed .NET SSH client implementation for .NET 6+.
 
 ## Getting Started
 
@@ -552,6 +542,22 @@ Authentications:
 - publickey (`PrivateKeyCredential`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
+
+## Design
+
+* Since SSH is a network protocol, the APIs are asynchronous and implemented using C# `async` and .NET's `Task`/`ValueTask`.
+
+* For cryptographic algorithms, we use the BCL (.NET base classes) when available and otherwise we use a 3rd party library ([Bouncy Castle.NET](https://github.com/bcgit/bc-csharp)). For security reasons, we avoid implementing cryptographic algorithms ourselves*.
+
+* The library aims to solve common SSH client use-cases similar to functionality offered by CLI tools like `ssh` and `sftp`. We do not provide an API at the SSH protocol level that enables sending custom messages or provide APIs to enable custom encryption algorithms. Such APIs are required only for a small set of use-cases but require a much larger API surface to be maintained. By keep this API internal, we are free to change it.
+
+* SSH cryptographic algorithms continue to evolve. We aim to enable connectivity with SSH servers that (by current standards) support a secure set of algorithms. We do not add support for older (less secure/insecure) algorithms that should no longer be used.
+
+* Performance is a goal. We aim to minimize allocations by using modern .NET primitives like `Span`. For SSH operations, we try to minimize latency and maximize throughput.
+
+* Besides the SSH connection, SSH applications must deal with private keys, known hosts, connection configuration, ... The library supports using [OpenSSH](https://www.openssh.com/) file formats to deal with these concerns. This provides a familiar mechanism to developers and end-users that is compatible with the OpenSSH software stack. Using the OpenSSH formats is optional, developers can choose implement their own configuration.
+
+*: (For historic reasons) some cryptographic algorithms are included for decoding private key files. We don't consider these to impact security in any way.
 
 ## Logging
 
