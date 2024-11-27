@@ -329,19 +329,18 @@ sealed partial class SshChannel : ISshChannel
         {
             ThrowHelper.ThrowArgumentOutOfRange(nameof(bytesToAdd));
         }
-        int newWindow = Interlocked.Add(ref _receiveWindow, -bytesToAdd);
+        int newWindow = _receiveWindow -= bytesToAdd;
         if (newWindow < 0)
         {
             ThrowHelper.ThrowProtocolDataWindowExceeded();
         }
 
         // Send window adjust when we drop below half the window size.
-        int halfWindowSize = MaxWindowSize / 2;
-        if (newWindow < halfWindowSize &&
-            ((newWindow + bytesToAdd) >= halfWindowSize))
+        int adjustThreshold = MaxWindowSize / 2;
+        if (newWindow <= adjustThreshold)
         {
             int adjust = MaxWindowSize - newWindow;
-            Interlocked.Add(ref _receiveWindow, adjust);
+            _receiveWindow += adjust;
 
             TrySendChannelWindowAdjustMessage((uint)adjust);
         }
