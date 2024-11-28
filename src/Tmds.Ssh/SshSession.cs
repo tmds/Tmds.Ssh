@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
@@ -96,6 +97,33 @@ sealed partial class SshSession
 
         await task;
     }
+
+    public async Task DisconnectedAsync(CancellationToken cancellationToken)
+    {
+        Task? runningConnectionTask = null;
+        lock (_gate)
+        {
+            // Throw if a user has Disposed before calling this method.
+            ThrowIfDisposed();
+
+            runningConnectionTask = _runningConnectionTask;
+        }
+
+        if (runningConnectionTask is null)
+        {
+            Debug.Assert(false); // this method shouldn't ever get called if we never connected.
+            ThrowNeverConnected();
+        }
+        await runningConnectionTask.WaitAsync(cancellationToken);
+
+        // Don't throw if the connection was closed due to an explicit close by the user.
+        if (_abortReason == DisposedException)
+        {
+            return;
+        }
+
+        ThrowNewConnectionClosedException();
+    } 
 
     private async Task<SshConnection> EstablishConnectionAsync(CancellationToken ct)
     {
@@ -710,6 +738,7 @@ sealed partial class SshSession
         }
     }
 
+    [DoesNotReturn]
     private void ThrowNeverConnected()
     {
         ThrowHelper.ThrowInvalidOperation("Not connected.");

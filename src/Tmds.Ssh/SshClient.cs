@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -85,6 +86,37 @@ public sealed partial class SshClient : IDisposable
             throw new InvalidOperationException($"{nameof(ConnectAsync)} may only be called once.");
         }
         await GetSessionAsync(cancellationToken, explicitConnect: true).ConfigureAwait(false);
+    }
+
+    public Task DisconnectedAsync(CancellationToken cancellationToken = default)
+    {
+        SshSession session = GetConnectedSesion(cancellationToken);
+        return session.DisconnectedAsync(cancellationToken);
+    }
+
+    private SshSession GetConnectedSesion(CancellationToken cancellationToken, [CallerMemberNameAttribute]string? callerMethod = null)
+    {
+        if (_autoReconnect)
+        {
+            // Don't allow with reconnect because reconnecting means a new session
+            // may be automatically established, while we want to return a session that applies to all operations
+            // performed against the client.
+            throw new InvalidOperationException($"{callerMethod} can not be used when {nameof(_settings.AutoReconnect)} is set.");
+        }
+        lock (_gate)
+        {
+            State state = _state;
+            switch (state)
+            {
+                case State.Initial:
+                case State.Connecting:
+                    throw new InvalidOperationException($"{callerMethod} can only be called after a connection is established.");
+                case State.Disposed:
+                    throw NewObjectDisposedException();
+                default:
+                    return _session!;
+            }
+        }
     }
 
     private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false)
