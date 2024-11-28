@@ -457,4 +457,64 @@ public class ConnectTests
         using var client = new SshClient("", options);
         await client.ConnectAsync();
     }
+
+    [Fact]
+    public async Task DisconnectedAsync()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        Task disconnectedTask = client.DisconnectedAsync();
+
+        client.Dispose();
+
+        await disconnectedTask;
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_WithError()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        Task disconnectedTask = client.DisconnectedAsync();
+
+        client.ForceConnectionClose();
+
+        await Assert.ThrowsAsync<SshConnectionClosedException>(() => disconnectedTask);
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_RequiresConnect()
+    {
+        using var client = await _sshServer.CreateClientAsync(connect: false);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.DisconnectedAsync());
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_NotWhenAutoReconnect()
+    {
+        using var client = await _sshServer.CreateClientAsync(configure: settings => settings.AutoReconnect = true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.DisconnectedAsync());
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_NotAfterDispose()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        client.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.DisconnectedAsync());
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_CanCancel()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        var cts = new CancellationTokenSource(50);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.DisconnectedAsync(cts.Token));
+    }
 }
