@@ -57,6 +57,11 @@ class SshClient : IDisposable
   // Calling ConnectAsync is optional when SshClientSettings.AutoConnect is set (default).
   Task ConnectAsync(CancellationToken cancellationToken);
 
+  // Not usable with AutoReconnect.
+  // A connection must be established before calling this method.
+  // Throws if the connection was closed for another reason than explicit close by the user.
+  Task DisconnectedAsync(CancellationToken cancellationToken = default);
+
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
@@ -222,7 +227,7 @@ class SshClientSettings
 
   bool TcpKeepAlive { get; set; } = true;
   TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
-  int KeepAliveCountMax = 3;
+  int KeepAliveCountMax { get; set; } = 3;
 
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
