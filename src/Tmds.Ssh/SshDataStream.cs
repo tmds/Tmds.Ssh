@@ -81,6 +81,11 @@ public sealed class SshDataStream : Stream
         }
     }
 
+    public void WriteEof()
+    {
+        _channel.WriteEof();
+    }
+
     public override async ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
     {
         try

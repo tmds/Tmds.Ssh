@@ -47,6 +47,19 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateChannelEofMessage(this SequencePool sequencePool, uint remoteChannel)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_EOF
+            uint32    recipient channel
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_EOF);
+        writer.WriteUInt32(remoteChannel);
+        return packet.Move();
+    }
+
     public static Packet CreateChannelDataMessage(this SequencePool sequencePool, uint remoteChannel, ReadOnlyMemory<byte> memory)
     {
         /*

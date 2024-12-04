@@ -71,6 +71,7 @@ sealed partial class SshChannel : ISshChannel
     private int _disposed;
     private int _sendWindow;
     private Exception? _abortReason = null;
+    private bool _eofSent;
     private object _gate => _receiveQueue;
 
     public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
@@ -173,16 +174,50 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
+    public void WriteEof()
+    {
+        ThrowIfDisposed();
+        ThrowIfAborted();
+        ThrowIfEofSent();
+        
+        _eofSent = true;
+        TrySendEofMessage();
+    }
+
+    private void ThrowIfEofSent()
+    {
+        if (_eofSent)
+        {
+            ThrowEofSent();
+        }
+
+        static void ThrowEofSent()
+        {
+            throw new InvalidOperationException("EOF already sent.");
+        }
+    }
+
+    private void ThrowIfAborted()
+    {
+        if (_abortState >= (int)AbortState.Closed)
+        {
+            ThrowCloseException();
+        }
+    }
+
+    private void ThrowCloseException()
+    {
+        throw CreateCloseException();
+    }
+
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> memory, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        ThrowIfEofSent();
 
         while (memory.Length > 0)
         {
-            if (_abortState >= (int)AbortState.Closed)
-            {
-                throw CreateCloseException();
-            }
+            ThrowIfAborted();
 
             int sendWindow = Volatile.Read(ref _sendWindow);
             if (sendWindow > 0)
@@ -594,6 +629,9 @@ sealed partial class SshChannel : ISshChannel
 
     private void TrySendChannelFailureMessage()
         => TrySendPacket(_sequencePool.CreateChannelFailureMessage(RemoteChannel));
+
+    private void TrySendEofMessage()
+        => TrySendPacket(_sequencePool.CreateChannelEofMessage(RemoteChannel));
 
     private void TrySendChannelDataMessage(ReadOnlyMemory<byte> memory)
         => TrySendPacket(_sequencePool.CreateChannelDataMessage(RemoteChannel, memory));
