@@ -23,6 +23,7 @@ public sealed class LocalForward : IDisposable
     private EndPoint? _localEndPoint;
     private CancellationTokenRegistration _ctr;
     private Exception? _stopReason;
+    private string _remoteEndPoint;
 
     private bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
 
@@ -31,6 +32,8 @@ public sealed class LocalForward : IDisposable
         _logger = logger;
         _session = session;
         _cancel = new();
+
+        _remoteEndPoint = "";
     }
 
     internal void StartTcpForward(EndPoint bindEndpoint, string remoteHost, int remotePort)
@@ -41,7 +44,12 @@ public sealed class LocalForward : IDisposable
         {
             throw new ArgumentException(nameof(remotePort));
         }
+        if (bindEndpoint is not IPEndPoint)
+        {
+            throw new ArgumentException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
+        }
 
+        _remoteEndPoint = $"{remoteHost}:{remotePort}";
         _connectToRemote = async ct => await _session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct).ConfigureAwait(false);
 
         Start(bindEndpoint);
@@ -49,6 +57,9 @@ public sealed class LocalForward : IDisposable
 
     private void Start(EndPoint bindEndpoint)
     {
+        // Assign to bindEndPoint in case we fail to bind/listen so we have an address for logging.
+        _localEndPoint = bindEndpoint;
+
         try
         {
             if (bindEndpoint is IPEndPoint ipEndPoint)
@@ -57,17 +68,19 @@ public sealed class LocalForward : IDisposable
             }
             else
             {
-                throw new ArgumentException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
+                // Type must be validated before calling this method.
+                throw new InvalidOperationException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
             }
 
-            Debug.Assert(_serverSocket != null);
             _serverSocket.Bind(bindEndpoint);
             _serverSocket.Listen();
 
-            _localEndPoint = _serverSocket.LocalEndPoint;
+            EndPoint localEndPoint = _serverSocket.LocalEndPoint!;
+            _localEndPoint = localEndPoint;
+
             _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((LocalForward)o!).Stop(ConnectionClosed), this);
 
-            _ = AcceptLoop();
+            _ = AcceptLoop(localEndPoint);
         }
         catch (Exception ex)
         {
@@ -77,14 +90,15 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    private async Task AcceptLoop()
+    private async Task AcceptLoop(EndPoint localEndPoint)
     {
         try
         {
+            _logger.ForwardStart(localEndPoint, _remoteEndPoint);
             while (true)
             {
                 Socket acceptedSocket = await _serverSocket!.AcceptAsync().ConfigureAwait(false);
-                _ = Accept(acceptedSocket);
+                _ = Accept(acceptedSocket, localEndPoint);
             }
         }
         catch (Exception ex)
@@ -93,32 +107,36 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    private async Task Accept(Socket acceptedSocket)
+    private async Task Accept(Socket acceptedSocket, EndPoint localEndpoint)
     {
         Debug.Assert(_connectToRemote is not null);
         Stream? forwardStream = null;
+        EndPoint? peerEndPoint = null;
         try
         {
+            peerEndPoint = acceptedSocket.RemoteEndPoint!;
+            _logger.AcceptConnection(localEndpoint, peerEndPoint, _remoteEndPoint);
             acceptedSocket.NoDelay = true;
 
             // We may want to add a timeout option, and the ability to stop the lister on some conditions like nr of successive fails to connect to the remote.
             forwardStream = await _connectToRemote(_cancel!.Token).ConfigureAwait(false);
-            _ = ForwardConnectionAsync(new NetworkStream(acceptedSocket, ownsSocket: true), forwardStream);
+            _ = ForwardConnectionAsync(new NetworkStream(acceptedSocket, ownsSocket: true), forwardStream, peerEndPoint);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.ForwardConnectionFailed(peerEndPoint, _remoteEndPoint, ex);
+
             acceptedSocket.Dispose();
             forwardStream?.Dispose();
-
-            // TODO: log exception.
         }
     }
 
-    private async Task ForwardConnectionAsync(Stream stream1, Stream stream2)
+    private async Task ForwardConnectionAsync(Stream stream1, Stream stream2, EndPoint peerEndPoint)
     {
         Exception? exception = null;
         try
         {
+            _logger.ForwardConnection(peerEndPoint, _remoteEndPoint);
             Task first, second;
             try
             {
@@ -148,7 +166,14 @@ public sealed class LocalForward : IDisposable
         }
         finally
         {
-            // TODO: log
+            if (exception is null)
+            {
+                _logger.ForwardConnectionClosed(peerEndPoint, _remoteEndPoint);
+            }
+            else
+            {
+                _logger.ForwardConnectionAborted(peerEndPoint, _remoteEndPoint, exception);
+            }
         }
 
         static async Task CopyTillEofAsync(Stream from, Stream to)
@@ -218,10 +243,30 @@ public sealed class LocalForward : IDisposable
                 return;
             }
         }
-        _ctr.Dispose();
+
+        if (_localEndPoint is not null)
+        {
+            if (IsDisposed)
+            {
+                _logger.ForwardStopped(_localEndPoint, _remoteEndPoint);
+            }
+            else if (ReferenceEquals(stopReason, ConnectionClosed))
+            {
+                if (_logger.IsEnabled(LogLevel.Error))
+                {
+                    _logger.ForwardAborted(_localEndPoint, _remoteEndPoint, _session.CreateCloseException());
+                }
+            }
+            else
+            {
+                _logger.ForwardAborted(_localEndPoint, _remoteEndPoint, stopReason);
+            }
+            _ctr.Dispose();
+            _localEndPoint = null;
+            _serverSocket?.Dispose();
+        }
+
         _cancel.Cancel();
-        _localEndPoint = null;
-        _serverSocket?.Dispose();
     }
 
     public void Dispose()
