@@ -18,7 +18,7 @@ public sealed class LocalForward : IDisposable
     private readonly ILogger<LocalForward> _logger;
     private readonly CancellationTokenSource _cancel;
  
-    private Func<CancellationToken, Task<Stream>>? _connectToRemote;
+    private Func<CancellationToken, Task<SshDataStream>>? _connectToRemote;
     private Socket? _serverSocket;
     private EndPoint? _localEndPoint;
     private CancellationTokenRegistration _ctr;
@@ -110,7 +110,7 @@ public sealed class LocalForward : IDisposable
     private async Task Accept(Socket acceptedSocket, EndPoint localEndpoint)
     {
         Debug.Assert(_connectToRemote is not null);
-        Stream? forwardStream = null;
+        SshDataStream? forwardStream = null;
         EndPoint? peerEndPoint = null;
         try
         {
@@ -131,7 +131,7 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    private async Task ForwardConnectionAsync(Stream stream1, Stream stream2, EndPoint peerEndPoint)
+    private async Task ForwardConnectionAsync(NetworkStream socketStream, SshDataStream sshStream, EndPoint peerEndPoint)
     {
         Exception? exception = null;
         try
@@ -140,8 +140,8 @@ public sealed class LocalForward : IDisposable
             Task first, second;
             try
             {
-                Task copy1 = CopyTillEofAsync(stream1, stream2);
-                Task copy2 = CopyTillEofAsync(stream2, stream1);
+                Task copy1 = CopyTillEofAsync(socketStream, sshStream, sshStream.WriteMaxPacketDataLength);
+                Task copy2 = CopyTillEofAsync(sshStream, socketStream, sshStream.ReadMaxPacketDataLength);
 
                 first = await Task.WhenAny(copy1, copy2).ConfigureAwait(false);
                 second = first == copy1 ? copy2 : copy1;
@@ -152,8 +152,8 @@ public sealed class LocalForward : IDisposable
                 // Though TCP allows data still to be received when the writing is shutdown
                 // application protocols (usually) follow the pattern of only closing
                 // when they will no longer receive.
-                stream1.Dispose();
-                stream2.Dispose();
+                socketStream.Dispose();
+                sshStream.Dispose();
             }
             // The dispose will cause the second copy to stop.
             await second.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -176,10 +176,9 @@ public sealed class LocalForward : IDisposable
             }
         }
 
-        static async Task CopyTillEofAsync(Stream from, Stream to)
+        static async Task CopyTillEofAsync(Stream from, Stream to, int bufferSize)
         {
-            // TODO: set bufferSize
-            await from.CopyToAsync(to).ConfigureAwait(false);
+            await from.CopyToAsync(to, bufferSize).ConfigureAwait(false);
             if (to is NetworkStream ns)
             {
                 ns.Socket.Shutdown(SocketShutdown.Send);

@@ -12,6 +12,11 @@ public sealed class SshDataStream : Stream
         _channel = channel;
     }
 
+    // OpenSSH uses the maximum packet sizes as how much data may fit into an SSH_MSG_CHANNEL_DATA packet.
+    // We're following that behavior and don't subtract bytes for the header.
+    internal int ReadMaxPacketDataLength => _channel.ReceiveMaxPacket;
+    internal int WriteMaxPacketDataLength => _channel.SendMaxPacket;
+
     public CancellationToken StreamAborted
         => _channel.ChannelAborted;
 
