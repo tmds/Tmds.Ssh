@@ -5,11 +5,15 @@ namespace Tmds.Ssh;
 
 sealed class SshLoggers
 {
+    private readonly ILoggerFactory _loggerFactory;
+
     public ILogger<SshClient> SshClientLogger { get; }
+
+    public ILogger<LocalForward> GetLocalPortForwardLogger() => _loggerFactory.CreateLogger<LocalForward>();
 
     public SshLoggers(ILoggerFactory? loggerFactory = null)
     {
-        loggerFactory ??= new NullLoggerFactory();
+        _loggerFactory = loggerFactory ??= new NullLoggerFactory();
 
         SshClientLogger = loggerFactory.CreateLogger<SshClient>();
     }

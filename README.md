@@ -70,6 +70,7 @@ class SshClient : IDisposable
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
+  Task<LocalForward> StartForwardTcpAsync(EndPoint bindEndpoint, string remoteHost, int remotePort, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
@@ -112,7 +113,14 @@ class RemoteProcess : IDisposable
 }
 class SshDataStream : Stream
 {
+  void WriteEof();
   CancellationToken StreamAborted { get; }
+}
+class LocalForward : IDisposable
+{
+  EndPoint? EndPoint { get; }
+  CancellationToken ForwardStopped { get; }
+  void ThrowIfStopped();
 }
 class SftpClient : IDisposable
 {

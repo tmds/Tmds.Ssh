@@ -808,9 +808,9 @@ sealed partial class SshSession
     public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, CancellationToken cancellationToken)
         => await OpenSubsystemChannelAsync(channelType, null, subsystem, cancellationToken).ConfigureAwait(false);
 
-    public async Task<ISshChannel> OpenTcpConnectionChannelAsync(Type channelType, string host, int port, CancellationToken cancellationToken)
+    public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(channelType);
+        SshChannel channel = CreateChannel(typeof(SshDataStream));
         try
         {
             IPAddress originatorIP = IPAddress.Any;
@@ -818,7 +818,7 @@ sealed partial class SshSession
             channel.TrySendChannelOpenDirectTcpIpMessage(host, (uint)port, originatorIP, (uint)originatorPort);
             await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
 
-            return channel;
+            return new SshDataStream(channel);
         }
         catch
         {
@@ -827,15 +827,15 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<ISshChannel> OpenUnixConnectionChannelAsync(Type channelType, string path, CancellationToken cancellationToken)
+    public async Task<SshDataStream> OpenUnixConnectionChannelAsync(string path, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(channelType);
+        SshChannel channel = CreateChannel(typeof(SshDataStream));
         try
         {
             channel.TrySendChannelOpenDirectStreamLocalMessage(path);
             await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
 
-            return channel;
+            return new SshDataStream(channel);
         }
         catch
         {

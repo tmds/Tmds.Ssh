@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics;
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -271,17 +272,22 @@ public sealed partial class SshClient : IDisposable
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        var channel = await session.OpenTcpConnectionChannelAsync(typeof(SshDataStream), host, port, cancellationToken).ConfigureAwait(false);
-
-        return new SshDataStream(channel);
+        return await session.OpenTcpConnectionChannelAsync(host, port, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        var channel = await session.OpenUnixConnectionChannelAsync(typeof(SshDataStream), path, cancellationToken).ConfigureAwait(false);
+        return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
+    }
 
-        return new SshDataStream(channel);
+    public async Task<LocalForward> StartForwardTcpAsync(EndPoint bindEndpoint, string remoteHost, int remotePort, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var forward = new LocalForward(session, _loggers.GetLocalPortForwardLogger());
+        forward.StartTcpForward(bindEndpoint, remoteHost, remotePort);
+        return forward;
     }
 
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)

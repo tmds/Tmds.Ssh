@@ -12,6 +12,11 @@ public sealed class SshDataStream : Stream
         _channel = channel;
     }
 
+    // OpenSSH uses the maximum packet sizes as how much data may fit into an SSH_MSG_CHANNEL_DATA packet.
+    // We're following that behavior and don't subtract bytes for the header.
+    internal int ReadMaxPacketDataLength => _channel.ReceiveMaxPacket;
+    internal int WriteMaxPacketDataLength => _channel.SendMaxPacket;
+
     public CancellationToken StreamAborted
         => _channel.ChannelAborted;
 
@@ -79,6 +84,11 @@ public sealed class SshDataStream : Stream
             // TODO: move IOException wrapping into SshChannel.ReadAsync
             throw new IOException($"Unable to transport data: {ex.Message}.", ex);
         }
+    }
+
+    public void WriteEof()
+    {
+        _channel.WriteEof();
     }
 
     public override async ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
