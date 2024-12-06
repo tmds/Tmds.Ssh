@@ -36,19 +36,19 @@ public sealed class LocalForward : IDisposable
         _remoteEndPoint = "";
     }
 
-    internal void StartUnixForward(EndPoint bindEndpoint, string remotePath)
+    internal void StartUnixForward(EndPoint bindEP, string remotePath)
     {
-        CheckBindEndPoint(bindEndpoint);
+        CheckBindEndPoint(bindEP);
         ArgumentException.ThrowIfNullOrEmpty(remotePath);
 
         Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenUnixConnectionChannelAsync(remotePath, ct).ConfigureAwait(false);
 
-        Start(bindEndpoint, remotePath, connect);
+        Start(bindEP, remotePath, connect);
     }
 
-    internal void StartTcpForward(EndPoint bindEndpoint, string remoteHost, int remotePort)
+    internal void StartTcpForward(EndPoint bindEP, string remoteHost, int remotePort)
     {
-        CheckBindEndPoint(bindEndpoint);
+        CheckBindEndPoint(bindEP);
         ArgumentException.ThrowIfNullOrEmpty(remoteHost);
         if (remotePort < 0 || remotePort > 0xffff)
         {
@@ -57,38 +57,42 @@ public sealed class LocalForward : IDisposable
 
         Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct).ConfigureAwait(false);
 
-        Start(bindEndpoint, $"{remoteHost}:{remotePort}", connect);
+        Start(bindEP, $"{remoteHost}:{remotePort}", connect);
     }
 
-    private void CheckBindEndPoint(EndPoint bindEndpoint)
+    private void CheckBindEndPoint(EndPoint bindEP)
     {
-        ArgumentNullException.ThrowIfNull(bindEndpoint);
-        if (bindEndpoint is not IPEndPoint)
+        ArgumentNullException.ThrowIfNull(bindEP);
+        if (bindEP is not IPEndPoint and not UnixDomainSocketEndPoint)
         {
-            throw new ArgumentException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
+            throw new ArgumentException($"Unsupported EndPoint type: {bindEP.GetType().FullName}.");
         }
     }
 
-    private void Start(EndPoint bindEndpoint, string remoteEndpoint, Func<CancellationToken, Task<SshDataStream>> connectToRemote)
+    private void Start(EndPoint bindEP, string remoteEndPoint, Func<CancellationToken, Task<SshDataStream>> connectToRemote)
     {
-        // Assign to bindEndPoint in case we fail to bind/listen so we have an address for logging.
-        _localEndPoint = bindEndpoint;
-        _remoteEndPoint = remoteEndpoint;
+        // Assign to bindEP in case we fail to bind/listen so we have an address for logging.
+        _localEndPoint = bindEP;
+        _remoteEndPoint = remoteEndPoint;
         _connectToRemote = connectToRemote;
 
         try
         {
-            if (bindEndpoint is IPEndPoint ipEndPoint)
+            if (bindEP is IPEndPoint ipEndPoint)
             {
                 _serverSocket = new Socket(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            }
+            else if (bindEP is UnixDomainSocketEndPoint unixEndPoint)
+            {
+                _serverSocket = new Socket(unixEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Unspecified);
             }
             else
             {
                 // Type must be validated before calling this method.
-                throw new InvalidOperationException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
+                throw new InvalidOperationException($"Unsupported EndPoint type: {bindEP.GetType().FullName}.");
             }
 
-            _serverSocket.Bind(bindEndpoint);
+            _serverSocket.Bind(bindEP);
             _serverSocket.Listen();
 
             EndPoint localEndPoint = _serverSocket.LocalEndPoint!;
@@ -123,7 +127,7 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    private async Task Accept(Socket acceptedSocket, EndPoint localEndpoint)
+    private async Task Accept(Socket acceptedSocket, EndPoint localEndPoint)
     {
         Debug.Assert(_connectToRemote is not null);
         SshDataStream? forwardStream = null;
@@ -131,8 +135,11 @@ public sealed class LocalForward : IDisposable
         try
         {
             peerEndPoint = acceptedSocket.RemoteEndPoint!;
-            _logger.AcceptConnection(localEndpoint, peerEndPoint, _remoteEndPoint);
-            acceptedSocket.NoDelay = true;
+            _logger.AcceptConnection(localEndPoint, peerEndPoint, _remoteEndPoint);
+            if (acceptedSocket.ProtocolType == ProtocolType.Tcp)
+            {
+                acceptedSocket.NoDelay = true;
+            }
 
             // We may want to add a timeout option, and the ability to stop the lister on some conditions like nr of successive fails to connect to the remote.
             forwardStream = await _connectToRemote(_cancel!.Token).ConfigureAwait(false);
