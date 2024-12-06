@@ -71,6 +71,7 @@ class SshClient : IDisposable
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
   Task<LocalForward> StartForwardTcpAsync(EndPoint bindEndpoint, string remoteHost, int remotePort, CancellationToken cancellationToken = default);
+  Task<LocalForward> StartForwardUnixAsync(EndPoint bindEndpoint, string remotePath, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)

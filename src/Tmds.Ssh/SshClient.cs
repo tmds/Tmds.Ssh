@@ -290,6 +290,15 @@ public sealed partial class SshClient : IDisposable
         return forward;
     }
 
+    public async Task<LocalForward> StartForwardUnixAsync(EndPoint bindEndpoint, string remotePath, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var forward = new LocalForward(session, _loggers.GetLocalPortForwardLogger());
+        forward.StartUnixForward(bindEndpoint, remotePath);
+        return forward;
+    }
+
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 

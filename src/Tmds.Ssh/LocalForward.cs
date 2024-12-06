@@ -36,29 +36,45 @@ public sealed class LocalForward : IDisposable
         _remoteEndPoint = "";
     }
 
+    internal void StartUnixForward(EndPoint bindEndpoint, string remotePath)
+    {
+        CheckBindEndPoint(bindEndpoint);
+        ArgumentException.ThrowIfNullOrEmpty(remotePath);
+
+        Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenUnixConnectionChannelAsync(remotePath, ct).ConfigureAwait(false);
+
+        Start(bindEndpoint, remotePath, connect);
+    }
+
     internal void StartTcpForward(EndPoint bindEndpoint, string remoteHost, int remotePort)
     {
-        ArgumentNullException.ThrowIfNull(bindEndpoint);
+        CheckBindEndPoint(bindEndpoint);
         ArgumentException.ThrowIfNullOrEmpty(remoteHost);
         if (remotePort < 0 || remotePort > 0xffff)
         {
             throw new ArgumentException(nameof(remotePort));
         }
+
+        Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct).ConfigureAwait(false);
+
+        Start(bindEndpoint, $"{remoteHost}:{remotePort}", connect);
+    }
+
+    private void CheckBindEndPoint(EndPoint bindEndpoint)
+    {
+        ArgumentNullException.ThrowIfNull(bindEndpoint);
         if (bindEndpoint is not IPEndPoint)
         {
             throw new ArgumentException($"Unsupported EndPoint type: {bindEndpoint.GetType().FullName}.");
         }
-
-        _remoteEndPoint = $"{remoteHost}:{remotePort}";
-        _connectToRemote = async ct => await _session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct).ConfigureAwait(false);
-
-        Start(bindEndpoint);
     }
 
-    private void Start(EndPoint bindEndpoint)
+    private void Start(EndPoint bindEndpoint, string remoteEndpoint, Func<CancellationToken, Task<SshDataStream>> connectToRemote)
     {
         // Assign to bindEndPoint in case we fail to bind/listen so we have an address for logging.
         _localEndPoint = bindEndpoint;
+        _remoteEndPoint = remoteEndpoint;
+        _connectToRemote = connectToRemote;
 
         try
         {
