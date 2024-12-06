@@ -51,4 +51,50 @@ public class LocalForwardTests
             Assert.Equal(0, received);
         }
     }
+
+    [Fact]
+    public async Task StopsWhenDisposed()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var localForward = await client.StartForwardTcpAsync(new IPEndPoint(IPAddress.Loopback, 0), "localhost", 5000);
+        CancellationToken ct = localForward.ForwardStopped;
+        EndPoint? endPoint = localForward.EndPoint;
+
+        Assert.False(ct.IsCancellationRequested);    
+        Assert.NotNull(endPoint);
+
+        localForward.Dispose();
+
+        Assert.True(ct.IsCancellationRequested);
+        Assert.Throws<ObjectDisposedException>(() => localForward.EndPoint);
+        Assert.Throws<ObjectDisposedException>(() => localForward.ForwardStopped);
+        Assert.Throws<ObjectDisposedException>(() => localForward.ThrowIfStopped());
+
+        using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        await Assert.ThrowsAnyAsync<SocketException>(async () => await socket.ConnectAsync(endPoint));
+    }
+
+    [Fact]
+    public async Task StopsWhenClientDisconnects()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var localForward = await client.StartForwardTcpAsync(new IPEndPoint(IPAddress.Loopback, 0), "localhost", 5000);
+        CancellationToken ct = localForward.ForwardStopped;
+        EndPoint? endPoint = localForward.EndPoint;
+
+        Assert.False(ct.IsCancellationRequested);    
+        Assert.NotNull(endPoint);
+
+        client.Dispose();
+
+        Assert.True(ct.IsCancellationRequested);
+        Assert.Null(localForward.EndPoint);
+        Assert.True(localForward.ForwardStopped.IsCancellationRequested);
+        Assert.Throws<SshConnectionClosedException>(() => localForward.ThrowIfStopped());
+
+        using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        await Assert.ThrowsAnyAsync<SocketException>(async () => await socket.ConnectAsync(endPoint));
+    } 
 }
