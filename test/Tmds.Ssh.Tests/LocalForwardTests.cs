@@ -18,7 +18,7 @@ public class LocalForwardTests
     }
 
     [Fact]
-    public async Task Forwards()
+    public async Task ForwardsTcp()
     {
         using var client = await _sshServer.CreateClientAsync();
 
@@ -28,7 +28,25 @@ public class LocalForwardTests
         await Task.Delay(SocatStartDelay); // wait a little for socat to start.
 
         using var localForward = await client.StartForwardTcpAsync(new IPEndPoint(IPAddress.Loopback, 0), "localhost", socatPort);
+        await AssertForwards(localForward);
+    }
 
+    [Fact]
+    public async Task ForwardsUnix()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        // start a an echo server using socat.
+        const string socketPath = "/tmp/mysocket";
+        using var soCatProcess = await client.ExecuteAsync($"socat -v unix-l:{socketPath},fork exec:'/bin/cat'");
+        await Task.Delay(SocatStartDelay); // wait a little for socat to start.
+
+        using var localForward = await client.StartForwardUnixAsync(new IPEndPoint(IPAddress.Loopback, 0), socketPath);
+        await AssertForwards(localForward);
+    }
+
+    private async Task AssertForwards(LocalForward localForward)
+    {
         byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
         byte[] receiveBuffer = new byte[128];
         for (int i = 0; i < 2; i++)
