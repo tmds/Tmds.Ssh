@@ -119,7 +119,7 @@ public class RemoteProcess
 
         byte[] buffer = new byte[512];
         (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
-        Assert.False(false);
+        Assert.False(isError);
         Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
     }
 
@@ -420,5 +420,44 @@ public class RemoteProcess
                 yield return (new[] { $"{longPrefix}line1\n{longPrefix}line2\n{longPrefix}line3" }, expected);
             }
         }
+    }
+
+    public enum EofApi
+    {
+        WriteEof,
+        StandardInputStreamClose,
+        StandardInputStreamDispose,
+    }
+
+    [Theory]
+    [InlineData(EofApi.WriteEof)]
+    [InlineData(EofApi.StandardInputStreamClose)]
+    [InlineData(EofApi.StandardInputStreamDispose)]
+    public async Task WriteEof(EofApi eofApi)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("cat");
+
+        switch (eofApi)
+        {
+            case EofApi.WriteEof:
+                process.WriteEof();
+                break;
+            case EofApi.StandardInputStreamClose:
+                process.StandardInputStream.Close();
+                break;
+            case EofApi.StandardInputStreamDispose:
+                process.StandardInputStream.Dispose();
+                break;
+        }
+
+        // Verify that Disposing the Stream after sending EOF does NOT throw.
+        Stream s = process.StandardInputStream;
+        s.Dispose();
+
+        byte[] buffer = new byte[512];
+        (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
+        Assert.False(isError);
+        Assert.Equal(0, bytesRead);
     }
 }

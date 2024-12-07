@@ -174,14 +174,20 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    public void WriteEof()
+    public void WriteEof(bool noThrow)
     {
-        ThrowIfDisposed();
-        ThrowIfAborted();
-        ThrowIfEofSent();
-        
-        _eofSent = true;
-        TrySendEofMessage();
+        if (!noThrow)
+        {
+            ThrowIfDisposed();
+            ThrowIfAborted();
+            ThrowIfEofSent();
+        }
+
+        if (!_eofSent)
+        {
+            _eofSent = true;
+            TrySendEofMessage();
+        }
     }
 
     private void ThrowIfEofSent()

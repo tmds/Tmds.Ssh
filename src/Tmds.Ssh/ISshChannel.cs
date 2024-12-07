@@ -17,7 +17,7 @@ interface ISshChannel
             CancellationToken cancellationToken = default);
 
     ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default);
-    void WriteEof();
+    void WriteEof(bool noThrow = false);
 
     Exception CreateCloseException();
 }

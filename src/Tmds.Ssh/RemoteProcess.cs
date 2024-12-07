@@ -248,6 +248,16 @@ public sealed class RemoteProcess : IDisposable
 
     private bool HasExited { get => _readMode == ReadMode.Exited; } // delays exit until it was read by the user.
 
+    private void WriteEof(bool noThrow)
+    {
+        _channel.WriteEof(noThrow);
+    }
+
+    public void WriteEof()
+    {
+        WriteEof(noThrow: false);
+    }
+
     public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -640,6 +650,14 @@ public sealed class RemoteProcess : IDisposable
             {
                 throw new IOException($"Unable to transport data: {ex.Message}.", ex);
             }
+
+        }
+
+        public override void Close()
+        {
+            // The base Stream class calls Close for implementing Dispose.
+            // We mustn't throw to avoid throwing on Dispose.
+            _process.WriteEof(noThrow: true);
         }
     }
 }

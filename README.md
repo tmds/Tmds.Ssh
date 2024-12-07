@@ -99,7 +99,8 @@ class RemoteProcess : IDisposable
   ValueTask WriteAsync(string value, CancellationToken cancellationToken = default);
   ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default);
   ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default);
-  Stream StandardInputStream { get; }
+  void WriteEof();
+  Stream StandardInputStream { get; } // Disposing/Closing the Stream calls WriteEof.
   StreamWriter StandardInputWriter { get; }
 
   // Wait for the remote process to exit.
