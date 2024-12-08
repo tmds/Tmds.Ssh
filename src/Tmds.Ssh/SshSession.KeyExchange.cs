@@ -153,11 +153,20 @@ sealed partial class SshSession
         IPacketEncryptor encryptor = encC2SAlg.CreatePacketEncryptor(keyExchangeOutput.EncryptionKeyC2S, keyExchangeOutput.InitialIVC2S, hmacC2SAlg, keyExchangeOutput.IntegrityKeyC2S);
         IPacketDecryptor decryptor = encS2CAlg.CreatePacketDecryptor(sequencePool, keyExchangeOutput.EncryptionKeyS2C, keyExchangeOutput.InitialIVS2C, hmacS2CAlg, keyExchangeOutput.IntegrityKeyS2C);
 
-        if (context.EnableStrictKex && !ConnectionInfo.UseStrictKex)
+        // Strict key exchange.
+        if (context.NegotiateStrictKex)
         {
             ConnectionInfo.UseStrictKex = remoteInit.kex_algorithms.Contains(AlgorithmNames.ServerStrictKex);
         }
-        context.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers: ConnectionInfo.UseStrictKex);
+        if (ConnectionInfo.UseStrictKex)
+        {
+            // The sequence numbers get reset to ensure the next message is the first message that was encrypted by the server.
+            // This checks that a MitM did not compromise the sequence numbers by injecting/dropping messages.
+            // If we are already at zero on the first kex then the sequence numbers were compromised.
+            context.ResetSequenceNumbers(throwIfReceiveIsZero: context.IsInitialKex);
+        }
+
+        context.SetEncryptorDecryptor(encryptor, decryptor);
 
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {
@@ -317,7 +326,7 @@ sealed partial class SshSession
     private Packet CreateKeyExchangeInitMessage(KeyExchangeContext context)
     {
         List<Name> kexAlgorithms = context.KeyExchangeAlgorithms;
-        if (context.EnableStrictKex)
+        if (context.NegotiateStrictKex)
         {
             kexAlgorithms = [..kexAlgorithms, AlgorithmNames.ClientStrictKex];
         }

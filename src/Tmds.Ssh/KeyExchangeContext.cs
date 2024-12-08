@@ -7,13 +7,12 @@ sealed class KeyExchangeContext
 {
     private readonly SshConnection _connection;
     private readonly SshSession _session;
-    private readonly bool _isInitialKex;
 
     public KeyExchangeContext(SshConnection connection, SshSession session, bool isInitialKex = true)
     {
         _connection = connection;
         _session = session;
-        _isInitialKex = isInitialKex;
+        IsInitialKex = isInitialKex;
     }
 
     public SequencePool SequencePool => _connection.SequencePool;
@@ -60,7 +59,7 @@ sealed class KeyExchangeContext
         {
             return true;
         }
-        else if (_isInitialKex)
+        else if (IsInitialKex)
         {
             // During the initial kex, only permit the strictly required kex packets.
             packet.Dispose();
@@ -77,8 +76,11 @@ sealed class KeyExchangeContext
     public ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         => _connection.SendPacketAsync(packet, ct);
 
-    public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor, bool resetSequenceNumbers)
-        => _connection.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers);
+    public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor)
+        => _connection.SetEncryptorDecryptor(encryptor, decryptor);
+
+    public void ResetSequenceNumbers(bool throwIfReceiveIsZero)
+        => _connection.ResetSequenceNumbers(throwIfReceiveIsZero);
 
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
@@ -92,8 +94,9 @@ sealed class KeyExchangeContext
     public required List<Name> LanguagesServerToClient { get; init; }
     public required IHostKeyVerification HostKeyVerification { get; init; }
     public required int MinimumRSAKeySize { get; init; }
+    public bool IsInitialKex { get; }
 
-    // Unconditionally enable strict key exchange as described in https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.
+    // Unconditionally enable strict key exchange on the first key exchange as described in https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.
     // This mitigates the Terrapin attack (CVE-2023-48795, https://terrapin-attack.com/).
-    public bool EnableStrictKex => true;
+    public bool NegotiateStrictKex => IsInitialKex;
 }
