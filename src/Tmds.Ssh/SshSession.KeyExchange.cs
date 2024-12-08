@@ -158,15 +158,13 @@ sealed partial class SshSession
         {
             ConnectionInfo.UseStrictKex = remoteInit.kex_algorithms.Contains(AlgorithmNames.ServerStrictKex);
         }
-        if (ConnectionInfo.UseStrictKex)
-        {
-            // The sequence numbers get reset to ensure the next message is the first message that was encrypted by the server.
-            // This checks that a MitM did not compromise the sequence numbers by injecting/dropping messages.
-            // If we are already at zero on the first kex then the sequence numbers were compromised.
-            context.ResetSequenceNumbers(throwIfReceiveIsZero: context.IsInitialKex);
-        }
+        bool resetSequenceNumbers = ConnectionInfo.UseStrictKex;
+        // The sequence numbers get reset to ensure the next message is the first message that was encrypted by the server.
+        // This checks that a MitM did not compromise the sequence numbers by injecting/dropping messages.
+        // If we are already at zero on the first kex then the sequence numbers were compromised.
+        bool throwIfReceiveSNZero = resetSequenceNumbers && context.IsInitialKex;
 
-        context.SetEncryptorDecryptor(encryptor, decryptor);
+        context.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers, throwIfReceiveSNZero);
 
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {
