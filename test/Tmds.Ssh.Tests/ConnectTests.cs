@@ -17,7 +17,9 @@ public class ConnectTests
     [Fact]
     public async Task ConnectSuccess()
     {
-        using var _ = await _sshServer.CreateClientAsync();
+        using var client = await _sshServer.CreateClientAsync();
+
+        Assert.True(client.ConnectionInfo.UseStrictKex);
     }
 
     [Fact]

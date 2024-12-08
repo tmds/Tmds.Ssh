@@ -77,8 +77,8 @@ sealed class KeyExchangeContext
     public ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
         => _connection.SendPacketAsync(packet, ct);
 
-    public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor)
-        => _connection.SetEncryptorDecryptor(encryptor, decryptor);
+    public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor, bool resetSequenceNumbers)
+        => _connection.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers);
 
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
@@ -92,4 +92,8 @@ sealed class KeyExchangeContext
     public required List<Name> LanguagesServerToClient { get; init; }
     public required IHostKeyVerification HostKeyVerification { get; init; }
     public required int MinimumRSAKeySize { get; init; }
+
+    // Unconditionally enable strict key exchange as described in https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.
+    // This mitigates the Terrapin attack (CVE-2023-48795, https://terrapin-attack.com/).
+    public bool EnableStrictKex => true;
 }

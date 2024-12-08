@@ -86,4 +86,9 @@ static class AlgorithmNames // TODO: rename to KnownNames
     private static readonly byte[] PublicKeyBytes = "publickey"u8.ToArray();
     public static Name PublicKey => new Name(PublicKeyBytes);
 
+    // Strict key exchange
+    private static readonly byte[] ClientStrictKexBytes = "kex-strict-c-v00@openssh.com"u8.ToArray();
+    public static Name ClientStrictKex => new Name(ClientStrictKexBytes);
+    private static readonly byte[] PServerStrictKexBytes = "kex-strict-s-v00@openssh.com"u8.ToArray();
+    public static Name ServerStrictKex => new Name(PServerStrictKexBytes);
 }
