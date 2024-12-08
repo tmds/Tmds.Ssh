@@ -12,7 +12,7 @@ public sealed class SshConnectionInfo
     public string HostName { get; internal set; } = string.Empty;
     public int Port { get; internal set; }
 
-    // Managed
+    internal bool UseStrictKex { get; set; }
     internal byte[]? SessionId { get; set; }
     internal string? ClientIdentificationString { get; set; }
     internal string? ServerIdentificationString { get; set; }
