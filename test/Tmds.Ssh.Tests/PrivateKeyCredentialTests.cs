@@ -123,6 +123,26 @@ public class PrivateKeyCredentialTests
 
     [Theory]
     [InlineData(null)]
+    [InlineData("aes128-cbc")]
+    [InlineData("aes192-cbc")]
+    [InlineData("aes256-cbc")]
+    [InlineData("aes128-ctr")]
+    [InlineData("aes192-ctr")]
+    [InlineData("aes256-ctr")]
+    public async Task Pkcs8RsaKey(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "PKCS8", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+
+    }
+
+    [Theory]
+    [InlineData(null)]
     [InlineData("aes256-ctr")]
     public async Task OpenSshEcdsa256Key(string? cipher)
     {
@@ -130,6 +150,20 @@ public class PrivateKeyCredentialTests
         {
             string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
             await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task Pkcs8Ecdsa256Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa256, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "PKCS8", keyPass, cipher);
 
             return new PrivateKeyCredential(localKey, keyPass);
         }, async (c) => await c.ConnectAsync());
@@ -152,12 +186,40 @@ public class PrivateKeyCredentialTests
     [Theory]
     [InlineData(null)]
     [InlineData("aes256-ctr")]
+    public async Task Pkcs8Ecdsa384Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa384, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "PKCS8", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
     public async Task OpenSshEcdsa521Key(string? cipher)
     {
         await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa521, async (string localKey) =>
         {
             string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
             await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task Pkcs8Ecdsa521Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEcdsa521, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "PKCS8", keyPass, cipher);
 
             return new PrivateKeyCredential(localKey, keyPass);
         }, async (c) => await c.ConnectAsync());
@@ -218,6 +280,20 @@ public class PrivateKeyCredentialTests
         {
             string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
             await EncryptSshKey(localKey, "RFC4716", keyPass, cipher);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task Pkcs8Ed25519Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileEd25519, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKey(localKey, "PKCS8", keyPass, cipher);
 
             return new PrivateKeyCredential(localKey, keyPass);
         }, async (c) => await c.ConnectAsync());

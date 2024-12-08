@@ -77,6 +77,10 @@ partial class PrivateKeyParser
                 return ParseRsaPkcs1PemKey(keyData, metadata);
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
                 return ParseOpenSshKey(keyData, passwordPrompt);
+            case "-----BEGIN PRIVATE KEY-----":
+                return ParsePkcs8Key(keyData);
+            case "-----BEGIN ENCRYPTED PRIVATE KEY-----":
+                return ParsePkcs8Key(keyData, passwordPrompt);
             default:
                 throw new NotSupportedException($"Unsupported format: '{keyFormat}'.");
         }
