@@ -686,11 +686,6 @@ public class SftpClientTests
             // Download
             await sftpClient.DownloadFileAsync(remotePath, destinationPath);
 
-            var downloadStream = new MemoryStream();
-            await sftpClient.DownloadFileAsync(remotePath, downloadStream);
-            var streamDownloadBuffer = downloadStream.ToArray();
-            downloadStream.Dispose();
-
             // Verify the downloaded file matches the source file that was uploaded.
             using FileStream dst = File.OpenRead(destinationPath);
             int length = (int)dst.Length;
@@ -698,7 +693,6 @@ public class SftpClientTests
             byte[] buffer2 = new byte[fileSize];
             dst.ReadAtLeast(buffer2, length);
             Assert.True(buffer.AsSpan(0, length).SequenceEqual(buffer2.AsSpan(0, length)));
-            Assert.True(buffer.AsSpan(0, length).SequenceEqual(streamDownloadBuffer.AsSpan(0, length)));
         }
         finally
         {
@@ -712,6 +706,18 @@ public class SftpClientTests
                 { }
             }
         }
+    }
+
+    [Fact]
+    public async Task DownloadFileToStream()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        var (sourceFileName, sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 100);
+
+        await using var downloadStream = new MemoryStream();
+        await sftpClient.DownloadFileAsync(sourceFileName, downloadStream);
+
+        Assert.True(downloadStream.ToArray().SequenceEqual(sourceData));
     }
 
     [Fact]

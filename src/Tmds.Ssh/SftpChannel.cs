@@ -1050,15 +1050,15 @@ sealed partial class SftpChannel : IDisposable
     }
 
     public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
+        => DownloadFileAsync(remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
 
-    public ValueTask DownloadFileAsync(string remotePath, string localFilePath, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
-        => DownloadFileAsync(remotePath, (object)localFilePath, length, overwrite, permissions, throwIfNotFound, cancellationToken);
+    public ValueTask DownloadFileAsync(string remotePath, Stream destination, CancellationToken cancellationToken = default)
+        => DownloadFileAsync(remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, cancellationToken);
 
-    public ValueTask DownloadFileAsync(string remotePath, Stream destination, long? length, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
-        => DownloadFileAsync(remotePath, destination, length, false, permissions, throwIfNotFound, cancellationToken);
+    private ValueTask DownloadFileAsync(string remotePath, string? localPath, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+        => DownloadFileAsync(remotePath, localPath, null, length, overwrite, permissions, throwIfNotFound, cancellationToken);
 
-    private async ValueTask DownloadFileAsync(string remotePath, object destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+    private async ValueTask DownloadFileAsync(string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
     {
         // Call GetAttributesAsync in parallel with OpenFileAsync.
         // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
@@ -1085,47 +1085,28 @@ sealed partial class SftpChannel : IDisposable
             permissions = attributes.Permissions;
         }
 
-        Stream? dstStream = null;
-        if (destination is string localPath)
-        {
-            dstStream = OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
-        }
-        else if (destination is Stream stream)
-        {
-            dstStream = stream;
-        }
-
-        Debug.Assert(dstStream is not null);
+        using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
+        destination ??= localFile;
+        var writeSync = destination is FileStream or MemoryStream;
 
         ValueTask previous = default;
         CancellationTokenSource? breakLoop = length > 0 ? new() : null;
 
-        Debug.Assert(breakLoop is not null);
-
-        try
+        int maxPayload = MaxReadPayload;
+        for (long offset = 0; offset < length; offset += maxPayload)
         {
-            int maxPayload = MaxReadPayload;
-            for (long offset = 0; offset < length; offset += maxPayload)
+            Debug.Assert(breakLoop is not null);
+            if (!breakLoop.IsCancellationRequested)
             {
-                if (!breakLoop.IsCancellationRequested)
-                {
-                    await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    long remaining = length.Value - offset;
-                    previous = CopyBuffer(previous, offset, remaining > maxPayload ? maxPayload : (int)remaining);
-                }
-            }
-
-            await previous.ConfigureAwait(false);
-
-            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            if (destination is string)
-            {
-                dstStream.Dispose();
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                long remaining = length.Value - offset;
+                previous = CopyBuffer(previous, offset, remaining > maxPayload ? maxPayload : (int)remaining);
             }
         }
+
+        await previous.ConfigureAwait(false);
+
+        await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
 
         return;
 
@@ -1163,7 +1144,14 @@ sealed partial class SftpChannel : IDisposable
                     await previousCopy.ConfigureAwait(false);
                 }
 
-                dstStream.Write(buffer.AsSpan(0, length));
+                if (writeSync)
+                {
+                    destination.Write(buffer.AsSpan(0, length));
+                }
+                else
+                {
+                    await destination.WriteAsync(buffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+                }
             }
             catch
             {
