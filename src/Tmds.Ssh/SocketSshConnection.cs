@@ -212,12 +212,22 @@ sealed class SocketSshConnection : SshConnection
         await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct).ConfigureAwait(false);
     }
 
-    public override void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder)
+    public override void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero)
     {
         _encryptor?.Dispose();
         _decryptor?.Dispose();
         _encryptor = packetEncoder;
         _decryptor = packetDecoder;
+
+        if (resetSequenceNumbers)
+        {
+            if (_receiveSequenceNumber == 0 && throwIfReceiveSNZero)
+            {
+                ThrowHelper.ThrowProtocolValueOutOfRange();
+            }
+            _sendSequenceNumber = 0;
+            _receiveSequenceNumber = 0;
+        }
     }
 
     public override void Dispose()

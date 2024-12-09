@@ -351,4 +351,14 @@ public sealed partial class SshClient : IDisposable
         Debug.Assert(_session is not null);
         _session.ForceConnectionClose();
     }
+
+    // For testing.
+    internal SshConnectionInfo ConnectionInfo
+    {
+        get
+        {
+            Debug.Assert(_session is not null);
+            return _session.ConnectionInfo;
+        }
+    }
 }
