@@ -1050,9 +1050,15 @@ sealed partial class SftpChannel : IDisposable
     }
 
     public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(remoteFilePath, localFilePath, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
+        => DownloadFileAsync(remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
 
-    private async ValueTask DownloadFileAsync(string remotePath, string localPath, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+    public ValueTask DownloadFileAsync(string remotePath, Stream destination, CancellationToken cancellationToken = default)
+        => DownloadFileAsync(remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, cancellationToken);
+
+    private ValueTask DownloadFileAsync(string remotePath, string? localPath, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+        => DownloadFileAsync(remotePath, localPath, null, length, overwrite, permissions, throwIfNotFound, cancellationToken);
+
+    private async ValueTask DownloadFileAsync(string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
     {
         // Call GetAttributesAsync in parallel with OpenFileAsync.
         // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
@@ -1079,10 +1085,11 @@ sealed partial class SftpChannel : IDisposable
             permissions = attributes.Permissions;
         }
 
-        using FileStream localFile = OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions!.Value);
+        using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
+        destination ??= localFile;
+        var writeSync = destination is FileStream or MemoryStream;
 
         ValueTask previous = default;
-
         CancellationTokenSource? breakLoop = length > 0 ? new() : null;
 
         int maxPayload = MaxReadPayload;
@@ -1100,6 +1107,8 @@ sealed partial class SftpChannel : IDisposable
         await previous.ConfigureAwait(false);
 
         await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
+
+        return;
 
         async ValueTask CopyBuffer(ValueTask previousCopy, long fileOffset, int length)
         {
@@ -1135,7 +1144,14 @@ sealed partial class SftpChannel : IDisposable
                     await previousCopy.ConfigureAwait(false);
                 }
 
-                localFile.Write(buffer.AsSpan(0, length));
+                if (writeSync)
+                {
+                    destination.Write(buffer.AsSpan(0, length));
+                }
+                else
+                {
+                    await destination.WriteAsync(buffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+                }
             }
             catch
             {
