@@ -717,7 +717,7 @@ public class SftpClientTests
         await using var downloadStream = new MemoryStream();
         await sftpClient.DownloadFileAsync(sourceFileName, downloadStream);
 
-        Assert.True(downloadStream.ToArray().SequenceEqual(sourceData));
+        Assert.Equal(sourceData, downloadStream.ToArray());
     }
 
     [Fact]
