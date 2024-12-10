@@ -1,4 +1,8 @@
+ARG PASSWORD=secret
+
 FROM quay.io/centos/centos:stream10-development
+
+ARG PASSWORD
 
 EXPOSE 88/tcp
 EXPOSE 88/udp
@@ -10,7 +14,7 @@ RUN dnf install -y krb5-{libs,server,workstation} openssh-server passwd socat do
 # Add a user.
 RUN useradd -ms /bin/bash testuser
 RUN useradd -ms /bin/bash --badname testuser@REALM.TEST
-RUN echo 'secret' | passwd --stdin testuser
+RUN [ -z "$PASSWORD" ] && passwd --delete testuser || echo "$PASSWORD" | passwd --stdin testuser
 
 # Add test subsystem configuration
 RUN echo 'Subsystem test_subsystem /usr/bin/sh' >> /etc/ssh/sshd_config
