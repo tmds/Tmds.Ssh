@@ -709,6 +709,18 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task DownloadFileToStream()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        var (sourceFileName, sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 100);
+
+        await using var downloadStream = new MemoryStream();
+        await sftpClient.DownloadFileAsync(sourceFileName, downloadStream);
+
+        Assert.Equal(sourceData, downloadStream.ToArray());
+    }
+
+    [Fact]
     public async Task DownloadFileThrowsWhenNotFound()
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
