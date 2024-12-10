@@ -949,7 +949,7 @@ sealed partial class SftpChannel : IDisposable
                         break;
                     case UnixFileType.RegularFile:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
+                        onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
                         break;
                     case UnixFileType.SymbolicLink:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
@@ -1084,6 +1084,9 @@ sealed partial class SftpChannel : IDisposable
 
         using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
         destination ??= localFile;
+
+        Debug.Assert(destination is not null);
+
         bool writeSync = destination is FileStream or MemoryStream;
 
         ValueTask previous = default;
