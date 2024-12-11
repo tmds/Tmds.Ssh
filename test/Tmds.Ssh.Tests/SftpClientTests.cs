@@ -729,6 +729,26 @@ public class SftpClientTests
         Assert.Equal(sourceData, downloadStream.ToArray());
     }
 
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(10 * MultiPacketSize)]
+    [Theory]
+    public async Task UploadDownloadFileWithAsyncStream(int size)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        
+        byte[] sourceData = new byte[size];
+        Random.Shared.NextBytes(sourceData);
+        Stream uploadStream = new NonSeekableAsyncStream(sourceData);
+
+        string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.UploadFileAsync(uploadStream, remotePath);
+
+        await using var downloadStream = new NonSeekableAsyncStream();
+        await sftpClient.DownloadFileAsync(remotePath, downloadStream);
+        Assert.Equal(sourceData, downloadStream.ToArray());
+    }
+
     [Fact]
     public async Task DownloadFileThrowsWhenNotFound()
     {
@@ -1226,6 +1246,63 @@ public class SftpClientTests
         else
         {
             await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.GetFullPathAsync("").AsTask());
+        }
+    }
+
+    sealed class NonSeekableAsyncStream : Stream
+    {
+        private readonly MemoryStream _innerStream = new();
+
+        public NonSeekableAsyncStream()
+        {
+            _innerStream = new();
+        }
+
+        public NonSeekableAsyncStream(byte[] data)
+        {
+            _innerStream = new(data);
+        }
+
+        public byte[] ToArray()
+            => _innerStream.ToArray();
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => throw new NotImplementedException();
+
+        public override long Position
+        {
+            get => throw new NotImplementedException();
+            set => throw new NotImplementedException();
+        }
+
+        public override void Flush()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return _innerStream.Read(buffer, offset, count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            _innerStream.Write(buffer, offset, count);
         }
     }
 }
