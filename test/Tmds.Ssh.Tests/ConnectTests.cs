@@ -461,62 +461,53 @@ public class ConnectTests
     }
 
     [Fact]
-    public async Task DisconnectedAsync()
+    public async Task Disconnected()
     {
         using var client = await _sshServer.CreateClientAsync();
 
-        Task disconnectedTask = client.DisconnectedAsync();
+        CancellationToken disconnected = client.Disconnected;
 
         client.Dispose();
 
-        await disconnectedTask;
+        Assert.True(disconnected.IsCancellationRequested);
     }
 
     [Fact]
-    public async Task DisconnectedAsync_WithError()
+    public async Task Disconnected_WithError()
     {
         using var client = await _sshServer.CreateClientAsync();
 
-        Task disconnectedTask = client.DisconnectedAsync();
+        CancellationToken disconnected = client.Disconnected;
 
         client.ForceConnectionClose();
 
-        await Assert.ThrowsAsync<SshConnectionClosedException>(() => disconnectedTask);
+        Assert.True(disconnected.IsCancellationRequested);
+        Assert.True(client.Disconnected.IsCancellationRequested);
     }
 
     [Fact]
-    public async Task DisconnectedAsync_RequiresConnect()
+    public async Task Disconnected_RequiresConnect()
     {
         using var client = await _sshServer.CreateClientAsync(connect: false);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.DisconnectedAsync());
+        Assert.Throws<InvalidOperationException>(() => client.Disconnected);
     }
 
     [Fact]
-    public async Task DisconnectedAsync_NotWhenAutoReconnect()
+    public async Task Disconnected_NotWhenAutoReconnect()
     {
         using var client = await _sshServer.CreateClientAsync(configure: settings => settings.AutoReconnect = true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.DisconnectedAsync());
+        Assert.Throws<InvalidOperationException>(() => client.Disconnected);
     }
 
     [Fact]
-    public async Task DisconnectedAsync_NotAfterDispose()
+    public async Task Disconnected_NotAfterDispose()
     {
         using var client = await _sshServer.CreateClientAsync();
 
         client.Dispose();
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.DisconnectedAsync());
-    }
-
-    [Fact]
-    public async Task DisconnectedAsync_CanCancel()
-    {
-        using var client = await _sshServer.CreateClientAsync();
-
-        var cts = new CancellationTokenSource(50);
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.DisconnectedAsync(cts.Token));
+        Assert.Throws<ObjectDisposedException>(() => client.Disconnected);
     }
 }

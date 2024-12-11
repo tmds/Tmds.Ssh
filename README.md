@@ -59,8 +59,7 @@ class SshClient : IDisposable
 
   // Not usable with AutoReconnect.
   // A connection must be established before calling this method.
-  // Throws if the connection was closed for another reason than explicit close by the user.
-  Task DisconnectedAsync(CancellationToken cancellationToken = default);
+  CancellationToken Disconnected { get; }
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);

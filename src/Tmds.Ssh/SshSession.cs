@@ -98,33 +98,6 @@ sealed partial class SshSession
         await task;
     }
 
-    public async Task DisconnectedAsync(CancellationToken cancellationToken)
-    {
-        Task? runningConnectionTask = null;
-        lock (_gate)
-        {
-            // Throw if a user has Disposed before calling this method.
-            ThrowIfDisposed();
-
-            runningConnectionTask = _runningConnectionTask;
-        }
-
-        if (runningConnectionTask is null)
-        {
-            Debug.Assert(false); // this method shouldn't ever get called if we never connected.
-            ThrowNeverConnected();
-        }
-        await runningConnectionTask.WaitAsync(cancellationToken);
-
-        // Don't throw if the connection was closed due to an explicit close by the user.
-        if (_abortReason == DisposedException)
-        {
-            return;
-        }
-
-        ThrowNewConnectionClosedException();
-    } 
-
     private async Task<SshConnection> EstablishConnectionAsync(CancellationToken ct)
     {
         Debug.Assert(_settings is not null);
