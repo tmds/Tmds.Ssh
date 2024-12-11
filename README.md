@@ -164,7 +164,7 @@ class SftpClient : IDisposable
   // Does not throw if the path did not exist.
   ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
 
-  ValueTask RenameAsync(string oldpath, string newpath, CancellationToken cancellationToken = default);
+  ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default);
 
   ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default);
 
@@ -188,6 +188,7 @@ class SftpClient : IDisposable
 
   ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, CancellationToken cancellationToken);
   ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default);
+  ValueTask DownloadFileAsync(string remoteFilePath, Stream destination, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, CancellationToken cancellationToken = default);
   ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default);
 
