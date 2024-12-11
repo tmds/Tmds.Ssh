@@ -122,6 +122,11 @@ sealed class UserAuthContext
         {
             return null;
         }
+        // Servers don't return when 'none' is allowed.
+        if (method == AlgorithmNames.None)
+        {
+            return null;
+        }
         return Array.IndexOf(_allowedAuthentications, method) >= 0;
     }
 

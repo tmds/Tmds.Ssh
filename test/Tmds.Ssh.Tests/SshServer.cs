@@ -10,15 +10,15 @@ namespace Tmds.Ssh.Tests;
 
 public class SshServer : IDisposable
 {
-    private const string ContainerImageName = "test_sshd:latest";
+    private string ContainerImageName { get; }
     private const string ContainerBuildContext = "sshd_container";
 
     public static bool HasKerberos = HasExecutable("kinit");
 
     public string TestUser => "testuser";
-    public NetworkCredential TestKerberosCredential => new NetworkCredential($"{TestUser}@REALM.TEST", TestUserPassword);
     public string TestUserHome => $"/home/{TestUser}";
-    public string TestUserPassword => "secret";
+    public string TestUserPassword { get; }
+    public NetworkCredential TestKerberosCredential => new NetworkCredential($"{TestUser}@REALM.TEST", "secret");
     public string TestUserIdentityFile => $"{ContainerBuildContext}/user_key_rsa";
     public string TestUserIdentityFileEcdsa256 => $"{ContainerBuildContext}/user_key_ecdsa_256";
     public string TestUserIdentityFileEcdsa384 => $"{ContainerBuildContext}/user_key_ecdsa_384";
@@ -81,8 +81,11 @@ public class SshServer : IDisposable
         _messageSink.OnMessage(new DiagnosticMessage(message));
     }
 
-    protected SshServer(string? sshdConfig, IMessageSink messageSink)
+    protected SshServer(string? sshdConfig, IMessageSink messageSink, string userPassword = "secret")
     {
+        TestUserPassword = userPassword;
+        ContainerImageName = $"test_{GetType().Name.ToLowerInvariant()}:latest";
+
         _messageSink = messageSink;
         WriteMessage("Starting SSH server for tests.");
 
@@ -91,7 +94,7 @@ public class SshServer : IDisposable
 
         try
         {
-            Run("podman", "build", "-t", ContainerImageName, ContainerBuildContext);
+            Run("podman", "build", $"--build-arg=PASSWORD={TestUserPassword}", "-t", ContainerImageName, ContainerBuildContext);
             IPAddress interfaceAddress = IPAddress.Loopback;
             _host = interfaceAddress.ToString();
             _port = PickFreePort(interfaceAddress);
@@ -461,6 +464,30 @@ public class MultiMethodAuthSshServer : SshServer
 
 [CollectionDefinition(nameof(MultiMethodAuthSshServerCollection))]
 public class MultiMethodAuthSshServerCollection : ICollectionFixture<MultiMethodAuthSshServer>
+{
+    // This class has no code, and is never created. Its purpose is simply
+    // to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
+}
+
+public class NoneAuthSshServer : SshServer
+{
+    public const string Config =
+        """
+        PasswordAuthentication yes
+        PermitEmptyPasswords yes
+        AuthenticationMethods none
+        """;
+
+    public NoneAuthSshServer(IMessageSink messageSink) :
+        base(Config, messageSink,
+            // For OpenSSH to allow 'none', the user needs an empty password.
+            userPassword: "")
+    { }
+}
+
+[CollectionDefinition(nameof(NoneAuthSshServerCollection))]
+public class NoneAuthSshServerCollection : ICollectionFixture<NoneAuthSshServer>
 {
     // This class has no code, and is never created. Its purpose is simply
     // to be the place to apply [CollectionDefinition] and all the

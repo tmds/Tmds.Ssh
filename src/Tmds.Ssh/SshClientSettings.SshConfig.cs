@@ -13,7 +13,8 @@ partial class SshClientSettings
             AlgorithmNames.HostBased,
             AlgorithmNames.PublicKey,
             AlgorithmNames.KeyboardInteractive,
-            AlgorithmNames.Password
+            AlgorithmNames.Password,
+            AlgorithmNames.None
         ];
 
     internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigSettings options, CancellationToken cancellationToken = default)
@@ -140,6 +141,7 @@ partial class SshClientSettings
     {
         bool addPubKeyCredentials = config.PubKeyAuthentication ?? true;
         bool addGssApiCredentials = config.GssApiAuthentication ?? false;
+        bool addNone = true;
 
         ReadOnlySpan<Name[]> authPreferences = [
             config.PreferredAuthentications ?? Array.Empty<Name>(),
@@ -174,6 +176,15 @@ partial class SshClientSettings
                         }
 
                         addPubKeyCredentials = false;
+                    }
+                }
+                else if (algorithm == AlgorithmNames.None)
+                {
+                    if (addNone)
+                    {
+                        credentials.Add(new NoCredential());
+
+                        addNone = false;
                     }
                 }
             }

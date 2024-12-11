@@ -57,6 +57,13 @@ sealed partial class SshSession
                     authResult = await GssApiAuth.TryAuthenticate(kerberosCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
                 }
             }
+            else if (credential is NoCredential)
+            {
+                if (TryMethod(AlgorithmNames.None))
+                {
+                    authResult = await NoneAuth.TryAuthenticate(context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
+            }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);

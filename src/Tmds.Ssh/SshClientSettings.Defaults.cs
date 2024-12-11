@@ -57,12 +57,12 @@ partial class SshClientSettings
     private static IReadOnlyList<Credential> CreateDefaultCredentials()
     {
         List<Credential> credentials = new();
-        credentials.Add(new KerberosCredential());
         foreach (var identityFile in DefaultIdentityFiles)
         {
             credentials.Add(new PrivateKeyCredential(identityFile));
         }
         credentials.Add(new KerberosCredential());
+        credentials.Add(new NoCredential());
         return credentials.AsReadOnly();
     }
 

@@ -218,7 +218,7 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  static IReadOnlyList<Credential> DefaultCredentials { get; } = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential() ]
+  static IReadOnlyList<Credential> DefaultCredentials { get; } = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential(), NoCredential() ]
   static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } = [ '~/.ssh/known_hosts' ]
   static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = [ '/etc/ssh/known_hosts' ]
 
@@ -491,6 +491,10 @@ class KerberosCredential : Credential
 {
   KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null);
 }
+class NoCredential : Credential
+{
+  NoCredential();
+}
 // Base class.
 class SshException : Exception
 { }
@@ -558,6 +562,7 @@ Authentications:
 - publickey (`PrivateKeyCredential`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
+- none (`NoCredential`)
 
 ## Design
 

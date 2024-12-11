@@ -262,6 +262,12 @@ static partial class SshClientLogger
         Message = "Auth {AuthMethod} method partial success, continue with: {AllowedMethods}")]
     public static partial void PartialSuccessAuth(this ILogger<SshClient> logger, Name authMethod, Name[] allowedMethods);
 
+    [LoggerMessage(
+        EventId = 30,
+        Level = LogLevel.Information,
+        Message = "Auth using none")]
+    public static partial void NoneAuth(this ILogger<SshClient> logger);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private ReadOnlyPacket _packet;
