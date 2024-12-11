@@ -287,7 +287,7 @@ sealed partial class SftpChannel : IDisposable
                                 }
 
                                 buffer = ArrayPool<byte>.Shared.Rent(length);
-                                bytesRead = await sourceFile.ReadAtAsync(buffer, sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
+                                bytesRead = await sourceFile.ReadAtAsync(buffer.AsMemory(0, length), sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
                                 if (bytesRead == 0)
                                 {
                                     break;
@@ -864,19 +864,21 @@ sealed partial class SftpChannel : IDisposable
 
                         buffer = ArrayPool<byte>.Shared.Rent(length);
                         int remaining = length;
+                        long readOffset = startOffset + offset;
                         do
                         {
                             int bytesRead;
                             lock (breakLoop) // Ensure only one thread is reading the Stream concurrently.
                             {
-                                source.Position = startOffset + offset;
-                                bytesRead = source.Read(buffer.AsSpan(length - remaining));
+                                source.Position = readOffset;
+                                bytesRead = source.Read(buffer.AsSpan(length - remaining, remaining));
                             }
                             if (bytesRead == 0)
                             {
                                 throw new IOException("Unexpected end of file. The source was truncated during the upload.");
                             }
                             remaining -= bytesRead;
+                            readOffset += bytesRead;
                         } while (remaining > 0);
 
                         await remoteFile.WriteAtAsync(buffer.AsMemory(0, length), offset, cancellationToken).ConfigureAwait(false);
