@@ -361,12 +361,12 @@ public sealed partial class SftpClient : IDisposable
     }
 
     public ValueTask UploadFileAsync(Stream source, string remoteFilePath, CancellationToken cancellationToken)
-        => UploadFileAsync(source, remoteFilePath, overwrite: false, createPermissions: null, cancellationToken);
+        => UploadFileAsync(source, remoteFilePath, overwrite: false, createPermissions: DefaultCreateFilePermissions, cancellationToken);
 
-    public async ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = null, CancellationToken cancellationToken = default)
+    public async ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = DefaultCreateFilePermissions, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        await channel.UploadFileAsync(source, remoteFilePath, length: null, overwrite, createPermissions ?? OwnershipPermissions, cancellationToken).ConfigureAwait(false);
+        await channel.UploadFileAsync(source, remoteFilePath, length: null, overwrite, createPermissions, cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, CancellationToken cancellationToken = default)
