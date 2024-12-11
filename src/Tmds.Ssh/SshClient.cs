@@ -89,13 +89,16 @@ public sealed partial class SshClient : IDisposable
         await GetSessionAsync(cancellationToken, explicitConnect: true).ConfigureAwait(false);
     }
 
-    public Task DisconnectedAsync(CancellationToken cancellationToken = default)
+    public CancellationToken Disconnected
     {
-        SshSession session = GetConnectedSesion(cancellationToken);
-        return session.DisconnectedAsync(cancellationToken);
+        get
+        {
+            SshSession session = GetConnectedSesion();
+            return session.ConnectionClosed;
+        }
     }
 
-    private SshSession GetConnectedSesion(CancellationToken cancellationToken, [CallerMemberNameAttribute]string? callerMethod = null)
+    private SshSession GetConnectedSesion([CallerMemberNameAttribute]string? callerMethod = null)
     {
         if (_autoReconnect)
         {
