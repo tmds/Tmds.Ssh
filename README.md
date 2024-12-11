@@ -127,8 +127,8 @@ class LocalForward : IDisposable
 class SftpClient : IDisposable
 {
   // Note: umask is applied on the server.
-  const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rw-rw-rw-'.
-  const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rwxrwxrwx'.
+  const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rwxrwxrwx'.
+  const UnixFilePermissions DefaultCreateFilePermissions;      // = '-rw-rw-rw-'.
 
   // The SftpClient owns the connection.
   SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null);
@@ -181,7 +181,9 @@ class SftpClient : IDisposable
   IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken);
-  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = null, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(Stream source, string remoteFilePath, CancellationToken cancellationToken);
+  ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = DefaultCreateFilePermissions, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default);
 

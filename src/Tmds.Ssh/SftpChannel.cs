@@ -287,7 +287,7 @@ sealed partial class SftpChannel : IDisposable
                                 }
 
                                 buffer = ArrayPool<byte>.Shared.Rent(length);
-                                bytesRead = await sourceFile.ReadAtAsync(buffer, sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
+                                bytesRead = await sourceFile.ReadAtAsync(buffer.AsMemory(0, length), sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
                                 if (bytesRead == 0)
                                 {
                                     break;
@@ -782,77 +782,136 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
     {
-        using SafeFileHandle localFile = File.OpenHandle(localPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream localFile = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
 
-        permissions ??= GetPermissionsForFile(localFile);
+        permissions ??= GetPermissionsForFile(localFile.SafeFileHandle);
 
-        using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions.Value, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+        await UploadFileAsync(localFile, remotePath, length, overwrite, permissions.Value, cancellationToken).ConfigureAwait(false);
+    }
 
-        length ??= RandomAccess.GetLength(localFile);
+    public async ValueTask UploadFileAsync(Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
+    {
+        using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
 
-        ValueTask previous = default;
+        // Pipeline the writes when the source is a sync, seekable Stream.
+        bool pipelineSyncWrites = source.CanSeek && IsSyncStream(source);
 
-        CancellationTokenSource? breakLoop = length > 0 ? new() : null;
-
-        for (long offset = 0; offset < length; offset += GetMaxWritePayload(remoteFile.Handle))
+        if (!pipelineSyncWrites)
         {
-            Debug.Assert(breakLoop is not null);
-            if (!breakLoop.IsCancellationRequested)
-            {
-                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                previous = CopyBuffer(previous, offset, GetMaxWritePayload(remoteFile.Handle));
-            }
+            await source.CopyToAsync(remoteFile, GetMaxWritePayload(remoteFile.Handle)).ConfigureAwait(false);
+
+            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
         }
-
-        await previous.ConfigureAwait(false);
-
-        await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
-
-        async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+        else
         {
+            length ??= source.Length;
+            if (length == 0)
+            {
+                return;
+            }
+
+            ValueTask previous = default;
+            long startOffset = source.Position;
+            long bytesSuccesfullyWritten = 0;
+            CancellationTokenSource breakLoop = new();
+            int maxWritePayload = GetMaxWritePayload(remoteFile.Handle);
+
+            for (long offset = 0; offset < length; offset += maxWritePayload)
+            {
+                if (!breakLoop.IsCancellationRequested)
+                {
+                    await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    int copyLength = (int)Math.Min((long)maxWritePayload, length.Value - offset);
+                    previous = CopyBuffer(previous, offset, copyLength);
+                }
+            }
+
+            bool ignorePositionUpdateException = false;
             try
             {
-                byte[]? buffer = null;
-                try
-                {
-                    if (breakLoop.IsCancellationRequested)
-                    {
-                        return;
-                    }
+                await previous.ConfigureAwait(false);
 
-                    buffer = ArrayPool<byte>.Shared.Rent(length);
-                    do
-                    {
-                        int bytesRead = RandomAccess.Read(localFile, buffer.AsSpan(0, length), offset);
-                        if (bytesRead == 0)
-                        {
-                            break;
-                        }
-                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset, cancellationToken).ConfigureAwait(false);
-                        length -= bytesRead;
-                        offset += bytesRead;
-                    } while (length > 0);
-                }
-                catch
-                {
-                    breakLoop.Cancel();
-                    throw;
-                }
-                finally
-                {
-                    if (buffer != null)
-                    {
-                        ArrayPool<byte>.Shared.Return(buffer);
-                    }
-                    s_uploadBufferSemaphore.Release();
-                }
+                await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                ignorePositionUpdateException = true;
+
+                throw;
             }
             finally
             {
-                await previousCopy.ConfigureAwait(false);
+                // Set the position to what was succesfully written.
+                try
+                {
+                    source.Position = startOffset + bytesSuccesfullyWritten;
+                }
+                catch when (ignorePositionUpdateException)
+                { }
+            }
+
+            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+            {
+                try
+                {
+                    byte[]? buffer = null;
+                    try
+                    {
+                        if (breakLoop.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        buffer = ArrayPool<byte>.Shared.Rent(length);
+                        int remaining = length;
+                        long readOffset = startOffset + offset;
+                        do
+                        {
+                            int bytesRead;
+                            lock (breakLoop) // Ensure only one thread is reading the Stream concurrently.
+                            {
+                                source.Position = readOffset;
+                                bytesRead = source.Read(buffer.AsSpan(length - remaining, remaining));
+                            }
+                            if (bytesRead == 0)
+                            {
+                                throw new IOException("Unexpected end of file. The source was truncated during the upload.");
+                            }
+                            remaining -= bytesRead;
+                            readOffset += bytesRead;
+                        } while (remaining > 0);
+
+                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, length), offset, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        length = 0; // Assume nothing was written succesfully.
+                        breakLoop.Cancel();
+                        throw;
+                    }
+                    finally
+                    {
+                        if (buffer != null)
+                        {
+                            ArrayPool<byte>.Shared.Return(buffer);
+                        }
+                        s_uploadBufferSemaphore.Release();
+                    }
+                }
+                finally
+                {
+                    await previousCopy.ConfigureAwait(false);
+
+                    // Update with our length after the previous write completed succesfully.
+                    bytesSuccesfullyWritten += length;
+                }
             }
         }
     }
+
+    // Consider it okay to do sync operation on these types of streams.
+    private static bool IsSyncStream(Stream stream)
+        => stream is MemoryStream or FileStream;
 
     private IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
         => new SftpFileSystemEnumerable<T>(this, path, transform, options);
@@ -1087,7 +1146,7 @@ sealed partial class SftpChannel : IDisposable
 
         Debug.Assert(destination is not null);
 
-        bool writeSync = destination is FileStream or MemoryStream;
+        bool writeSync = IsSyncStream(destination);
 
         ValueTask previous = default;
         CancellationTokenSource? breakLoop = length > 0 ? new() : null;
