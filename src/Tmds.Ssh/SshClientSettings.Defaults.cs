@@ -13,7 +13,9 @@ partial class SshClientSettings
 
     private static readonly string[] DefaultIdentityFiles =
     [
-        Path.Combine(Home, ".ssh", "id_rsa")
+        Path.Combine(Home, ".ssh", "id_ed25519"),
+        Path.Combine(Home, ".ssh", "id_ecdsa"),
+        Path.Combine(Home, ".ssh", "id_rsa"),
     ];
 
     private const int DefaultPort = 22;

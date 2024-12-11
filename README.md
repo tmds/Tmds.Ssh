@@ -218,7 +218,10 @@ class SftpFile : Stream
 }
 class SshClientSettings
 {
-  static IReadOnlyList<Credential> DefaultCredentials { get; } = [ PrivateKeyCredential("~/.ssh/id_rsa"), KerberosCredential(), NoCredential() ]
+  static IReadOnlyList<Credential> DefaultCredentials { get; }
+    = [ PrivateKeyCredential("~/.ssh/id_ed25519"), PrivateKeyCredential("~/.ssh/id_ecdsa"), PrivateKeyCredential("~/.ssh/id_rsa"),
+        KerberosCredential(),
+        NoCredential() ]
   static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } = [ '~/.ssh/known_hosts' ]
   static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = [ '/etc/ssh/known_hosts' ]
 
