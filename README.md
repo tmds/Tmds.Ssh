@@ -182,6 +182,8 @@ class SftpClient : IDisposable
 
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, CancellationToken cancellationToken);
   ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions, CancellationToken cancellationToken = default);
+  ValueTask UploadFileAsync(Stream source, string remoteFilePath, CancellationToken cancellationToken);
+  ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = null, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, CancellationToken cancellationToken = default);
   ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default);
 

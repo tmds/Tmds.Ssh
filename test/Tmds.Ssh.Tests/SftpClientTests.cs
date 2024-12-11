@@ -708,15 +708,24 @@ public class SftpClientTests
         }
     }
 
-    [Fact]
-    public async Task DownloadFileToStream()
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(10 * MultiPacketSize)] // Ensure some pipelined writing.
+    [Theory]
+    public async Task UploadDownloadFileWithStream(int size)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
-        var (sourceFileName, sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 100);
+        
+        byte[] sourceData = new byte[size];
+        Random.Shared.NextBytes(sourceData);
+        MemoryStream uploadStream = new MemoryStream(sourceData);
+
+        string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.UploadFileAsync(uploadStream, remotePath);
+        Assert.Equal(sourceData.Length, uploadStream.Position);
 
         await using var downloadStream = new MemoryStream();
-        await sftpClient.DownloadFileAsync(sourceFileName, downloadStream);
-
+        await sftpClient.DownloadFileAsync(remotePath, downloadStream);
         Assert.Equal(sourceData, downloadStream.ToArray());
     }
 
