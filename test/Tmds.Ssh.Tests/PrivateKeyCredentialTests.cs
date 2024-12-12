@@ -73,32 +73,6 @@ public class PrivateKeyCredentialTests
         Assert.NotNull(privateKey);
     }
 
-    [Fact]
-    public async Task Pkcs1RsaKey()
-    {
-        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
-        {
-            await EncryptSshKey(localKey, "PEM", null, null);
-            return new PrivateKeyCredential(localKey);
-        }, async (c) => await c.ConnectAsync());
-    }
-
-    [Fact]
-    public async Task FailPkcs1EncryptedRsaKey()
-    {
-        await RunWithKeyConversion(_sshServer.TestUserIdentityFile, async (string localKey) =>
-        {
-            await EncryptSshKey(localKey, "PEM", null, null);
-            await RunBinary("openssl", "pkey", "-in", localKey, "-inform", "PEM", "-out", $"{localKey}.rsa", "-traditional", "-aes256", "-passout", $"pass:{TestPassword}");
-            File.Move($"{localKey}.rsa", localKey, overwrite: true);
-            return new PrivateKeyCredential(localKey, TestPassword);
-        }, async (SshClient client) =>
-        {
-            var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
-            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
-        });
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("aes128-cbc")]

@@ -521,9 +521,12 @@ class SshConnectionClosedException : SshConnectionException
 
 This section lists the currently supported algorithms. If you would like support for other algorithms, you can request it with an issue in the repository. If the requested algorithm is considered insecure by current practice, it is unlikely to be added.
 
-Supported private key formats:
-- RSA in `RSA PRIVATE KEY`
-- RSA, ECDSA, ED25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
+Supported private key formats*:
+- RSA, ECDSA, ED25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`) with encryption:
+  - none
+  - aes[128|192|256]-[cbc|ctr]
+  - aes[128|256]-gcm@openssh.com
+  - chacha20-poly1305@openssh.com
 
 Supported private key encryption cyphers:
 - OpenSSH Keys `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
@@ -568,6 +571,8 @@ Authentications:
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
 - none (`NoCredential`)
+
+*: Please convert your keys (using `ssh-keygen`, `PuttyGen`, ...) to a supported format rather than suggesting the library should support an additional format. If you can motivate why the library should support a additional format, open an issue to request support.
 
 ## Design
 
