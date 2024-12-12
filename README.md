@@ -528,12 +528,6 @@ Supported private key formats*:
   - aes[128|256]-gcm@openssh.com
   - chacha20-poly1305@openssh.com
 
-Supported private key encryption cyphers:
-- OpenSSH Keys `OPENSSH PRIVATE KEY` (`openssh-key-v1`)
-  - aes[128|192|256]-[cbc|ctr]
-  - aes[128|256]-gcm@openssh.com
-  - chacha20-poly1305@openssh.com
-
 Supported client key algorithms:
 - ssh-ed25519
 - ecdsa-sha2-nistp521
