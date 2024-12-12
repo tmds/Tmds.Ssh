@@ -73,8 +73,6 @@ partial class PrivateKeyParser
 
         switch (keyFormat)
         {
-            case "-----BEGIN RSA PRIVATE KEY-----":
-                return ParseRsaPkcs1PemKey(keyData, metadata);
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
                 return ParseOpenSshKey(keyData, passwordPrompt);
             default:
