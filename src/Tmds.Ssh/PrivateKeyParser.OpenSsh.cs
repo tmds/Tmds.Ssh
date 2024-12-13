@@ -168,10 +168,14 @@ partial class PrivateKeyParser
 
     private static PrivateKey ParseOpenSshRsaKey(SequenceReader reader)
     {
+        // .NET RSA's class has some length expectations:
+        // D must have the same length as Modulus.
+        // P, Q, DP, DQ, and InverseQ must have half the length of Modulus rounded up.
         byte[] modulus = reader.ReadMPIntAsByteArray(isUnsigned: true);
+        int halfLength = (modulus.Length + 1) / 2;
         byte[] exponent = reader.ReadMPIntAsByteArray(isUnsigned: true);
         BigInteger d = reader.ReadMPInt();
-        byte[] inverseQ = reader.ReadMPIntAsByteArray(isUnsigned: true);
+        byte[] inverseQ = reader.ReadMPIntAsByteArray(isUnsigned: true, minLength: halfLength);
         BigInteger p = reader.ReadMPInt();
         BigInteger q = reader.ReadMPInt();
 
@@ -182,12 +186,13 @@ partial class PrivateKeyParser
         {
             Modulus = modulus,
             Exponent = exponent,
-            D = d.ToByteArray(isUnsigned: true, isBigEndian: true),
+            D = d.ToBEByteArray(isUnsigned: true, minLength: modulus.Length),
             InverseQ = inverseQ,
-            P = p.ToByteArray(isUnsigned: true, isBigEndian: true),
-            Q = q.ToByteArray(isUnsigned: true, isBigEndian: true),
-            DP = dp.ToByteArray(isUnsigned: true, isBigEndian: true),
-            DQ = dq.ToByteArray(isUnsigned: true, isBigEndian: true)
+
+            P = p.ToBEByteArray(isUnsigned: true, minLength: halfLength),
+            Q = q.ToBEByteArray(isUnsigned: true, minLength: halfLength),
+            DP = dp.ToBEByteArray(isUnsigned: true, minLength: halfLength),
+            DQ = dq.ToBEByteArray(isUnsigned: true, minLength: halfLength)
         };
         RSA rsa = RSA.Create();
         try
