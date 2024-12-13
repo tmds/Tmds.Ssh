@@ -211,20 +211,20 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 22,
         Level = LogLevel.Information,
-        Message = "Public key '{KeyIdentifier}' not found.")]
-    public static partial void PublicKeyFileNotFound(this ILogger<SshClient> logger, string keyIdentifier);
+        Message = "Private key '{KeyIdentifier}' not found.")]
+    public static partial void PrivateKeyNotFound(this ILogger<SshClient> logger, string keyIdentifier);
 
     [LoggerMessage(
         EventId = 23,
         Level = LogLevel.Error,
-        Message = "Failed to load public key '{KeyIdentifier}'.")]
-    public static partial void PublicKeyCanNotLoad(this ILogger<SshClient> logger, string keyIdentifier, Exception exception);
+        Message = "Failed to load private key '{KeyIdentifier}'.")]
+    public static partial void PrivateKeyCanNotLoad(this ILogger<SshClient> logger, string keyIdentifier, Exception exception);
 
     [LoggerMessage(
         EventId = 24,
         Level = LogLevel.Information,
-        Message = "Public key '{KeyIdentifier}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
-    public static partial void PublicKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, List<Name> acceptedAlgorithms);
+        Message = "Private key '{KeyIdentifier}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
+    public static partial void PrivateKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, List<Name> acceptedAlgorithms);
 
     [LoggerMessage(
         EventId = 25,

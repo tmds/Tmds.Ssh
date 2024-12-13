@@ -19,13 +19,13 @@ partial class UserAuthentication
                 pk = await keyCredential.LoadKeyAsync(ct);
                 if (pk is null)
                 {
-                    logger.PublicKeyFileNotFound(keyCredential.Identifier);
+                    logger.PrivateKeyNotFound(keyCredential.Identifier);
                     return AuthResult.Failure;
                 }
             }
             catch (Exception error)
             {
-                logger.PublicKeyCanNotLoad(keyCredential.Identifier, error);
+                logger.PrivateKeyCanNotLoad(keyCredential.Identifier, error);
                 throw new PrivateKeyLoadException(keyCredential.Identifier, error);
             }
 
@@ -68,7 +68,7 @@ partial class UserAuthentication
 
                 if (!acceptedAlgorithm)
                 {
-                    logger.PublicKeyAlgorithmsNotAccepted(keyCredential.Identifier, context.PublicKeyAcceptedAlgorithms);
+                    logger.PrivateKeyAlgorithmsNotAccepted(keyCredential.Identifier, context.PublicKeyAcceptedAlgorithms);
                 }
             }
 
