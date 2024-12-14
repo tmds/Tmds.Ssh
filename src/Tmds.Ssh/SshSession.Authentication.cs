@@ -142,7 +142,7 @@ sealed partial class SshSession
                     ConnectFailedReason.AuthenticationFailed,
                     $"Authentication failed. {DescribeMethodListBehavior("failed", failedMethods)} {DescribeMethodListBehavior("were skipped", skippedMethods)} {DescribeMethodListBehavior("were rejected", rejectedMethods)}", ConnectionInfo);
 
-        static string DescribeMethodListBehavior(string state, IEnumerable<Name> methods)
+        static string DescribeMethodListBehavior(string state, IEnumerable<Name>? methods)
             => methods is null ? $"No methods {state}."
                               : $"These methods {state}: {string.Join(", ", methods)}.";
     }
