@@ -13,21 +13,22 @@ partial class UserAuthentication
         public static async Task<AuthResult> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
             string? password = passwordCredential.GetPassword();
-            if (password is not null)
+
+            if (password is null)
             {
-                context.StartAuth(AlgorithmNames.Password);
-
-                logger.PasswordAuth();
-
-                {
-                    using var userAuthMsg = CreatePasswordRequestMessage(context.SequencePool, context.UserName, password);
-                    await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
-                }
-
-                return await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
+                return AuthResult.Skipped;
             }
 
-            return AuthResult.Failure;
+            context.StartAuth(AlgorithmNames.Password);
+
+            logger.PasswordAuth();
+
+            {
+                using var userAuthMsg = CreatePasswordRequestMessage(context.SequencePool, context.UserName, password);
+                await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+            }
+
+            return await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
         }
 
         private static Packet CreatePasswordRequestMessage(SequencePool sequencePool, string userName, string password)
