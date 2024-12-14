@@ -26,7 +26,7 @@ partial class UserAuthentication
             catch (Exception error)
             {
                 logger.PrivateKeyCanNotLoad(keyCredential.Identifier, error);
-                throw new PrivateKeyLoadException(keyCredential.Identifier, error);
+                return AuthResult.Failure;
             }
 
             using (pk)

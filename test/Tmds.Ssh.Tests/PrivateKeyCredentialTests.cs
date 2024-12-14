@@ -238,7 +238,6 @@ public class PrivateKeyCredentialTests
         }, async (SshClient client) =>
         {
             var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
-            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
         });
     }
 
@@ -252,7 +251,6 @@ public class PrivateKeyCredentialTests
         }, async (SshClient client) =>
         {
             var exc = await Assert.ThrowsAnyAsync<ConnectFailedException>(() => client.ConnectAsync());
-            Assert.IsType<PrivateKeyLoadException>(exc.InnerException);
         });
     }
 
