@@ -20,13 +20,13 @@ partial class UserAuthentication
                 if (pk is null)
                 {
                     logger.PrivateKeyNotFound(keyCredential.Identifier);
-                    return AuthResult.Failure;
+                    return AuthResult.Skipped;
                 }
             }
             catch (Exception error)
             {
                 logger.PrivateKeyCanNotLoad(keyCredential.Identifier, error);
-                return AuthResult.Failure;
+                return AuthResult.Skipped;
             }
 
             using (pk)
@@ -36,7 +36,7 @@ partial class UserAuthentication
                     if (rsaKey.KeySize < context.MinimumRSAKeySize)
                     {
                         // TODO: log
-                        return AuthResult.Failure;
+                        return AuthResult.Skipped;
                     }
                 }
 
@@ -69,6 +69,7 @@ partial class UserAuthentication
                 if (!acceptedAlgorithm)
                 {
                     logger.PrivateKeyAlgorithmsNotAccepted(keyCredential.Identifier, context.PublicKeyAcceptedAlgorithms);
+                    return AuthResult.Skipped;
                 }
             }
 

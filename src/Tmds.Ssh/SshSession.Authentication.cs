@@ -26,6 +26,10 @@ sealed partial class SshSession
 
         UserAuthContext context = new UserAuthContext(connection, _settings.UserName, _settings.PublicKeyAcceptedAlgorithms, _settings.MinimumRSAKeySize, Logger);
 
+        HashSet<Name>? rejectedMethods = null;
+        HashSet<Name>? failedMethods = null;
+        HashSet<Name>? skippedMethods = null;
+
         int partialAuthAttempts = 0;
         // Try credentials.
         List<Credential> credentials = new(_settings.CredentialsOrDefault);
@@ -33,7 +37,7 @@ sealed partial class SshSession
         {
             Credential credential = credentials[i];
 
-            AuthResult authResult = AuthResult.Failure;
+            AuthResult authResult = AuthResult.Skipped;
             bool? methodAccepted;
             Name method;
             if (credential is PasswordCredential passwordCredential)
@@ -72,6 +76,8 @@ sealed partial class SshSession
             // We didn't try the method, skip to the next credential.
             if (methodAccepted == false)
             {
+                rejectedMethods ??= new();
+                rejectedMethods.Add(method);
                 continue;
             }
 
@@ -80,8 +86,18 @@ sealed partial class SshSession
                 return;
             }
 
-            if (authResult == AuthResult.Failure)
+            if (authResult is AuthResult.Failure or AuthResult.Skipped)
             {
+                if (authResult == AuthResult.Failure)
+                {
+                    failedMethods ??= new();
+                    failedMethods.Add(method);
+                }
+                else
+                {
+                    skippedMethods ??= new();
+                    skippedMethods.Add(method);
+                }
                 // If we didn't know if the method was accepted before, check the context which was updated by SSH_MSG_USERAUTH_FAILURE.
                 if (methodAccepted == null)
                 {
@@ -122,7 +138,13 @@ sealed partial class SshSession
             }
         }
 
-        throw new ConnectFailedException(ConnectFailedReason.AuthenticationFailed, "Authentication failed.", ConnectionInfo);
+        throw new ConnectFailedException(
+                    ConnectFailedReason.AuthenticationFailed,
+                    $"Authentication failed. {DescribeMethodListBehavior("failed", failedMethods)} {DescribeMethodListBehavior("were skipped", skippedMethods)} {DescribeMethodListBehavior("were rejected", rejectedMethods)}", ConnectionInfo);
+
+        static string DescribeMethodListBehavior(string state, IEnumerable<Name> methods)
+            => methods is null ? $"No methods {state}."
+                              : $"These methods {state}: {string.Join(", ", methods)}.";
     }
 
     private static Packet CreateServiceRequestMessage(SequencePool sequencePool)

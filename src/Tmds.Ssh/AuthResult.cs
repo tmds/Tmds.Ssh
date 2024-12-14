@@ -7,5 +7,6 @@ enum AuthResult
 {
     Failure,
     Success,
-    Partial
+    Partial,
+    Skipped
 }
