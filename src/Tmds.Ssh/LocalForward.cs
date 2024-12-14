@@ -81,6 +81,11 @@ public sealed class LocalForward : IDisposable
             if (bindEP is IPEndPoint ipEndPoint)
             {
                 _serverSocket = new Socket(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+                if (ipEndPoint.Address.Equals(IPAddress.IPv6Any))
+                {
+                    _serverSocket.DualMode = true;
+                }
             }
             else if (bindEP is UnixDomainSocketEndPoint unixEndPoint)
             {

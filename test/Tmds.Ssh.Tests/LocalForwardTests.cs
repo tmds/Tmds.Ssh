@@ -129,5 +129,17 @@ public class LocalForwardTests
 
         using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         await Assert.ThrowsAnyAsync<SocketException>(async () => await socket.ConnectAsync(endPoint));
-    } 
+    }
+
+    [Fact]
+    public async Task IPv6IsDualMode()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var localForward = await client.StartForwardTcpAsync(new IPEndPoint(IPAddress.IPv6Any, 0), "nowhere", 10);
+        
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, (localForward.EndPoint as IPEndPoint)!.Port));
+    }
 }
