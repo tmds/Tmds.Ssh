@@ -5,62 +5,82 @@ using System.Net;
 using System.Net.Sockets;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Tmds.Ssh.ForwardServerLogging;
 
 namespace Tmds.Ssh;
 
-public sealed class LocalForward : IDisposable
+sealed partial class ForwardServer<T> : IDisposable
 {
+    private enum ForwardProtocol
+    {
+        Direct = 1,
+        Socks
+    }
+
     // Sentinel stop reasons.
     private static readonly Exception ConnectionClosed = new();
     private static readonly Exception Disposed = new();
 
-    private readonly SshSession _session;
-    private readonly ILogger<LocalForward> _logger;
+    private readonly ILogger<T> _logger;
     private readonly CancellationTokenSource _cancel;
- 
-    private Func<CancellationToken, Task<SshDataStream>>? _connectToRemote;
+
+    private SshSession? _session; 
+    private Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>>? _acceptHandler;
     private Socket? _serverSocket;
     private EndPoint? _localEndPoint;
+    private RemoteEndPoint? _remoteEndPoint;
     private CancellationTokenRegistration _ctr;
     private Exception? _stopReason;
-    private string _remoteEndPoint;
 
     private bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
 
-    internal LocalForward(SshSession session, ILogger<LocalForward> logger)
+    private ForwardProtocol Protocol { get; set; }
+
+    public EndPoint LocalEndPoint
+    {
+        get
+        {
+            ThrowIfStopped();
+            return _localEndPoint ?? throw new InvalidOperationException("Not started.");
+        }
+    }
+
+    public CancellationToken ForwardStopped
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _cancel.Token;
+        }
+    }
+
+    public void ThrowIfStopped()
+    {
+        Exception? stopReason = _stopReason;
+        if (ReferenceEquals(stopReason, Disposed))
+        {
+            throw new ObjectDisposedException(typeof(T).FullName);
+        }
+        else if (ReferenceEquals(stopReason, ConnectionClosed))
+        {
+            throw _session!.CreateCloseException();
+        }
+        else if (stopReason is not null)
+        {
+            throw new SshException($"{nameof(T)} stopped due to an unexpected error.", stopReason);
+        }
+    }
+
+    public void Dispose()
+        => Stop(Disposed);
+
+    internal ForwardServer(ILogger<T> logger)
     {
         _logger = logger;
-        _session = session;
         _cancel = new();
-
-        _remoteEndPoint = "";
     }
 
-    internal void StartUnixForward(EndPoint bindEP, string remotePath)
-    {
-        CheckBindEndPoint(bindEP);
-        ArgumentException.ThrowIfNullOrEmpty(remotePath);
-
-        Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenUnixConnectionChannelAsync(remotePath, ct).ConfigureAwait(false);
-
-        Start(bindEP, remotePath, connect);
-    }
-
-    internal void StartTcpForward(EndPoint bindEP, string remoteHost, int remotePort)
-    {
-        CheckBindEndPoint(bindEP);
-        ArgumentException.ThrowIfNullOrEmpty(remoteHost);
-        if (remotePort < 0 || remotePort > 0xffff)
-        {
-            throw new ArgumentException(nameof(remotePort));
-        }
-
-        Func<CancellationToken, Task<SshDataStream>> connect = async ct => await _session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct).ConfigureAwait(false);
-
-        Start(bindEP, $"{remoteHost}:{remotePort}", connect);
-    }
-
-    private void CheckBindEndPoint(EndPoint bindEP)
+    private static void CheckBindEndPoint(EndPoint bindEP)
     {
         ArgumentNullException.ThrowIfNull(bindEP);
         if (bindEP is not IPEndPoint and not UnixDomainSocketEndPoint)
@@ -69,12 +89,14 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    private void Start(EndPoint bindEP, string remoteEndPoint, Func<CancellationToken, Task<SshDataStream>> connectToRemote)
+    private void Start(SshSession session, EndPoint bindEP, ForwardProtocol forwardProtocol, Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>> acceptHandler, RemoteEndPoint? remoteEndPoint = null)
     {
         // Assign to bindEP in case we fail to bind/listen so we have an address for logging.
+        _session = session;
         _localEndPoint = bindEP;
         _remoteEndPoint = remoteEndPoint;
-        _connectToRemote = connectToRemote;
+        _acceptHandler = acceptHandler;
+        Protocol = forwardProtocol;
 
         try
         {
@@ -103,7 +125,7 @@ public sealed class LocalForward : IDisposable
             EndPoint localEndPoint = _serverSocket.LocalEndPoint!;
             _localEndPoint = localEndPoint;
 
-            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((LocalForward)o!).Stop(ConnectionClosed), this);
+            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((ForwardServer<T>)o!).Stop(ConnectionClosed), this);
 
             _ = AcceptLoop(localEndPoint);
         }
@@ -119,7 +141,19 @@ public sealed class LocalForward : IDisposable
     {
         try
         {
-            _logger.ForwardStart(localEndPoint, _remoteEndPoint);
+            if (Protocol == ForwardProtocol.Direct)
+            {
+                _logger.DirectForwardStart(localEndPoint, _remoteEndPoint!);
+            }
+            else if (Protocol == ForwardProtocol.Socks)
+            {
+                _logger.SocksForwardStart(localEndPoint);
+            }
+            else
+            {
+                throw new IndexOutOfRangeException(Protocol.ToString());
+            }
+
             while (true)
             {
                 Socket acceptedSocket = await _serverSocket!.AcceptAsync().ConfigureAwait(false);
@@ -134,37 +168,43 @@ public sealed class LocalForward : IDisposable
 
     private async Task Accept(Socket acceptedSocket, EndPoint localEndPoint)
     {
-        Debug.Assert(_connectToRemote is not null);
+        Debug.Assert(_acceptHandler is not null);
         SshDataStream? forwardStream = null;
         EndPoint? peerEndPoint = null;
+        RemoteEndPoint? remoteEndPoint = _remoteEndPoint;
         try
         {
             peerEndPoint = acceptedSocket.RemoteEndPoint!;
-            _logger.AcceptConnection(localEndPoint, peerEndPoint, _remoteEndPoint);
+
+            _logger.AcceptConnection(localEndPoint, peerEndPoint);
+
             if (acceptedSocket.ProtocolType == ProtocolType.Tcp)
             {
                 acceptedSocket.NoDelay = true;
             }
+            NetworkStream networkStream = new NetworkStream(acceptedSocket, ownsSocket: true);
 
-            // We may want to add a timeout option, and the ability to stop the lister on some conditions like nr of successive fails to connect to the remote.
-            forwardStream = await _connectToRemote(_cancel!.Token).ConfigureAwait(false);
-            _ = ForwardConnectionAsync(new NetworkStream(acceptedSocket, ownsSocket: true), forwardStream, peerEndPoint);
+            Task<SshDataStream> openStream;
+            (openStream, remoteEndPoint) = await _acceptHandler(networkStream, _cancel!.Token).ConfigureAwait(false);
+            forwardStream = await openStream.ConfigureAwait(false);
+
+            _ = ForwardConnectionAsync(networkStream, forwardStream, peerEndPoint, remoteEndPoint);
         }
         catch (Exception ex)
         {
-            _logger.ForwardConnectionFailed(peerEndPoint, _remoteEndPoint, ex);
+            _logger.ForwardConnectionFailed(peerEndPoint, remoteEndPoint, ex);
 
             acceptedSocket.Dispose();
             forwardStream?.Dispose();
         }
     }
 
-    private async Task ForwardConnectionAsync(NetworkStream socketStream, SshDataStream sshStream, EndPoint peerEndPoint)
+    private async Task ForwardConnectionAsync(NetworkStream socketStream, SshDataStream sshStream, EndPoint peerEndPoint, RemoteEndPoint remoteEndPoint)
     {
         Exception? exception = null;
         try
         {
-            _logger.ForwardConnection(peerEndPoint, _remoteEndPoint);
+            _logger.ForwardConnection(peerEndPoint, remoteEndPoint);
             Task first, second;
             try
             {
@@ -196,11 +236,11 @@ public sealed class LocalForward : IDisposable
         {
             if (exception is null)
             {
-                _logger.ForwardConnectionClosed(peerEndPoint, _remoteEndPoint);
+                _logger.ForwardConnectionClosed(peerEndPoint, remoteEndPoint);
             }
             else
             {
-                _logger.ForwardConnectionAborted(peerEndPoint, _remoteEndPoint, exception);
+                _logger.ForwardConnectionAborted(peerEndPoint, remoteEndPoint, exception);
             }
         }
 
@@ -218,39 +258,9 @@ public sealed class LocalForward : IDisposable
         }
     }
 
-    public EndPoint? EndPoint
+    private void ThrowIfDisposed()
     {
-        get
-        {
-            ObjectDisposedException.ThrowIf(IsDisposed, this);
-            return _localEndPoint;
-        }
-    }
-
-    public CancellationToken ForwardStopped
-    {
-        get
-        {
-            ObjectDisposedException.ThrowIf(IsDisposed, this);
-            return _cancel.Token;
-        }
-    }
-
-    public void ThrowIfStopped()
-    {
-        Exception? stopReason = _stopReason;
-        if (ReferenceEquals(stopReason, Disposed))
-        {
-            throw new ObjectDisposedException(typeof(LocalForward).FullName);
-        }
-        else if (ReferenceEquals(stopReason, ConnectionClosed))
-        {
-            throw _session.CreateCloseException();
-        }
-        else if (stopReason is not null)
-        {
-            throw new SshException($"{nameof(LocalForward)} stopped due to an unexpected error.", stopReason);
-        }
+        ObjectDisposedException.ThrowIf(IsDisposed, typeof(T));
     }
 
     private void Stop(Exception stopReason)
@@ -275,27 +285,23 @@ public sealed class LocalForward : IDisposable
         {
             if (IsDisposed)
             {
-                _logger.ForwardStopped(_localEndPoint, _remoteEndPoint);
+                _logger.ForwardStopped(_localEndPoint);
             }
             else if (ReferenceEquals(stopReason, ConnectionClosed))
             {
                 if (_logger.IsEnabled(LogLevel.Error))
                 {
-                    _logger.ForwardAborted(_localEndPoint, _remoteEndPoint, _session.CreateCloseException());
+                    _logger.ForwardAborted(_localEndPoint, _session!.CreateCloseException());
                 }
             }
             else
             {
-                _logger.ForwardAborted(_localEndPoint, _remoteEndPoint, stopReason);
+                _logger.ForwardAborted(_localEndPoint, stopReason);
             }
             _ctr.Dispose();
-            _localEndPoint = null;
             _serverSocket?.Dispose();
         }
 
         _cancel.Cancel();
     }
-
-    public void Dispose()
-        => Stop(Disposed);
 }
