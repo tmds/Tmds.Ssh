@@ -52,7 +52,7 @@ sealed partial class ForwardServer<T> : IDisposable
             byte ver = buffer[0];
             if (ver != ProtocolVersion5)
             {
-                throw new SshException($"Unexpected SOCKS protocol version: {ver}.");
+                throw new SocksException($"Unexpected SOCKS protocol version: {ver}.");
             }
             byte nmethods = buffer[1];
             if (nmethods > 1)
@@ -62,7 +62,7 @@ sealed partial class ForwardServer<T> : IDisposable
             ReadOnlySpan<byte> methods = buffer.AsSpan(2, nmethods);
             if (!methods.Contains(METHOD_NO_AUTH))
             {
-                throw new SshException($"Client does not support 'NO AUTHENTICATION' authentication method.");
+                throw new SocksException($"Client does not support 'NO AUTHENTICATION' authentication method.");
             }
 
             // Method selection.
@@ -85,17 +85,17 @@ sealed partial class ForwardServer<T> : IDisposable
             ver = buffer[0];
             if (ver != ProtocolVersion5)
             {
-                throw new SshException($"Unexpected SOCKS protocol version: {ver}.");
+                throw new SocksException($"Unexpected SOCKS protocol version: {ver}.");
             }
             byte cmd = buffer[1];
             if (cmd != CMD_CONNECT)
             {
-                throw new SshException($"Unexpected SOCKS command: {cmd}.");
+                throw new SocksException($"Unexpected SOCKS command: {cmd}.");
             }
             byte rsv = buffer[2];
             if (rsv != 0)
             {
-                throw new SshException($"Unexpected RSV value: {rsv}.");
+                throw new SocksException($"Unexpected RSV value: {rsv}.");
             }
             byte atyp = buffer[3];
             int addressRemaining = atyp switch
@@ -103,14 +103,14 @@ sealed partial class ForwardServer<T> : IDisposable
                 ATYP_IPV4 => 4 - 1,
                 ATYP_IPV6 => 16 - 1,
                 ATYP_DOMAIN_NAME => buffer[4],
-                _ => throw new SshException($"Unexpected ATYP value: {atyp}.")
+                _ => throw new SocksException($"Unexpected ATYP value: {atyp}.")
             };
             await clientStream.ReadExactlyAsync(buffer.AsMemory(5, addressRemaining + 2), socksCts.Token).ConfigureAwait(false);
             remoteHost = atyp switch
             {
                 ATYP_IPV4 or ATYP_IPV6 => new IPAddress(buffer.AsSpan(4, addressRemaining + 1)).ToString(),
                 ATYP_DOMAIN_NAME => Encoding.UTF8.GetString(buffer.AsSpan(5, addressRemaining)),
-                _ => throw new SshException($"Unexpected ATYP value: {atyp}.")
+                _ => throw new SocksException($"Unexpected ATYP value: {atyp}.")
             };
             remotePort = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(5 + addressRemaining));
 
@@ -127,9 +127,9 @@ sealed partial class ForwardServer<T> : IDisposable
             buffer.AsSpan(4, 6).Fill(0);
             await clientStream.WriteAsync(buffer.AsMemory(0, 10), socksCts.Token);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException e) when (!ct.IsCancellationRequested)
         {
-            throw new TimeoutException("SOCKS protocol did not complete within timeout.");
+            throw new TimeoutException("SOCKS protocol did not complete within timeout.", e);
         }
         finally
         {
@@ -139,5 +139,11 @@ sealed partial class ForwardServer<T> : IDisposable
         RemoteEndPoint remoteEndPoint = new RemoteDnsEndPoint(remoteHost, remotePort);
 
         return (session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct), remoteEndPoint);
+    }
+
+    sealed class SocksException : Exception
+    {
+        public SocksException(string message) : base(message)
+        { }
     }
 }

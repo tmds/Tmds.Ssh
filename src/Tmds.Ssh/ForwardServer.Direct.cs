@@ -42,7 +42,7 @@ sealed partial class ForwardServer<T> : IDisposable
         }
         else
         {
-            throw new ArgumentException(remoteEndPoint.GetType().FullName);
+            throw new ArgumentException($"Unsupported RemoteEndPoint type: {remoteEndPoint.GetType().FullName}.");
         }
 
         Start(session, bindEP, ForwardProtocol.Direct, handleAccept, remoteEndPoint);

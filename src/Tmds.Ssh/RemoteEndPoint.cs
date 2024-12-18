@@ -1,3 +1,6 @@
+// This file is part of Tmds.Ssh which is released under MIT.
+// See file LICENSE for full license details.
+
 using System.Net;
 
 namespace Tmds.Ssh;
@@ -8,7 +11,7 @@ public class RemoteEndPoint
     { }
 }
 
-sealed class RemoteDnsEndPoint : RemoteEndPoint
+public sealed class RemoteDnsEndPoint : RemoteEndPoint
 {
     public string Host { get; }
     public int Port { get; }
@@ -30,7 +33,7 @@ sealed class RemoteDnsEndPoint : RemoteEndPoint
         => (_toString ??= $"{Host}:{Port}");
 }
 
-sealed class RemoteIPEndPoint : RemoteEndPoint
+public sealed class RemoteIPEndPoint : RemoteEndPoint
 {
     public IPAddress Address { get; }
     public int Port { get; }
@@ -52,7 +55,7 @@ sealed class RemoteIPEndPoint : RemoteEndPoint
         => (_toString ??= $"{Address}:{Port}");
 }
 
-sealed class RemoteUnixEndPoint : RemoteEndPoint
+public sealed class RemoteUnixEndPoint : RemoteEndPoint
 {
     public string Path { get; }
 

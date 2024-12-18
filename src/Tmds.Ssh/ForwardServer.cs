@@ -9,6 +9,7 @@ using Tmds.Ssh.ForwardServerLogging;
 
 namespace Tmds.Ssh;
 
+// Implements forwarding on behalf of the public class 'T".
 sealed partial class ForwardServer<T> : IDisposable
 {
     private enum ForwardProtocol
@@ -27,14 +28,13 @@ sealed partial class ForwardServer<T> : IDisposable
     private SshSession? _session; 
     private Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>>? _acceptHandler;
     private Socket? _serverSocket;
+    private ForwardProtocol _protocol;
     private EndPoint? _localEndPoint;
     private RemoteEndPoint? _remoteEndPoint;
     private CancellationTokenRegistration _ctr;
     private Exception? _stopReason;
 
     private bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
-
-    private ForwardProtocol Protocol { get; set; }
 
     public EndPoint LocalEndPoint
     {
@@ -96,7 +96,7 @@ sealed partial class ForwardServer<T> : IDisposable
         _localEndPoint = bindEP;
         _remoteEndPoint = remoteEndPoint;
         _acceptHandler = acceptHandler;
-        Protocol = forwardProtocol;
+        _protocol = forwardProtocol;
 
         try
         {
@@ -141,17 +141,18 @@ sealed partial class ForwardServer<T> : IDisposable
     {
         try
         {
-            if (Protocol == ForwardProtocol.Direct)
+            if (_protocol == ForwardProtocol.Direct)
             {
+                Debug.Assert(_remoteEndPoint is not null);
                 _logger.DirectForwardStart(localEndPoint, _remoteEndPoint!);
             }
-            else if (Protocol == ForwardProtocol.Socks)
+            else if (_protocol == ForwardProtocol.Socks)
             {
                 _logger.SocksForwardStart(localEndPoint);
             }
             else
             {
-                throw new IndexOutOfRangeException(Protocol.ToString());
+                throw new IndexOutOfRangeException(_protocol.ToString());
             }
 
             while (true)

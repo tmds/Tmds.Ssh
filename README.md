@@ -58,12 +58,11 @@ class SshClient : IDisposable
   Task ConnectAsync(CancellationToken cancellationToken);
 
   // Not usable with AutoReconnect.
-  // A connection must be established before calling this method.
+  // A connection must be established before calling this.
   CancellationToken Disconnected { get; }
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
-
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
