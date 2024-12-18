@@ -21,8 +21,8 @@ public sealed class SocksForward : IDisposable
     public EndPoint LocalEndPoint
         => _forwarder.LocalEndPoint;
 
-    public CancellationToken ForwardStopped
-        => _forwarder.ForwardStopped;
+    public CancellationToken Stopped
+        => _forwarder.Stopped;
 
     public void ThrowIfStopped()
         => _forwarder.ThrowIfStopped();

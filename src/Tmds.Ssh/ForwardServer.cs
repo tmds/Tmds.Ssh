@@ -45,7 +45,7 @@ sealed partial class ForwardServer<T> : IDisposable
         }
     }
 
-    public CancellationToken ForwardStopped
+    public CancellationToken Stopped
     {
         get
         {
