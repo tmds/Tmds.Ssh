@@ -284,21 +284,21 @@ public sealed partial class SshClient : IDisposable
         return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<LocalForward> StartForwardTcpAsync(EndPoint bindEndpoint, string remoteHost, int remotePort, CancellationToken cancellationToken = default)
+    public async Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
-        var forward = new LocalForward(session, _loggers.GetLocalPortForwardLogger());
-        forward.StartTcpForward(bindEndpoint, remoteHost, remotePort);
+        var forward = new DirectForward(_loggers.DirectForwardLogger);
+        forward.Start(session, bindEP, remoteEP);
         return forward;
     }
 
-    public async Task<LocalForward> StartForwardUnixAsync(EndPoint bindEndpoint, string remotePath, CancellationToken cancellationToken = default)
+    public async Task<SocksForward> StartSocksForward(EndPoint bindEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
-        var forward = new LocalForward(session, _loggers.GetLocalPortForwardLogger());
-        forward.StartUnixForward(bindEndpoint, remotePath);
+        var forward = new SocksForward(_loggers.SocksForwardLogger);
+        forward.Start(session, bindEP);
         return forward;
     }
 

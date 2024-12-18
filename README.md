@@ -58,20 +58,19 @@ class SshClient : IDisposable
   Task ConnectAsync(CancellationToken cancellationToken);
 
   // Not usable with AutoReconnect.
-  // A connection must be established before calling this method.
+  // A connection must be established before calling this.
   CancellationToken Disconnected { get; }
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
-
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
   // bindEP can be an IPEndPoint or a UnixDomainSocketEndPoint.
-  Task<LocalForward> StartForwardTcpAsync(EndPoint bindEP, string remoteHost, int remotePort, CancellationToken cancellationToken = default);
-  Task<LocalForward> StartForwardUnixAsync(EndPoint bindEP, string remotePath, CancellationToken cancellationToken = default);
+  Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
+  Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
@@ -118,9 +117,24 @@ class SshDataStream : Stream
   void WriteEof();
   CancellationToken StreamAborted { get; }
 }
-class LocalForward : IDisposable
+// Represents a Socket EndPoint on the server side.
+class RemoteEndPoint
+{ }
+class RemoteDnsEndPoint(string host, int port) : RemoteEndPoint
+{ }
+class RemoteIPEndPoint(IPAddress address, int port) : RemoteEndPoint
+{ }
+class RemoteUnixEndPoint(string path) : RemoteEndPoint
+{ }
+class DirectForward : IDisposable
 {
-  EndPoint? EndPoint { get; }
+  EndPoint LocalEndPoint { get; }
+  CancellationToken ForwardStopped { get; }
+  void ThrowIfStopped();
+}
+class SocksForward : IDisposable
+{
+  EndPoint LocalEndPoint { get; }
   CancellationToken ForwardStopped { get; }
   void ThrowIfStopped();
 }

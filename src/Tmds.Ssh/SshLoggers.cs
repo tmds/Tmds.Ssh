@@ -9,7 +9,9 @@ sealed class SshLoggers
 
     public ILogger<SshClient> SshClientLogger { get; }
 
-    public ILogger<LocalForward> GetLocalPortForwardLogger() => _loggerFactory.CreateLogger<LocalForward>();
+    public ILogger<DirectForward> DirectForwardLogger => _loggerFactory.CreateLogger<DirectForward>();
+
+    public ILogger<SocksForward> SocksForwardLogger => _loggerFactory.CreateLogger<SocksForward>();
 
     public SshLoggers(ILoggerFactory? loggerFactory = null)
     {
