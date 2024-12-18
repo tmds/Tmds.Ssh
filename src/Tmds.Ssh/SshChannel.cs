@@ -60,7 +60,8 @@ sealed partial class SshChannel : ISshChannel
         SingleWriter = false, // Assume completing concurrently also means different writers.
         SingleReader = false  // We only expect a single caller of ReceivePacketAsync, but Dispose may also read from the queue.
     });
-    private SemaphoreSlim _sendWindowAvailableEvent = new SemaphoreSlim(initialCount: 0);
+    private readonly SemaphoreSlim _sendWindowAvailableEvent = new SemaphoreSlim(initialCount: 0);
+    private readonly Lock _gate = new();
     private int _abortState = (int)AbortState.NotAborted;
     private bool _skippingStdout;
     private bool _skippingStderr;
@@ -72,7 +73,7 @@ sealed partial class SshChannel : ISshChannel
     private int _sendWindow;
     private Exception? _abortReason = null;
     private bool _eofSent;
-    private object _gate => _receiveQueue;
+    
 
     public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
         (Memory<byte>? stdoutBuffer = default,

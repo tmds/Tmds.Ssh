@@ -13,7 +13,6 @@ public sealed partial class SshClient : IDisposable
 {
     internal static readonly SftpClientOptions DefaultSftpClientOptions = new();
 
-    private readonly object _gate = new object();
     private SshSession? _session;
     private Task<SshSession>? _connectingTask;
     private readonly bool _autoConnect;
@@ -23,6 +22,7 @@ public sealed partial class SshClient : IDisposable
     private readonly string? _destination;
     private readonly SshConfigSettings? _sshConfigOptions;
     private readonly SshLoggers _loggers;
+    private readonly Lock _gate = new();
     private State _state = State.Initial;
 
     enum State
@@ -140,7 +140,7 @@ public sealed partial class SshClient : IDisposable
 
         ValueTask<SshSession> ConnectCore(State state, CancellationToken cancellationToken, bool explicitConnect)
         {
-            Debug.Assert(Monitor.IsEntered(_gate));
+            Debug.Assert(_gate.IsHeldByCurrentThread);
 
             if (state == State.Disposed)
             {
@@ -200,7 +200,7 @@ public sealed partial class SshClient : IDisposable
 
     private async Task<SshSession> DoConnectAsync(CancellationToken cancellationToken)
     {
-        Debug.Assert(Monitor.IsEntered(_gate));
+        Debug.Assert(_gate.IsHeldByCurrentThread);
         Debug.Assert(_state == State.Connecting);
 
         SshSession session = new SshSession(_settings, _destination, _sshConfigOptions, this, _loggers);

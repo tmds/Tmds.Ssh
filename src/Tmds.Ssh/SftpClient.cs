@@ -8,7 +8,7 @@ namespace Tmds.Ssh;
 
 public sealed partial class SftpClient : IDisposable
 {
-    private readonly object _gate = new object();
+    private readonly Lock _gate = new();
 
     internal const UnixFilePermissions OwnershipPermissions =
             UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite | UnixFilePermissions.UserExecute |
@@ -116,7 +116,7 @@ public sealed partial class SftpClient : IDisposable
 
         ValueTask<SftpChannel> OpenCore(State state, CancellationToken cancellationToken, bool explicitConnect)
         {
-            Debug.Assert(Monitor.IsEntered(_gate));
+            Debug.Assert(_gate.IsHeldByCurrentThread);
 
             if (state == State.Disposed)
             {
@@ -174,7 +174,7 @@ public sealed partial class SftpClient : IDisposable
 
     private async Task<SftpChannel> DoOpenAsync(bool explicitConnect, CancellationToken cancellationToken)
     {
-        Debug.Assert(Monitor.IsEntered(_gate));
+        Debug.Assert(_gate.IsHeldByCurrentThread);
 
         _channel?.Dispose();
         _channel = null;
