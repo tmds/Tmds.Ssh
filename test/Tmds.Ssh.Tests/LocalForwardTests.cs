@@ -202,7 +202,7 @@ public class LocalForwardTests
         using var client = await _sshServer.CreateClientAsync();
 
         using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteDnsEndPoint("localhost", 5000));
-        CancellationToken ct = directForward.ForwardStopped;
+        CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
         Assert.False(ct.IsCancellationRequested);    
@@ -212,7 +212,7 @@ public class LocalForwardTests
 
         Assert.True(ct.IsCancellationRequested);
         Assert.Throws<ObjectDisposedException>(() => directForward.LocalEndPoint);
-        Assert.Throws<ObjectDisposedException>(() => directForward.ForwardStopped);
+        Assert.Throws<ObjectDisposedException>(() => directForward.Stopped);
         Assert.Throws<ObjectDisposedException>(() => directForward.ThrowIfStopped());
 
         using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -225,7 +225,7 @@ public class LocalForwardTests
         using var client = await _sshServer.CreateClientAsync();
 
         using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteDnsEndPoint("localhost", 5000));
-        CancellationToken ct = directForward.ForwardStopped;
+        CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
         Assert.False(ct.IsCancellationRequested);    
@@ -235,7 +235,7 @@ public class LocalForwardTests
 
         Assert.True(ct.IsCancellationRequested);
         Assert.Throws<SshConnectionClosedException>(() => directForward.LocalEndPoint);
-        Assert.True(directForward.ForwardStopped.IsCancellationRequested);
+        Assert.True(directForward.Stopped.IsCancellationRequested);
         Assert.Throws<SshConnectionClosedException>(() => directForward.ThrowIfStopped());
 
         using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);

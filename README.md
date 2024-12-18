@@ -129,13 +129,13 @@ class RemoteUnixEndPoint(string path) : RemoteEndPoint
 class DirectForward : IDisposable
 {
   EndPoint LocalEndPoint { get; }
-  CancellationToken ForwardStopped { get; }
+  CancellationToken Stopped { get; }
   void ThrowIfStopped();
 }
 class SocksForward : IDisposable
 {
   EndPoint LocalEndPoint { get; }
-  CancellationToken ForwardStopped { get; }
+  CancellationToken Stopped { get; }
   void ThrowIfStopped();
 }
 class SftpClient : IDisposable
