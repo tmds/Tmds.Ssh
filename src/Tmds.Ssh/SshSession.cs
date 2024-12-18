@@ -20,7 +20,7 @@ sealed partial class SshSession
     private readonly SshClient _client;
     private readonly string? _destination;
     private readonly SshConfigSettings? _sshConfigOptions;
-    private readonly object _gate = new object();
+    private readonly Lock _gate = new();
     private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
     private SshClientSettings? _settings;
     private bool _disposed;
