@@ -34,5 +34,6 @@ public enum SshConfigOption
     PubkeyAcceptedAlgorithms,
     TCPKeepAlive,
     ServerAliveCountMax,
-    ServerAliveInterval
+    ServerAliveInterval,
+    IdentitiesOnly
 }

@@ -45,6 +45,7 @@ sealed class SshConfig
     public List<string>? UserKnownHostsFiles { get; set; }
     public AlgorithmList? Ciphers { get; set; }
     public bool? Compression { get; set; }
+    public bool? IdentitiesOnly { get; set; }
     public AlgorithmList? HostKeyAlgorithms { get; set; }
     public AlgorithmList? KexAlgorithms { get; set; }
     public AlgorithmList? Macs { get; set; }
@@ -500,6 +501,10 @@ sealed class SshConfig
                 ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");
                 break;
 
+            case "identitiesonly":
+                config.IdentitiesOnly ??= ParseYesNoKeywordValue(keyword, ref remainder);
+                break;
+
             /* Ignored options */
             // Logging related options
             case "loglevel":
@@ -529,7 +534,6 @@ sealed class SshConfig
             case "certificatefile":         // certificate based auth is not supported
             case "casignaturealgorithms":   // certificate based auth is not supported
             case "addkeystoagent":          // auth agent is not supported
-            case "identitiesonly":          // auth agent is not supported
             case "identityagent":           // auth agent is not supported
             case "pkcs11provider":          // not supported
             case "securitykeyprovider":     // not supported

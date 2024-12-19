@@ -43,6 +43,8 @@ partial class UserAuthentication
                 SequenceReader reader = new SequenceReader(key.PublicKey);
                 Name keyType = reader.ReadName();
 
+                // Note: for unknown key type AlgorithmsForKeyType returns the key type as an algorithm. This is mostly true.
+                // This enables to use algorithms supported by the SSH Agent that this library doesn't directly support.
                 Name[] algorithms = PublicKey.AlgorithmsForKeyType(ref keyType).ToArray();
 
                 foreach (var signAlgorithm in algorithms)
