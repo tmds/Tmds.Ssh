@@ -10,6 +10,7 @@ sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
     private readonly ILogger<SshClient> _logger;
+    private readonly List<byte[]> _publicKeysToSkip = new(); // track keys that were already attempted.
     private int _bannerPacketCount = 0;
     private Name[]? _allowedAuthentications;
     private bool _wasPartial;
@@ -114,6 +115,31 @@ sealed class UserAuthContext
                 ThrowHelper.ThrowProtocolUnexpectedValue();
                 return AuthResult.Failure;
         }
+    }
+
+    public bool IsSkipPublicAuthKey(byte[]? publicKey)
+    {
+        if (publicKey is null)
+        {
+            return false;
+        }
+        foreach (var key in _publicKeysToSkip)
+        {
+            if (key.AsSpan().SequenceEqual(publicKey))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void AddPublicAuthKeyToSkip(byte[]? publicKey)
+    {
+        if (publicKey is null)
+        {
+            return;
+        }
+        _publicKeysToSkip.Add(publicKey);
     }
 
     public bool? IsMethodAccepted(Name method)

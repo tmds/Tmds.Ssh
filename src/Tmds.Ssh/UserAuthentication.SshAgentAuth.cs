@@ -35,6 +35,11 @@ partial class UserAuthentication
             bool acceptedAlgorithm = false;
             foreach (var key in keys)
             {
+                if (context.IsSkipPublicAuthKey(key.PublicKey))
+                {
+                    continue;
+                }
+
                 SequenceReader reader = new SequenceReader(key.PublicKey);
                 Name keyType = reader.ReadName();
 
@@ -71,6 +76,11 @@ partial class UserAuthentication
                     {
                         return result;
                     }
+                }
+
+                if (acceptedAlgorithm)
+                {
+                    context.AddPublicAuthKeyToSkip(key.PublicKey);
                 }
             }
 
