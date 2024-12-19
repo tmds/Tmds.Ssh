@@ -13,8 +13,8 @@ sealed class Ed25519PrivateKey : PrivateKey
     private readonly byte[] _privateKey;
     private readonly byte[] _publicKey;
 
-    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey) :
-        base([AlgorithmNames.SshEd25519])
+    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, byte[]? sshPublicKey) :
+        base([AlgorithmNames.SshEd25519], sshPublicKey)
     {
         _privateKey = privateKey;
         _publicKey = publicKey;

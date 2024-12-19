@@ -39,14 +39,7 @@ sealed class ChaCha20Poly1305PacketDecryptor : ChaCha20Poly1305PacketEncDecBase,
             ConfigureCiphers(sequenceNumber);
 
             Span<byte> length_encrypted = stackalloc byte[LengthSize];
-            if (receiveBuffer.FirstSpan.Length >= LengthSize)
-            {
-                receiveBuffer.FirstSpan.Slice(0, LengthSize).CopyTo(length_encrypted);
-            }
-            else
-            {
-                receiveBuffer.AsReadOnlySequence().Slice(0, LengthSize).CopyTo(length_encrypted);
-            }
+            receiveBuffer.CopyTo(length_encrypted, LengthSize);
 
             LengthCipher.ProcessBytes(length_encrypted, length_unencrypted);
 

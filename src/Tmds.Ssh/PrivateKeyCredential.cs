@@ -77,7 +77,7 @@ public class PrivateKeyCredential : Credential
 
         public Key(RSA rsa)
         {
-            PrivateKey = new RsaPrivateKey(rsa);
+            PrivateKey = new RsaPrivateKey(rsa, sshPublicKey: null);
         }
 
         public Key(ReadOnlyMemory<char> rawKey, Func<string?>? passwordPrompt = null)
@@ -112,7 +112,7 @@ public class PrivateKeyCredential : Credential
                 throw new NotSupportedException($"Curve '{oid.FriendlyName ?? oid.Value}' is not known.");
             }
 
-            PrivateKey = new ECDsaPrivateKey(ecdsa, algorithm, curveName, hashAlgorithm);
+            PrivateKey = new ECDsaPrivateKey(ecdsa, algorithm, curveName, hashAlgorithm, sshPublicKey: null);
         }
 
         internal Key(PrivateKey key)

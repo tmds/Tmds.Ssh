@@ -10,8 +10,8 @@ sealed class RsaPrivateKey : PrivateKey
 {
     private readonly RSA _rsa;
 
-    public RsaPrivateKey(RSA rsa) :
-        base(AlgorithmNames.SshRsaAlgorithms)
+    public RsaPrivateKey(RSA rsa, byte[]? sshPublicKey) :
+        base(AlgorithmNames.SshRsaAlgorithms, sshPublicKey)
     {
         _rsa = rsa ?? throw new ArgumentNullException(nameof(rsa));
     }

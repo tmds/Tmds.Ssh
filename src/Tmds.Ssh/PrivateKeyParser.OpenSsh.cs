@@ -48,7 +48,7 @@ partial class PrivateKeyParser
         {
             throw new FormatException($"The data contains multiple keys.");
         }
-        reader.SkipString(); // skip the public key
+        byte[] publicKey = reader.ReadStringAsBytes().ToArray();
         ReadOnlySequence<byte> privateKeyList;
         if (cipherName == AlgorithmNames.None)
         {
@@ -94,15 +94,15 @@ partial class PrivateKeyParser
         Name keyType = reader.ReadName();
         if (keyType == AlgorithmNames.SshRsa)
         {
-            return ParseOpenSshRsaKey(reader);
+            return ParseOpenSshRsaKey(publicKey, reader);
         }
         else if (keyType.ToString().StartsWith("ecdsa-sha2-"))
         {
-            return ParseOpenSshEcdsaKey(keyType, reader);
+            return ParseOpenSshEcdsaKey(publicKey, keyType, reader);
         }
         else if (keyType == AlgorithmNames.SshEd25519)
         {
-            return ParseOpenSshEd25519Key(reader);
+            return ParseOpenSshEd25519Key(publicKey, reader);
         }
         else
         {
@@ -166,7 +166,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshRsaKey(SequenceReader reader)
+    private static PrivateKey ParseOpenSshRsaKey(byte[] publicKey, SequenceReader reader)
     {
         // .NET RSA's class has some length expectations:
         // D must have the same length as Modulus.
@@ -198,7 +198,7 @@ partial class PrivateKeyParser
         try
         {
             rsa.ImportParameters(parameters);
-            return new RsaPrivateKey(rsa);
+            return new RsaPrivateKey(rsa, publicKey);
         }
         catch (Exception ex)
         {
@@ -207,7 +207,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEcdsaKey(Name keyIdentifier, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEcdsaKey(byte[] publicKey, Name keyIdentifier, SequenceReader reader)
     {
         Name curveName = reader.ReadName();
 
@@ -247,7 +247,7 @@ partial class PrivateKeyParser
             };
 
             ecdsa.ImportParameters(parameters);
-            return new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo);
+            return new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo, publicKey);
         }
         catch (Exception ex)
         {
@@ -256,7 +256,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEd25519Key(SequenceReader reader)
+    private static PrivateKey ParseOpenSshEd25519Key(byte[]? sshPublicKey, SequenceReader reader)
     {
         // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
         /*
@@ -275,7 +275,8 @@ partial class PrivateKeyParser
 
             return new Ed25519PrivateKey(
                 keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
-                publicKey.ToArray());
+                publicKey.ToArray(),
+                sshPublicKey);
         }
         catch (Exception ex)
         {
