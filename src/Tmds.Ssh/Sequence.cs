@@ -221,6 +221,19 @@ sealed partial class Sequence : IDisposable
         }
     }
 
+    public void CopyTo(Span<byte> dst, int length)
+    {
+        ReadOnlySpan<byte> firstSpan = FirstSpan;
+        if (firstSpan.Length >= length)
+        {
+            firstSpan.Slice(0, length).CopyTo(dst);
+        }
+        else
+        {
+            AsReadOnlySequence().Slice(0, length).CopyTo(dst);
+        }
+    }
+
     public Sequence Clone()
     {
         Sequence sequence = SequencePool.RentSequence();

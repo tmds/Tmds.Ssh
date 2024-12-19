@@ -85,7 +85,7 @@ sealed class TransformAndHMacPacketDecryptor : IPacketDecryptor
                     BinaryPrimitives.WriteUInt32BigEndian(sequence_number, sequenceNumber);
                     _mac.AppendData(sequence_number);
                     _mac.AppendData(_decodedPacket.AsReadOnlySequence());
-                    receiveBuffer.AsReadOnlySequence().Slice(0, _mac.HashSize).CopyTo(_macBuffer);
+                    receiveBuffer.CopyTo(_macBuffer, _mac.HashSize);
                     if (!_mac.CheckHashAndReset(_macBuffer))
                     {
                         ThrowHelper.ThrowProtocolIncorrectMac();
