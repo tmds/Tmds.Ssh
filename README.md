@@ -510,6 +510,8 @@ class KerberosCredential : Credential
 {
   KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null);
 }
+class SshAgentCredentials : Credential
+{ }
 class NoCredential : Credential
 {
   NoCredential();
