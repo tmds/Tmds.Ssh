@@ -15,8 +15,8 @@ sealed class ECDsaPrivateKey : PrivateKey
     private readonly Name _curveName;
     private readonly HashAlgorithmName _hashAlgorithm;
 
-    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm) :
-        base([algorithm])
+    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, byte[]? sshPublicKey) :
+        base([algorithm], sshPublicKey)
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
         _algorithm = algorithm;

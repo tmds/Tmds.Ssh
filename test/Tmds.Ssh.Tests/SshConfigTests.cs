@@ -32,6 +32,7 @@ public class SshConfigTests
     CanonicalizeHostName no
     ServerAliveCountMax 7
     ServerAliveInterval 20
+    IdentitiesOnly yes
 
     # !!! update SupportedSettingsAlternateConfig when adding values here !!!
     """;
@@ -61,6 +62,7 @@ public class SshConfigTests
     CanonicalizeHostName yes
     ServerAliveCountMax 8
     ServerAliveInterval 30
+    IdentitiesOnly no
     """;
 
     [Fact]
@@ -109,6 +111,7 @@ public class SshConfigTests
         Assert.Equal("serverid", config.GssApiServerIdentity);
         Assert.Equal(7, config.ServerAliveCountMax);
         Assert.Equal(20, config.ServerAliveInterval);
+        Assert.Equal(true, config.IdentitiesOnly);
     }
 
     [Fact]

@@ -139,9 +139,10 @@ partial class SshClientSettings
 
     private static List<Credential> DetermineCredentials(SshConfig config)
     {
-        bool addPubKeyCredentials = config.PubKeyAuthentication ?? true;
-        bool addGssApiCredentials = config.GssApiAuthentication ?? false;
-        bool addNone = true;
+        bool addPubKeyCredentials = config.PubKeyAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
+        bool addGssApiCredentials = config.GssApiAuthentication ?? false && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
+        bool addSshAgentCredentials = config.IdentitiesOnly != true && addPubKeyCredentials;
+        bool addNone = IsAcceptedAuthentication(AlgorithmNames.None);
 
         ReadOnlySpan<Name[]> authPreferences = [
             config.PreferredAuthentications ?? Array.Empty<Name>(),
@@ -169,6 +170,12 @@ partial class SshClientSettings
                 {
                     if (addPubKeyCredentials)
                     {
+                        if (addSshAgentCredentials)
+                        {
+                            credentials.Add(new SshAgentCredentials());
+                            addSshAgentCredentials = false;
+                        }
+
                         IReadOnlyList<string> identityFiles = config.IdentityFiles as IReadOnlyList<string> ?? DefaultIdentityFiles;
                         foreach (var identityFile in identityFiles)
                         {
@@ -191,6 +198,13 @@ partial class SshClientSettings
         }
 
         return credentials;
+
+        bool IsAcceptedAuthentication(Name algorithm)
+        {
+            return config.PreferredAuthentications == null ||
+                   config.PreferredAuthentications.Length == 0 ||
+                   config.PreferredAuthentications.Contains(algorithm);
+        }
     }
 
     internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, List<Name> defaultAlgorithms, List<Name> supportedAlgorithms)

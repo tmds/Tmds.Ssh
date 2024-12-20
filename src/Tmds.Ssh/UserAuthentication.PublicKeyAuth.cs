@@ -22,6 +22,11 @@ partial class UserAuthentication
                     logger.PrivateKeyNotFound(keyCredential.Identifier);
                     return AuthResult.Skipped;
                 }
+                if (context.IsSkipPublicAuthKey(pk.PublicKey))
+                {
+                    return AuthResult.Skipped;
+                }
+                context.AddPublicAuthKeyToSkip(pk.PublicKey);
             }
             catch (Exception error)
             {

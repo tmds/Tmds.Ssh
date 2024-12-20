@@ -68,6 +68,13 @@ sealed partial class SshSession
                     authResult = await NoneAuth.TryAuthenticate(context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
                 }
             }
+            else if (credential is SshAgentCredentials sshAgentCredentials)
+            {
+                if (TryMethod(AlgorithmNames.PublicKey))
+                {
+                    authResult = await SshAgentAuth.TryAuthenticate(sshAgentCredentials, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
+            }
             else
             {
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);

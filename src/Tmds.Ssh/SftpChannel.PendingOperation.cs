@@ -141,14 +141,14 @@ partial class SftpChannel
                 {
                     case (PacketType.SSH_FXP_OPEN, _):
                     {
-                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsBytes(), (FileOpenOptions)Options!);
+                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsByteArray(), (FileOpenOptions)Options!);
                         Options = null;
                         SetResult(file);
                         return;
                     }
                     case (PacketType.SSH_FXP_OPENDIR, _):
                     {
-                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsBytes(), SftpClient.DefaultFileOpenOptions);
+                        SftpFile? file = error == SftpError.NoSuchFile ? null : new SftpFile(channel, handle: reader.ReadStringAsByteArray(), SftpClient.DefaultFileOpenOptions);
                         SetResult(file);
                         return;
                     }
