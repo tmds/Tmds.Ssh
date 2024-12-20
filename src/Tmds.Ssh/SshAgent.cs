@@ -21,6 +21,7 @@ namespace Tmds.Ssh
         private const MessageId SSH_AGENT_SIGN_RESPONSE = (MessageId)14;
         private const uint SSH_AGENT_RSA_SHA2_256 = 2;
         private const uint SSH_AGENT_RSA_SHA2_512 = 4;
+        private const int MaxPacketSize = int.MaxValue; // We trust the SSH Agent.
 
         private static EndPoint? _defaultEndPoint;
 
@@ -90,7 +91,7 @@ namespace Tmds.Ssh
                 await connection.SendPacketAsync(requestIdentitiesMsg.Move(), ct).ConfigureAwait(false);
             }
             {
-                using var response = await connection.ReceivePacketAsync(ct, maxLength: 30000);
+                using var response = await connection.ReceivePacketAsync(ct, MaxPacketSize);
                 return TryGetSignature(response);
             }
         }
@@ -115,7 +116,7 @@ namespace Tmds.Ssh
             }
             // SSH_AGENT_IDENTITIES_ANSWER
             {
-                using var response = await connection.ReceivePacketAsync(ct, maxLength: 30000);
+                using var response = await connection.ReceivePacketAsync(ct, MaxPacketSize);
                 return GetIdentities(response);
             }
         }
@@ -241,7 +242,7 @@ namespace Tmds.Ssh
                     receiveBuffer.Remove(LengthSize);
                 }
 
-                if (packetLength > maxLength)
+                if (packetLength > MaxPacketSize)
                 {
                     ThrowHelper.ThrowProtocolPacketTooLong();
                 }
