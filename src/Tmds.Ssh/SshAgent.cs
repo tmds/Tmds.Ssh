@@ -163,7 +163,7 @@ namespace Tmds.Ssh
             List<Identity> keys = new(capacity: nkeys);
             for (int i = 0; i < nkeys; i++)
             {
-                byte[] key_blob = reader.ReadStringAsBytes().ToArray();
+                byte[] key_blob = reader.ReadStringAsByteArray();
                 string comment = reader.ReadUtf8String();
                 keys.Add(new Identity() { Comment = comment, PublicKey = key_blob });
             }
@@ -180,7 +180,7 @@ namespace Tmds.Ssh
             var id = reader.ReadMessageId();
             if (id == SSH_AGENT_SIGN_RESPONSE)
             {
-                byte[] signature = reader.ReadStringAsBytes().ToArray();
+                byte[] signature = reader.ReadStringAsByteArray();
                 return signature;
             }
             else

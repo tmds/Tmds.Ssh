@@ -142,6 +142,25 @@ ref struct SequenceReader
         return data;
     }
 
+    public byte[] ReadStringAsByteArray()
+    {
+        long length = ReadUInt32();
+        ReadOnlySpan<byte> span = _reader.UnreadSpan;
+        byte[] byteArray;
+        if (span.Length >= length)
+        {
+            byteArray = new byte[length];
+            span.Slice(0, (int)length).CopyTo(byteArray);
+        }
+        else
+        {
+            byteArray = _reader.Sequence.Slice(_reader.Position, length).ToArray();
+        }
+        _reader.Advance(length);
+
+        return byteArray;
+    }
+
     public HostKey ReadSshKey()
     {
         ReadOnlySequence<byte> key = ReadStringAsBytes(Constants.MaxKeyLength);

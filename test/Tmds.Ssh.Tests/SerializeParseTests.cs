@@ -78,6 +78,12 @@ public class SerializeParseTests
         Assert.Equal(empty, reader.ReadStringAsBytes().ToArray());
         Assert.Equal(world, reader.ReadStringAsBytes().ToArray());
         Assert.Equal(longData, reader.ReadStringAsBytes().ToArray());
+
+        reader = new SequenceReader(writer.Sequence);
+        Assert.Equal(hello, reader.ReadStringAsByteArray());
+        Assert.Equal(empty, reader.ReadStringAsByteArray());
+        Assert.Equal(world, reader.ReadStringAsByteArray());
+        Assert.Equal(longData, reader.ReadStringAsByteArray());
     }
 
     [Fact]

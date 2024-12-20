@@ -48,7 +48,7 @@ partial class PrivateKeyParser
         {
             throw new FormatException($"The data contains multiple keys.");
         }
-        byte[] publicKey = reader.ReadStringAsBytes().ToArray();
+        byte[] publicKey = reader.ReadStringAsByteArray();
         ReadOnlySequence<byte> privateKeyList;
         if (cipherName == AlgorithmNames.None)
         {

@@ -59,7 +59,7 @@ partial class SftpChannel
             _remainder = _remainder.Slice(length);
         }
 
-        public byte[] ReadStringAsBytes()
+        public byte[] ReadStringAsByteArray()
         {
             int length = ReadInt();
             byte[] value = new byte[length];
