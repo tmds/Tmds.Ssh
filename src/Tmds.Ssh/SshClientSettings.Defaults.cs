@@ -59,7 +59,6 @@ partial class SshClientSettings
     private static IReadOnlyList<Credential> CreateDefaultCredentials()
     {
         List<Credential> credentials = new();
-        credentials.Add(new SshAgentCredentials());
         foreach (var identityFile in DefaultIdentityFiles)
         {
             credentials.Add(new PrivateKeyCredential(identityFile));
