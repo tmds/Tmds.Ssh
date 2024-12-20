@@ -139,16 +139,15 @@ partial class SshClientSettings
 
     private static List<Credential> DetermineCredentials(SshConfig config)
     {
-        bool addPubKeyCredentials = config.PubKeyAuthentication ?? true;
-        bool addGssApiCredentials = config.GssApiAuthentication ?? false;
+        bool addPubKeyCredentials = config.PubKeyAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
+        bool addGssApiCredentials = config.GssApiAuthentication ?? false && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
+        bool addSshAgentCredentials = config.IdentitiesOnly != true && addPubKeyCredentials;
+        bool addNone = IsAcceptedAuthentication(AlgorithmNames.None);
 
         ReadOnlySpan<Name[]> authPreferences = [
             config.PreferredAuthentications ?? Array.Empty<Name>(),
             DefaultPreferredAuthentications
         ];
-
-        bool addNone = IsAcceptedAuthentication(AlgorithmNames.None);
-        bool addSshAgentCredentials = config.IdentitiesOnly != true && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
 
         List<Credential> credentials = new();
 
