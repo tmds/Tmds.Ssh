@@ -3,5 +3,5 @@
 
 namespace Tmds.Ssh;
 
-public class SshAgentCredentials : Credential
+public sealed class SshAgentCredentials : Credential
 { }
