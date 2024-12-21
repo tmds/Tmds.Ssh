@@ -10,7 +10,7 @@ sealed class RsaPrivateKey : PrivateKey
 {
     private readonly RSA _rsa;
 
-    public RsaPrivateKey(RSA rsa, byte[]? sshPublicKey) :
+    public RsaPrivateKey(RSA rsa, SshKey sshPublicKey) :
         base(AlgorithmNames.SshRsaAlgorithms, sshPublicKey)
     {
         _rsa = rsa ?? throw new ArgumentNullException(nameof(rsa));
@@ -23,16 +23,16 @@ sealed class RsaPrivateKey : PrivateKey
         _rsa.Dispose();
     }
 
-    public override void AppendPublicKey(ref SequenceWriter writer)
+    public static SshKey DeterminePublicSshKey(RSA rsa)
     {
-        RSAParameters parameters = _rsa.ExportParameters(includePrivateParameters: false);
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
-        innerWriter.WriteString(AlgorithmNames.SshRsa);
-        innerWriter.WriteMPInt(parameters.Exponent);
-        innerWriter.WriteMPInt(parameters.Modulus);
+        RSAParameters parameters = rsa.ExportParameters(includePrivateParameters: false);
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        using var writer = new ArrayWriter();
+        writer.WriteString(AlgorithmNames.SshRsa);
+        writer.WriteMPInt(parameters.Exponent);
+        writer.WriteMPInt(parameters.Modulus);
+
+        return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
     }
 
     public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)

@@ -15,7 +15,7 @@ static class KnownHostsFile
 
     public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key, bool hash)
     {
-        string knownHostLine = FormatLine(host, port, key, hash) + '\n';
+        string knownHostLine = FormatLine(host, port, key.SshKey, hash) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
 
         string directoryPath = Path.GetDirectoryName(knownHostsFile)!;
@@ -46,7 +46,7 @@ static class KnownHostsFile
         fileStream.Write(buffer);
     }
 
-    public static string FormatLine(string host, int port, HostKey key, bool hash = false)
+    private static string FormatLine(string host, int port, SshKey key, bool hash = false)
     {
         if (port != 22)
         {
@@ -61,7 +61,7 @@ static class KnownHostsFile
             Debug.Assert(bytesWritten == 20);
             host = $"|1|{Convert.ToBase64String(salt)}|{Convert.ToBase64String(destination)}";
         }
-        return $"{host} {key.Type} {Convert.ToBase64String(key.RawKey)}";
+        return $"{host} {key.Type} {Convert.ToBase64String(key.Data)}";
     }
 
     public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port, ILogger<SshClient> logger)
@@ -139,7 +139,7 @@ static class KnownHostsFile
                 continue;
             }
 
-            HostKey hostKey = new HostKey(new Name(keytype), key);
+            SshKey hostKey = new SshKey(new Name(keytype), key);
 
             if (revoked)
             {

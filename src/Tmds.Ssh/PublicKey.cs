@@ -7,22 +7,22 @@ namespace Tmds.Ssh;
 
 abstract class PublicKey
 {
-    public static PublicKey CreateFromSshKey(HostKey key)
+    public static PublicKey CreateFromSshKey(SshKey key)
     {
         Name name = key.Type;
         if (name == AlgorithmNames.EcdsaSha2Nistp256 ||
             name == AlgorithmNames.EcdsaSha2Nistp384 ||
             name == AlgorithmNames.EcdsaSha2Nistp521)
         {
-            return ECDsaPublicKey.CreateFromSshKey(key.RawKey);
+            return ECDsaPublicKey.CreateFromSshKey(key.Data);
         }
         else if (name == AlgorithmNames.SshRsa)
         {
-            return RsaPublicKey.CreateFromSshKey(key.RawKey);
+            return RsaPublicKey.CreateFromSshKey(key.Data);
         }
         else if (name == AlgorithmNames.SshEd25519)
         {
-            return Ed25519PublicKey.CreateFromSshKey(key.RawKey);
+            return Ed25519PublicKey.CreateFromSshKey(key.Data);
         }
         else
         {

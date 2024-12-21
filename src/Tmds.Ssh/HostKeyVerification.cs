@@ -26,7 +26,7 @@ sealed class HostKeyVerification : IHostKeyVerification
     {
         HostKey serverKey = connectionInfo.ServerKey!;
 
-        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey);
+        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.SshKey);
         bool isTrusted = result == KnownHostResult.Trusted;
 
         if (isTrusted)

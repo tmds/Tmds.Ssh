@@ -198,7 +198,7 @@ partial class PrivateKeyParser
         try
         {
             rsa.ImportParameters(parameters);
-            return new RsaPrivateKey(rsa, publicKey);
+            return new RsaPrivateKey(rsa, new SshKey(AlgorithmNames.SshRsa, publicKey));
         }
         catch (Exception ex)
         {
@@ -207,7 +207,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEcdsaKey(byte[] publicKey, Name keyIdentifier, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEcdsaKey(byte[] publicKey, Name keyType, SequenceReader reader)
     {
         Name curveName = reader.ReadName();
 
@@ -247,7 +247,7 @@ partial class PrivateKeyParser
             };
 
             ecdsa.ImportParameters(parameters);
-            return new ECDsaPrivateKey(ecdsa, keyIdentifier, curveName, allowedHashAlgo, publicKey);
+            return new ECDsaPrivateKey(ecdsa, keyType, curveName, allowedHashAlgo, new SshKey(keyType, publicKey));
         }
         catch (Exception ex)
         {
@@ -256,7 +256,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEd25519Key(byte[]? sshPublicKey, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEd25519Key(byte[] sshPublicKey, SequenceReader reader)
     {
         // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
         /*
@@ -276,7 +276,7 @@ partial class PrivateKeyParser
             return new Ed25519PrivateKey(
                 keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
                 publicKey.ToArray(),
-                sshPublicKey);
+                new SshKey(AlgorithmNames.SshEd25519, sshPublicKey));
         }
         catch (Exception ex)
         {

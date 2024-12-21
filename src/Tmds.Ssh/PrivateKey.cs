@@ -7,17 +7,16 @@ namespace Tmds.Ssh;
 
 abstract class PrivateKey : IDisposable
 {
-    private protected PrivateKey(Name[] algorithms, byte[]? sshPublicKey)
+    private protected PrivateKey(Name[] algorithms, SshKey publicKey)
     {
         Algorithms = algorithms;
-        PublicKey = sshPublicKey;
+        PublicKey = publicKey;
     }
 
     public Name[] Algorithms { get; }
-    public byte[]? PublicKey { get; }
+    public SshKey PublicKey { get; }
 
     public abstract void Dispose();
 
-    public abstract void AppendPublicKey(ref SequenceWriter writer);
     public abstract void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data);
 }

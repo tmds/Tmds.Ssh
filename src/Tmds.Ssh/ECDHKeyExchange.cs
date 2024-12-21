@@ -36,7 +36,7 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
         var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        connectionInfo.ServerKey = ecdhReply.public_host_key;
+        connectionInfo.ServerKey = new HostKey(ecdhReply.public_host_key);
         await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
 
         var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
@@ -57,7 +57,7 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawKey, q_c, ecdhReply.q_s, sharedSecret);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret);
 
         // Verify the server's signature.
         if (!publicHostKey.VerifySignature(input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature))
@@ -189,14 +189,14 @@ class ECDHKeyExchange : IKeyExchangeAlgorithm
     }
 
     private static (
-        HostKey public_host_key,
+        SshKey public_host_key,
         ECPoint q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
         ParceEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-        HostKey public_host_key = reader.ReadSshKey();
+        SshKey public_host_key = reader.ReadSshKey();
         ECPoint q_s = reader.ReadStringAsECPoint();
         ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
         reader.ReadEnd();

@@ -77,7 +77,7 @@ public class PrivateKeyCredential : Credential
 
         public Key(RSA rsa)
         {
-            PrivateKey = new RsaPrivateKey(rsa, sshPublicKey: null);
+            PrivateKey = new RsaPrivateKey(rsa, RsaPrivateKey.DeterminePublicSshKey(rsa));
         }
 
         public Key(ReadOnlyMemory<char> rawKey, Func<string?>? passwordPrompt = null)
@@ -92,27 +92,27 @@ public class PrivateKeyCredential : Credential
             ECParameters parameters = ecdsa.ExportParameters(includePrivateParameters: false);
             Oid oid = parameters.Curve.Oid;
 
-            Name algorithm;
+            Name keyAlgorithm;
             Name curveName;
             HashAlgorithmName hashAlgorithm;
             if (OidEquals(oid, ECCurve.NamedCurves.nistP256.Oid))
             {
-                (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.Nistp256, HashAlgorithmName.SHA256);
+                (keyAlgorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.Nistp256, HashAlgorithmName.SHA256);
             }
             else if (OidEquals(oid, ECCurve.NamedCurves.nistP384.Oid))
             {
-                (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.Nistp384, HashAlgorithmName.SHA384);
+                (keyAlgorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.Nistp384, HashAlgorithmName.SHA384);
             }
             else if (OidEquals(oid, ECCurve.NamedCurves.nistP521.Oid))
             {
-                (algorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.Nistp521, HashAlgorithmName.SHA512);
+                (keyAlgorithm, curveName, hashAlgorithm) = (AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.Nistp521, HashAlgorithmName.SHA512);
             }
             else
             {
                 throw new NotSupportedException($"Curve '{oid.FriendlyName ?? oid.Value}' is not known.");
             }
 
-            PrivateKey = new ECDsaPrivateKey(ecdsa, algorithm, curveName, hashAlgorithm, sshPublicKey: null);
+            PrivateKey = new ECDsaPrivateKey(ecdsa, keyAlgorithm, curveName, hashAlgorithm, ECDsaPrivateKey.DeterminePublicSshKey(ecdsa, keyAlgorithm, curveName));
         }
 
         internal Key(PrivateKey key)
