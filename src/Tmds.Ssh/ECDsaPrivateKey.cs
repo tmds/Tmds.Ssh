@@ -15,7 +15,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     private readonly Name _curveName;
     private readonly HashAlgorithmName _hashAlgorithm;
 
-    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, byte[]? sshPublicKey) :
+    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, SshKey sshPublicKey) :
         base([algorithm], sshPublicKey)
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
@@ -29,17 +29,16 @@ sealed class ECDsaPrivateKey : PrivateKey
         _ecdsa.Dispose();
     }
 
-    public override void AppendPublicKey(ref SequenceWriter writer)
+    public static SshKey DeterminePublicSshKey(ECDsa ecdsa, Name algorithm, Name curveName)
     {
-        ECParameters parameters = _ecdsa.ExportParameters(includePrivateParameters: false);
+        ECParameters parameters = ecdsa.ExportParameters(includePrivateParameters: false);
 
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
-        innerWriter.WriteString(_algorithm);
-        innerWriter.WriteString(_curveName);
-        innerWriter.WriteString(parameters.Q);
+        using var writer = new ArrayWriter();
+        writer.WriteString(algorithm);
+        writer.WriteString(curveName);
+        writer.WriteString(parameters.Q);
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        return new SshKey(algorithm, writer.ToArray());
     }
 
     public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)

@@ -114,12 +114,12 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
         { }
     }
 
-    private HostKey CreateHostKey(string type, byte[] key)
+    private SshKey CreateHostKey(string type, byte[] key)
     {
-        return new HostKey(new Name(type), key);
+        return new SshKey(new Name(type), key);
     }
 
-    private KnownHostResult CheckHost(string host, string? ip, int port, HostKey serverKey)
+    private KnownHostResult CheckHost(string host, string? ip, int port, SshKey serverKey)
     {
         ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         TrustedHostKeys hostKeys = new();

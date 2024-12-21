@@ -28,7 +28,7 @@ namespace Tmds.Ssh
         public struct Identity
         {
             public string Comment { init; get; }
-            public byte[] PublicKey { init; get; }
+            public SshKey PublicKey { init; get; }
         }
 
         public static EndPoint? DefaultEndPoint
@@ -164,9 +164,9 @@ namespace Tmds.Ssh
             List<Identity> keys = new(capacity: nkeys);
             for (int i = 0; i < nkeys; i++)
             {
-                byte[] key_blob = reader.ReadStringAsByteArray();
+                SshKey key = reader.ReadSshKey();
                 string comment = reader.ReadUtf8String();
-                keys.Add(new Identity() { Comment = comment, PublicKey = key_blob });
+                keys.Add(new Identity() { Comment = comment, PublicKey = key });
             }
             return keys;
         }

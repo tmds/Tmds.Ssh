@@ -2,31 +2,31 @@ namespace Tmds.Ssh;
 
 sealed class TrustedHostKeys
 {
-    private List<HostKey>? TrustedKeys { get; set; }
-    private List<HostKey>? TrustedPatternMatchedKeys { get; set; }
-    private List<HostKey>? RevokedKeys { get; set; }
+    private List<SshKey>? TrustedKeys { get; set; }
+    private List<SshKey>? TrustedPatternMatchedKeys { get; set; }
+    private List<SshKey>? RevokedKeys { get; set; }
 
-    public void AddTrustedKey(HostKey key, bool isPatternMatch)
+    public void AddTrustedKey(SshKey key, bool isPatternMatch)
     {
         if (isPatternMatch)
         {
-            TrustedPatternMatchedKeys ??= new List<HostKey>();
+            TrustedPatternMatchedKeys ??= new List<SshKey>();
             TrustedPatternMatchedKeys.Add(key);
         }
         else
         {
-            TrustedKeys ??= new List<HostKey>();
+            TrustedKeys ??= new List<SshKey>();
             TrustedKeys.Add(key);
         }
     }
 
-    public void AddRevokedKey(HostKey key)
+    public void AddRevokedKey(SshKey key)
     {
-        RevokedKeys ??= new List<HostKey>();
+        RevokedKeys ??= new List<SshKey>();
         RevokedKeys.Add(key);
     }
 
-    public KnownHostResult IsTrusted(HostKey serverKey)
+    public KnownHostResult IsTrusted(SshKey serverKey)
     {
         if (RevokedKeys is not null)
         {
@@ -66,7 +66,7 @@ sealed class TrustedHostKeys
 
         if (TrustedKeys.Count == 1)
         {
-            HostKey hostKey = TrustedKeys[0];
+            SshKey hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
             ReadOnlySpan<Name> preferredAlgorithms = PublicKey.AlgorithmsForKeyType(ref keyType);
             Sort(algorithmNames, preferredAlgorithms);

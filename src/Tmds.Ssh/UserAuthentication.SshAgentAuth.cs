@@ -40,8 +40,7 @@ partial class UserAuthentication
                     continue;
                 }
 
-                SequenceReader reader = new SequenceReader(key.PublicKey);
-                Name keyType = reader.ReadName();
+                Name keyType = key.PublicKey.Type;
 
                 // Note: for unknown key type AlgorithmsForKeyType returns the key type as an algorithm. This is mostly true.
                 // This enables to use algorithms supported by the SSH Agent that this library doesn't directly support.
@@ -54,8 +53,8 @@ partial class UserAuthentication
                         continue;
                     }
 
-                    byte[] data = CreateDataForSigning(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey);
-                    byte[]? signature = await sshAgent.TrySignAsync(signAlgorithm, key.PublicKey, data, ct);
+                    byte[] data = CreateDataForSigning(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey.Data);
+                    byte[]? signature = await sshAgent.TrySignAsync(signAlgorithm, key.PublicKey.Data, data, ct);
                     if (signature is null)
                     {
                         continue;
@@ -69,7 +68,7 @@ partial class UserAuthentication
 
                     {
                         using var userAuthMsg = CreatePublicKeyRequestMessage(
-                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey, signature);
+                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey.Data, signature);
                         await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                     }
 
@@ -97,8 +96,7 @@ partial class UserAuthentication
 
         private static byte[] CreateDataForSigning(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey)
         {
-            using var data = sequencePool.RentSequence();
-            var dataWriter = new SequenceWriter(data);
+            using var dataWriter = new ArrayWriter();
             dataWriter.WriteString(sessionId);
             dataWriter.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
             dataWriter.WriteString(userName);
@@ -107,7 +105,7 @@ partial class UserAuthentication
             dataWriter.WriteBoolean(true);
             dataWriter.WriteString(algorithm);
             dataWriter.WriteString(publicKey);
-            return data.AsReadOnlySequence().ToArray();
+            return dataWriter.ToArray();
         }
 
         private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey, byte[] signature)

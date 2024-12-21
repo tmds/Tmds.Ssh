@@ -101,7 +101,7 @@ partial class UserAuthentication
             writer.WriteString("publickey");
             writer.WriteBoolean(true);
             writer.WriteString(algorithm);
-            privateKey.AppendPublicKey(ref writer);
+            writer.WriteString(privateKey.PublicKey.Data);
             {
                 /*
                     string    session identifier
@@ -122,7 +122,7 @@ partial class UserAuthentication
                 signatureWriter.WriteString("publickey");
                 signatureWriter.WriteBoolean(true);
                 signatureWriter.WriteString(algorithm);
-                privateKey.AppendPublicKey(ref signatureWriter);
+                signatureWriter.WriteString(privateKey.PublicKey.Data);
                 privateKey.AppendSignature(algorithm, ref writer, signatureData.AsReadOnlySequence());
             }
 

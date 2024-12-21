@@ -13,7 +13,7 @@ sealed class Ed25519PrivateKey : PrivateKey
     private readonly byte[] _privateKey;
     private readonly byte[] _publicKey;
 
-    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, byte[]? sshPublicKey) :
+    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, SshKey sshPublicKey) :
         base([AlgorithmNames.SshEd25519], sshPublicKey)
     {
         _privateKey = privateKey;
@@ -23,14 +23,13 @@ sealed class Ed25519PrivateKey : PrivateKey
     public override void Dispose()
     { }
 
-    public override void AppendPublicKey(ref SequenceWriter writer)
+    public static SshKey DeterminePublicSshKey(byte[] privateKey, byte[] publicKey)
     {
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
-        innerWriter.WriteString(Algorithms[0]);
-        innerWriter.WriteString(_publicKey);
+        using var writer = new ArrayWriter();
+        writer.WriteString(AlgorithmNames.SshEd25519);
+        writer.WriteString(publicKey);
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
     public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)

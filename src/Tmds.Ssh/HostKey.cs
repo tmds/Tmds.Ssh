@@ -7,6 +7,7 @@ namespace Tmds.Ssh;
 
 public sealed class HostKey : IEquatable<HostKey>
 {
+    internal SshKey SshKey { get; }
     private string? _sha256FingerPrint;
 
     public string SHA256FingerPrint
@@ -16,26 +17,19 @@ public sealed class HostKey : IEquatable<HostKey>
             if (_sha256FingerPrint == null)
             {
                 Span<byte> hash = stackalloc byte[32];
-                SHA256.HashData(RawKey, hash);
+                SHA256.HashData(SshKey.Data, hash);
                 _sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
             }
             return _sha256FingerPrint;
         }
     }
 
-    internal HostKey(Name type, byte[] key)
+    internal HostKey(SshKey sshKey)
     {
-        if (type.IsEmpty)
-        {
-            throw new ArgumentException(nameof(type));
-        }
-        Type = type;
-        RawKey = key ?? throw new ArgumentNullException(nameof(key));
+        SshKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
     }
 
-    internal Name Type { get; }
-
-    internal byte[] RawKey { get; }
+    internal Name Type => SshKey.Type;
 
     public bool Equals(HostKey? other)
     {
@@ -44,6 +38,11 @@ public sealed class HostKey : IEquatable<HostKey>
             return false;
         }
 
-        return Type == other.Type && RawKey.AsSpan().SequenceEqual(other.RawKey);
+        return SshKey.Equals(other.SshKey);
+    }
+
+    public override int GetHashCode()
+    {
+        return SshKey.GetHashCode();
     }
 }
