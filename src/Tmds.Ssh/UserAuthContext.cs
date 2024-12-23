@@ -11,25 +11,47 @@ sealed class UserAuthContext
     private readonly SshConnection _connection;
     private readonly ILogger<SshClient> _logger;
     private readonly HashSet<SshKey> _publicKeysToSkip = new(); // track keys that were already attempted.
+    private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
+    private readonly HashSet<Name> _supportedAcceptedPublicKeyAlgorithms; // Algorithms the library supports.
     private int _bannerPacketCount = 0;
     private Name[]? _allowedAuthentications;
-    private bool _wasPartial;
+    private AuthResult _authResult;
     private Name _currentMethod;
 
-    public UserAuthContext(SshConnection connection, string userName, List<Name> publicKeyAcceptedAlgorithms, int minimumRSAKeySize, ILogger<SshClient> logger)
+    public UserAuthContext(SshConnection connection, string userName, IReadOnlyList<Name>? acceptedPublicKeyAlgorithms, IReadOnlyList<Name> supportedPublicKeyAlgorithms, int minimumRSAKeySize, ILogger<SshClient> logger)
     {
         _connection = connection;
         _logger = logger;
         UserName = userName;
-        PublicKeyAcceptedAlgorithms = publicKeyAcceptedAlgorithms;
+        _supportedAcceptedPublicKeyAlgorithms = new HashSet<Name>(supportedPublicKeyAlgorithms);
         MinimumRSAKeySize = minimumRSAKeySize;
+
+        if (acceptedPublicKeyAlgorithms is not null)
+        {
+            FilterAcceptedPublicKeyAlgorithms(acceptedPublicKeyAlgorithms);
+        }
     }
 
     public string UserName { get; }
 
     public SequencePool SequencePool => _connection.SequencePool;
 
-    public List<Name> PublicKeyAcceptedAlgorithms { get; }
+    public void FilterAcceptedPublicKeyAlgorithms(IReadOnlyCollection<Name> names)
+    {
+        if (_acceptedPublicKeyAlgorithms is null)
+        {
+            _acceptedPublicKeyAlgorithms = new HashSet<Name>(names);
+        }
+        else
+        {
+            _acceptedPublicKeyAlgorithms.IntersectWith(names);
+        }
+        _supportedAcceptedPublicKeyAlgorithms.IntersectWith(names);
+    }
+
+    public IReadOnlyCollection<Name> SupportedAcceptedPublicKeyAlgorithms => _supportedAcceptedPublicKeyAlgorithms;
+
+    public IReadOnlyCollection<Name>? AcceptedPublicKeyAlgorithms => _acceptedPublicKeyAlgorithms;
 
     public int MinimumRSAKeySize { get; }
 
@@ -75,8 +97,8 @@ sealed class UserAuthContext
                 }
                 else if (messageId == MessageId.SSH_MSG_USERAUTH_SUCCESS)
                 {
+                    _authResult = AuthResult.Success;
                     _logger.Authenticated(_currentMethod);
-
                     _currentMethod = default;
                 }
 
@@ -101,6 +123,8 @@ sealed class UserAuthContext
         return GetAuthResult(response);
     }
 
+    public AuthResult AuthResult => _authResult;
+
     private AuthResult GetAuthResult(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
@@ -108,9 +132,8 @@ sealed class UserAuthContext
         switch (b)
         {
             case MessageId.SSH_MSG_USERAUTH_SUCCESS:
-                return AuthResult.Success;
             case MessageId.SSH_MSG_USERAUTH_FAILURE:
-                return _wasPartial ? AuthResult.Partial : AuthResult.Failure;
+                return _authResult;
             default:
                 ThrowHelper.ThrowProtocolUnexpectedValue();
                 return AuthResult.Failure;
@@ -160,6 +183,7 @@ sealed class UserAuthContext
         Debug.Assert(IsMethodAccepted(method) != false);
 
         _currentMethod = method;
+        _authResult = AuthResult.None;
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)
@@ -172,14 +196,17 @@ sealed class UserAuthContext
         */
         reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_FAILURE);
         _allowedAuthentications = reader.ReadNameList();
-        _wasPartial = reader.ReadBoolean();
+        bool wasPartial = reader.ReadBoolean();
 
-        if (_wasPartial)
+        if (wasPartial)
         {
+            _authResult = AuthResult.Partial;
             _logger.PartialSuccessAuth(_currentMethod, _allowedAuthentications);
         }
         else
         {
+            bool isAccepted = IsMethodAccepted(_currentMethod) != false;
+            _authResult = isAccepted ? AuthResult.Failure : AuthResult.FailureMethodNotAllowed;
             _logger.AuthMethodFailed(_currentMethod, _allowedAuthentications);
         }
     }

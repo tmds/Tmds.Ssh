@@ -25,8 +25,12 @@ partial class SshClientSettings
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
         List<Name> kexAlgorithms = DetermineAlgorithms(sshConfig.KexAlgorithms, DefaultKeyExchangeAlgorithms, SupportedKeyExchangeAlgorithms);
         List<Name> macs = DetermineAlgorithms(sshConfig.Macs, DefaultMacAlgorithms, SupportedMacAlgorithms);
-        List<Name> publicKeyAcceptedAlgorithms = DetermineAlgorithms(sshConfig.PublicKeyAcceptedAlgorithms, DefaultPublicKeyAcceptedAlgorithms, SupportedPublicKeyAcceptedAlgorithms);
         List<Name> compressionAlgorithms = sshConfig.Compression == true ? EnableCompressionAlgorithms : DisableCompressionAlgorithms;
+        List<Name>? publicKeyAcceptedAlgorithms =
+            // Do not restrict if not specified.
+            !sshConfig.PublicKeyAcceptedAlgorithms.HasValue ? null :
+            // When set, use SupportedPublicKeyAlgorithms as the default set and permit adding unsupported algorithms that may be usable through the SSH Agent.
+            DetermineAlgorithms(sshConfig.PublicKeyAcceptedAlgorithms, SupportedPublicKeyAlgorithms, null);
 
         var settings = new SshClientSettings()
         {
@@ -207,11 +211,11 @@ partial class SshClientSettings
         }
     }
 
-    internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, List<Name> defaultAlgorithms, List<Name> supportedAlgorithms)
+    internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, IReadOnlyList<Name> defaultAlgorithms, IReadOnlyList<Name>? supportedAlgorithms)
     {
         if (!config.HasValue)
         {
-            return defaultAlgorithms;
+            return new List<Name>(defaultAlgorithms);
         }
 
         SshConfig.AlgorithmList configAlgorithms = config.Value;
@@ -268,7 +272,7 @@ partial class SshClientSettings
                 throw new IndexOutOfRangeException();
         }
 
-        static void AddDefaultAlgorithms(OrderedSet<Name> set, List<Name> algorithms)
+        static void AddDefaultAlgorithms(OrderedSet<Name> set, IReadOnlyList<Name> algorithms)
         {
             foreach (var algo in algorithms)
             {
@@ -276,11 +280,11 @@ partial class SshClientSettings
             }
         }
 
-        static void AddConfigAlgorithms(OrderedSet<Name> set, Name[] algorithms, List<Name> supportedAlgorithms)
+        static void AddConfigAlgorithms(OrderedSet<Name> set, Name[] algorithms, IReadOnlyList<Name>? supportedAlgorithms)
         {
             foreach (var algo in algorithms)
             {
-                if (supportedAlgorithms.Contains(algo))
+                if (supportedAlgorithms is null || supportedAlgorithms.Contains(algo))
                 {
                     set.Add(algo);
                 }

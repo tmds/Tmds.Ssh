@@ -13,75 +13,129 @@ partial class UserAuthentication
     {
         public static async Task<AuthResult> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
+            string keyIdentifier = keyCredential.Identifier;
             PrivateKey? pk;
             try
             {
                 pk = await keyCredential.LoadKeyAsync(ct);
                 if (pk is null)
                 {
-                    logger.PrivateKeyNotFound(keyCredential.Identifier);
+                    logger.PrivateKeyNotFound(keyIdentifier);
                     return AuthResult.Skipped;
                 }
-                if (context.IsSkipPublicAuthKey(pk.PublicKey))
-                {
-                    return AuthResult.Skipped;
-                }
-                context.AddPublicAuthKeyToSkip(pk.PublicKey);
             }
             catch (Exception error)
             {
-                logger.PrivateKeyCanNotLoad(keyCredential.Identifier, error);
+                logger.PrivateKeyCanNotLoad(keyIdentifier, error);
                 return AuthResult.Skipped;
             }
 
+            AuthResult result;
+
             using (pk)
             {
-                if (pk is RsaPrivateKey rsaKey)
-                {
-                    if (rsaKey.KeySize < context.MinimumRSAKeySize)
-                    {
-                        // TODO: log
-                        return AuthResult.Skipped;
-                    }
-                }
-
-                bool acceptedAlgorithm = false;
-                foreach (var keyAlgorithm in pk.Algorithms)
-                {
-                    if (!context.PublicKeyAcceptedAlgorithms.Contains(keyAlgorithm))
-                    {
-                        continue;
-                    }
-
-                    context.StartAuth(AlgorithmNames.PublicKey);
-
-                    acceptedAlgorithm = true;
-                    logger.PublicKeyAuth(keyCredential.Identifier, keyAlgorithm);
-
-                    {
-                        using var userAuthMsg = CreatePublicKeyRequestMessage(
-                            keyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk!);
-                        await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
-                    }
-
-                    AuthResult result = await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
-                    if (result != AuthResult.Failure)
-                    {
-                        return result;
-                    }
-                }
-
-                if (!acceptedAlgorithm)
-                {
-                    logger.PrivateKeyAlgorithmsNotAccepted(keyCredential.Identifier, context.PublicKeyAcceptedAlgorithms);
-                    return AuthResult.Skipped;
-                }
+                result = await DoAuthAsync(keyIdentifier, pk, context, context.SupportedAcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
             }
 
-            return AuthResult.Failure;
+            return result;
         }
 
-        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, PrivateKey privateKey)
+        private static bool MeetsMinimumRSAKeySize(PrivateKey privateKey, int minimumRSAKeySize)
+        {
+            if (privateKey is RsaPrivateKey rsaKey)
+            {
+                return rsaKey.KeySize >= minimumRSAKeySize;
+            }
+            else if (privateKey is SshAgentPrivateKey)
+            {
+                RsaPublicKey publicKey = RsaPublicKey.CreateFromSshKey(privateKey.PublicKey.Data);
+                return publicKey.KeySize >= minimumRSAKeySize;
+            }
+            else
+            {
+                throw new NotSupportedException($"Unexpected PrivateKey type: {privateKey.GetType().FullName}");
+            }
+        }
+
+        public static async ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        {
+            if (context.IsSkipPublicAuthKey(pk.PublicKey))
+            {
+                return AuthResult.Skipped;
+            }
+
+            if (pk.PublicKey.Type == AlgorithmNames.SshRsa && !MeetsMinimumRSAKeySize(pk, context.MinimumRSAKeySize))
+            {
+                // TODO: log
+
+                context.AddPublicAuthKeyToSkip(pk.PublicKey);
+
+                return AuthResult.Skipped;
+            }
+
+            AuthResult result = AuthResult.Skipped;
+
+            bool acceptedAnyAlgorithm = false;
+            bool signingFailed = false;
+            foreach (var signAlgorithm in pk.Algorithms)
+            {
+                if (acceptedAlgorithms is not null && !acceptedAlgorithms.Contains(signAlgorithm))
+                {
+                    continue;
+                }
+
+                byte[] data = CreateDataForSigning(signAlgorithm, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data);
+                byte[]? signature = await pk.TrySignAsync(signAlgorithm, data, ct);
+                if (signature is null)
+                {
+                    // TODO: log
+                    signingFailed = true;
+                    continue;
+                }
+
+                context.StartAuth(AlgorithmNames.PublicKey);
+                logger.PublicKeyAuth(keyIdentifier, signAlgorithm);
+
+                acceptedAnyAlgorithm = true;
+                {
+                    using var userAuthMsg = CreatePublicKeyRequestMessage(
+                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data, signature);
+                    await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                }
+
+                result = await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
+                if (result is AuthResult.Success or AuthResult.Partial or AuthResult.FailureMethodNotAllowed)
+                {
+                    return result;
+                }
+                Debug.Assert(result is AuthResult.Failure);
+            }
+
+            if (!acceptedAnyAlgorithm)
+            {
+                logger.PrivateKeyAlgorithmsNotAccepted(keyIdentifier, acceptedAlgorithms!);
+            }
+
+            context.AddPublicAuthKeyToSkip(pk.PublicKey);
+
+            return result;
+        }
+
+        private static byte[] CreateDataForSigning(Name algorithm, string userName, byte[] sessionId, byte[] publicKey)
+        {
+            using var dataWriter = new ArrayWriter();
+            dataWriter.WriteString(sessionId);
+            dataWriter.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
+            dataWriter.WriteString(userName);
+            dataWriter.WriteString("ssh-connection");
+            dataWriter.WriteString("publickey");
+            dataWriter.WriteBoolean(true);
+            dataWriter.WriteString(algorithm);
+            dataWriter.WriteString(publicKey);
+            return dataWriter.ToArray();
+        }
+
+        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey, byte[] signature)
         {
             /*
                 byte      SSH_MSG_USERAUTH_REQUEST
@@ -101,31 +155,8 @@ partial class UserAuthentication
             writer.WriteString("publickey");
             writer.WriteBoolean(true);
             writer.WriteString(algorithm);
-            writer.WriteString(privateKey.PublicKey.Data);
-            {
-                /*
-                    string    session identifier
-                    byte      SSH_MSG_USERAUTH_REQUEST
-                    string    user name
-                    string    service name
-                    string    "publickey"
-                    boolean   TRUE
-                    string    public key algorithm name
-                    string    public key to be used for authentication
-                 */
-                using var signatureData = sequencePool.RentSequence();
-                var signatureWriter = new SequenceWriter(signatureData);
-                signatureWriter.WriteString(sessionId);
-                signatureWriter.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
-                signatureWriter.WriteString(userName);
-                signatureWriter.WriteString("ssh-connection");
-                signatureWriter.WriteString("publickey");
-                signatureWriter.WriteBoolean(true);
-                signatureWriter.WriteString(algorithm);
-                signatureWriter.WriteString(privateKey.PublicKey.Data);
-                privateKey.AppendSignature(algorithm, ref writer, signatureData.AsReadOnlySequence());
-            }
-
+            writer.WriteString(publicKey);
+            writer.WriteString(signature);
             return packet.Move();
         }
     }

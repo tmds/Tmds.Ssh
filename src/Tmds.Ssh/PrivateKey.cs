@@ -18,5 +18,5 @@ abstract class PrivateKey : IDisposable
 
     public abstract void Dispose();
 
-    public abstract void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data);
+    public abstract ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken);
 }

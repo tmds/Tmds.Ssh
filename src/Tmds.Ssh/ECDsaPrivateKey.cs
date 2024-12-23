@@ -41,16 +41,16 @@ sealed class ECDsaPrivateKey : PrivateKey
         return new SshKey(algorithm, writer.ToArray());
     }
 
-    public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)
+    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         if (algorithm != _algorithm)
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
-            return;
+            return default;
         }
 
         byte[] signature = _ecdsa.SignData(
-            data.IsSingleSegment ? data.FirstSpan : data.ToArray().AsSpan(),
+            data,
             _hashAlgorithm,
             DSASignatureFormat.Rfc3279DerSequence);
 
@@ -59,16 +59,14 @@ sealed class ECDsaPrivateKey : PrivateKey
         BigInteger r = innerReader.ReadInteger();
         BigInteger s = innerReader.ReadInteger();
 
-        using var ecdsaSigData = writer.SequencePool.RentSequence();
-        var ecdsaSigWriter = new SequenceWriter(ecdsaSigData);
+        var ecdsaSigWriter = new ArrayWriter();
         ecdsaSigWriter.WriteMPInt(r);
         ecdsaSigWriter.WriteMPInt(s);
 
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
+        var innerWriter = new ArrayWriter();
         innerWriter.WriteString(algorithm);
-        innerWriter.WriteString(ecdsaSigData.AsReadOnlySequence());
+        innerWriter.WriteString(ecdsaSigWriter.ToArray());
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
     }
 }

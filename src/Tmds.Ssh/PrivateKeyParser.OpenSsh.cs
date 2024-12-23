@@ -211,21 +211,21 @@ partial class PrivateKeyParser
     {
         Name curveName = reader.ReadName();
 
-        HashAlgorithmName allowedHashAlgo;
+        HashAlgorithmName hashAlgorithm;
         ECCurve curve;
         if (curveName == AlgorithmNames.Nistp256)
         {
-            allowedHashAlgo = HashAlgorithmName.SHA256;
+            hashAlgorithm = HashAlgorithmName.SHA256;
             curve = ECCurve.NamedCurves.nistP256;
         }
         else if (curveName == AlgorithmNames.Nistp384)
         {
-            allowedHashAlgo = HashAlgorithmName.SHA384;
+            hashAlgorithm = HashAlgorithmName.SHA384;
             curve = ECCurve.NamedCurves.nistP384;
         }
         else if (curveName == AlgorithmNames.Nistp521)
         {
-            allowedHashAlgo = HashAlgorithmName.SHA512;
+            hashAlgorithm = HashAlgorithmName.SHA512;
             curve = ECCurve.NamedCurves.nistP521;
         }
         else
@@ -247,7 +247,7 @@ partial class PrivateKeyParser
             };
 
             ecdsa.ImportParameters(parameters);
-            return new ECDsaPrivateKey(ecdsa, keyType, curveName, allowedHashAlgo, new SshKey(keyType, publicKey));
+            return new ECDsaPrivateKey(ecdsa, keyType, curveName, hashAlgorithm, new SshKey(keyType, publicKey));
         }
         catch (Exception ex)
         {

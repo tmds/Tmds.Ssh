@@ -1,7 +1,6 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Buffers;
 using Org.BouncyCastle.Math.EC.Rfc8032;
 
 namespace Tmds.Ssh;
@@ -32,12 +31,12 @@ sealed class Ed25519PrivateKey : PrivateKey
         return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
-    public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)
+    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         if (algorithm != Algorithms[0])
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
-            return;
+            return default;
         }
 
         byte[] signature = new byte[Ed25519.SignatureSize];
@@ -46,17 +45,16 @@ sealed class Ed25519PrivateKey : PrivateKey
             0,
             _publicKey,
             0,
-            data.ToArray(),
+            data,
             0,
             (int)data.Length,
             signature,
             0);
 
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
+        var innerWriter = new ArrayWriter();
         innerWriter.WriteString(algorithm);
         innerWriter.WriteString(signature);
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
     }
 }

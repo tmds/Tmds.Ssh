@@ -35,7 +35,7 @@ sealed class RsaPrivateKey : PrivateKey
         return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
     }
 
-    public override void AppendSignature(Name algorithm, ref SequenceWriter writer, ReadOnlySequence<byte> data)
+    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         HashAlgorithmName hashAlgorithmName;
         if (algorithm == AlgorithmNames.RsaSshSha2_256)
@@ -49,20 +49,19 @@ sealed class RsaPrivateKey : PrivateKey
         else
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
-            return;
+            return default;
         }
-        using var innerData = writer.SequencePool.RentSequence();
-        var innerWriter = new SequenceWriter(innerData);
+        var innerWriter = new ArrayWriter();
         innerWriter.WriteString(algorithm);
         int signatureLength = _rsa.KeySize / 8;
         byte[] signature = new byte[signatureLength];
-        if (!_rsa.TrySignData(data.ToArray(), signature, hashAlgorithmName, RSASignaturePadding.Pkcs1, out int bytesWritten) ||
+        if (!_rsa.TrySignData(data, signature, hashAlgorithmName, RSASignaturePadding.Pkcs1, out int bytesWritten) ||
             bytesWritten != signatureLength)
         {
             throw new InvalidOperationException("Unable to sign data.");
         }
         innerWriter.WriteString(signature);
 
-        writer.WriteString(innerData.AsReadOnlySequence());
+        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
     }
 }
