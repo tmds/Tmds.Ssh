@@ -236,6 +236,7 @@ class SshClientSettings
 {
   static IReadOnlyList<Credential> DefaultCredentials { get; }
     = [ PrivateKeyCredential("~/.ssh/id_ed25519"), PrivateKeyCredential("~/.ssh/id_ecdsa"), PrivateKeyCredential("~/.ssh/id_rsa"),
+        SshAgentCredentials(),
         KerberosCredential(),
         NoCredential() ]
   static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } = [ '~/.ssh/known_hosts' ]

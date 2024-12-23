@@ -174,16 +174,16 @@ partial class SshClientSettings
                 {
                     if (addPubKeyCredentials)
                     {
-                        if (addSshAgentCredentials)
-                        {
-                            credentials.Add(new SshAgentCredentials());
-                            addSshAgentCredentials = false;
-                        }
-
                         IReadOnlyList<string> identityFiles = config.IdentityFiles as IReadOnlyList<string> ?? DefaultIdentityFiles;
                         foreach (var identityFile in identityFiles)
                         {
                             credentials.Add(new PrivateKeyCredential(identityFile));
+                        }
+
+                        if (addSshAgentCredentials)
+                        {
+                            credentials.Add(new SshAgentCredentials());
+                            addSshAgentCredentials = false;
                         }
 
                         addPubKeyCredentials = false;

@@ -62,6 +62,7 @@ partial class SshClientSettings
         {
             credentials.Add(new PrivateKeyCredential(identityFile));
         }
+        credentials.Add(new SshAgentCredentials());
         credentials.Add(new KerberosCredential());
         credentials.Add(new NoCredential());
         return credentials.AsReadOnly();

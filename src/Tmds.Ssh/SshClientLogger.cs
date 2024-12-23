@@ -268,6 +268,18 @@ static partial class SshClientLogger
         Message = "Auth using none")]
     public static partial void NoneAuth(this ILogger<SshClient> logger);
 
+    [LoggerMessage(
+        EventId = 31,
+        Level = LogLevel.Error,
+        Message = "Private key '{KeyIdentifier}' failed to sign with {Algorithm}")]
+    public static partial void PrivateKeyFailedToSign(this ILogger<SshClient> logger, string keyIdentifier, Name algorithm);
+
+    [LoggerMessage(
+        EventId = 32,
+        Level = LogLevel.Error,
+        Message = "Private key '{KeyIdentifier}' does not meet minimal key length")]
+    public static partial void PrivateKeyDoesNotMeetMinimalKeyLength(this ILogger<SshClient> logger, string keyIdentifier);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private ReadOnlyPacket _packet;
