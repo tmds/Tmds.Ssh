@@ -237,7 +237,7 @@ public sealed partial class SshClientSettings
     // Currently these settings are not exposed.
     internal List<Name> KeyExchangeAlgorithms { get; set; } = DefaultKeyExchangeAlgorithms;
     internal List<Name> ServerHostKeyAlgorithms { get; set; } = DefaultServerHostKeyAlgorithms;
-    internal List<Name> PublicKeyAcceptedAlgorithms { get; set; } = DefaultPublicKeyAcceptedAlgorithms;
+    internal List<Name>? PublicKeyAcceptedAlgorithms { get; set; } = null; // Do not restrict.
     internal List<Name> EncryptionAlgorithmsClientToServer { get; set; } = DefaultEncryptionAlgorithms;
     internal List<Name> EncryptionAlgorithmsServerToClient { get; set; } = DefaultEncryptionAlgorithms;
     internal List<Name> MacAlgorithmsClientToServer { get; set; } = DefaultMacAlgorithms;

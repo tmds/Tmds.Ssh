@@ -224,7 +224,7 @@ static partial class SshClientLogger
         EventId = 24,
         Level = LogLevel.Information,
         Message = "Private key '{KeyIdentifier}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
-    public static partial void PrivateKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, List<Name> acceptedAlgorithms);
+    public static partial void PrivateKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, IReadOnlyCollection<Name> acceptedAlgorithms);
 
     [LoggerMessage(
         EventId = 25,

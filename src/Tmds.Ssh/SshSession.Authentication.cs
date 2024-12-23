@@ -24,7 +24,10 @@ sealed partial class SshSession
             ParseServiceAccept(serviceAcceptMsg);
         }
 
-        UserAuthContext context = new UserAuthContext(connection, _settings.UserName, _settings.PublicKeyAcceptedAlgorithms, _settings.MinimumRSAKeySize, Logger);
+        UserAuthContext context = new UserAuthContext(
+            connection, _settings.UserName,
+            _settings.PublicKeyAcceptedAlgorithms, SshClientSettings.SupportedPublicKeyAlgorithms,
+            _settings.MinimumRSAKeySize, Logger);
 
         HashSet<Name>? rejectedMethods = null;
         HashSet<Name>? failedMethods = null;
@@ -37,8 +40,7 @@ sealed partial class SshSession
         {
             Credential credential = credentials[i];
 
-            AuthResult authResult = AuthResult.Skipped;
-            bool? methodAccepted;
+            AuthResult authResult = AuthResult.None;
             Name method;
             if (credential is PasswordCredential passwordCredential)
             {
@@ -80,42 +82,39 @@ sealed partial class SshSession
                 throw new NotImplementedException("Unsupported credential type: " + credential.GetType().FullName);
             }
 
-            // We didn't try the method, skip to the next credential.
-            if (methodAccepted == false)
-            {
-                rejectedMethods ??= new();
-                rejectedMethods.Add(method);
-                continue;
-            }
-
             if (authResult == AuthResult.Success)
             {
                 return;
             }
 
+            if (authResult is AuthResult.None)
+            {
+                continue;
+            }
+
+            // We didn't try the method, skip to the next credential.
+            if (authResult is AuthResult.SkippedMethodNotAllowed)
+            {
+                rejectedMethods ??= new();
+                rejectedMethods.Add(method);
+                continue;
+            }
+            else if (authResult is AuthResult.Failure or AuthResult.FailureMethodNotAllowed)
+            {
+                failedMethods ??= new();
+                failedMethods.Add(method);
+            }
+            else if (authResult is AuthResult.Skipped)
+            {
+                skippedMethods ??= new();
+                skippedMethods.Add(method);
+            }
+
+            // Don't try a failed/skipped credential again if it matched an accepted method.
             if (authResult is AuthResult.Failure or AuthResult.Skipped)
             {
-                if (authResult == AuthResult.Failure)
-                {
-                    failedMethods ??= new();
-                    failedMethods.Add(method);
-                }
-                else
-                {
-                    skippedMethods ??= new();
-                    skippedMethods.Add(method);
-                }
-                // If we didn't know if the method was accepted before, check the context which was updated by SSH_MSG_USERAUTH_FAILURE.
-                if (methodAccepted == null)
-                {
-                    methodAccepted = context.IsMethodAccepted(method);
-                }
-                // Don't try a failed credential again if it matched an accepted method.
-                if (methodAccepted == true || methodAccepted == null)
-                {
-                    credentials.RemoveAt(i);
-                    i--;
-                }
+                credentials.RemoveAt(i);
+                i--;
             }
 
             if (authResult == AuthResult.Partial)
@@ -140,8 +139,12 @@ sealed partial class SshSession
             bool TryMethod(Name credentialMethod)
             {
                 method = credentialMethod;
-                methodAccepted = context.IsMethodAccepted(method);
-                return methodAccepted != false;
+                bool tryMethod = context.IsMethodAccepted(method) != false;
+                if (!tryMethod)
+                {
+                    authResult = AuthResult.SkippedMethodNotAllowed;
+                }
+                return tryMethod;
             }
         }
 

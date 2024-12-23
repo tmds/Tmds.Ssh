@@ -1,7 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Buffers;
+using System.Diagnostics;
 using System.Net;
 using Microsoft.Extensions.Logging;
 
@@ -16,121 +16,48 @@ partial class UserAuthentication
             EndPoint? endPoint = SshAgent.DefaultEndPoint;
             if (endPoint is null)
             {
-                return AuthResult.Skipped;
+                return AuthResult.None;
             }
 
             using var sshAgent = new SshAgent(endPoint, context.SequencePool);
 
             if (!await sshAgent.TryConnect(ct))
             {
-                return AuthResult.Skipped;
+                return AuthResult.None;
             }
 
             List<SshAgent.Identity> keys = await sshAgent.RequestIdentitiesAsync(ct);
             if (keys.Count == 0)
             {
-                return AuthResult.Skipped;
+                return AuthResult.None;
             }
 
-            bool acceptedAlgorithm = false;
+            AuthResult rv = AuthResult.None;
+
             foreach (var key in keys)
             {
-                if (context.IsSkipPublicAuthKey(key.PublicKey))
+                using var pk = new SshAgentPrivateKey(sshAgent, key.PublicKey);
+
+                AuthResult result = await PublicKeyAuth.DoAuthAsync(key.Comment, pk, context, context.AcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
+
+                if (result is AuthResult.Success or AuthResult.Partial or AuthResult.FailureMethodNotAllowed)
                 {
-                    continue;
+                    return result;
                 }
 
-                Name keyType = key.PublicKey.Type;
-
-                // Note: for unknown key type AlgorithmsForKeyType returns the key type as an algorithm. This is mostly true.
-                // This enables to use algorithms supported by the SSH Agent that this library doesn't directly support.
-                Name[] algorithms = PublicKey.AlgorithmsForKeyType(ref keyType).ToArray();
-
-                foreach (var signAlgorithm in algorithms)
+                Debug.Assert(result is AuthResult.Failure or AuthResult.Skipped);
+                // Return Skipped if all skipped, otherwise return Failure.
+                if (result == AuthResult.Failure)
                 {
-                    if (!context.PublicKeyAcceptedAlgorithms.Contains(signAlgorithm))
-                    {
-                        continue;
-                    }
-
-                    byte[] data = CreateDataForSigning(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey.Data);
-                    byte[]? signature = await sshAgent.TrySignAsync(signAlgorithm, key.PublicKey.Data, data, ct);
-                    if (signature is null)
-                    {
-                        continue;
-                    }
-
-                    context.StartAuth(AlgorithmNames.PublicKey);
-                    acceptedAlgorithm = true;
-
-                    string keyIdentifier = key.Comment;
-                    logger.PublicKeyAuth(keyIdentifier, signAlgorithm);
-
-                    {
-                        using var userAuthMsg = CreatePublicKeyRequestMessage(
-                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, key.PublicKey.Data, signature);
-                        await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
-                    }
-
-                    AuthResult result = await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
-                    if (result != AuthResult.Failure)
-                    {
-                        return result;
-                    }
+                    rv = AuthResult.Failure;
                 }
-
-                if (acceptedAlgorithm)
+                else if (result == AuthResult.None)
                 {
-                    context.AddPublicAuthKeyToSkip(key.PublicKey);
+                    rv = AuthResult.Skipped;
                 }
             }
 
-            if (!acceptedAlgorithm)
-            {
-                logger.PrivateKeyAlgorithmsNotAccepted(keyIdentifier: "ssh-agent", context.PublicKeyAcceptedAlgorithms);
-                return AuthResult.Skipped;
-            }
-
-            return AuthResult.Failure;
-        }
-
-        private static byte[] CreateDataForSigning(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey)
-        {
-            using var dataWriter = new ArrayWriter();
-            dataWriter.WriteString(sessionId);
-            dataWriter.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
-            dataWriter.WriteString(userName);
-            dataWriter.WriteString("ssh-connection");
-            dataWriter.WriteString("publickey");
-            dataWriter.WriteBoolean(true);
-            dataWriter.WriteString(algorithm);
-            dataWriter.WriteString(publicKey);
-            return dataWriter.ToArray();
-        }
-
-        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey, byte[] signature)
-        {
-            /*
-                byte      SSH_MSG_USERAUTH_REQUEST
-                string    user name
-                string    service name
-                string    "publickey"
-                boolean   TRUE
-                string    public key algorithm name
-                string    public key to be used for authentication
-                string    signature
-             */
-            using var packet = sequencePool.RentPacket();
-            var writer = packet.GetWriter();
-            writer.WriteMessageId(MessageId.SSH_MSG_USERAUTH_REQUEST);
-            writer.WriteString(userName);
-            writer.WriteString("ssh-connection");
-            writer.WriteString("publickey");
-            writer.WriteBoolean(true);
-            writer.WriteString(algorithm);
-            writer.WriteString(publicKey);
-            writer.WriteString(signature);
-            return packet.Move();
+            return rv;
         }
     }
 }

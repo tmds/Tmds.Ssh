@@ -34,7 +34,7 @@ partial class UserAuthentication
             bool isOidSuccess = await TryStageOid(context, logger, context.UserName, ct).ConfigureAwait(false);
             if (!isOidSuccess)
             {
-                return AuthResult.Failure;
+                return context.AuthResult;
             }
 
             var negotiateOptions = new NegotiateAuthenticationClientOptions()
@@ -58,7 +58,7 @@ partial class UserAuthentication
             bool isAuthSuccess = await TryStageAuthentication(context, logger, authContext, ct).ConfigureAwait(false);
             if (!isAuthSuccess)
             {
-                return AuthResult.Failure;
+                return context.AuthResult;
             }
 
             try

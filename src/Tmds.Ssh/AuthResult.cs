@@ -5,8 +5,16 @@ namespace Tmds.Ssh;
 
 enum AuthResult
 {
+    // No credential
+    None,
+    // We didn't try to use the credential
+    Skipped,
+    // Skipped because the method is not allowed
+    SkippedMethodNotAllowed,
+    // Tried but failed
     Failure,
+    // Failed and method tried is not allowed
+    FailureMethodNotAllowed,
     Success,
     Partial,
-    Skipped
 }
