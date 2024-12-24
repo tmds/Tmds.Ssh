@@ -32,13 +32,15 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            AuthResult rv = AuthResult.None;
+            AuthResult rv = AuthResult.Skipped;
 
             foreach (var key in keys)
             {
                 using var pk = new SshAgentPrivateKey(sshAgent, key.PublicKey);
 
-                AuthResult result = await PublicKeyAuth.DoAuthAsync(key.Comment, pk, context, context.AcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
+                string keyIdentifier = $"ssh-agent:{key.Comment}";
+
+                AuthResult result = await PublicKeyAuth.DoAuthAsync(keyIdentifier, pk, queryKey: true, context, context.AcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
 
                 if (result is AuthResult.Success or AuthResult.Partial or AuthResult.FailureMethodNotAllowed)
                 {
@@ -50,10 +52,6 @@ partial class UserAuthentication
                 if (result == AuthResult.Failure)
                 {
                     rv = AuthResult.Failure;
-                }
-                else if (result == AuthResult.None)
-                {
-                    rv = AuthResult.Skipped;
                 }
             }
 
