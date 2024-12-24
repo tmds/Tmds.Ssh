@@ -1,7 +1,7 @@
 <Project>
   <ItemGroup>
     <!-- Tmds.Ssh dependencies -->
-    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.5.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <!-- Test dependencies -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
