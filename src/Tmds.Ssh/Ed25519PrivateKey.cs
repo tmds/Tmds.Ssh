@@ -13,7 +13,7 @@ sealed class Ed25519PrivateKey : PrivateKey
     private readonly byte[] _publicKey;
 
     public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, SshKey sshPublicKey) :
-        base([AlgorithmNames.SshEd25519], sshPublicKey)
+        base(AlgorithmNames.SshEd25519Algorithms, sshPublicKey)
     {
         _privateKey = privateKey;
         _publicKey = publicKey;
@@ -31,7 +31,7 @@ sealed class Ed25519PrivateKey : PrivateKey
         return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
-    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
+    public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         if (algorithm != Algorithms[0])
         {
@@ -55,6 +55,6 @@ sealed class Ed25519PrivateKey : PrivateKey
         innerWriter.WriteString(algorithm);
         innerWriter.WriteString(signature);
 
-        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
+        return ValueTask.FromResult(innerWriter.ToArray());
     }
 }

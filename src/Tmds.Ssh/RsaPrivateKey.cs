@@ -35,7 +35,7 @@ sealed class RsaPrivateKey : PrivateKey
         return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
     }
 
-    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
+    public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         HashAlgorithmName hashAlgorithmName;
         if (algorithm == AlgorithmNames.RsaSshSha2_256)
@@ -62,6 +62,6 @@ sealed class RsaPrivateKey : PrivateKey
         }
         innerWriter.WriteString(signature);
 
-        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
+        return ValueTask.FromResult(innerWriter.ToArray());
     }
 }

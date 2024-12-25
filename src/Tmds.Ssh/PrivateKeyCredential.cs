@@ -12,19 +12,19 @@ public class PrivateKeyCredential : Credential
     private Func<CancellationToken, ValueTask<Key>> LoadKey { get; }
 
     public PrivateKeyCredential(string path, string? password = null, string? identifier = null) :
-        this(path, () => password, identifier)
+        this(path, () => password, queryKey: false, identifier)
     { }
 
-    public PrivateKeyCredential(string path, Func<string?> passwordPrompt, string? identifier = null) :
-        this(LoadKeyFromFile(path ?? throw new ArgumentNullException(nameof(path)), passwordPrompt), identifier ?? path)
+    public PrivateKeyCredential(string path, Func<string?> passwordPrompt, bool queryKey = true, string? identifier = null) :
+        this(LoadKeyFromFile(path ?? throw new ArgumentNullException(nameof(path)), passwordPrompt, queryKey), identifier ?? path)
     { }
 
     public PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]") :
-        this(rawKey, () => password, identifier)
+        this(rawKey, () => password, queryKey: false, identifier)
     { }
 
-    public PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, string identifier = "[raw key]") :
-        this(LoadRawKey(ValidateRawKeyArgument(rawKey), passwordPrompt), identifier)
+    public PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, bool queryKey = true, string identifier = "[raw key]") :
+        this(LoadRawKey(ValidateRawKeyArgument(rawKey), passwordPrompt, queryKey), identifier)
     { }
 
     // Allows the user to implement derived classes that represent a private key.
@@ -43,15 +43,15 @@ public class PrivateKeyCredential : Credential
         return rawKey;
     }
 
-    private static Func<CancellationToken, ValueTask<Key>> LoadRawKey(char[] rawKey, Func<string?>? passwordPrompt)
+    private static Func<CancellationToken, ValueTask<Key>> LoadRawKey(char[] rawKey, Func<string?> passwordPrompt, bool queryKey)
         => (CancellationToken cancellationToken) =>
         {
-            Key key = new Key(rawKey.AsMemory(), passwordPrompt);
+            Key key = new Key(rawKey.AsMemory(), passwordPrompt, queryKey);
 
             return ValueTask.FromResult(key);
         };
 
-    private static Func<CancellationToken, ValueTask<Key>> LoadKeyFromFile(string path, Func<string?> passwordPrompt)
+    private static Func<CancellationToken, ValueTask<Key>> LoadKeyFromFile(string path, Func<string?> passwordPrompt, bool queryKey)
         => (CancellationToken cancellationToken) =>
         {
             string rawKey;
@@ -65,26 +65,37 @@ public class PrivateKeyCredential : Credential
                 return ValueTask.FromResult(default(Key)); // not found.
             }
 
-            Key key = new Key(rawKey.AsMemory(), passwordPrompt);
+            Key key = new Key(rawKey.AsMemory(), passwordPrompt, queryKey);
 
             return ValueTask.FromResult(key);
         };
 
     // This is a type we expose to our derive types to avoid having to expose PrivateKey and a bunch of other internals.
-    protected readonly struct Key
+    internal protected readonly struct Key : IDisposable
     {
         internal PrivateKey? PrivateKey { get; }
+
+        internal bool QueryKey { get; }
 
         public Key(RSA rsa)
         {
             PrivateKey = new RsaPrivateKey(rsa, RsaPrivateKey.DeterminePublicSshKey(rsa));
         }
 
-        public Key(ReadOnlyMemory<char> rawKey, Func<string?>? passwordPrompt = null)
+        public Key(ReadOnlyMemory<char> rawKey, string? password = null)
         {
-            passwordPrompt ??= delegate { return null; };
+            QueryKey = false;
 
-            PrivateKey = PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt);
+            PrivateKey = PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt: delegate { return password; });
+        }
+
+        public Key(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool queryKey = true)
+        {
+            ArgumentNullException.ThrowIfNull(passwordPrompt);
+
+            QueryKey = queryKey;
+
+            PrivateKey = queryKey ? ParsedPrivateKey.Create(rawKey, passwordPrompt) : PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt);
         }
 
         public Key(ECDsa ecdsa)
@@ -122,11 +133,44 @@ public class PrivateKeyCredential : Credential
 
         private static bool OidEquals(Oid oidA, Oid oidB)
             => oidA.Value is not null && oidB.Value is not null && oidA.Value == oidB.Value;
+
+        public void Dispose()
+        {
+            PrivateKey?.Dispose();
+        }
     }
 
-    internal async ValueTask<PrivateKey?> LoadKeyAsync(CancellationToken cancellationToken)
+    internal async ValueTask<Key> LoadKeyAsync(CancellationToken cancellationToken)
     {
-        Key key = await LoadKey(cancellationToken);
-        return key.PrivateKey;
+        return await LoadKey(cancellationToken);
+    }
+
+    sealed class ParsedPrivateKey : PrivateKey
+    {
+        private ReadOnlyMemory<char> _rawKey;
+        private Func<string?> _passwordPrompt;
+
+        public static PrivateKey Create(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
+        {
+            SshKey sshKey = PrivateKeyParser.ParsePublicKey(rawKey);
+            Name[] algorithms = AlgorithmNames.GetAlgorithmsForKeyType(sshKey.Type);
+            return new ParsedPrivateKey(algorithms, sshKey, rawKey, passwordPrompt);
+        }
+
+        private ParsedPrivateKey(Name[] algorithms, SshKey publicKey, ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
+            : base(algorithms, publicKey)
+        {
+            _rawKey = rawKey;
+            _passwordPrompt = passwordPrompt;
+        }
+
+        public override void Dispose()
+        { }
+
+        public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
+        {
+            using PrivateKey pk = PrivateKeyParser.ParsePrivateKey(_rawKey, _passwordPrompt);
+            return pk.SignAsync(algorithm, data, cancellationToken);
+        }
     }
 }

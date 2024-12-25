@@ -2,7 +2,6 @@
 // See file LICENSE for full license details.
 
 using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,9 +14,10 @@ partial class PrivateKeyParser
     /// Parses an OpenSSH PEM formatted key. This is a new key format used by
     /// OpenSSH for private keys.
     /// </summary>
-    internal static PrivateKey ParseOpenSshKey(
+    internal static (SshKey PublicKey, PrivateKey? PrivateKey) ParseOpenSshKey(
         byte[] keyData,
-        Func<string?> passwordPrompt)
+        Func<string?> passwordPrompt,
+        bool parsePrivate)
     {
         // https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.key
         /*
@@ -48,7 +48,13 @@ partial class PrivateKeyParser
         {
             throw new FormatException($"The data contains multiple keys.");
         }
-        byte[] publicKey = reader.ReadStringAsByteArray();
+
+        SshKey publicKey = reader.ReadSshKey();
+        if (!parsePrivate)
+        {
+            return (publicKey, null);
+        }
+
         ReadOnlySequence<byte> privateKeyList;
         if (cipherName == AlgorithmNames.None)
         {
@@ -94,15 +100,15 @@ partial class PrivateKeyParser
         Name keyType = reader.ReadName();
         if (keyType == AlgorithmNames.SshRsa)
         {
-            return ParseOpenSshRsaKey(publicKey, reader);
+            return (publicKey, ParseOpenSshRsaKey(publicKey, reader));
         }
         else if (keyType.ToString().StartsWith("ecdsa-sha2-"))
         {
-            return ParseOpenSshEcdsaKey(publicKey, keyType, reader);
+            return (publicKey, ParseOpenSshEcdsaKey(publicKey, keyType, reader));
         }
         else if (keyType == AlgorithmNames.SshEd25519)
         {
-            return ParseOpenSshEd25519Key(publicKey, reader);
+            return (publicKey, ParseOpenSshEd25519Key(publicKey, reader));
         }
         else
         {
@@ -166,7 +172,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshRsaKey(byte[] publicKey, SequenceReader reader)
+    private static PrivateKey ParseOpenSshRsaKey(SshKey publicKey, SequenceReader reader)
     {
         // .NET RSA's class has some length expectations:
         // D must have the same length as Modulus.
@@ -198,7 +204,7 @@ partial class PrivateKeyParser
         try
         {
             rsa.ImportParameters(parameters);
-            return new RsaPrivateKey(rsa, new SshKey(AlgorithmNames.SshRsa, publicKey));
+            return new RsaPrivateKey(rsa, publicKey);
         }
         catch (Exception ex)
         {
@@ -207,7 +213,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEcdsaKey(byte[] publicKey, Name keyType, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEcdsaKey(SshKey publicKey, Name keyType, SequenceReader reader)
     {
         Name curveName = reader.ReadName();
 
@@ -247,7 +253,7 @@ partial class PrivateKeyParser
             };
 
             ecdsa.ImportParameters(parameters);
-            return new ECDsaPrivateKey(ecdsa, keyType, curveName, hashAlgorithm, new SshKey(keyType, publicKey));
+            return new ECDsaPrivateKey(ecdsa, keyType, curveName, hashAlgorithm, publicKey);
         }
         catch (Exception ex)
         {
@@ -256,7 +262,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEd25519Key(byte[] sshPublicKey, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEd25519Key(SshKey sshPublicKey, SequenceReader reader)
     {
         // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
         /*
@@ -276,7 +282,7 @@ partial class PrivateKeyParser
             return new Ed25519PrivateKey(
                 keyData.Slice(0, keyData.Length - publicKey.Length).ToArray(),
                 publicKey.ToArray(),
-                new SshKey(AlgorithmNames.SshEd25519, sshPublicKey));
+                sshPublicKey);
         }
         catch (Exception ex)
         {

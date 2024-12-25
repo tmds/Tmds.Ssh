@@ -54,6 +54,7 @@ public class PrivateKeyCredentialTests
     dm+XIBiEGmR1nKHD1y/Axu9QHE7vLyULTt8NOgWS26oSLv5VfMBXghhm/XqG/+omFlBNq5
     aT1PXN88b9LAsAAAALdG1kc0BmZWRvcmE=
     -----END OPENSSH PRIVATE KEY-----
+
     """;
 
     private const string TestPassword = "Cafés";
@@ -69,8 +70,8 @@ public class PrivateKeyCredentialTests
     public async Task CtorWithRawKey()
     {
         PrivateKeyCredential credential = new PrivateKeyCredential(PrivateRsaKey.ToArray());
-        using var privateKey = await credential.LoadKeyAsync(default);
-        Assert.NotNull(privateKey);
+        using var key = await credential.LoadKeyAsync(default);
+        Assert.NotNull(key.PrivateKey);
     }
 
     [Theory]
@@ -143,7 +144,8 @@ public class PrivateKeyCredentialTests
         Name expectedalgorithm = new Name("ecdsa-sha2-nistp256"u8.ToArray());
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP256);
-        using var privateKey = await credential.LoadKeyAsync(default);
+        using var key = await credential.LoadKeyAsync(default);
+        var privateKey = key.PrivateKey;
         Assert.NotNull(privateKey);
         Assert.Single(privateKey.Algorithms);
         Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
@@ -155,7 +157,8 @@ public class PrivateKeyCredentialTests
         Name expectedalgorithm = new Name("ecdsa-sha2-nistp384"u8.ToArray());
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP384);
-        using var privateKey = await credential.LoadKeyAsync(default);
+        using var key = await credential.LoadKeyAsync(default);
+        var privateKey = key.PrivateKey;
         Assert.NotNull(privateKey);
         Assert.Single(privateKey.Algorithms);
         Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
@@ -167,7 +170,8 @@ public class PrivateKeyCredentialTests
         Name expectedalgorithm = new Name("ecdsa-sha2-nistp521"u8.ToArray());
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP521);
-        using var privateKey = await credential.LoadKeyAsync(default);
+        using var key = await credential.LoadKeyAsync(default);
+        var privateKey = key.PrivateKey;
         Assert.NotNull(privateKey);
         Assert.Single(privateKey.Algorithms);
         Assert.Equal(expectedalgorithm, privateKey.Algorithms[0]);
@@ -214,6 +218,26 @@ public class PrivateKeyCredentialTests
             await EncryptSshKey(localKey, "RFC4716", TestPassword, "aes256-ctr");
             return new PrivateKeyCredential(localKey, () => TestPassword);
         }, async (c) => await c.ConnectAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MismatchedKeyNoPromptWhenQueryKey(bool queryKey)
+    {
+        using TempFile mismatchedKeyFile = new TempFile(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+        File.WriteAllText(mismatchedKeyFile.Path, PrivateRsaKey);
+
+        bool promptCalled = false;
+
+        await Assert.ThrowsAsync<ConnectFailedException>(() =>
+            RunWithKeyConversion(mismatchedKeyFile.Path, async (string localKey) =>
+            {
+                await EncryptSshKey(localKey, "RFC4716", TestPassword, "aes256-ctr");
+                return new PrivateKeyCredential(localKey, () => { promptCalled = true; return TestPassword; }, queryKey);
+            }, async (c) => await c.ConnectAsync()));
+
+        Assert.Equal(!queryKey, promptCalled);
     }
 
     [Fact]
@@ -268,8 +292,8 @@ public class PrivateKeyCredentialTests
             PrivateKeyCredential key = await convertKey(localKey);
             var settings = new SshClientSettings(_sshServer.Destination)
             {
-                UserKnownHostsFilePaths = [ _sshServer.KnownHostsFilePath ],
-                Credentials = [ key ],
+                UserKnownHostsFilePaths = [_sshServer.KnownHostsFilePath],
+                Credentials = [key],
             };
             using var client = new SshClient(settings);
 

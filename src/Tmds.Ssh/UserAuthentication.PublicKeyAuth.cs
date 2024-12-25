@@ -17,11 +17,11 @@ partial class UserAuthentication
         public static async Task<AuthResult> TryAuthenticate(PrivateKeyCredential keyCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
             string keyIdentifier = keyCredential.Identifier;
-            PrivateKey? pk;
+            PrivateKeyCredential.Key key;
             try
             {
-                pk = await keyCredential.LoadKeyAsync(ct);
-                if (pk is null)
+                key = await keyCredential.LoadKeyAsync(ct);
+                if (key.PrivateKey is null)
                 {
                     logger.PrivateKeyNotFound(keyIdentifier);
                     return AuthResult.Skipped;
@@ -35,9 +35,9 @@ partial class UserAuthentication
 
             AuthResult result;
 
-            using (pk)
+            using (key.PrivateKey)
             {
-                result = await DoAuthAsync(keyIdentifier, pk, queryKey: false, context, context.SupportedAcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
+                result = await DoAuthAsync(keyIdentifier, key.PrivateKey, key.QueryKey, context, context.SupportedAcceptedPublicKeyAlgorithms, connectionInfo, logger, ct).ConfigureAwait(false);
             }
 
             return result;
@@ -49,14 +49,10 @@ partial class UserAuthentication
             {
                 return rsaKey.KeySize >= minimumRSAKeySize;
             }
-            else if (privateKey is SshAgentPrivateKey)
+            else
             {
                 RsaPublicKey publicKey = RsaPublicKey.CreateFromSshKey(privateKey.PublicKey.Data);
                 return publicKey.KeySize >= minimumRSAKeySize;
-            }
-            else
-            {
-                throw new NotSupportedException($"Unexpected PrivateKey type: {privateKey.GetType().FullName}");
             }
         }
 
@@ -118,10 +114,14 @@ partial class UserAuthentication
                 }
 
                 byte[] data = CreateDataForSigning(signAlgorithm, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data);
-                byte[]? signature = await pk.TrySignAsync(signAlgorithm, data, ct);
-                if (signature is null)
+                byte[] signature;
+                try
                 {
-                    logger.PrivateKeyFailedToSign(keyIdentifier, signAlgorithm);
+                    signature = await pk.SignAsync(signAlgorithm, data, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.PrivateKeyFailedToSign(keyIdentifier, signAlgorithm, ex);
                     return AuthResult.Failure;
                 }
 

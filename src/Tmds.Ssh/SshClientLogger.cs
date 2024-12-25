@@ -272,7 +272,7 @@ static partial class SshClientLogger
         EventId = 31,
         Level = LogLevel.Error,
         Message = "Private key '{KeyIdentifier}' failed to sign with {Algorithm}")]
-    public static partial void PrivateKeyFailedToSign(this ILogger<SshClient> logger, string keyIdentifier, Name algorithm);
+    public static partial void PrivateKeyFailedToSign(this ILogger<SshClient> logger, string keyIdentifier, Name algorithm, Exception exception);
 
     [LoggerMessage(
         EventId = 32,

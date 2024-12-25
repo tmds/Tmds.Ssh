@@ -18,7 +18,7 @@ static class AlgorithmNames // TODO: rename to KnownNames
     private static readonly byte[] EcdhSha2Nistp521Bytes = "ecdh-sha2-nistp521"u8.ToArray();
     public static Name EcdhSha2Nistp521 => new Name(EcdhSha2Nistp521Bytes);
 
-    // Host key algorithms.
+    // Host key algorithms: key types and signature algorithms.
     private static readonly byte[] SshRsaBytes = "ssh-rsa"u8.ToArray();
     public static Name SshRsa => new Name(SshRsaBytes);
     private static readonly byte[] RsaSshSha2_256Bytes = "rsa-sha2-256"u8.ToArray();
@@ -33,6 +33,41 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name EcdsaSha2Nistp521 => new Name(EcdsaSha2Nistp521Bytes);
     private static readonly byte[] SshEd25519Bytes = "ssh-ed25519"u8.ToArray();
     public static Name SshEd25519 => new Name(SshEd25519Bytes);
+    // Key type to signature algorithms.
+    public static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
+    public static readonly Name[] EcdsaSha2Nistp256Algorithms = [ EcdsaSha2Nistp256 ];
+    public static readonly Name[] EcdsaSha2Nistp384Algorithms = [ EcdsaSha2Nistp384 ];
+    public static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
+    public static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
+
+    public static Name[] GetAlgorithmsForKeyType(Name keyType)
+    {
+        if (keyType == SshRsa)
+        {
+            return SshRsaAlgorithms;
+        }
+        else if (keyType == EcdsaSha2Nistp256)
+        {
+            return EcdsaSha2Nistp256Algorithms;
+        }
+        else if (keyType == EcdsaSha2Nistp384)
+        {
+            return EcdsaSha2Nistp384Algorithms;
+        }
+        else if (keyType == EcdsaSha2Nistp521)
+        {
+            return EcdsaSha2Nistp521Algorithms;
+        }
+        else if (keyType == SshEd25519)
+        {
+            return SshEd25519Algorithms;
+        }
+        else
+        {
+            // Unknown key types.
+            return [ keyType ];
+        }
+    }
 
     // Encryption algorithms.
     private static readonly byte[] Aes128CbcBytes = "aes128-cbc"u8.ToArray();
@@ -72,7 +107,6 @@ static class AlgorithmNames // TODO: rename to KnownNames
 
     // These fields are initialized in order, so these list must be created after the names.
     // Algorithms are in **order of preference**.
-    public static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
 
     // Authentications
     private static readonly byte[] GssApiWithMicBytes = "gssapi-with-mic"u8.ToArray();
