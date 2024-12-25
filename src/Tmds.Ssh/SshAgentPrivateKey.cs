@@ -1,5 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
+using System.Security.Cryptography;
+
 namespace Tmds.Ssh;
 
 sealed class SshAgentPrivateKey : PrivateKey
@@ -7,33 +9,28 @@ sealed class SshAgentPrivateKey : PrivateKey
     private readonly SshAgent _sshAgent;
 
     public SshAgentPrivateKey(SshAgent sshAgent, SshKey publicKey) :
-        base(GetAlgorithmsForKeyType(publicKey.Type), publicKey)
+        base(AlgorithmNames.GetAlgorithmsForKeyType(publicKey.Type), publicKey)
     {
         _sshAgent = sshAgent;
-    }
-
-    private static Name[] GetAlgorithmsForKeyType(Name keyType)
-    {
-        if (keyType == AlgorithmNames.SshRsa)
-        {
-            return AlgorithmNames.SshRsaAlgorithms;
-        }
-        else
-        {
-            return [ keyType ];
-        }
     }
 
     public override void Dispose()
     { }
 
-    public override async ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
+    public override async ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         if (Array.IndexOf(Algorithms, algorithm) == -1)
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
         }
 
-        return await _sshAgent.TrySignAsync(algorithm, PublicKey.Data, data, cancellationToken).ConfigureAwait(false);
+        byte[]? signature = await _sshAgent.TrySignAsync(algorithm, PublicKey.Data, data, cancellationToken).ConfigureAwait(false);
+
+        if (signature is null)
+        {
+            throw new CryptographicException("SSH Agent failed to sign.");
+        }
+
+        return signature;
     }
 }

@@ -8,6 +8,12 @@ namespace Tmds.Ssh;
 partial class PrivateKeyParser
 {
     internal static PrivateKey ParsePrivateKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
+        => ParseKey(rawKey, passwordPrompt, parsePrivate: true).PrivateKey!;
+
+    internal static SshKey ParsePublicKey(ReadOnlyMemory<char> rawKey)
+        => ParseKey(rawKey, passwordPrompt: delegate { return null; }, parsePrivate: false).PublicKey;
+
+    private static (SshKey PublicKey, PrivateKey? PrivateKey) ParseKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool parsePrivate)
     {
         ReadOnlySpan<char> content = rawKey.Span;
 
@@ -74,7 +80,7 @@ partial class PrivateKeyParser
         switch (keyFormat)
         {
             case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                return ParseOpenSshKey(keyData, passwordPrompt);
+                return ParseOpenSshKey(keyData, passwordPrompt, parsePrivate);
             default:
                 throw new NotSupportedException($"Unsupported format: '{keyFormat}'.");
         }

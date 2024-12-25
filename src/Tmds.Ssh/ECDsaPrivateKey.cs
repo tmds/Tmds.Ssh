@@ -16,7 +16,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     private readonly HashAlgorithmName _hashAlgorithm;
 
     public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, SshKey sshPublicKey) :
-        base([algorithm], sshPublicKey)
+        base(AlgorithmNames.GetAlgorithmsForKeyType(algorithm), sshPublicKey)
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
         _algorithm = algorithm;
@@ -41,7 +41,7 @@ sealed class ECDsaPrivateKey : PrivateKey
         return new SshKey(algorithm, writer.ToArray());
     }
 
-    public override ValueTask<byte[]?> TrySignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
+    public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)
     {
         if (algorithm != _algorithm)
         {
@@ -67,6 +67,6 @@ sealed class ECDsaPrivateKey : PrivateKey
         innerWriter.WriteString(algorithm);
         innerWriter.WriteString(ecdsaSigWriter.ToArray());
 
-        return ValueTask.FromResult((byte[]?)innerWriter.ToArray());
+        return ValueTask.FromResult(innerWriter.ToArray());
     }
 }
