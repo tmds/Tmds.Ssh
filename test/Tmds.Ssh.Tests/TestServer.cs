@@ -41,8 +41,8 @@ sealed class TestServer : IAsyncDisposable
     {
         ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         Socket clientSocket = await _serverSocket.AcceptAsync().ConfigureAwait(false);
-        using StreamSshConnection socketSshConnection = new SocketSshConnection(logger, new SequencePool(), clientSocket);
-        await _handler(socketSshConnection);
+        using StreamSshConnection sshConnection = new StreamSshConnection(logger, new SequencePool(), new NetworkStream(clientSocket));
+        await _handler(sshConnection);
     }
 
     public void Dispose()

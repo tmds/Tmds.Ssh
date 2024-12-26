@@ -120,7 +120,7 @@ sealed partial class SshSession
 
             Logger.ConnectionEstablished();
 
-            return new SocketSshConnection(Logger, _sequencePool, socket);
+            return new StreamSshConnection(Logger, _sequencePool, new NetworkStream(socket));
         }
         catch (Exception ex)
         {

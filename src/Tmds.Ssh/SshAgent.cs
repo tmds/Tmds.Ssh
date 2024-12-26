@@ -29,7 +29,7 @@ namespace Tmds.Ssh
             public SshKey PublicKey { init; get; }
         }
 
-        public static string? DefaultEndPoint
+        public static string? DefaultAddress
         {
             get
             {
@@ -39,21 +39,20 @@ namespace Tmds.Ssh
             }
         }
 
-        private readonly string _endPoint;
+        private readonly string _address;
         private readonly SequencePool _sequencePool;
 
         private StreamSshConnection? _agentConnection;
 
-        public SshAgent(string endPoint, SequencePool sequencePool)
+        public SshAgent(string address, SequencePool sequencePool)
         {
-            _endPoint = endPoint;
+            _address = address;
             _sequencePool = sequencePool;
         }
 
         public async ValueTask<bool> TryConnect(CancellationToken cancellationToken)
         {
-            NamedPipeClientStream? pipe = null;
-            Socket? socket = null;
+            Stream? stream = null;
             try
             {
                 var logger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
@@ -62,39 +61,39 @@ namespace Tmds.Ssh
                 {
                     // There is no easy way to detect if a named pipe exists or
                     // not. File.Exists is the fastest but will actually open a
-                    // connection and close it. Using this won't open the pipe
-                    // Directory.GetFiles("\\\\.\\pipe\\", endPoint).Length > 0
-                    // But it is slower.
-                    if (!File.Exists(@$"\\.\pipe\{_endPoint}"))
+                    // connection and close it. For the ssh-agent implementation
+                    // that won't matter as it is configured to allow multiple
+                    // connections.
+                    if (!File.Exists(@$"\\.\pipe\{_address}"))
                     {
                         return false;
                     }
 
-                    pipe = new NamedPipeClientStream(
+                    NamedPipeClientStream pipe = new NamedPipeClientStream(
                         ".",
-                        _endPoint,
+                        _address,
                         PipeDirection.InOut,
                         PipeOptions.Asynchronous,
                         System.Security.Principal.TokenImpersonationLevel.Anonymous);
-                    await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                    stream = pipe;
 
-                    _agentConnection = new StreamSshConnection(logger, _sequencePool, pipe);
+                    await pipe.ConnectAsync(1000, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(_endPoint), cancellationToken).ConfigureAwait(false);
+                    Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                    stream = new NetworkStream(socket);
 
-                    _agentConnection = new SocketSshConnection(logger, _sequencePool, socket);
+                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
                 }
 
+                _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
                 _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
                 return true;
             }
             catch
             {
-                pipe?.Dispose();
-                socket?.Dispose();
+                stream?.Dispose();
                 return false;
             }
         }

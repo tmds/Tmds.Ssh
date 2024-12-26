@@ -22,8 +22,6 @@ abstract class SshConnection : IDisposable
 
     public abstract ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, int maxLength = Constants.PreAuthMaxPacketLength);
     public abstract ValueTask SendPacketAsync(Packet packet, CancellationToken ct);
+    public abstract void Dispose();
     public abstract void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero);
-
-    public void Dispose() => Dispose(true);
-    protected virtual void Dispose(bool isDisposing) {}
 }

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-class StreamSshConnection : SshConnection
+sealed class StreamSshConnection : SshConnection
 {
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
     private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -234,25 +234,21 @@ class StreamSshConnection : SshConnection
         }
     }
 
-    protected override void Dispose(bool isDisposing)
+    public override void Dispose()
     {
-        if (isDisposing)
+        if (_keepAliveTimer is not null)
         {
-            if (_keepAliveTimer is not null)
+            lock (_keepAliveTimer)
             {
-                lock (_keepAliveTimer)
-                {
-                    _keepAlivePeriod = -1;
-                    _keepAliveTimer.Dispose();
-                }
+                _keepAlivePeriod = -1;
+                _keepAliveTimer.Dispose();
             }
-            _keepAliveTimer?.Dispose();
-            _receiveBuffer.Dispose();
-            _sendBuffer.Dispose();
-            _encryptor.Dispose();
-            _decryptor.Dispose();
-            _stream.Dispose();
         }
-        base.Dispose(isDisposing);
+        _keepAliveTimer?.Dispose();
+        _receiveBuffer.Dispose();
+        _sendBuffer.Dispose();
+        _encryptor.Dispose();
+        _decryptor.Dispose();
+        _stream.Dispose();
     }
 }
