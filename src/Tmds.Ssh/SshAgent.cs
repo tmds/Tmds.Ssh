@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Net;
+using System.IO.Pipes;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,61 +23,77 @@ namespace Tmds.Ssh
         private const uint SSH_AGENT_RSA_SHA2_512 = 4;
         private const int MaxPacketSize = int.MaxValue; // We trust the SSH Agent.
 
-        private static EndPoint? _defaultEndPoint;
-
         public struct Identity
         {
             public string Comment { init; get; }
             public SshKey PublicKey { init; get; }
         }
 
-        public static EndPoint? DefaultEndPoint
+        public static string? DefaultAddress
         {
             get
             {
-                string? sshAuthSock = Environment.GetEnvironmentVariable("SSH_AUTH_SOCK");
-
-                if (OperatingSystem.IsWindows())
-                {
-                    return null;
-                }
-
-                if (string.IsNullOrEmpty(sshAuthSock))
-                {
-                    return null;
-                }
-
-                _defaultEndPoint ??= new UnixDomainSocketEndPoint(sshAuthSock);
-
-                return _defaultEndPoint;
+                return OperatingSystem.IsWindows()
+                    ? "openssh-ssh-agent"
+                    : Environment.GetEnvironmentVariable("SSH_AUTH_SOCK");
             }
         }
 
-        private readonly EndPoint _endPoint;
+        private readonly string _address;
         private readonly SequencePool _sequencePool;
 
-        private SocketSshConnection? _agentConnection;
+        private StreamSshConnection? _agentConnection;
 
-        public SshAgent(EndPoint endPoint, SequencePool sequencePool)
+        public SshAgent(string address, SequencePool sequencePool)
         {
-            _endPoint = endPoint;
+            _address = address;
             _sequencePool = sequencePool;
         }
 
         public async ValueTask<bool> TryConnect(CancellationToken cancellationToken)
         {
-            Socket? socket = null;
+            Stream? stream = null;
             try
             {
-                socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                await socket.ConnectAsync(_endPoint, cancellationToken).ConfigureAwait(false);
-                _agentConnection = new SocketSshConnection(NullLoggerFactory.Instance.CreateLogger<SshClient>(), _sequencePool, socket);
+                var logger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
+
+                if (OperatingSystem.IsWindows())
+                {
+                    // There is no easy way to detect if a named pipe exists or
+                    // not. File.Exists is the fastest but will actually open a
+                    // connection and close it. For the ssh-agent implementation
+                    // that won't matter as it is configured to allow multiple
+                    // connections.
+                    if (!File.Exists(@$"\\.\pipe\{_address}"))
+                    {
+                        return false;
+                    }
+
+                    NamedPipeClientStream pipe = new NamedPipeClientStream(
+                        ".",
+                        _address,
+                        PipeDirection.InOut,
+                        PipeOptions.Asynchronous,
+                        System.Security.Principal.TokenImpersonationLevel.Anonymous);
+                    stream = pipe;
+
+                    await pipe.ConnectAsync(1000, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                    stream = new NetworkStream(socket, ownsSocket: true);
+
+                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
+                }
+
+                _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
                 _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
                 return true;
             }
             catch
             {
-                socket?.Dispose();
+                stream?.Dispose();
                 return false;
             }
         }
@@ -101,7 +117,7 @@ namespace Tmds.Ssh
             _agentConnection?.Dispose();
         }
 
-        private SocketSshConnection GetAgentConnection()
+        private StreamSshConnection GetAgentConnection()
         {
             return _agentConnection ?? throw new InvalidOperationException("Not connected");
         }

@@ -13,13 +13,13 @@ partial class UserAuthentication
     {
         public static async Task<AuthResult> TryAuthenticate(SshAgentCredentials credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            EndPoint? endPoint = SshAgent.DefaultEndPoint;
-            if (endPoint is null)
+            string? address = SshAgent.DefaultAddress;
+            if (address is null)
             {
                 return AuthResult.None;
             }
 
-            using var sshAgent = new SshAgent(endPoint, context.SequencePool);
+            using var sshAgent = new SshAgent(address, context.SequencePool);
 
             if (!await sshAgent.TryConnect(ct))
             {

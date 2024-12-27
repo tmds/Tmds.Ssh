@@ -120,7 +120,7 @@ sealed partial class SshSession
 
             Logger.ConnectionEstablished();
 
-            return new SocketSshConnection(Logger, _sequencePool, socket);
+            return new StreamSshConnection(Logger, _sequencePool, new NetworkStream(socket, ownsSocket: true));
         }
         catch (Exception ex)
         {
@@ -278,7 +278,7 @@ sealed partial class SshSession
 
         await HandleConnectionAsync(connection, ConnectionInfo).ConfigureAwait(false);
     }
-    
+
     private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)
     {
         Task sendTask = SendLoopAsync(connection);

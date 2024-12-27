@@ -3,19 +3,18 @@
 
 using System.Buffers;
 using System.Diagnostics;
-using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-sealed class SocketSshConnection : SshConnection
+sealed class StreamSshConnection : SshConnection
 {
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
     private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly ILogger<SshClient> _logger;
-    private readonly Socket _socket;
+    private readonly Stream _stream;
     private readonly Sequence _receiveBuffer;
     private readonly Sequence _sendBuffer;
     private IPacketDecryptor _decryptor;
@@ -39,7 +38,7 @@ sealed class SocketSshConnection : SshConnection
             _keepAlivePeriod = period;
             _keepAliveCallback = callback;
             _lastReceivedTime = GetTime();
-            _keepAliveTimer = new Timer(o => ((SocketSshConnection)o!).OnKeepAliveTimerCallback(), this, -1, -1);
+            _keepAliveTimer = new Timer(o => ((StreamSshConnection)o!).OnKeepAliveTimerCallback(), this, -1, -1);
             // Start timer after assigning the variable to ensure it is set when the callback is invoked.
             _keepAliveTimer.Change(_keepAlivePeriod, _keepAlivePeriod);
         }
@@ -80,11 +79,16 @@ sealed class SocketSshConnection : SshConnection
         _keepAliveCallback();
     }
 
-    public SocketSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Socket socket) :
+    public StreamSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Stream stream) :
         base(sequencePool)
     {
+        if (!stream.CanRead || !stream.CanWrite)
+        {
+            throw new ArgumentException("Stream must be readable and writable", nameof(stream));
+        }
+
         _logger = logger;
-        _socket = socket;
+        _stream = stream;
         _receiveBuffer = sequencePool.RentSequence();
         _sendBuffer = sequencePool.RentSequence();
         _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, EncryptionCryptoTransform.None, HMac.None);
@@ -111,7 +115,7 @@ sealed class SocketSshConnection : SshConnection
     private async ValueTask<int> ReceiveAsync(CancellationToken ct)
     {
         var memory = _receiveBuffer.AllocGetMemory(Constants.PreferredBufferSize);
-        int received = await _socket.ReceiveAsync(memory, SocketFlags.None, ct).ConfigureAwait(false);
+        int received = await _stream.ReadAsync(memory, ct).ConfigureAwait(false);
         _receiveBuffer.AppendAlloced(received);
         return received;
     }
@@ -192,13 +196,13 @@ sealed class SocketSshConnection : SshConnection
 
         if (encryptedData.IsSingleSegment)
         {
-            await _socket.SendAsync(encryptedData.First, SocketFlags.None, ct).ConfigureAwait(false);
+            await _stream.WriteAsync(encryptedData.First, ct).ConfigureAwait(false);
         }
         else
         {
             foreach (var memory in encryptedData)
             {
-                await _socket.SendAsync(memory, SocketFlags.None, ct).ConfigureAwait(false);
+                await _stream.WriteAsync(memory, ct).ConfigureAwait(false);
             }
         }
 
@@ -209,7 +213,7 @@ sealed class SocketSshConnection : SshConnection
     public override async ValueTask WriteLineAsync(string line, CancellationToken ct)
     {
         line += "\r\n";
-        await _socket.SendAsync(Encoding.UTF8.GetBytes(line), SocketFlags.None, ct).ConfigureAwait(false);
+        await _stream.WriteAsync(Encoding.UTF8.GetBytes(line), ct).ConfigureAwait(false);
     }
 
     public override void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero)
@@ -245,6 +249,6 @@ sealed class SocketSshConnection : SshConnection
         _sendBuffer.Dispose();
         _encryptor.Dispose();
         _decryptor.Dispose();
-        _socket.Dispose();
+        _stream.Dispose();
     }
 }
