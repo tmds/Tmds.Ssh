@@ -514,7 +514,9 @@ class KerberosCredential : Credential
   KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null);
 }
 class SshAgentCredentials : Credential
-{ }
+{
+  SshAgentCredentials();
+}
 class NoCredential : Credential
 {
   NoCredential();
@@ -581,6 +583,7 @@ Supported compression algorithms:
 
 Authentications:
 - publickey (`PrivateKeyCredential`)
+- publickey from SSH Agent (`SshAgentCredentials`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
 - none (`NoCredential`)

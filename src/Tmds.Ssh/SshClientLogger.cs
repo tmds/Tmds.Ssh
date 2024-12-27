@@ -280,6 +280,12 @@ static partial class SshClientLogger
         Message = "Private key '{KeyIdentifier}' does not meet minimal key length")]
     public static partial void PrivateKeyDoesNotMeetMinimalKeyLength(this ILogger<SshClient> logger, string keyIdentifier);
 
+    [LoggerMessage(
+        EventId = 33,
+        Level = LogLevel.Error,
+        Message = "Failed to connect to SSH Agent")]
+    public static partial void CannotConnectToSshAgent(this ILogger<SshClient> logger, Exception exception);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private ReadOnlyPacket _packet;

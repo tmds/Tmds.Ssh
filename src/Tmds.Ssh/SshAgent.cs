@@ -50,7 +50,7 @@ namespace Tmds.Ssh
             _sequencePool = sequencePool;
         }
 
-        public async ValueTask<bool> TryConnect(CancellationToken cancellationToken)
+        public async ValueTask ConnectAsync(CancellationToken cancellationToken)
         {
             Stream? stream = null;
             try
@@ -64,9 +64,10 @@ namespace Tmds.Ssh
                     // connection and close it. For the ssh-agent implementation
                     // that won't matter as it is configured to allow multiple
                     // connections.
-                    if (!File.Exists(@$"\\.\pipe\{_address}"))
+                    string pipePath = @$"\\.\pipe\{_address}";
+                    if (!File.Exists(pipePath))
                     {
-                        return false;
+                        throw new FileNotFoundException(pipePath);
                     }
 
                     NamedPipeClientStream pipe = new NamedPipeClientStream(
@@ -82,19 +83,25 @@ namespace Tmds.Ssh
                 else
                 {
                     Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    stream = new NetworkStream(socket, ownsSocket: true);
-
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
+                        stream = new NetworkStream(socket, ownsSocket: true);
+                    }
+                    catch
+                    {
+                        socket.Dispose();
+                        throw;
+                    }
                 }
 
                 _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
                 _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
-                return true;
             }
             catch
             {
                 stream?.Dispose();
-                return false;
+                throw;
             }
         }
 

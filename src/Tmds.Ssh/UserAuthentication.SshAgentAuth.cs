@@ -13,7 +13,7 @@ partial class UserAuthentication
     {
         public static async Task<AuthResult> TryAuthenticate(SshAgentCredentials credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            string? address = SshAgent.DefaultAddress;
+            string? address = credential.Address ?? SshAgent.DefaultAddress;
             if (address is null)
             {
                 return AuthResult.None;
@@ -21,8 +21,14 @@ partial class UserAuthentication
 
             using var sshAgent = new SshAgent(address, context.SequencePool);
 
-            if (!await sshAgent.TryConnect(ct))
+            try
             {
+                await sshAgent.ConnectAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                logger.CannotConnectToSshAgent(ex);
+
                 return AuthResult.None;
             }
 

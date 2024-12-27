@@ -4,4 +4,14 @@
 namespace Tmds.Ssh;
 
 public sealed class SshAgentCredentials : Credential
-{ }
+{
+    internal string? Address { get; }
+
+    internal SshAgentCredentials(string? address)
+    {
+        Address = address;
+    }
+
+    public SshAgentCredentials() : this(null)
+    { }
+}
