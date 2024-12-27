@@ -82,7 +82,7 @@ namespace Tmds.Ssh
                 else
                 {
                     Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    stream = new NetworkStream(socket);
+                    stream = new NetworkStream(socket, ownsSocket: true);
 
                     await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
                 }
