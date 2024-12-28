@@ -136,7 +136,7 @@ sealed partial class ForwardServer<T> : IDisposable
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        RemoteEndPoint remoteEndPoint = new RemoteDnsEndPoint(remoteHost, remotePort);
+        RemoteEndPoint remoteEndPoint = new RemoteHostEndPoint(remoteHost, remotePort);
 
         return (session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct), remoteEndPoint);
     }

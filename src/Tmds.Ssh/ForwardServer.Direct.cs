@@ -16,11 +16,11 @@ sealed partial class ForwardServer<T> : IDisposable
         ArgumentNullException.ThrowIfNull(remoteEndPoint);
 
         Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>> handleAccept;
-        if (remoteEndPoint is RemoteDnsEndPoint dnsEndPoint)
+        if (remoteEndPoint is RemoteHostEndPoint hostEndPoint)
         {
             handleAccept = (NetworkStream clientStream, CancellationToken ct) =>
             {
-                var open = session.OpenTcpConnectionChannelAsync(dnsEndPoint.Host, dnsEndPoint.Port, ct);
+                var open = session.OpenTcpConnectionChannelAsync(hostEndPoint.Host, hostEndPoint.Port, ct);
                 return ValueTask.FromResult((open, remoteEndPoint));
             };
         }

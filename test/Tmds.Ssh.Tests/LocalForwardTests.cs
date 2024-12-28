@@ -27,7 +27,7 @@ public class LocalForwardTests
         using var soCatProcess = await client.ExecuteAsync($"socat -v tcp-l:{socatPort},fork exec:'/bin/cat'");
         await Task.Delay(SocatStartDelay); // wait a little for socat to start.
 
-        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteDnsEndPoint("localhost", socatPort));
+        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteHostEndPoint("localhost", socatPort));
         await AssertForwards(directForward);
     }
 
@@ -72,7 +72,7 @@ public class LocalForwardTests
         await Task.Delay(SocatStartDelay); // wait a little for socat to start.
 
         var ep = new UnixDomainSocketEndPoint(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
-        using var directForward = await client.StartForwardAsync(ep, new RemoteDnsEndPoint("localhost", socatPort));
+        using var directForward = await client.StartForwardAsync(ep, new RemoteHostEndPoint("localhost", socatPort));
         await AssertForwards(directForward);
     }
 
@@ -201,7 +201,7 @@ public class LocalForwardTests
     {
         using var client = await _sshServer.CreateClientAsync();
 
-        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteDnsEndPoint("localhost", 5000));
+        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteHostEndPoint("localhost", 5000));
         CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
@@ -224,7 +224,7 @@ public class LocalForwardTests
     {
         using var client = await _sshServer.CreateClientAsync();
 
-        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteDnsEndPoint("localhost", 5000));
+        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteHostEndPoint("localhost", 5000));
         CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
@@ -247,7 +247,7 @@ public class LocalForwardTests
     {
         using var client = await _sshServer.CreateClientAsync();
 
-        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.IPv6Any, 0), new RemoteDnsEndPoint("nowhere", 10));
+        using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.IPv6Any, 0), new RemoteHostEndPoint("nowhere", 10));
         
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
