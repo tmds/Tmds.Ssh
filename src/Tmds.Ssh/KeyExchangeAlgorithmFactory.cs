@@ -17,6 +17,8 @@ sealed class KeyExchangeAlgorithmFactory
         _algorithms.Add(AlgorithmNames.EcdhSha2Nistp256, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP256, HashAlgorithmName.SHA256));
         _algorithms.Add(AlgorithmNames.EcdhSha2Nistp384, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP384, HashAlgorithmName.SHA384));
         _algorithms.Add(AlgorithmNames.EcdhSha2Nistp521, name => new ECDHKeyExchange(ECCurve.NamedCurves.nistP521, HashAlgorithmName.SHA512));
+        _algorithms.Add(AlgorithmNames.Curve25519Sha256, name => new Curve25519KeyExchange(HashAlgorithmName.SHA256));
+        _algorithms.Add(AlgorithmNames.Curve25519Sha256LibSsh, name => new Curve25519KeyExchange(HashAlgorithmName.SHA256));
     }
 
     public IKeyExchangeAlgorithm Create(Name name)
