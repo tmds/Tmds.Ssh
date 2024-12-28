@@ -35,7 +35,7 @@ partial class PrivateKeyParser
         ReadOnlySpan<byte> AUTH_MAGIC = "openssh-key-v1\0"u8;
         if (!keyData.AsSpan().StartsWith(AUTH_MAGIC))
         {
-            throw new FormatException($"Unknown OpenSSH key format.");
+            throw new NotSupportedException($"Unknown OpenSSH key format.");
         }
         ReadOnlySequence<byte> ros = new ReadOnlySequence<byte>(keyData);
         ros = ros.Slice(AUTH_MAGIC.Length);
@@ -46,7 +46,7 @@ partial class PrivateKeyParser
         uint nrOfKeys = reader.ReadUInt32();
         if (nrOfKeys != 1)
         {
-            throw new FormatException($"The data contains multiple keys.");
+            throw new InvalidDataException($"The data contains multiple keys.");
         }
 
         SshKey publicKey = reader.ReadSshKey();
@@ -65,7 +65,7 @@ partial class PrivateKeyParser
             string? password = passwordPrompt();
             if (password is null)
             {
-                throw new FormatException("Key was encrypted but no password was provided.");
+                throw new CryptographicException("Key is encrypted but no password was provided.");
             }
 
             byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
@@ -94,7 +94,7 @@ partial class PrivateKeyParser
         uint checkint2 = reader.ReadUInt32();
         if (checkInt1 != checkint2)
         {
-            throw new FormatException($"The checkints mismatch. The key is invalid or the password is wrong.");
+            throw new CryptographicException($"The checkints mismatch. The key is invalid or the password is wrong.");
         }
 
         Name keyType = reader.ReadName();
@@ -151,13 +151,9 @@ partial class PrivateKeyParser
                 derivedKey);
 
             ReadOnlySequence<byte> encryptedKey = reader.ReadStringAsBytes();
-            ReadOnlySequence<byte> tag = default;
-            if (keyCipher.TagLength > 0)
+            if (!reader.TryRead(keyCipher.TagLength, out ReadOnlySequence<byte> tag))
             {
-                if (!reader.TryRead(keyCipher.TagLength, out tag))
-                {
-                    throw new FormatException($"Failed to read {cipher} encryption tag for encrypted OpenSSH key.");
-                }
+                throw new InvalidDataException($"Failed to read encryption tag.");
             }
 
             return keyCipher.Decrypt(
@@ -168,7 +164,7 @@ partial class PrivateKeyParser
         }
         catch (Exception ex)
         {
-            throw new FormatException($"Failed to decrypt OpenSSH key with cipher {cipher}.", ex);
+            throw new CryptographicException($"Failed to decrypt OpenSSH key with cipher {cipher}.", ex);
         }
     }
 
@@ -209,7 +205,7 @@ partial class PrivateKeyParser
         catch (Exception ex)
         {
             rsa.Dispose();
-            throw new FormatException($"The data can not be parsed into an RSA key.", ex);
+            throw new InvalidDataException($"The data can not be parsed into an RSA key.", ex);
         }
     }
 
@@ -236,7 +232,7 @@ partial class PrivateKeyParser
         }
         else
         {
-            throw new NotSupportedException($"ECDSA curve '{curveName}' is unsupported.");
+            throw new NotSupportedException($"Unsupported ECDSA curve: '{curveName}'.");
         }
 
         ECPoint q = reader.ReadStringAsECPoint();
@@ -258,7 +254,7 @@ partial class PrivateKeyParser
         catch (Exception ex)
         {
             ecdsa.Dispose();
-            throw new FormatException($"The data can not be parsed into an ECDSA key.", ex);
+            throw new InvalidDataException($"The data can not be parsed into an ECDSA key.", ex);
         }
     }
 
@@ -286,7 +282,7 @@ partial class PrivateKeyParser
         }
         catch (Exception ex)
         {
-            throw new FormatException($"The data can not be parsed into an ED25519 key.", ex);
+            throw new InvalidDataException($"The data can not be parsed into an ED25519 key.", ex);
         }
     }
 }

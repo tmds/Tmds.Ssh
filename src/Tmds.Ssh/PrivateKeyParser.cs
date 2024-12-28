@@ -20,12 +20,12 @@ partial class PrivateKeyParser
         int formatStart = content.IndexOf("-----BEGIN");
         if (formatStart == -1)
         {
-            throw new FormatException($"No start marker.");
+            throw new InvalidDataException($"No start marker.");
         }
         int formatStartEnd = content.Slice(formatStart).IndexOf('\n');
         if (formatStartEnd == -1)
         {
-            throw new FormatException($"No start marker.");
+            throw new InvalidDataException($"No start marker.");
         }
 
         // While not part of RFC 7468, PKCS#1 RSA keys have extra metadata
@@ -39,7 +39,7 @@ partial class PrivateKeyParser
             int nextNewline = content.Slice(keyStart).IndexOf('\n');
             if (nextNewline == -1)
             {
-                throw new FormatException($"No end marker.");
+                throw new InvalidDataException($"No end marker.");
             }
             else if (nextNewline == keyStart)
             {
@@ -62,7 +62,7 @@ partial class PrivateKeyParser
         int keyEnd = content.IndexOf("-----END");
         if (keyEnd == -1)
         {
-            throw new FormatException($"No end marker.");
+            throw new InvalidDataException($"No end marker.");
         }
         ReadOnlySpan<char> keyFormat = content.Slice(formatStart, formatStartEnd).Trim();
         ReadOnlySpan<char> keyDataBase64 = content.Slice(keyStart, keyEnd - keyStart - 1);
@@ -74,7 +74,7 @@ partial class PrivateKeyParser
         }
         catch (FormatException)
         {
-            throw new FormatException($"Invalid base64 data.");
+            throw new InvalidDataException($"Invalid base64 data.");
         }
 
         switch (keyFormat)
