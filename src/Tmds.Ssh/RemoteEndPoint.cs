@@ -11,13 +11,13 @@ public class RemoteEndPoint
     { }
 }
 
-public sealed class RemoteDnsEndPoint : RemoteEndPoint
+public sealed class RemoteHostEndPoint : RemoteEndPoint
 {
     public string Host { get; }
     public int Port { get; }
     private string? _toString;
 
-    public RemoteDnsEndPoint(string host, int port)
+    public RemoteHostEndPoint(string host, int port)
     {
         ArgumentNullException.ThrowIfNull(host);
         if (port < 0 || port > 0xffff)

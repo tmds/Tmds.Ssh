@@ -120,7 +120,7 @@ class SshDataStream : Stream
 // Represents a Socket EndPoint on the server side.
 class RemoteEndPoint
 { }
-class RemoteDnsEndPoint(string host, int port) : RemoteEndPoint
+class RemoteHostEndPoint(string host, int port) : RemoteEndPoint
 { }
 class RemoteIPEndPoint(IPAddress address, int port) : RemoteEndPoint
 { }
