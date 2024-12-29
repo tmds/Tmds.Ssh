@@ -15,14 +15,11 @@ using Org.BouncyCastle.Crypto.Agreement;
 namespace Tmds.Ssh;
 
 // Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
-class Curve25519KeyExchange : IKeyExchangeAlgorithm
+class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
 {
-    private readonly HashAlgorithmName _hashAlgorithmName;
-
-    public Curve25519KeyExchange(HashAlgorithmName hashAlgorithmName)
-    {
-        _hashAlgorithmName = hashAlgorithmName;
-    }
+    public Curve25519KeyExchange()
+        :base(HashAlgorithmName.SHA256)
+    { }
 
     public async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
@@ -46,14 +43,7 @@ class Curve25519KeyExchange : IKeyExchangeAlgorithm
         var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        connectionInfo.ServerKey = new HostKey(ecdhReply.public_host_key);
-        await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
-
-        var publicHostKey = PublicKey.CreateFromSshKey(ecdhReply.public_host_key);
-        if (publicHostKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < input.MinimumRSAKeySize)
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server RSA key size {rsaPublicKey.KeySize} is less than {input.MinimumRSAKeySize}.", connectionInfo);
-        }
+        var publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         BigInteger sharedSecret;
@@ -70,22 +60,9 @@ class Curve25519KeyExchange : IKeyExchangeAlgorithm
         byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret);
 
         // Verify the server's signature.
-        if (!publicHostKey.VerifySignature(input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature))
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Signature does not match host key.", connectionInfo);
-        }
+        VerifySignature(publicHostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
-        byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
-        byte[] initialIVC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength);
-        byte[] initialIVS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'B', sessionId, input.InitialIVS2CLength);
-        byte[] encryptionKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'C', sessionId, input.EncryptionKeyC2SLength);
-        byte[] encryptionKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'D', sessionId, input.EncryptionKeyS2CLength);
-        byte[] integrityKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'E', sessionId, input.IntegrityKeyC2SLength);
-        byte[] integrityKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'F', sessionId, input.IntegrityKeyS2CLength);
-
-        return new KeyExchangeOutput(exchangeHash,
-            initialIVS2C, encryptionKeyS2C, integrityKeyS2C,
-            initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
+        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash);
     }
 
     private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, BigInteger sharedSecret)
@@ -117,58 +94,6 @@ class Curve25519KeyExchange : IKeyExchangeAlgorithm
             hash.AppendData(segment.Span);
         }
         return hash.GetHashAndReset();
-    }
-
-    private byte[] CalculateKey(SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int keyLength)
-    {
-        // https://tools.ietf.org/html/rfc4253#section-7.2
-
-        byte[] key = new byte[keyLength];
-        int keyOffset = 0;
-
-        // HASH(K || H || c || session_id)
-        using Sequence sequence = sequencePool.RentSequence();
-        var writer = new SequenceWriter(sequence);
-        writer.WriteMPInt(sharedSecret);
-        writer.Write(exchangeHash);
-        writer.WriteByte(c);
-        writer.Write(sessionId);
-
-        using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
-        foreach (var segment in sequence.AsReadOnlySequence())
-        {
-            hash.AppendData(segment.Span);
-        }
-        byte[] K1 = hash.GetHashAndReset();
-        Append(key, K1, ref keyOffset);
-
-        while (keyOffset != key.Length)
-        {
-            sequence.Clear();
-
-            // K3 = HASH(K || H || K1 || K2)
-            writer = new SequenceWriter(sequence);
-            writer.WriteMPInt(sharedSecret);
-            writer.Write(exchangeHash);
-            writer.Write(key.AsSpan(0, keyOffset));
-
-            foreach (var segment in sequence.AsReadOnlySequence())
-            {
-                hash.AppendData(segment.Span);
-            }
-            byte[] Kn = hash.GetHashAndReset();
-
-            Append(key, Kn, ref keyOffset);
-        }
-
-        return key;
-
-        static void Append(byte[] key, byte[] append, ref int offset)
-        {
-            int available = Math.Min(append.Length, key.Length - offset);
-            append.AsSpan().Slice(0, available).CopyTo(key.AsSpan(offset));
-            offset += available;
-        }
     }
 
     private BigInteger DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
