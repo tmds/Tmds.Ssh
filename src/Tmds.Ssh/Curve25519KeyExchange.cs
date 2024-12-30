@@ -2,32 +2,37 @@
 // See file LICENSE for full license details.
 
 using System.Buffers;
-using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Agreement;
 
 namespace Tmds.Ssh;
 
-// ECDH Key Exchange: https://tools.ietf.org/html/rfc5656#section-4
-class ECDHKeyExchange : KeyExchange
+// Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
+class Curve25519KeyExchange : KeyExchange
 {
-    private readonly ECCurve _ecCurve;
-    private readonly HashAlgorithmName _hashAlgorithmName;
-
-    public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName)
-    {
-        _ecCurve = ecCurve;
-        _hashAlgorithmName = hashAlgorithmName;
-    }
+    private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 
     public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
-        using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
+
+        AsymmetricCipherKeyPair x25519KeyPair;
+        using (var randomGenerator = new CryptoApiRandomGenerator())
+        {
+            var x25519KeyPairGenerator = new X25519KeyPairGenerator();
+            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
+            x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
+        }
 
         // Send ECDH_INIT.
-        using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
-        ECPoint q_c = myPublicKey.ExportParameters().Q;
+        byte[] q_c = ((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded();
         await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
@@ -41,7 +46,7 @@ class ECDHKeyExchange : KeyExchange
         byte[] sharedSecret;
         try
         {
-            sharedSecret = DeriveSharedSecret(ecdh, _ecCurve, ecdhReply.q_s);
+            sharedSecret = DeriveSharedSecret(x25519KeyPair.Private, new X25519PublicKeyParameters(ecdhReply.q_s));
         }
         catch (Exception ex)
         {
@@ -57,7 +62,7 @@ class ECDHKeyExchange : KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -88,22 +93,19 @@ class ECDHKeyExchange : KeyExchange
         return hash.GetHashAndReset();
     }
 
-    private static byte[] DeriveSharedSecret(ECDiffieHellman ecdh, ECCurve curve, ECPoint q)
+    private static byte[] DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
     {
-        ECParameters parameters = new ECParameters
-        {
-            Curve = curve,
-            Q = q
-        };
-        using ECDiffieHellman peerEcdh = ECDiffieHellman.Create(parameters);
-        using ECDiffieHellmanPublicKey peerPublicKey = peerEcdh.PublicKey;
-        byte[] rawSecretAgreement = ecdh.DeriveRawSecretAgreement(peerPublicKey);
+        var keyAgreement = new X25519Agreement();
+        keyAgreement.Init(privateKey);
+
+        var rawSecretAgreement = new byte[keyAgreement.AgreementSize];
+        keyAgreement.CalculateAgreement(peerPublicKey, rawSecretAgreement);
         var sharedSecret = rawSecretAgreement.ToBigInteger();
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret.ToMPIntByteArray();
     }
 
-    private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)
+    private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)
     {
         using var packet = sequencePool.RentPacket();
         var writer = packet.GetWriter();
@@ -114,14 +116,14 @@ class ECDHKeyExchange : KeyExchange
 
     private static (
         SshKey public_host_key,
-        ECPoint q_s,
+        byte[] q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
         ParceEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
         SshKey public_host_key = reader.ReadSshKey();
-        ECPoint q_s = reader.ReadStringAsECPoint();
+        byte[] q_s = reader.ReadStringAsByteArray();
         ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
         reader.ReadEnd();
         return (

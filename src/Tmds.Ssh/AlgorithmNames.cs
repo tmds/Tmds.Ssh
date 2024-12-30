@@ -17,6 +17,10 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name EcdhSha2Nistp384 => new Name(EcdhSha2Nistp384Bytes);
     private static readonly byte[] EcdhSha2Nistp521Bytes = "ecdh-sha2-nistp521"u8.ToArray();
     public static Name EcdhSha2Nistp521 => new Name(EcdhSha2Nistp521Bytes);
+    private static readonly byte[] Curve25519Sha256Bytes = "curve25519-sha256"u8.ToArray();
+    public static Name Curve25519Sha256 => new Name(Curve25519Sha256Bytes);
+    private static readonly byte[] Curve25519Sha256LibSshBytes = "curve25519-sha256@libssh.org"u8.ToArray();
+    public static Name Curve25519Sha256LibSsh => new Name(Curve25519Sha256LibSshBytes);
 
     // Host key algorithms: key types and signature algorithms.
     private static readonly byte[] SshRsaBytes = "ssh-rsa"u8.ToArray();

@@ -19,4 +19,7 @@ static class BigIntegerExtensions
         }
         return array;
     }
+
+    public static byte[] ToMPIntByteArray(this BigInteger integer)
+        => integer == BigInteger.Zero ? Array.Empty<byte>() : integer.ToByteArray(isUnsigned: false, isBigEndian: true);
 }
