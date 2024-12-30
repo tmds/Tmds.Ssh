@@ -9,17 +9,18 @@ using System.Numerics;
 namespace Tmds.Ssh;
 
 // ECDH Key Exchange: https://tools.ietf.org/html/rfc5656#section-4
-class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
+class ECDHKeyExchange : KeyExchange
 {
     private readonly ECCurve _ecCurve;
+    private readonly HashAlgorithmName _hashAlgorithmName;
 
     public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName)
-        : base(hashAlgorithmName)
     {
         _ecCurve = ecCurve;
+        this._hashAlgorithmName = hashAlgorithmName;
     }
 
-    public async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
@@ -41,7 +42,7 @@ class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
         BigInteger sharedSecret;
         try
         {
-            sharedSecret = DeriveSharedSecret(ecdh, ecdhReply.q_s);
+            sharedSecret = DeriveSharedSecret(ecdh, _ecCurve, ecdhReply.q_s);
         }
         catch (Exception ex)
         {
@@ -49,15 +50,15 @@ class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
         VerifySignature(publicHostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
-        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash);
+        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -80,7 +81,7 @@ class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
         writer.WriteString(q_s);
         writer.WriteMPInt(sharedSecret);
 
-        using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
+        using IncrementalHash hash = IncrementalHash.CreateHash(hashAlgorithmName);
         foreach (var segment in sequence.AsReadOnlySequence())
         {
             hash.AppendData(segment.Span);
@@ -88,11 +89,11 @@ class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
         return hash.GetHashAndReset();
     }
 
-    private BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, ECPoint q)
+    private static BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, ECCurve curve, ECPoint q)
     {
         ECParameters parameters = new ECParameters
         {
-            Curve = _ecCurve,
+            Curve = curve,
             Q = q
         };
         using ECDiffieHellman peerEcdh = ECDiffieHellman.Create(parameters);
@@ -102,9 +103,6 @@ class ECDHKeyExchange : KeyExchange, IKeyExchangeAlgorithm
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret;
     }
-
-    public void Dispose()
-    { }
 
     private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)
     {

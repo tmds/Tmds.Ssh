@@ -1,24 +1,15 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Buffers;
 using System.Numerics;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-abstract class KeyExchange
+abstract class KeyExchange : IKeyExchangeAlgorithm
 {
-    protected readonly HashAlgorithmName _hashAlgorithmName;
+    public abstract Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
 
-    public KeyExchange(HashAlgorithmName hashAlgorithmName)
-    {
-        this._hashAlgorithmName = hashAlgorithmName;
-    }
-
-    public static async Task<PublicKey> VerifyHostKeyAsync(IHostKeyVerification hostKeyVerification, KeyExchangeInput input, SshKey public_host_key, CancellationToken ct)
+    protected static async Task<PublicKey> VerifyHostKeyAsync(IHostKeyVerification hostKeyVerification, KeyExchangeInput input, SshKey public_host_key, CancellationToken ct)
     {
         var connectionInfo = input.ConnectionInfo;
         connectionInfo.ServerKey = new HostKey(public_host_key);
@@ -33,7 +24,7 @@ abstract class KeyExchange
         return publicHostKey;
     }
 
-    public static void VerifySignature(PublicKey publicHostKey, IReadOnlyList<Name> allowedAlgorithms, byte[] exchangeHash, ReadOnlySequence<byte> exchange_hash_signature, SshConnectionInfo connectionInfo)
+    protected static void VerifySignature(PublicKey publicHostKey, IReadOnlyList<Name> allowedAlgorithms, byte[] exchangeHash, ReadOnlySequence<byte> exchange_hash_signature, SshConnectionInfo connectionInfo)
     {
         if (!publicHostKey.VerifySignature(allowedAlgorithms, exchangeHash, exchange_hash_signature))
         {
@@ -41,22 +32,22 @@ abstract class KeyExchange
         }
     }
 
-    public KeyExchangeOutput CalculateKeyExchangeOutput(KeyExchangeInput input, SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash)
+    protected static KeyExchangeOutput CalculateKeyExchangeOutput(KeyExchangeInput input, SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, HashAlgorithmName hashAlgorithmName)
     {
         byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
-        byte[] initialIVC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength);
-        byte[] initialIVS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'B', sessionId, input.InitialIVS2CLength);
-        byte[] encryptionKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'C', sessionId, input.EncryptionKeyC2SLength);
-        byte[] encryptionKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'D', sessionId, input.EncryptionKeyS2CLength);
-        byte[] integrityKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'E', sessionId, input.IntegrityKeyC2SLength);
-        byte[] integrityKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'F', sessionId, input.IntegrityKeyS2CLength);
+        byte[] initialIVC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength, hashAlgorithmName);
+        byte[] initialIVS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'B', sessionId, input.InitialIVS2CLength, hashAlgorithmName);
+        byte[] encryptionKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'C', sessionId, input.EncryptionKeyC2SLength, hashAlgorithmName);
+        byte[] encryptionKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'D', sessionId, input.EncryptionKeyS2CLength, hashAlgorithmName);
+        byte[] integrityKeyC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'E', sessionId, input.IntegrityKeyC2SLength, hashAlgorithmName);
+        byte[] integrityKeyS2C = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'F', sessionId, input.IntegrityKeyS2CLength, hashAlgorithmName);
 
         return new KeyExchangeOutput(exchangeHash,
             initialIVS2C, encryptionKeyS2C, integrityKeyS2C,
             initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
     }
 
-    private byte[] CalculateKey(SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int keyLength)
+    protected static byte[] CalculateKey(SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int keyLength, HashAlgorithmName hashAlgorithmName)
     {
         // https://tools.ietf.org/html/rfc4253#section-7.2
 
@@ -71,7 +62,7 @@ abstract class KeyExchange
         writer.WriteByte(c);
         writer.Write(sessionId);
 
-        using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
+        using IncrementalHash hash = IncrementalHash.CreateHash(hashAlgorithmName);
         foreach (var segment in sequence.AsReadOnlySequence())
         {
             hash.AppendData(segment.Span);
@@ -108,4 +99,12 @@ abstract class KeyExchange
         }
     }
 
+    protected virtual void Dispose(bool disposing)
+    { }
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
 }

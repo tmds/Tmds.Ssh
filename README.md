@@ -566,8 +566,7 @@ Supported server key algorithms:
 - rsa-sha2-256
 
 Supported key exchange methods:
-- curve25519-sha256
-- curve25519-sha256@libssh.org
+- curve25519-sha256, curve25519-sha256@libssh.org
 - ecdh-sha2-nistp256
 - ecdh-sha2-nistp384
 - ecdh-sha2-nistp521

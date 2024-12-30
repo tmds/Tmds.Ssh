@@ -15,13 +15,11 @@ using Org.BouncyCastle.Crypto.Agreement;
 namespace Tmds.Ssh;
 
 // Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
-class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
+class Curve25519KeyExchange : KeyExchange
 {
-    public Curve25519KeyExchange()
-        :base(HashAlgorithmName.SHA256)
-    { }
+    private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 
-    public async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
@@ -57,15 +55,15 @@ class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
         VerifySignature(publicHostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
-        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash);
+        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, BigInteger sharedSecret)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, BigInteger sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -88,7 +86,7 @@ class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
         writer.WriteString(q_s);
         writer.WriteMPInt(sharedSecret);
 
-        using IncrementalHash hash = IncrementalHash.CreateHash(_hashAlgorithmName);
+        using IncrementalHash hash = IncrementalHash.CreateHash(hashAlgorithmName);
         foreach (var segment in sequence.AsReadOnlySequence())
         {
             hash.AppendData(segment.Span);
@@ -96,7 +94,7 @@ class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
         return hash.GetHashAndReset();
     }
 
-    private BigInteger DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
+    private static BigInteger DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
     {
         var keyAgreement = new X25519Agreement();
         keyAgreement.Init(privateKey);
@@ -107,9 +105,6 @@ class Curve25519KeyExchange : KeyExchange, IKeyExchangeAlgorithm
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret;
     }
-
-    public void Dispose()
-    { }
 
     private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)
     {
