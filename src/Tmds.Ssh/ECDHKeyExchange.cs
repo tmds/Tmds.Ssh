@@ -4,7 +4,6 @@
 using System.Buffers;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Numerics;
 
 namespace Tmds.Ssh;
 
@@ -39,7 +38,7 @@ class ECDHKeyExchange : KeyExchange
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
-        BigInteger sharedSecret;
+        byte[] sharedSecret;
         try
         {
             sharedSecret = DeriveSharedSecret(ecdh, _ecCurve, ecdhReply.q_s);
@@ -58,7 +57,7 @@ class ECDHKeyExchange : KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, BigInteger sharedSecret, HashAlgorithmName hashAlgorithmName)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -79,7 +78,7 @@ class ECDHKeyExchange : KeyExchange
         writer.WriteString(public_host_key);
         writer.WriteString(q_c);
         writer.WriteString(q_s);
-        writer.WriteMPInt(sharedSecret);
+        writer.WriteString(sharedSecret);
 
         using IncrementalHash hash = IncrementalHash.CreateHash(hashAlgorithmName);
         foreach (var segment in sequence.AsReadOnlySequence())
@@ -89,7 +88,7 @@ class ECDHKeyExchange : KeyExchange
         return hash.GetHashAndReset();
     }
 
-    private static BigInteger DeriveSharedSecret(ECDiffieHellman ecdh, ECCurve curve, ECPoint q)
+    private static byte[] DeriveSharedSecret(ECDiffieHellman ecdh, ECCurve curve, ECPoint q)
     {
         ECParameters parameters = new ECParameters
         {
@@ -101,7 +100,7 @@ class ECDHKeyExchange : KeyExchange
         byte[] rawSecretAgreement = ecdh.DeriveRawSecretAgreement(peerPublicKey);
         var sharedSecret = rawSecretAgreement.ToBigInteger();
         rawSecretAgreement.AsSpan().Clear();
-        return sharedSecret;
+        return sharedSecret.ToMPIntByteArray();
     }
 
     private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ECPoint q_c)

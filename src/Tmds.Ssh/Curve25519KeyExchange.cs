@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using System.Security.Cryptography;
-using System.Numerics;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -44,7 +43,7 @@ class Curve25519KeyExchange : KeyExchange
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
-        BigInteger sharedSecret;
+        byte[] sharedSecret;
         try
         {
             sharedSecret = DeriveSharedSecret(x25519KeyPair.Private, new X25519PublicKeyParameters(ecdhReply.q_s));
@@ -63,7 +62,7 @@ class Curve25519KeyExchange : KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, BigInteger sharedSecret, HashAlgorithmName hashAlgorithmName)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -84,7 +83,7 @@ class Curve25519KeyExchange : KeyExchange
         writer.WriteString(public_host_key);
         writer.WriteString(q_c);
         writer.WriteString(q_s);
-        writer.WriteMPInt(sharedSecret);
+        writer.WriteString(sharedSecret);
 
         using IncrementalHash hash = IncrementalHash.CreateHash(hashAlgorithmName);
         foreach (var segment in sequence.AsReadOnlySequence())
@@ -94,7 +93,7 @@ class Curve25519KeyExchange : KeyExchange
         return hash.GetHashAndReset();
     }
 
-    private static BigInteger DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
+    private static byte[] DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
     {
         var keyAgreement = new X25519Agreement();
         keyAgreement.Init(privateKey);
@@ -103,7 +102,7 @@ class Curve25519KeyExchange : KeyExchange
         keyAgreement.CalculateAgreement(peerPublicKey, rawSecretAgreement);
         var sharedSecret = rawSecretAgreement.ToBigInteger();
         rawSecretAgreement.AsSpan().Clear();
-        return sharedSecret;
+        return sharedSecret.ToMPIntByteArray();
     }
 
     private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)

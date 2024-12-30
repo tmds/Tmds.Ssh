@@ -32,7 +32,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
         }
     }
 
-    protected static KeyExchangeOutput CalculateKeyExchangeOutput(KeyExchangeInput input, SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, HashAlgorithmName hashAlgorithmName)
+    protected static KeyExchangeOutput CalculateKeyExchangeOutput(KeyExchangeInput input, SequencePool sequencePool, byte[] sharedSecret, byte[] exchangeHash, HashAlgorithmName hashAlgorithmName)
     {
         byte[] sessionId = input.ConnectionInfo.SessionId ?? exchangeHash;
         byte[] initialIVC2S = CalculateKey(sequencePool, sharedSecret, exchangeHash, (byte)'A', sessionId, input.InitialIVC2SLength, hashAlgorithmName);
@@ -47,7 +47,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
             initialIVC2S, encryptionKeyC2S, integrityKeyC2S);
     }
 
-    protected static byte[] CalculateKey(SequencePool sequencePool, BigInteger sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int keyLength, HashAlgorithmName hashAlgorithmName)
+    protected static byte[] CalculateKey(SequencePool sequencePool, byte[] sharedSecret, byte[] exchangeHash, byte c, byte[] sessionId, int keyLength, HashAlgorithmName hashAlgorithmName)
     {
         // https://tools.ietf.org/html/rfc4253#section-7.2
 
@@ -57,7 +57,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
         // HASH(K || H || c || session_id)
         using Sequence sequence = sequencePool.RentSequence();
         var writer = new SequenceWriter(sequence);
-        writer.WriteMPInt(sharedSecret);
+        writer.WriteString(sharedSecret);
         writer.Write(exchangeHash);
         writer.WriteByte(c);
         writer.Write(sessionId);
@@ -76,7 +76,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
 
             // K3 = HASH(K || H || K1 || K2)
             writer = new SequenceWriter(sequence);
-            writer.WriteMPInt(sharedSecret);
+            writer.WriteString(sharedSecret);
             writer.Write(exchangeHash);
             writer.Write(key.AsSpan(0, keyOffset));
 
