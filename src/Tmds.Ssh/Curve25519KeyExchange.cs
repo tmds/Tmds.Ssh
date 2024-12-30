@@ -25,15 +25,15 @@ class Curve25519KeyExchange : KeyExchange
         var connectionInfo = input.ConnectionInfo;
 
         AsymmetricCipherKeyPair x25519KeyPair;
-        using (var _randomGenerator = new CryptoApiRandomGenerator())
+        using (var randomGenerator = new CryptoApiRandomGenerator())
         {
             var x25519KeyPairGenerator = new X25519KeyPairGenerator();
-            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(_randomGenerator)));
+            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
             x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
         }
 
         // Send ECDH_INIT.
-        var q_c = ((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded();
+        byte[] q_c = ((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded();
         await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
@@ -41,7 +41,7 @@ class Curve25519KeyExchange : KeyExchange
         var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        var publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
+        PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         BigInteger sharedSecret;

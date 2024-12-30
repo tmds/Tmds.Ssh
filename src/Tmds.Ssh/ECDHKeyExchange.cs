@@ -17,7 +17,7 @@ class ECDHKeyExchange : KeyExchange
     public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName)
     {
         _ecCurve = ecCurve;
-        this._hashAlgorithmName = hashAlgorithmName;
+        _hashAlgorithmName = hashAlgorithmName;
     }
 
     public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
@@ -36,7 +36,7 @@ class ECDHKeyExchange : KeyExchange
         var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        var publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
+        PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         BigInteger sharedSecret;
