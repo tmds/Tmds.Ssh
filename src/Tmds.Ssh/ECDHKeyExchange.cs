@@ -32,7 +32,7 @@ class ECDHKeyExchange : KeyExchange
 
         // Receive ECDH_REPLY.
         using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
+        var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
@@ -116,7 +116,7 @@ class ECDHKeyExchange : KeyExchange
         SshKey public_host_key,
         ECPoint q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
-        ParceEcdhReply(ReadOnlyPacket packet)
+        ParseEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);

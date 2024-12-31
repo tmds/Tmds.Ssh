@@ -14,7 +14,7 @@ using Org.BouncyCastle.Crypto.Agreement;
 namespace Tmds.Ssh;
 
 // Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
-class Curve25519KeyExchange : KeyExchange
+class Curve25519Sha256KeyExchange : KeyExchange
 {
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 
@@ -37,7 +37,7 @@ class Curve25519KeyExchange : KeyExchange
 
         // Receive ECDH_REPLY.
         using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
+        var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
@@ -118,7 +118,7 @@ class Curve25519KeyExchange : KeyExchange
         SshKey public_host_key,
         byte[] q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
-        ParceEcdhReply(ReadOnlyPacket packet)
+        ParseEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
