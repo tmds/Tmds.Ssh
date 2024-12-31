@@ -62,7 +62,7 @@ class Curve25519KeyExchange : KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    protected static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)
@@ -105,7 +105,7 @@ class Curve25519KeyExchange : KeyExchange
         return sharedSecret.ToMPIntByteArray();
     }
 
-    private static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)
+    protected static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)
     {
         using var packet = sequencePool.RentPacket();
         var writer = packet.GetWriter();
@@ -114,7 +114,7 @@ class Curve25519KeyExchange : KeyExchange
         return packet.Move();
     }
 
-    private static (
+    protected static (
         SshKey public_host_key,
         byte[] q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
