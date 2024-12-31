@@ -566,6 +566,7 @@ Supported server key algorithms:
 - rsa-sha2-256
 
 Supported key exchange methods:
+- sntrup761x25519-sha512, sntrup761x25519-sha512@openssh.com
 - curve25519-sha256, curve25519-sha256@libssh.org
 - ecdh-sha2-nistp256
 - ecdh-sha2-nistp384

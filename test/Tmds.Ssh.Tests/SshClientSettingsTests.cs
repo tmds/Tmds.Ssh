@@ -21,7 +21,7 @@ public class ClientSettingsTests
         Assert.Equal(new[] { DefaultKnownHostsFile }, settings.UserKnownHostsFilePaths);
         Assert.Equal(new[] { DefaultGlobalKnownHostsFile }, settings.GlobalKnownHostsFilePaths);
         Assert.Null(settings.HostAuthentication);
-        Assert.Equal(new[] { new Name("curve25519-sha256"), new Name("curve25519-sha256@libssh.org"), new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms);
+        Assert.Equal(new[] { new Name("sntrup761x25519-sha512"), new Name("sntrup761x25519-sha512@openssh.com"), new Name("curve25519-sha256"), new Name("curve25519-sha256@libssh.org"), new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms);
         Assert.Equal(new[] { new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.ServerHostKeyAlgorithms);
         Assert.Null(settings.PublicKeyAcceptedAlgorithms);
         Assert.Equal(new[] { new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, SshClientSettings.SupportedPublicKeyAlgorithms);
