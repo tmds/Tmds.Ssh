@@ -33,9 +33,11 @@ namespace Tmds.Ssh
         {
             get
             {
-                return OperatingSystem.IsWindows()
-                    ? "openssh-ssh-agent"
-                    : Environment.GetEnvironmentVariable("SSH_AUTH_SOCK");
+                string? defaultAddress = OperatingSystem.IsWindows()
+                    ? @"\\pipe\.\openssh-ssh-agent"
+                    : null;
+                string? authSock = Environment.GetEnvironmentVariable("SSH_AUTH_SOCK");
+                return string.IsNullOrEmpty(authSock) ? defaultAddress : null;
             }
         }
 
@@ -59,20 +61,26 @@ namespace Tmds.Ssh
 
                 if (OperatingSystem.IsWindows())
                 {
+                    string normalizedPath = Path.GetFullPath(_address);
+                    if (!normalizedPath.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new ArgumentException(
+                            @"SSH Agent path on Windows must be a named pipe in the form of \\.\pipe\pipe-name");
+                    }
+
                     // There is no easy way to detect if a named pipe exists or
                     // not. File.Exists is the fastest but will actually open a
                     // connection and close it. For the ssh-agent implementation
                     // that won't matter as it is configured to allow multiple
                     // connections.
-                    string pipePath = @$"\\.\pipe\{_address}";
-                    if (!File.Exists(pipePath))
+                    if (!File.Exists(normalizedPath))
                     {
-                        throw new FileNotFoundException(pipePath);
+                        throw new FileNotFoundException(_address);
                     }
 
                     NamedPipeClientStream pipe = new NamedPipeClientStream(
                         ".",
-                        _address,
+                        normalizedPath[9..],
                         PipeDirection.InOut,
                         PipeOptions.Asynchronous,
                         System.Security.Principal.TokenImpersonationLevel.Anonymous);
