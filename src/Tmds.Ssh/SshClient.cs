@@ -123,7 +123,10 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false)
+    internal async Task ConnectAsync(Stream stream, CancellationToken cancellationToken = default)
+        => await GetSessionAsync(cancellationToken, explicitConnect: true, stream);
+
+    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false, Stream? stream = null)
     {
         lock (_gate)
         {
@@ -152,18 +155,20 @@ public sealed partial class SshClient : IDisposable
                 throw new InvalidOperationException($"{nameof(ConnectAsync)} must be called and awaited.");
             }
 
+            Debug.Assert(stream is null || (explicitConnect && state != State.Connecting));
+
             if (state != State.Connecting)
             {
                 _state = State.Connecting;
 
                 if (explicitConnect)
                 {
-                    _connectingTask = DoConnectAsync(cancellationToken);
+                    _connectingTask = DoConnectAsync(stream, cancellationToken);
                     return new ValueTask<SshSession>(_connectingTask);
                 }
                 else
                 {
-                    _connectingTask = DoConnectAsync(default);
+                    _connectingTask = DoConnectAsync(null, default);
                     return new ValueTask<SshSession>(_connectingTask.WaitAsync(cancellationToken));
                 }
             }
@@ -198,7 +203,7 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    private async Task<SshSession> DoConnectAsync(CancellationToken cancellationToken)
+    private async Task<SshSession> DoConnectAsync(Stream? stream, CancellationToken cancellationToken)
     {
         Debug.Assert(_gate.IsHeldByCurrentThread);
         Debug.Assert(_state == State.Connecting);
@@ -209,7 +214,7 @@ public sealed partial class SshClient : IDisposable
         bool success = false;
         try
         {
-            await session.ConnectAsync(_connectTimeout, cancellationToken);
+            await session.ConnectAsync(stream, _connectTimeout, cancellationToken);
             success = true;
             return session;
         }

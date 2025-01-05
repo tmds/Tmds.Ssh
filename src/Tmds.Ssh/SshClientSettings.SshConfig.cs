@@ -19,7 +19,56 @@ partial class SshClientSettings
 
     internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigSettings options, CancellationToken cancellationToken = default)
     {
-        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.OptionsOrDefault, options.ConfigFilePaths, cancellationToken);
+        (SshClientSettings settings, string? proxyJump) = await LoadSettingsFromConfigAsync(userName, host, port, options.ConfigFilePathsOrDefault, options.OptionsOrDefault, options.HostAuthentication, options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
+        if (proxyJump is not null)
+        {
+            settings.Proxy = await CreateProxyConnectForProxyJumpAsync(proxyJump, options.ConfigFilePathsOrDefault, options.HostAuthentication, options.ConnectTimeout, cancellationToken);
+        }
+        return settings;
+    }
+
+    private static async Task<Proxy?> CreateProxyConnectForProxyJumpAsync(string proxyJump, IReadOnlyList<string> configFilePaths, HostAuthentication? authentication, TimeSpan connectTimeout, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(proxyJump))
+        {
+            return null;
+        }
+
+        List<Proxy> jumpProxies = new();
+
+        string[] jumpHosts = proxyJump.Split(',');
+
+        bool isFirst = true;
+        foreach (var jumpHost in jumpHosts)
+        {
+            (string? username, string host, int? port) = ParseDestination(jumpHost);
+            if (string.IsNullOrEmpty(host))
+            {
+                throw new InvalidDataException();
+            }
+
+            (SshClientSettings settings, string? innerProxyJump) = await LoadSettingsFromConfigAsync(username, host, port, configFilePaths, null, authentication, connectTimeout, cancellationToken).ConfigureAwait(false);                
+
+            if (isFirst && innerProxyJump is not null)
+            {
+                Proxy? proxyConnect = await CreateProxyConnectForProxyJumpAsync(innerProxyJump, configFilePaths, authentication, connectTimeout, cancellationToken);
+                if (proxyConnect is not null)
+                {
+                    jumpProxies.Add(proxyConnect);
+                }
+            }
+            isFirst = false;
+
+            jumpProxies.Add(new SshProxy(settings));
+        }
+
+        return Proxy.Chain(jumpProxies.ToArray());
+    }
+
+    private static async ValueTask<(SshClientSettings settings, string? proxyJump)> LoadSettingsFromConfigAsync(string? userName, string host, int? port,
+        IReadOnlyList<string> configFilePaths, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? options, HostAuthentication? authentication, TimeSpan connectTimeout, CancellationToken cancellationToken)
+    {
+        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options, configFilePaths, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
@@ -37,7 +86,7 @@ partial class SshClientSettings
             HostName = sshConfig.HostName ?? host,
             UserName = sshConfig.UserName ?? Environment.UserName,
             Port = sshConfig.Port ?? DefaultPort,
-            ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : options.ConnectTimeout,
+            ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : connectTimeout,
             KeyExchangeAlgorithms = kexAlgorithms,
             ServerHostKeyAlgorithms = hostKeyAlgorithms,
             PublicKeyAcceptedAlgorithms = publicKeyAcceptedAlgorithms,
@@ -90,7 +139,7 @@ partial class SshClientSettings
             case SshConfig.StrictHostKeyChecking.Ask:
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Disallow changed, and ask for unknown keys.
-                if (options.HostAuthentication is HostAuthentication authentication)
+                if (authentication is not null)
                 {
                     settings.HostAuthentication =
                         (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
@@ -115,7 +164,7 @@ partial class SshClientSettings
                 break;
         }
 
-        return settings;
+        return (settings, sshConfig.ProxyJump);
     }
 
     internal static Dictionary<string, string>? CreateEnvironmentVariables(IDictionary systemEnvironment, List<System.String>? sendEnv)

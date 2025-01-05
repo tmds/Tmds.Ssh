@@ -282,7 +282,9 @@ class SshConfigSettings
   TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
 
   bool AutoConnect { get; set; } = true;
-  bool AutoReconnect { get; set; }
+  bool AutoReconnect { get; set; } = false;
+
+  Proxy? Proxy { get; set; } = null;
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }
@@ -312,7 +314,8 @@ enum SshConfigOption
     TCPKeepAlive,
     ServerAliveCountMax,
     ServerAliveInterval,
-    IdentitiesOnly
+    IdentitiesOnly,
+    ProxyJump,
 }
 struct SshConfigOptionValue
 {
@@ -521,6 +524,29 @@ class NoCredential : Credential
 {
   NoCredential();
 }
+class Proxy
+{
+  static Proxy? Chain(params Proxy[] proxies);
+
+  protected Proxy(Uri uri, ConnectEndPoint? endPoint = null);
+  protected virtual Task<Stream> ConnectCoreAsync(Stream stream, ConnectContext context, CancellationToken ct);
+}
+class SshProxy : Proxy
+{
+  SshProxy(SshClientSettings settings);
+}
+public class ConnectContext
+{
+    ILoggerFactory LoggerFactory { get; }
+
+    ConnectEndPoint EndPoint { get; }
+    bool TcpKeepAlive { get; }
+
+    ConnectContext DestinationContext { get; }
+    ConnectEndPoint DestinationEndPoint { get; }
+}
+class ConnectEndPoint(string host, int port)
+{ }
 // Base class.
 class SshException : Exception
 { }

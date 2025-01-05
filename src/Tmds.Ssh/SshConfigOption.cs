@@ -35,5 +35,6 @@ public enum SshConfigOption
     TCPKeepAlive,
     ServerAliveCountMax,
     ServerAliveInterval,
-    IdentitiesOnly
+    IdentitiesOnly,
+    ProxyJump,
 }

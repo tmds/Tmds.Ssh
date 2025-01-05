@@ -234,6 +234,8 @@ public sealed partial class SshClientSettings
 
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
+    public Proxy? Proxy { get; set; } = null;
+
     // Currently these settings are not exposed.
     internal List<Name> KeyExchangeAlgorithms { get; set; } = DefaultKeyExchangeAlgorithms;
     internal List<Name> ServerHostKeyAlgorithms { get; set; } = DefaultServerHostKeyAlgorithms;

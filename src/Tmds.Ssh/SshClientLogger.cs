@@ -15,8 +15,8 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Information,
-        Message = "Connecting to '{HostName}' port {Port}")]
-    public static partial void Connecting(this ILogger<SshClient> logger, string hostName, int port);
+        Message = "Connecting to {EndPoint} for {Destination} via {Proxies}")]
+    public static partial void HostConnect(this ILogger<SshClient> logger, ConnectEndPoint endpoint, ConnectEndPoint destination, IEnumerable<Uri> proxies);
 
     [LoggerMessage(
         EventId = 2,
@@ -285,6 +285,12 @@ static partial class SshClientLogger
         Level = LogLevel.Error,
         Message = "Failed to connect to SSH Agent")]
     public static partial void CannotConnectToSshAgent(this ILogger<SshClient> logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 34,
+        Level = LogLevel.Information,
+        Message = "Proxying at {ProxyUri} to {ProxyTarget} for {Destination}")]
+    public static partial void Proxy(this ILogger<SshClient> logger, Uri proxyUri, ConnectEndPoint proxyTarget, ConnectEndPoint destination);
 
     struct PacketPayload // TODO: implement ISpanFormattable
     {
