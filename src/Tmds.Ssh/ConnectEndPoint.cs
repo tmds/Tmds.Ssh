@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh;
 
-public sealed class ConnectEndPoint
+sealed class ConnectEndPoint
 {
     private string? _toString;
 

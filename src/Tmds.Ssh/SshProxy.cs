@@ -32,7 +32,7 @@ public sealed class SshProxy : Proxy
         _uri = new UriBuilder("ssh", host, port.Value).Uri;
     }
 
-    internal protected override async ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct)
+    internal override async ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct)
     {
         ProxyConnectContext proxyContext = context.CreateProxyContext(_endPoint, _uri);
 

@@ -5,7 +5,7 @@ namespace Tmds.Ssh;
 
 public abstract class Proxy
 {
-    internal protected abstract ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct);
+    internal abstract ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct);
 
     public static Proxy? Chain(params Proxy[] proxies)
     {
@@ -27,7 +27,7 @@ public abstract class Proxy
             _proxies = proxies;
         }
 
-        internal protected override async ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct)
+        internal override async ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct)
         {
             foreach (var proxy in _proxies)
             {

@@ -3,4 +3,4 @@
 
 namespace Tmds.Ssh;
 
-public delegate ValueTask<Stream> ConnectCallback(ConnectContext context, CancellationToken cancellationToken);
+delegate ValueTask<Stream> ConnectCallback(ConnectContext context, CancellationToken cancellationToken);

@@ -527,26 +527,12 @@ class NoCredential : Credential
 class Proxy
 {
   static Proxy? Chain(params Proxy[] proxies);
-
-  protected Proxy(Uri uri, ConnectEndPoint? endPoint = null);
-  protected virtual Task<Stream> ConnectCoreAsync(Stream stream, ConnectContext context, CancellationToken ct);
 }
 class SshProxy : Proxy
 {
   SshProxy(SshClientSettings settings);
+  SshProxy(string destination, SshConfigSettings configSettings);
 }
-public class ConnectContext
-{
-    ILoggerFactory LoggerFactory { get; }
-
-    ConnectEndPoint EndPoint { get; }
-    bool TcpKeepAlive { get; }
-
-    ConnectContext DestinationContext { get; }
-    ConnectEndPoint DestinationEndPoint { get; }
-}
-class ConnectEndPoint(string host, int port)
-{ }
 // Base class.
 class SshException : Exception
 { }

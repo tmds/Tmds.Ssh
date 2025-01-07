@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-public class ConnectContext
+class ConnectContext
 {
     internal ConnectContext? Parent { get; }
 
@@ -74,7 +74,7 @@ public class ConnectContext
     }
 }
 
-public sealed class ProxyConnectContext : ConnectContext
+sealed class ProxyConnectContext : ConnectContext
 {
     public Uri ProxyUri { get; }
 
