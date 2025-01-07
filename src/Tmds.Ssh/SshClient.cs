@@ -123,10 +123,10 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    internal async Task ConnectAsync(ConnectContext context, Stream stream, CancellationToken cancellationToken = default)
-        => await GetSessionAsync(cancellationToken, explicitConnect: true, stream, context);
+    internal async Task ConnectAsync(ConnectCallback connect, ConnectContext context, CancellationToken cancellationToken = default)
+        => await GetSessionAsync(cancellationToken, explicitConnect: true, connect, context);
 
-    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false, Stream? stream = null, ConnectContext? context = null)
+    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false, ConnectCallback? connect = null, ConnectContext? context = null)
     {
         lock (_gate)
         {
@@ -155,7 +155,7 @@ public sealed partial class SshClient : IDisposable
                 throw new InvalidOperationException($"{nameof(ConnectAsync)} must be called and awaited.");
             }
 
-            Debug.Assert(stream is null || (explicitConnect && state != State.Connecting));
+            Debug.Assert(connect is null || (explicitConnect && state != State.Connecting));
 
             if (state != State.Connecting)
             {
@@ -163,7 +163,7 @@ public sealed partial class SshClient : IDisposable
 
                 if (explicitConnect)
                 {
-                    _connectingTask = DoConnectAsync(stream, context, cancellationToken);
+                    _connectingTask = DoConnectAsync(connect, context, cancellationToken);
                     return new ValueTask<SshSession>(_connectingTask);
                 }
                 else
@@ -203,7 +203,7 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    private async Task<SshSession> DoConnectAsync(Stream? stream, ConnectContext? context, CancellationToken cancellationToken)
+    private async Task<SshSession> DoConnectAsync(ConnectCallback? connect, ConnectContext? context, CancellationToken cancellationToken)
     {
         Debug.Assert(_gate.IsHeldByCurrentThread);
         Debug.Assert(_state == State.Connecting);
@@ -214,7 +214,7 @@ public sealed partial class SshClient : IDisposable
         bool success = false;
         try
         {
-            await session.ConnectAsync(stream, context, _connectTimeout, cancellationToken);
+            await session.ConnectAsync(connect, context, _connectTimeout, cancellationToken);
             success = true;
             return session;
         }

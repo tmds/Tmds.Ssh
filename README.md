@@ -269,6 +269,8 @@ class SshClientSettings
   int MinimumRSAKeySize { get; set; } = 2048;
 
   Dictionary<string, string> EnvironmentVariables { get; set; } = [];
+
+  Proxy? Proxy { get; set; } = null;
 }
 class SshConfigSettings
 {
@@ -283,8 +285,6 @@ class SshConfigSettings
 
   bool AutoConnect { get; set; } = true;
   bool AutoReconnect { get; set; } = false;
-
-  Proxy? Proxy { get; set; } = null;
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }

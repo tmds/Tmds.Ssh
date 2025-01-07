@@ -10,9 +10,9 @@ static class ConnectService
 {
     private static ConnectCallback _defaultConnect = TcpConnectAsync;
 
-    public static async ValueTask<Stream> ConnectAsync(Stream? stream, Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
+    public static async ValueTask<Stream> ConnectAsync(ConnectCallback? connect, Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
     {
-        ConnectCallback connect = stream is not null ? (ConnectContext, CancellationToken) => ValueTask.FromResult(stream) : _defaultConnect;
+        connect ??= _defaultConnect;
         if (proxy is null)
         {
             return await connect(context, cancellationToken).ConfigureAwait(false);
