@@ -212,7 +212,8 @@ partial class SshClientSettings
         }
     }
 
-    private static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, IReadOnlyList<Name> defaultAlgorithms, IReadOnlyList<Name>? supportedAlgorithms)
+    // internal for tests.
+    internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, IReadOnlyList<Name> defaultAlgorithms, IReadOnlyList<Name>? supportedAlgorithms)
     {
         if (!config.HasValue)
         {
