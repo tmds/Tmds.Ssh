@@ -25,13 +25,13 @@ sealed class SshConnectContext : ConnectContext
         _connectionInfo.IPAddress = address;
     }
 
-    private protected override void LogConnect(ConnectContext context, IEnumerable<Uri>? proxyUris)
+    private protected override void LogConnect(ConnectContext context)
     {
-        _loggers.SshClientLogger.HostConnect(context.EndPoint, context.DestinationEndPoint, proxyUris ?? []);
+        _loggers.SshClientLogger.HostConnect(context.EndPoint, context.DestinationEndPoint, context.ProxyUris);
     }
 
-    protected override void LogProxyConnect(ConnectContext context, Uri proxyUri)
+    protected override void LogForward(ProxyConnectContext proxyContext, ConnectContext targetContext)
     {
-        _loggers.SshClientLogger.Proxy(proxyUri, context.EndPoint, context.DestinationEndPoint);
+        _loggers.SshClientLogger.Proxy(proxyContext.ProxyUri, targetContext.EndPoint, targetContext.DestinationEndPoint);
     }
 }

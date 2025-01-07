@@ -12,7 +12,7 @@ public class ConnectContext
 
     public ILoggerFactory LoggerFactory { get; }
 
-    public ConnectContext DestinationContext => Parent ?? this;
+    public ConnectContext DestinationContext => Parent?.DestinationContext ?? Parent ?? this;
 
     public ConnectEndPoint EndPoint { get; }
 
@@ -26,7 +26,7 @@ public class ConnectContext
         LoggerFactory = loggerFactory;
     }
 
-    private ConnectContext(ConnectEndPoint endPoint, ConnectContext parent)
+    internal ConnectContext(ConnectEndPoint endPoint, ConnectContext parent)
     {
         EndPoint = endPoint;
         Parent = parent;
@@ -34,37 +34,61 @@ public class ConnectContext
         LoggerFactory = parent.LoggerFactory;
     }
 
-    internal ConnectContext CreateProxyContext(Proxy proxy)
+    internal ProxyConnectContext CreateProxyContext(ConnectEndPoint proxyEndPoint, Uri proxyUri)
     {
-        return new ProxyConnectContext(this, proxy);
+        return new ProxyConnectContext(this, proxyEndPoint, proxyUri);
     }
 
     internal virtual void SetHostIPAddress(IPAddress address)
     { }
 
-    private protected virtual void LogConnect(ConnectContext context, IEnumerable<Uri>? proxyUris)
+    private protected virtual void LogConnect(ConnectContext context)
     {
-        Parent?.LogConnect(context, proxyUris);
+        Parent?.LogConnect(context);
     }
 
-    protected virtual void LogProxyConnect(ConnectContext context, Uri proxyUri)
+    protected virtual void LogForward(ProxyConnectContext proxyContext, ConnectContext targetContext)
     {
-        Parent?.LogProxyConnect(context, proxyUri);
+        Parent?.LogForward(proxyContext, targetContext);
     }
 
-    internal void LogConnect(IEnumerable<Uri>? proxyUris)
-        => LogConnect(this, proxyUris);
+    internal void LogConnect()
+        => LogConnect(this);
 
-    internal void LogProxyConnect(Uri proxyUri)
-        => LogProxyConnect(this, proxyUri);
-
-    sealed class ProxyConnectContext : ConnectContext
+    internal IEnumerable<Uri> ProxyUris
     {
-        internal ProxyConnectContext(ConnectContext parent, Proxy proxyConnect) :
-            base(proxyConnect.EndPoint!, parent)
-        { }
-
-        internal override void SetHostIPAddress(IPAddress address)
-        { }
+        get
+        {
+            if (this is ProxyConnectContext proxyContext)
+            {
+                yield return proxyContext.ProxyUri;
+            }
+            if (Parent is not null)
+            {
+                foreach (var uri in Parent.ProxyUris)
+                {
+                    yield return uri;
+                }
+            }
+        }
     }
+}
+
+public sealed class ProxyConnectContext : ConnectContext
+{
+    public Uri ProxyUri { get; }
+
+    internal ProxyConnectContext(ConnectContext parent, ConnectEndPoint proxyEndPoint, Uri proxyUri) :
+        base(proxyEndPoint, parent)
+    {
+        ProxyUri = proxyUri;
+    }
+
+    public void LogForward(ConnectContext target)
+    {
+        LogForward(this, target);
+    }
+
+    internal override void SetHostIPAddress(IPAddress address)
+    { }
 }

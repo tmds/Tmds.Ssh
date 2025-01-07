@@ -6,21 +6,33 @@ namespace Tmds.Ssh;
 public sealed class SshProxy : Proxy
 {
     private readonly SshClientSettings _settings;
+    private readonly ConnectEndPoint _endPoint;
+    private readonly Uri _uri;
 
     public SshProxy(SshClientSettings settings)
-        : base(new UriBuilder("ssh", settings.HostName, settings.Port, null).Uri)
     {
         _settings = settings;
+        _endPoint = new ConnectEndPoint(_settings.HostName, _settings.Port);
+        _uri = new UriBuilder("ssh", settings.HostName, settings.Port, null).Uri;
     }
 
-    protected override async Task<Stream> ConnectCoreAsync(Stream stream, ConnectContext context, CancellationToken ct)
+    internal protected override async ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct)
     {
-        var sshClient = new SshClient(_settings, context.LoggerFactory);
+        ProxyConnectContext proxyContext = context.CreateProxyContext(_endPoint, _uri);
+        Stream stream = await connect(proxyContext, ct);
+
+        proxyContext.LogForward(context);
+        return await ForwardAsync(stream, proxyContext, context.EndPoint, ct);
+    }
+
+    private async Task<Stream> ForwardAsync(Stream stream, ProxyConnectContext proxyContext, ConnectEndPoint target, CancellationToken ct)
+    {
+        var sshClient = new SshClient(_settings, proxyContext.LoggerFactory);
         try
         {
-            await sshClient.ConnectAsync(stream, ct);
+            await sshClient.ConnectAsync(proxyContext, stream, ct);
 
-            SshDataStream dataStream = await sshClient.OpenTcpConnectionAsync(context.EndPoint.Host, context.EndPoint.Port, ct);
+            SshDataStream dataStream = await sshClient.OpenTcpConnectionAsync(target.Host, target.Port, ct);
 
             dataStream.StreamAborted.UnsafeRegister(o => ((SshClient)o!).Dispose(), sshClient);
 

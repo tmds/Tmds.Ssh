@@ -123,10 +123,10 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    internal async Task ConnectAsync(Stream stream, CancellationToken cancellationToken = default)
-        => await GetSessionAsync(cancellationToken, explicitConnect: true, stream);
+    internal async Task ConnectAsync(ConnectContext context, Stream stream, CancellationToken cancellationToken = default)
+        => await GetSessionAsync(cancellationToken, explicitConnect: true, stream, context);
 
-    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false, Stream? stream = null)
+    private ValueTask<SshSession> GetSessionAsync(CancellationToken cancellationToken, bool explicitConnect = false, Stream? stream = null, ConnectContext? context = null)
     {
         lock (_gate)
         {
@@ -163,12 +163,12 @@ public sealed partial class SshClient : IDisposable
 
                 if (explicitConnect)
                 {
-                    _connectingTask = DoConnectAsync(stream, cancellationToken);
+                    _connectingTask = DoConnectAsync(stream, context, cancellationToken);
                     return new ValueTask<SshSession>(_connectingTask);
                 }
                 else
                 {
-                    _connectingTask = DoConnectAsync(null, default);
+                    _connectingTask = DoConnectAsync(null, null, default);
                     return new ValueTask<SshSession>(_connectingTask.WaitAsync(cancellationToken));
                 }
             }
@@ -203,7 +203,7 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    private async Task<SshSession> DoConnectAsync(Stream? stream, CancellationToken cancellationToken)
+    private async Task<SshSession> DoConnectAsync(Stream? stream, ConnectContext? context, CancellationToken cancellationToken)
     {
         Debug.Assert(_gate.IsHeldByCurrentThread);
         Debug.Assert(_state == State.Connecting);
@@ -214,7 +214,7 @@ public sealed partial class SshClient : IDisposable
         bool success = false;
         try
         {
-            await session.ConnectAsync(stream, _connectTimeout, cancellationToken);
+            await session.ConnectAsync(stream, context, _connectTimeout, cancellationToken);
             success = true;
             return session;
         }

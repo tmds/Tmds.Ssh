@@ -74,7 +74,7 @@ sealed partial class SshSession
         }
     }
 
-    public async Task ConnectAsync(Stream? stream, TimeSpan connectTimeout, CancellationToken ct = default)
+    public async Task ConnectAsync(Stream? stream, ConnectContext? context, TimeSpan connectTimeout, CancellationToken ct = default)
     {
         Task task;
         // ConnectAsync can be cancelled by calling Dispose.
@@ -92,27 +92,23 @@ sealed partial class SshSession
             var connectionCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             task = connectionCompletedTcs.Task;
 
-            _runningConnectionTask = RunConnectionAsync(stream, connectTimeout, ct, connectionCompletedTcs);
+            _runningConnectionTask = RunConnectionAsync(stream, context, connectTimeout, ct, connectionCompletedTcs);
         }
 
         await task;
     }
 
-    private async Task<SshConnection> EstablishConnectionAsync(Stream? stream, CancellationToken ct)
+    private async Task<SshConnection> EstablishConnectionAsync(Stream? stream, ConnectContext? ctx, CancellationToken ct)
     {
         Debug.Assert(_settings is not null);
 
-        if (stream is null)
-        {
-
-            var ctx = new SshConnectContext(_settings, ConnectionInfo, _loggers);
-            stream = await ConnectService.ConnectAsync(_settings.Proxy, ctx, ct).ConfigureAwait(false);
-        }
+        ctx ??= new SshConnectContext(_settings, ConnectionInfo, _loggers);
+        stream = await ConnectService.ConnectAsync(stream, _settings.Proxy, ctx, ct).ConfigureAwait(false);
 
         return new StreamSshConnection(Logger, _sequencePool, stream);
     }
 
-    private async Task RunConnectionAsync(Stream? stream, TimeSpan connectTimeout, CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
+    private async Task RunConnectionAsync(Stream? stream, ConnectContext? connectContext, TimeSpan connectTimeout, CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
     {
         SshConnection? connection = null;
 
@@ -178,7 +174,7 @@ sealed partial class SshSession
             }
 
             // Connect to the remote host
-            connection = await EstablishConnectionAsync(stream, connectCts.Token).ConfigureAwait(false);
+            connection = await EstablishConnectionAsync(stream, connectContext, connectCts.Token).ConfigureAwait(false);
 
             // Setup ssh connection
             await ProtocolVersionExchangeAsync(connection, connectCts.Token).ConfigureAwait(false);

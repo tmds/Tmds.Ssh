@@ -1,38 +1,61 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Net;
+using System.Net.Sockets;
+
 namespace Tmds.Ssh;
 
 static class ConnectService
 {
-    private static Connect _defaultConnect = new TcpConnect();
+    private static ConnectCallback _defaultConnect = TcpConnectAsync;
 
-    public static async ValueTask<Stream> ConnectAsync(Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
+    public static async ValueTask<Stream> ConnectAsync(Stream? stream, Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
     {
-        Connect connect = _defaultConnect;
+        ConnectCallback connect = stream is not null ? (ConnectContext, CancellationToken) => ValueTask.FromResult(stream) : _defaultConnect;
         if (proxy is null)
         {
-            context.LogConnect(null);
-
-            return await connect.ConnectAsync(context, cancellationToken).ConfigureAwait(false);
+            return await connect(context, cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            ConnectContext proxyContext = context.CreateProxyContext(proxy);
+            return await proxy.ConnectToProxyAndForward(connect, context, cancellationToken);
+        }
+    }
 
-            proxyContext.LogConnect(proxy.Uris);
+    private static async ValueTask<Stream> TcpConnectAsync(ConnectContext context, CancellationToken cancellationToken)
+    {
+        context.LogConnect();
 
-            Stream stream = await connect.ConnectAsync(proxyContext, cancellationToken).ConfigureAwait(false);
-            try
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
+        try
+        {
+            // Connect to the remote host
+            await socket.ConnectAsync(context.EndPoint.Host, context.EndPoint.Port, cancellationToken).ConfigureAwait(false);
+
+            context.SetHostIPAddress((socket.RemoteEndPoint as IPEndPoint)!.Address);
+
+            socket.NoDelay = true;
+
+            if (context.TcpKeepAlive)
             {
-                return await proxy.ConnectAsync(stream, context, cancellationToken).ConfigureAwait(false);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             }
-            catch
-            {
-                stream.Dispose();
 
-                throw;
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch (Exception ex)
+        {
+            socket.Dispose();
+
+            // ConnectAsync may throw ODE for cancellation
+            // when the connection is made just before the token gets cancelled.
+            if (ex is ObjectDisposedException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
             }
+
+            throw;
         }
     }
 }
