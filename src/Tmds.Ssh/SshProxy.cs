@@ -13,6 +13,9 @@ public sealed class SshProxy : Proxy
 
     public SshProxy(SshClientSettings settings)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
+
         _settings = settings;
         _endPoint = new ConnectEndPoint(_settings.HostName, _settings.Port);
         _uri = new UriBuilder("ssh", settings.HostName, settings.Port).Uri;

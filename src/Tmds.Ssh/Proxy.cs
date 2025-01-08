@@ -22,6 +22,7 @@ public abstract class Proxy
     sealed class ProxyChain : Proxy
     {
         private readonly Proxy[] _proxies;
+
         public ProxyChain(Proxy[] proxies)
         {
             _proxies = proxies;
@@ -31,12 +32,13 @@ public abstract class Proxy
         {
             foreach (var proxy in _proxies)
             {
-                connect = CreateCallback(connect, proxy);
+                connect = ConnectThroughProxy(connect, proxy);
             }
+
             return await connect(context, ct);
         }
 
-        private ConnectCallback CreateCallback(ConnectCallback connect, Proxy proxy) =>
+        private ConnectCallback ConnectThroughProxy(ConnectCallback connect, Proxy proxy) =>
             (ConnectContext context, CancellationToken cancellationToken) => proxy.ConnectToProxyAndForward(connect, context, cancellationToken);
     }
 }

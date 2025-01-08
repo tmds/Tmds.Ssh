@@ -6,7 +6,7 @@ using System.Net.Sockets;
 
 namespace Tmds.Ssh;
 
-static class ConnectService
+static class Connect
 {
     private static ConnectCallback _defaultConnect = TcpConnectAsync;
 

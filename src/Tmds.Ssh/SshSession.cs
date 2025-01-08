@@ -112,7 +112,7 @@ sealed partial class SshSession
             ConnectionInfo.IsProxy = true;
         }
 
-        Stream stream = await ConnectService.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
+        Stream stream = await Connect.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
 
         return new StreamSshConnection(Logger, _sequencePool, stream);
     }

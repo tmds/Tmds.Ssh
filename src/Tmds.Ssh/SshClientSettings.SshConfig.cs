@@ -53,7 +53,7 @@ partial class SshClientSettings
             TcpKeepAlive = sshConfig.TcpKeepAlive ?? DefaultTcpKeepAlive,
             KeepAliveCountMax = sshConfig.ServerAliveCountMax ?? DefaultKeepAliveCountMax,
             KeepAliveInterval = sshConfig.ServerAliveInterval > 0 ? TimeSpan.FromSeconds(sshConfig.ServerAliveInterval.Value) : TimeSpan.Zero,
-            Proxy = DetermineProxy(sshConfig.ProxyJump, options.ConfigFilePathsOrDefault, options.HostAuthentication, options.ConnectTimeout)
+            Proxy = DetermineProxy(sshConfig.ProxyJump, options)
         };
         if (sshConfig.UserKnownHostsFiles is not null)
         {
@@ -294,7 +294,7 @@ partial class SshClientSettings
         }
     }
 
-    private static Proxy? DetermineProxy(string? proxyJump, IReadOnlyList<string> configFilePaths, HostAuthentication? authentication, TimeSpan connectTimeout)
+    private static Proxy? DetermineProxy(string? proxyJump, SshConfigSettings options)
     {
         if (string.IsNullOrEmpty(proxyJump))
         {
@@ -303,19 +303,22 @@ partial class SshClientSettings
 
         List<Proxy> jumpProxies = new();
 
-        string[] jumpHosts = proxyJump.Split(',');
+        List<string> configFilePaths = options.ConfigFilePathsOrDefault.ToList();
 
+        string[] jumpHosts = proxyJump.Split(',');
         bool isFirst = true;
         foreach (var jumpHost in jumpHosts)
         {
             var config = new SshConfigSettings()
             {
-                ConfigFilePaths = configFilePaths.ToList(),
-                ConnectTimeout = connectTimeout,
-                HostAuthentication = authentication
+                ConfigFilePaths = configFilePaths,
+                ConnectTimeout = options.ConnectTimeout,
+                HostAuthentication = options.HostAuthentication
             };
+
             if (!isFirst)
             {
+                // Ignore proxy jump config from ssh_config and directly use the previous Proxy in the chain.
                 config.Options[SshConfigOption.ProxyJump] = "none";
             }
             isFirst = false;

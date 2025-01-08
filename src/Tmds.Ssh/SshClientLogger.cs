@@ -15,8 +15,33 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Information,
+        EventName = nameof(HostConnect),
         Message = "Connecting to {EndPoint} for {Destination} via {Proxies}")]
-    public static partial void HostConnect(this ILogger<SshClient> logger, ConnectEndPoint endpoint, ConnectEndPoint destination, IEnumerable<Uri> proxies);
+    public static partial void HostConnectWithProxies(this ILogger<SshClient> logger, ConnectEndPoint endpoint, ConnectEndPoint destination, IEnumerable<Uri> proxies);
+
+#pragma warning disable SYSLIB1025 // Multiple logging methods should not use the same event name within a class
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Information,
+        EventName = nameof(HostConnect),
+        Message = "Connecting to {EndPoint}")]
+#pragma warning restore SYSLIB1025 // Multiple logging methods should not use the same event name within a class
+#pragma warning disable SYSLIB1015 // Argument is not referenced from the logging message
+    // Include Destinations and Proxies in State, but not in message. Note, name of the arguments must match with those used in HostConnectWithProxies.Message.
+    public static partial void HostConnectWithoutProxies(this ILogger<SshClient> logger, ConnectEndPoint EndPoint, ConnectEndPoint Destination, IEnumerable<Uri> Proxies);
+#pragma warning restore SYSLIB1015 // Argument is not referenced from the logging message
+
+    public static void HostConnect(this ILogger<SshClient> logger, ConnectEndPoint endpoint, ConnectEndPoint destination, IEnumerable<Uri> proxies)
+    {
+        if (destination == endpoint && !proxies.Any())
+        {
+            HostConnectWithoutProxies(logger, endpoint, destination, Proxies: []);
+        }
+        else
+        {
+            HostConnectWithProxies(logger, endpoint, destination, proxies.ToArray());
+        }
+    }
 
     [LoggerMessage(
         EventId = 2,
