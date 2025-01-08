@@ -260,6 +260,8 @@ class SshClientSettings
   TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
   int KeepAliveCountMax { get; set; } = 3;
 
+  Proxy? Proxy { get; set; } = null;
+
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
@@ -269,8 +271,6 @@ class SshClientSettings
   int MinimumRSAKeySize { get; set; } = 2048;
 
   Dictionary<string, string> EnvironmentVariables { get; set; } = [];
-
-  Proxy? Proxy { get; set; } = null;
 }
 class SshConfigSettings
 {
@@ -485,6 +485,7 @@ class SshConnectionInfo
   HostKey ServerKey { get; }
   string Host { get; }
   int Port { get; }
+  bool IsProxy { get; }
 }
 // Base class for all credentials.
 abstract class Credential

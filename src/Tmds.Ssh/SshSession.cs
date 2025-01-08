@@ -102,7 +102,16 @@ sealed partial class SshSession
     {
         Debug.Assert(_settings is not null);
 
-        ctx ??= new SshConnectContext(_settings, ConnectionInfo, _loggers);
+        if (ctx is null)
+        {
+            ctx = new SshConnectContext(_settings, ConnectionInfo, _loggers);
+        }
+        else
+        {
+            Debug.Assert(ctx is ProxyConnectContext);
+            ConnectionInfo.IsProxy = true;
+        }
+
         Stream stream = await ConnectService.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
 
         return new StreamSshConnection(Logger, _sequencePool, stream);
