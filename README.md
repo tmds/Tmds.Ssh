@@ -531,6 +531,7 @@ class Proxy
 }
 class SshProxy : Proxy
 {
+  SshProxy(string destination);
   SshProxy(SshClientSettings settings);
   SshProxy(string destination, SshConfigSettings configSettings);
 }
