@@ -177,6 +177,34 @@ public sealed partial class SshClientSettings
         }
     }
 
+    internal SshClientSettings CreateSettingsForProxy(string destination)
+    {
+        SshClientSettings settings = new SshClientSettings(destination)
+        {
+            ConnectTimeout = ConnectTimeout,
+        };
+
+        // Credentials.
+        if (_credentials is not null)
+        {
+            settings.Credentials = Credentials;
+        }
+
+        // Host auth.
+        settings.HostAuthentication = HostAuthentication;
+        if (_globalKnownHostsFilePaths is not null)
+        {
+            settings.GlobalKnownHostsFilePaths = GlobalKnownHostsFilePaths;
+        }
+        if (_userKnownHostsFilePaths is not null)
+        {
+            settings.UserKnownHostsFilePaths = UserKnownHostsFilePaths;
+        }
+        settings.UpdateKnownHostsFileAfterAuthentication = UpdateKnownHostsFileAfterAuthentication;
+
+        return settings;
+    }
+
     public int Port
     {
         get => _port;
@@ -233,6 +261,8 @@ public sealed partial class SshClientSettings
     public bool TcpKeepAlive { get; set; } = DefaultTcpKeepAlive;
 
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
+
+    public Proxy? Proxy { get; set; } = null;
 
     // Currently these settings are not exposed.
     internal List<Name> KeyExchangeAlgorithms { get; set; } = DefaultKeyExchangeAlgorithms;

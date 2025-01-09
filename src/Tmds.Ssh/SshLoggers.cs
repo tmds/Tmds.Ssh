@@ -5,17 +5,17 @@ namespace Tmds.Ssh;
 
 sealed class SshLoggers
 {
-    private readonly ILoggerFactory _loggerFactory;
+    public ILoggerFactory Factory { get; }
 
     public ILogger<SshClient> SshClientLogger { get; }
 
-    public ILogger<DirectForward> DirectForwardLogger => _loggerFactory.CreateLogger<DirectForward>();
+    public ILogger<DirectForward> DirectForwardLogger => Factory.CreateLogger<DirectForward>();
 
-    public ILogger<SocksForward> SocksForwardLogger => _loggerFactory.CreateLogger<SocksForward>();
+    public ILogger<SocksForward> SocksForwardLogger => Factory.CreateLogger<SocksForward>();
 
     public SshLoggers(ILoggerFactory? loggerFactory = null)
     {
-        _loggerFactory = loggerFactory ??= new NullLoggerFactory();
+        Factory = loggerFactory ??= new NullLoggerFactory();
 
         SshClientLogger = loggerFactory.CreateLogger<SshClient>();
     }

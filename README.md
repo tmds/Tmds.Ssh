@@ -260,6 +260,8 @@ class SshClientSettings
   TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
   int KeepAliveCountMax { get; set; } = 3;
 
+  Proxy? Proxy { get; set; } = null;
+
   List<string> GlobalKnownHostsFilePaths { get; set; } = DefaultGlobalKnownHostsFilePaths;
   List<string> UserKnownHostsFilePaths { get; set; } = DefaultUserKnownHostsFilePaths;
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
@@ -282,7 +284,7 @@ class SshConfigSettings
   TimeSpan ConnectTimeout { get; set; } // = 15s, overridden by config timeout (if set)
 
   bool AutoConnect { get; set; } = true;
-  bool AutoReconnect { get; set; }
+  bool AutoReconnect { get; set; } = false;
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
 }
@@ -312,7 +314,8 @@ enum SshConfigOption
     TCPKeepAlive,
     ServerAliveCountMax,
     ServerAliveInterval,
-    IdentitiesOnly
+    IdentitiesOnly,
+    ProxyJump,
 }
 struct SshConfigOptionValue
 {
@@ -482,6 +485,7 @@ class SshConnectionInfo
   HostKey ServerKey { get; }
   string Host { get; }
   int Port { get; }
+  bool IsProxy { get; }
 }
 // Base class for all credentials.
 abstract class Credential
@@ -520,6 +524,16 @@ class SshAgentCredentials : Credential
 class NoCredential : Credential
 {
   NoCredential();
+}
+class Proxy
+{
+  static Proxy? Chain(params Proxy[] proxies);
+}
+class SshProxy : Proxy
+{
+  SshProxy(string destination);
+  SshProxy(SshClientSettings settings);
+  SshProxy(string destination, SshConfigSettings configSettings);
 }
 // Base class.
 class SshException : Exception

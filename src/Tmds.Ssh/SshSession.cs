@@ -74,7 +74,7 @@ sealed partial class SshSession
         }
     }
 
-    public async Task ConnectAsync(TimeSpan connectTimeout, CancellationToken ct = default)
+    public async Task ConnectAsync(ConnectCallback? connect, ConnectContext? context, TimeSpan connectTimeout, CancellationToken ct = default)
     {
         Task task;
         // ConnectAsync can be cancelled by calling Dispose.
@@ -92,52 +92,32 @@ sealed partial class SshSession
             var connectionCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             task = connectionCompletedTcs.Task;
 
-            _runningConnectionTask = RunConnectionAsync(connectTimeout, ct, connectionCompletedTcs);
+            _runningConnectionTask = RunConnectionAsync(connect, context, connectTimeout, ct, connectionCompletedTcs);
         }
 
         await task;
     }
 
-    private async Task<SshConnection> EstablishConnectionAsync(CancellationToken ct)
+    private async Task<SshConnection> EstablishConnectionAsync(ConnectCallback? connect, ConnectContext? ctx, CancellationToken ct)
     {
         Debug.Assert(_settings is not null);
 
-        Socket? socket = null;
-        try
+        if (ctx is null)
         {
-            Logger.Connecting(_settings.HostName, _settings.Port);
-
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
-            // Connect to the remote host
-            await socket.ConnectAsync(_settings.HostName, _settings.Port, ct).ConfigureAwait(false);
-            ConnectionInfo.IPAddress = (socket.RemoteEndPoint as IPEndPoint)?.Address;
-            socket.NoDelay = true;
-
-            if (_settings.TcpKeepAlive)
-            {
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            }
-
-            Logger.ConnectionEstablished();
-
-            return new StreamSshConnection(Logger, _sequencePool, new NetworkStream(socket, ownsSocket: true));
+            ctx = new SshConnectContext(_settings, ConnectionInfo, _loggers);
         }
-        catch (Exception ex)
+        else
         {
-            socket?.Dispose();
-
-            // ConnectAsync may throw ODE for cancellation
-            // when the connection is made just before the token gets cancelled.
-            if (ex is ObjectDisposedException)
-            {
-                ct.ThrowIfCancellationRequested();
-            }
-
-            throw;
+            Debug.Assert(ctx is ProxyConnectContext);
+            ConnectionInfo.IsProxy = true;
         }
+
+        Stream stream = await Connect.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
+
+        return new StreamSshConnection(Logger, _sequencePool, stream);
     }
 
-    private async Task RunConnectionAsync(TimeSpan connectTimeout, CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
+    private async Task RunConnectionAsync(ConnectCallback? connect, ConnectContext? connectContext, TimeSpan connectTimeout, CancellationToken connectCt, TaskCompletionSource<bool> connectTcs)
     {
         SshConnection? connection = null;
 
@@ -203,7 +183,7 @@ sealed partial class SshSession
             }
 
             // Connect to the remote host
-            connection = await EstablishConnectionAsync(connectCts.Token).ConfigureAwait(false);
+            connection = await EstablishConnectionAsync(connect, connectContext, connectCts.Token).ConfigureAwait(false);
 
             // Setup ssh connection
             await ProtocolVersionExchangeAsync(connection, connectCts.Token).ConfigureAwait(false);

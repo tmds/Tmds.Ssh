@@ -368,10 +368,15 @@ public class SshServer : IDisposable
         return client;
     }
 
-    public async Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default, bool connect = true)
+    public Task<SshClient> CreateClientAsync(Action<SshClientSettings>? configure = null, CancellationToken cancellationToken = default, bool connect = true)
     {
         var settings = CreateSshClientSettings(configure);
 
+        return CreateClientAsync(settings, cancellationToken, connect);
+    }
+
+    public async Task<SshClient> CreateClientAsync(SshClientSettings settings, CancellationToken cancellationToken = default, bool connect = true)
+    {
         var client = new SshClient(settings);
 
         if (connect)

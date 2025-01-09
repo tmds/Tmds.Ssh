@@ -63,6 +63,7 @@ sealed class SshConfig
     public bool? TcpKeepAlive { get; set; }
     public int? ServerAliveCountMax { get; set; }
     public int? ServerAliveInterval { get; set; }
+    public string? ProxyJump { get; set; }
 
     internal static ValueTask<SshConfig> DetermineConfigForHost(string? userName, string host, int? port, IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? options, IReadOnlyList<string> configFiles, CancellationToken cancellationToken)
     {
@@ -505,6 +506,23 @@ sealed class SshConfig
                 config.IdentitiesOnly ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
 
+            case "proxyjump":
+            {
+                if (config.ProxyJump is null)
+                {
+                    ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                    if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.ProxyJump = "";
+                    }
+                    else
+                    {
+                        config.ProxyJump = value.ToString();
+                    }
+                }
+                break;
+            }
             /* Ignored options */
             // Logging related options
             case "loglevel":
@@ -556,7 +574,6 @@ sealed class SshConfig
             // case "setenv":
             // case "tag":
             // case "proxycommand":
-            // case "proxyjump":
             // case "hostkeyalias":
             // case "knownhostscommand":
             // case "revokedhostkeys":

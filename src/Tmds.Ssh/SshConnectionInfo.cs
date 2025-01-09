@@ -11,6 +11,7 @@ public sealed class SshConnectionInfo
     public HostKey ServerKey { get; internal set; } = null!;
     public string HostName { get; internal set; } = string.Empty;
     public int Port { get; internal set; }
+    public bool IsProxy { get; internal set; }
 
     internal bool UseStrictKex { get; set; }
     internal byte[]? SessionId { get; set; }
