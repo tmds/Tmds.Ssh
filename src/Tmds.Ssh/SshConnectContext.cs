@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Net;
+using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
@@ -33,5 +34,10 @@ sealed class SshConnectContext : ConnectContext
     protected override void LogForward(ProxyConnectContext proxyContext, ConnectContext targetContext)
     {
         _loggers.SshClientLogger.Proxy(proxyContext.ProxyUri, targetContext.EndPoint, targetContext.DestinationEndPoint);
+    }
+
+    internal SshClient CreateProxyClientForDestination(string destination, ILoggerFactory loggerFactory)
+    {
+        return new SshClient(_settings.CreateSettingsForProxy(destination), loggerFactory);
     }
 }

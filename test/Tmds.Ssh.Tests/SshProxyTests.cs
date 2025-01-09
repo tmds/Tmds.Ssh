@@ -22,11 +22,11 @@ public class SshProxyTests
         {
             Credentials = [ new PrivateKeyCredential(_sshServer.TestUserIdentityFile) ],
             HostAuthentication =
-            async (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
             {
                 Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                 Assert.True(connectionInfo.IsProxy);
-                return true;
+                return ValueTask.FromResult(true);
             }
         };
         NoopProxy noopProxy = new NoopProxy();
@@ -41,11 +41,11 @@ public class SshProxyTests
             settings.Port = 22;
             settings.Proxy = new SshProxy(sshProxySettings);
             settings.HostAuthentication =
-                async (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     Assert.Equal("localhost", connectionInfo.HostName);
                     Assert.False(connectionInfo.IsProxy);
-                    return true;
+                    return ValueTask.FromResult(true);
                 };
         });
 
@@ -53,25 +53,34 @@ public class SshProxyTests
     }
 
     [Fact]
-    public async Task SshProxyWithSshConfig()
+    public async Task SshProxyWithSshClientSettingsFromDestination()
     {
-        var sshConfig = new SshConfigSettings()
+        using var client = await _sshServer.CreateClientAsync(
+        new SshClientSettings()
         {
-            ConfigFilePaths = [ _sshServer.SshConfigFilePath ]
-        };
+            HostName = "localhost",
+            UserName = _sshServer.TestUser,
+            Port = 22,
 
-        using var client = await _sshServer.CreateClientAsync(settings =>
-        {
-            settings.HostName = "localhost";
-            settings.Port = 22;
-            settings.Proxy = new SshProxy(_sshServer.Destination, sshConfig);
-            settings.HostAuthentication =
-                async (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            Proxy = new SshProxy(_sshServer.Destination),
+
+            Credentials = [ new PrivateKeyCredential(_sshServer.TestUserIdentityFile) ],
+
+            UserKnownHostsFilePaths = [],
+            HostAuthentication =
+            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            {
+                if (connectionInfo.HostName == _sshServer.ServerHost)
+                {
+                    Assert.True(connectionInfo.IsProxy);
+                }
+                else
                 {
                     Assert.Equal("localhost", connectionInfo.HostName);
                     Assert.False(connectionInfo.IsProxy);
-                    return true;
-                };
+                }
+                return ValueTask.FromResult(true);
+            }
         });
     }
 

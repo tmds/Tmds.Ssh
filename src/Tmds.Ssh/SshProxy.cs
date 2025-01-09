@@ -1,6 +1,8 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Diagnostics;
+
 namespace Tmds.Ssh;
 
 public sealed class SshProxy : Proxy
@@ -22,12 +24,18 @@ public sealed class SshProxy : Proxy
     }
 
     public SshProxy(string destination, SshConfigSettings configSettings)
+        : this(destination)
     {
-        ArgumentException.ThrowIfNullOrEmpty(destination);
         ArgumentNullException.ThrowIfNull(configSettings);
 
-        _destination = destination;
         _configSettings = configSettings;
+    }
+
+    public SshProxy(string destination)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(destination);
+
+        _destination = destination;
 
         (string? username, string host, int? port) = SshClientSettings.ParseDestination(destination);
         port ??= 22;
@@ -39,8 +47,7 @@ public sealed class SshProxy : Proxy
     {
         ProxyConnectContext proxyContext = context.CreateProxyContext(_endPoint, _uri);
 
-        var sshClient = _settings is not null ? new SshClient(_settings, proxyContext.LoggerFactory)
-                                              : new SshClient(_destination!, _configSettings!, proxyContext.LoggerFactory);
+        SshClient sshClient = CreateSshClient(context);
         try
         {
             await sshClient.ConnectAsync(connect, proxyContext, ct);
@@ -57,6 +64,33 @@ public sealed class SshProxy : Proxy
             sshClient.Dispose();
 
             throw;
+        }
+    }
+
+    private SshClient CreateSshClient(ConnectContext context)
+    {
+        if (_settings is not null)
+        {
+            return new SshClient(_settings, context.LoggerFactory);
+        }
+
+        Debug.Assert(_destination is not null);
+
+        if (_configSettings is not null)
+        {
+            return new SshClient(_destination, _configSettings!, context.LoggerFactory);
+        }
+
+        // Use settings based on the destination SshSettings.
+        SshConnectContext? sshConnectContext = context.DestinationContext as SshConnectContext;
+        Debug.Assert(sshConnectContext is not null);
+        if (sshConnectContext is null)
+        {
+            return new SshClient(new SshClientSettings(_destination), context.LoggerFactory);
+        }
+        else
+        {
+            return sshConnectContext.CreateProxyClientForDestination(_destination, context.LoggerFactory);
         }
     }
 }
