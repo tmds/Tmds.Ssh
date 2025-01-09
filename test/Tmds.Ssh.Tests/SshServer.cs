@@ -372,7 +372,7 @@ public class SshServer : IDisposable
     {
         var settings = CreateSshClientSettings(configure);
 
-        return CreateClientAsync(settings);
+        return CreateClientAsync(settings, cancellationToken, connect);
     }
 
     public async Task<SshClient> CreateClientAsync(SshClientSettings settings, CancellationToken cancellationToken = default, bool connect = true)
