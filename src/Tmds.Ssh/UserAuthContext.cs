@@ -175,15 +175,17 @@ sealed class UserAuthContext
 
     public void StartAuth(Name method)
     {
-        if (!_currentMethod.IsEmpty)
-        {
-            throw new InvalidOperationException("Already authenticating using an other method.");
-        }
-
+        Debug.Assert(_currentMethod.IsEmpty);
         Debug.Assert(IsMethodAccepted(method) != false);
 
         _currentMethod = method;
         _authResult = AuthResult.None;
+    }
+
+    public void SetFailed()
+    {
+        _currentMethod = default;
+        _authResult = AuthResult.Failure;
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)
