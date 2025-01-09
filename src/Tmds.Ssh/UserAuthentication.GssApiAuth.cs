@@ -148,6 +148,11 @@ partial class UserAuthentication
             else
             {
                 logger.GssApiWithMicFail(statusCode);
+
+                // Ensure the context is failed also when we stopped due to AsyncNegotiateAuthentication failing
+                // instead of receiving SSH_MSG_USERAUTH_FAILURE from the server.
+                context.SetFailed();
+
                 return false;
             }
         }
