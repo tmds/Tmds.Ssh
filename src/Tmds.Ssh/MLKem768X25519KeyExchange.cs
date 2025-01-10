@@ -47,8 +47,8 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         await context.SendPacketAsync(CreateHybridInitMessage(sequencePool, c_init), ct).ConfigureAwait(false);
 
         // Receive HYBRID_REPLY.
-        using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_HYBRID_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var hybridReply = ParseHybridReply(ecdhReplyMsg);
+        using Packet hybridReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_HYBRID_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
+        var hybridReply = ParseHybridReply(hybridReplyMsg);
 
         // Verify received key is valid.
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, hybridReply.public_host_key, ct).ConfigureAwait(false);
@@ -81,7 +81,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         var x25519Agreement = new X25519Agreement();
         x25519Agreement.Init(x25519PrivateKey);
 
-        var rawSecretAgreement = new byte[mlkem768Decapsulator.SecretLength + X25519PublicKeyParameters.KeySize];
+        var rawSecretAgreement = new byte[mlkem768Decapsulator.SecretLength + x25519Agreement.AgreementSize];
 
         mlkem768Decapsulator.Decapsulate(q_s, 0, mlkem768Decapsulator.EncapsulationLength, rawSecretAgreement, 0, mlkem768Decapsulator.SecretLength);
 
