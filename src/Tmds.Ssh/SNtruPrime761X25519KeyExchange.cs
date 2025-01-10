@@ -13,9 +13,9 @@ using Org.BouncyCastle.Security;
 
 namespace Tmds.Ssh;
 
-// Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519 with SHA-512
+// Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519
 // https://www.ietf.org/archive/id/draft-ietf-sshm-ntruprime-ssh-01.html
-sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519KeyExchange
+sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
 {
     private readonly SNtruPrimeParameters _sntruPrimeParameters = SNtruPrimeParameters.sntrup761;
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA512;
@@ -29,9 +29,9 @@ sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519KeyExchange
         AsymmetricCipherKeyPair x25519KeyPair;
         using (var randomGenerator = new CryptoApiRandomGenerator())
         {
-            var sntrupp761KeyPairGenerator = new SNtruPrimeKeyPairGenerator();
-            sntrupp761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), _sntruPrimeParameters));
-            sntrup761KeyPair = sntrupp761KeyPairGenerator.GenerateKeyPair();
+            var sntrup761KeyPairGenerator = new SNtruPrimeKeyPairGenerator();
+            sntrup761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), _sntruPrimeParameters));
+            sntrup761KeyPair = sntrup761KeyPairGenerator.GenerateKeyPair();
 
             var x25519KeyPairGenerator = new X25519KeyPairGenerator();
             x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
@@ -47,7 +47,7 @@ sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519KeyExchange
 
         // Receive ECDH_REPLY.
         using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParceEcdhReply(ecdhReplyMsg);
+        var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
         PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
@@ -78,13 +78,13 @@ sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519KeyExchange
         byte[] rawSecretAgreement = sntrup761Extractor.ExtractSecret(q_s[..sntrup761Extractor.EncapsulationLength]);
         int sntrup761SecretLength = rawSecretAgreement.Length;
 
-        var keyAgreement = new X25519Agreement();
-        keyAgreement.Init(x25519PrivateKey);
+        var x25519Agreement = new X25519Agreement();
+        x25519Agreement.Init(x25519PrivateKey);
 
         var x25519PublicKey = new X25519PublicKeyParameters(q_s, sntrup761Extractor.EncapsulationLength);
-        Array.Resize(ref rawSecretAgreement, sntrup761SecretLength + keyAgreement.AgreementSize);
+        Array.Resize(ref rawSecretAgreement, sntrup761SecretLength + x25519Agreement.AgreementSize);
 
-        keyAgreement.CalculateAgreement(x25519PublicKey, rawSecretAgreement, sntrup761SecretLength);
+        x25519Agreement.CalculateAgreement(x25519PublicKey, rawSecretAgreement, sntrup761SecretLength);
 
         var sharedSecret = SHA512.HashData(rawSecretAgreement);
         rawSecretAgreement.AsSpan().Clear();

@@ -25,6 +25,8 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name SNtruP761X25519Sha512 => new Name(SNtruP761X25519Sha512Bytes);
     private static readonly byte[] SNtruP761X25519Sha512OpenSshBytes = "sntrup761x25519-sha512@openssh.com"u8.ToArray();
     public static Name SNtruP761X25519Sha512OpenSsh => new Name(SNtruP761X25519Sha512OpenSshBytes);
+    private static readonly byte[] MLKem768X25519Sha256Bytes = "mlkem768x25519-sha256"u8.ToArray();
+    public static Name MLKem768X25519Sha256 => new Name(MLKem768X25519Sha256Bytes);
 
     // Host key algorithms: key types and signature algorithms.
     private static readonly byte[] SshRsaBytes = "ssh-rsa"u8.ToArray();
