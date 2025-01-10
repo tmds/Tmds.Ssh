@@ -14,7 +14,7 @@ using Org.BouncyCastle.Crypto.Agreement;
 namespace Tmds.Ssh;
 
 // Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
-class Curve25519Sha256KeyExchange : KeyExchange
+class Curve25519KeyExchange : KeyExchange
 {
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 

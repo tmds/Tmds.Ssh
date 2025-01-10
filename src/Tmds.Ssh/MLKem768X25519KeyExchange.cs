@@ -14,9 +14,9 @@ using Org.BouncyCastle.Security;
 
 namespace Tmds.Ssh;
 
-// Post-Quantum Traditional (PQ/T) Hybrid key exchange methods using ML-KEM-768 and X25519 with SHA-256
+// Post-Quantum Traditional (PQ/T) Hybrid key exchange methods using ML-KEM-768 and X25519
 // https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-05.html
-sealed class MLKem768X25519Sha256KeyExchange : Curve25519Sha256KeyExchange
+sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
 {
     private readonly MLKemParameters _mlKemParameters = MLKemParameters.ml_kem_768;
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;

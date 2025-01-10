@@ -15,7 +15,7 @@ namespace Tmds.Ssh;
 
 // Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519 with SHA-512
 // https://www.ietf.org/archive/id/draft-ietf-sshm-ntruprime-ssh-01.html
-sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519Sha256KeyExchange
+sealed class SNtruPrime761X25519Sha512KeyExchange : Curve25519KeyExchange
 {
     private readonly SNtruPrimeParameters _sntruPrimeParameters = SNtruPrimeParameters.sntrup761;
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA512;
