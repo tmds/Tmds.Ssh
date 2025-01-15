@@ -47,7 +47,7 @@ public class ProxyTests
     {
         public TestProxy Proxy { get; }
 
-        public TestProxyConnectContext(TestProxy proxy, ConnectContext parent) : base(new ConnectEndPoint("", 0), parent)
+        public TestProxyConnectContext(TestProxy proxy, ConnectContext parent) : base(new ConnectEndPoint("proxy", 1), parent)
         {
             Proxy = proxy;
         }
@@ -69,7 +69,7 @@ public class ProxyTests
     sealed class DestinationConnectContext : ConnectContext
     {
         public DestinationConnectContext()
-            : base(new ConnectEndPoint("destination", 0), NullLoggerFactory.Instance)
+            : base(new ConnectEndPoint("destination", 1), NullLoggerFactory.Instance)
         {
 
         }

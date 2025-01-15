@@ -9,11 +9,8 @@ sealed class ConnectEndPoint
 
     public ConnectEndPoint(string host, int port)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        if (port < 0 || port > 0xffff)
-        {
-            throw new ArgumentException(nameof(port));
-        }
+        ArgumentValidation.ValidateHost(host);
+        ArgumentValidation.ValidatePort(port, allowZero: false);
 
         Host = host;
         Port = port;

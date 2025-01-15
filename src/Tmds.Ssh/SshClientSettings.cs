@@ -28,38 +28,114 @@ public sealed partial class SshClientSettings
         => _environmentVariables;
 
     public SshClientSettings() :
-        this("")
+        this("", allowEmptyHostname: true)
     { }
 
-    public SshClientSettings(string destination)
+    public SshClientSettings(string destination) :
+        this(destination, allowEmptyHostname: false)
+    { }
+
+    private SshClientSettings(string destination, bool allowEmptyHostname)
     {
-        (string? username, string host, int? port) = ParseDestination(destination);
+        (string? username, string host, int? port) = ParseDestination(destination, allowEmptyHostname);
 
         _hostName = host;
         _userName = username ?? Environment.UserName;
         _port = port ?? DefaultPort;
     }
 
-    internal static (string? user, string host, int? port) ParseDestination(string destination)
+    internal static (string? user, string host, int? port) ParseDestination(string destination, bool allowEmptyHostname = false)
     {
         ArgumentNullException.ThrowIfNull(destination);
 
         string? user = null;
-        string host = destination;
         int? port = null;
-
-        host = destination;
-        int colonPos = host.LastIndexOf(":");
-        if (colonPos != -1)
+        string host;
+        if (destination.StartsWith("ssh://", StringComparison.InvariantCulture))
         {
-            port = int.Parse(host.Substring(colonPos + 1));
-            host = host.Substring(0, colonPos);
+            // ssh uris are defined in https://datatracker.ietf.org/doc/html/draft-ietf-secsh-scp-sftp-ssh-uri-04
+            if (!Uri.TryCreate(destination, UriKind.Absolute, out Uri? uri))
+            {
+                throw new FormatException($"SSH URI '{destination}' is not a valid URI.");
+            }
+            port = uri.IsDefaultPort ? DefaultPort : uri.Port;
+            host = uri.IdnHost;
+            if (host.Length == 0)
+            {
+                throw new ArgumentException("SSH URI includes no hostname.", nameof(destination));
+            }
+            ReadOnlySpan<char> userSpan = uri.UserInfo;
+            if (userSpan.Length > 0)
+            {
+                int delimPos = userSpan.IndexOf(';');
+                if (delimPos != -1)
+                {
+                    userSpan = userSpan.Slice(0, delimPos);
+                }
+                if (userSpan.Contains(':'))
+                {
+                    throw new ArgumentException("SSH URI must not include a password.", nameof(destination));
+                }
+                if (userSpan.Length > 0)
+                {
+                    user = userSpan.ToString();
+                }
+            }
+            if (uri.AbsolutePath != "/")
+            {
+                 throw new ArgumentException("SSH URI must not include a path.", nameof(destination));
+            }
+            if (uri.Query.Length > 0)
+            {
+                throw new ArgumentException("SSH URI must not include a query.", nameof(destination));
+            }
+            if (uri.Fragment.Length > 0)
+            {
+                throw new ArgumentException("SSH URI must not include a fragment.", nameof(destination));
+            }
         }
-        int atPos = host.LastIndexOf("@");
-        if (atPos != -1)
+        else
         {
-            user = host.Substring(0, atPos);
-            host = host.Substring(atPos + 1);
+            ReadOnlySpan<char> span = destination.AsSpan();
+            // Anything before the last '@' is considered the user.
+            int atPos = destination.LastIndexOf("@");
+            if (atPos != -1)
+            {
+                user = destination.Substring(0, atPos);
+                span = span.Slice(atPos + 1);
+            }
+
+            // Host is an IPv6 address.
+            if (span.Length > 0 && span[0] == '[')
+            {
+                int endOfIPv6Address = span.IndexOf(']');
+                if (endOfIPv6Address == -1)
+                {
+                    throw new FormatException($"IPv6 address in '{destination}' is not terminated by ']'.");
+                }
+                host = span.Slice(1, endOfIPv6Address - 1).ToString();
+                span = span.Slice(endOfIPv6Address + 1);
+            }
+            else
+            {
+                int colonPos = span.LastIndexOf(":");
+                if (colonPos == -1)
+                {
+                    colonPos = span.Length;
+                }
+                host = span.Slice(0, colonPos).ToString();
+                span = span.Slice(colonPos);
+            }
+            if (span.Length > 0)
+            {
+                if (span[0] != ':' || !int.TryParse(span.Slice(1), out int portValue))
+                {
+                    throw new FormatException($"Can not parse port number from '{destination}'.");
+                }
+                ArgumentValidation.ValidatePort(portValue, allowZero: false, nameof(destination));
+                port = portValue;
+            }
+            ArgumentValidation.ValidateHost(host, allowEmptyHostname, nameof(destination));
         }
 
         return (user, host, port);
@@ -80,7 +156,7 @@ public sealed partial class SshClientSettings
         get => _hostName;
         set
         {
-            ArgumentNullException.ThrowIfNull(value);
+            ArgumentValidation.ValidateHost(value, allowEmpty: false, nameof(value));
             _hostName = value;
         }
     }
@@ -131,13 +207,17 @@ public sealed partial class SshClientSettings
 
     internal void Validate()
     {
+        if (_hostName is null)
+        {
+            throw new ArgumentException($"{nameof(HostName)} contains 'null'.", $"{nameof(HostName)}");
+        }
         if (_credentials is not null)
         {
             foreach (var item in _credentials)
             {
                 if (item is null)
                 {
-                    throw new ArgumentException($"{nameof(Credentials)} contains 'null'." , $"{nameof(Credentials)}");
+                    throw new ArgumentException($"{nameof(Credentials)} contains 'null'.", $"{nameof(Credentials)}");
                 }
             }
         }
@@ -147,7 +227,7 @@ public sealed partial class SshClientSettings
             {
                 if (item is null)
                 {
-                    throw new ArgumentException($"{nameof(UserKnownHostsFilePaths)} contains 'null'." , $"{nameof(UserKnownHostsFilePaths)}");
+                    throw new ArgumentException($"{nameof(UserKnownHostsFilePaths)} contains 'null'.", $"{nameof(UserKnownHostsFilePaths)}");
                 }
             }
         }
@@ -157,7 +237,7 @@ public sealed partial class SshClientSettings
             {
                 if (item is null)
                 {
-                    throw new ArgumentException($"{nameof(GlobalKnownHostsFilePaths)} contains 'null'." , $"{nameof(GlobalKnownHostsFilePaths)}");
+                    throw new ArgumentException($"{nameof(GlobalKnownHostsFilePaths)} contains 'null'.", $"{nameof(GlobalKnownHostsFilePaths)}");
                 }
             }
         }
@@ -167,11 +247,11 @@ public sealed partial class SshClientSettings
             {
                 if (item.Key.Length == 0)
                 {
-                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains empty key." , $"{nameof(EnvironmentVariables)}");
+                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains empty key.", $"{nameof(EnvironmentVariables)}");
                 }
                 if (item.Value is null)
                 {
-                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains 'null' value for key '{item.Key}'." , $"{nameof(EnvironmentVariables)}");
+                    throw new ArgumentException($"{nameof(EnvironmentVariables)} contains 'null' value for key '{item.Key}'.", $"{nameof(EnvironmentVariables)}");
                 }
             }
         }
@@ -210,10 +290,7 @@ public sealed partial class SshClientSettings
         get => _port;
         set
         {
-            if (value < 1 || value > 0xFFFF)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
+            ArgumentValidation.ValidatePort(value, allowZero: false, nameof(value));
             _port = value;
         }
     }

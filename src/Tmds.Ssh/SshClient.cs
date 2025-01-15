@@ -279,12 +279,17 @@ public sealed partial class SshClient : IDisposable
 
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
     {
+        ArgumentValidation.ValidateHost(host);
+        ArgumentValidation.ValidatePort(port, allowZero: false);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
         return await session.OpenTcpConnectionChannelAsync(host, port, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
         return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
     }
