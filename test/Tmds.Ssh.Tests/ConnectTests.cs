@@ -456,7 +456,7 @@ public class ConnectTests
                 { SshConfigOption.UserKnownHostsFile, Path.Combine(Path.GetTempPath(), Path.GetTempFileName()) },
             }
         };
-        using var client = new SshClient("", options);
+        using var client = new SshClient("dummy", options);
         await client.ConnectAsync();
     }
 

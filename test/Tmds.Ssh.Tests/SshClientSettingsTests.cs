@@ -38,13 +38,34 @@ public class ClientSettingsTests
     }
 
     [Theory]
-    [InlineData("", null, "", 22)]
     [InlineData("host.com", null, "host.com", 22)]
     [InlineData("user@host.com", "user", "host.com", 22)]
     [InlineData("host.com:5000", null, "host.com", 5000)]
     [InlineData("user@host.com:5000", "user", "host.com", 5000)]
     [InlineData("user@realm@host.com", "user@realm", "host.com", 22)]
     [InlineData("user@realm@host.com:5000", "user@realm", "host.com", 5000)]
+    [InlineData("[::1]", null, "::1", 22)]
+    [InlineData("user@[::1]", "user", "::1", 22)]
+    [InlineData("[::1]:5000", null, "::1", 5000)]
+    [InlineData("user@[::1]:5000", "user", "::1", 5000)]
+    [InlineData("user@realm@[::1]", "user@realm", "::1", 22)]
+    [InlineData("user@realm@[::1]:5000", "user@realm", "::1", 5000)]
+    [InlineData("ssh://host.com", null, "host.com", 22)]
+    [InlineData("ssh://user@host.com", "user", "host.com", 22)]
+    [InlineData("ssh://host.com:5000", null, "host.com", 5000)]
+    [InlineData("ssh://user@host.com:5000", "user", "host.com", 5000)]
+    [InlineData("ssh://;fingerprint=xyz@host.com", null, "host.com", 22)]
+    [InlineData("ssh://user;fingerprint=xyz@host.com", "user", "host.com", 22)]
+    [InlineData("ssh://;fingerprint=xyz@host.com:5000", null, "host.com", 5000)]
+    [InlineData("ssh://user;fingerprint=xyz@host.com:5000", "user", "host.com", 5000)]
+    [InlineData("ssh://[::1]", null, "::1", 22)]
+    [InlineData("ssh://user@[::1]", "user", "::1", 22)]
+    [InlineData("ssh://[::1]:5000", null, "::1", 5000)]
+    [InlineData("ssh://user@[::1]:5000", "user", "::1", 5000)]
+    [InlineData("1.1.1.1", null, "1.1.1.1", 22)]
+    [InlineData("255.255.255.255", null, "255.255.255.255", 22)]
+    [InlineData("host.com.", null, "host.com.", 22)]
+    [InlineData("foo", null, "foo", 22)]
     public void Parse(string destination, string? expectedUsername, string expectedHost, int expectedPort)
     {
         expectedUsername ??= Environment.UserName;
@@ -54,6 +75,28 @@ public class ClientSettingsTests
         Assert.Equal(expectedHost, settings.HostName);
         Assert.Equal(expectedUsername, settings.UserName);
         Assert.Equal(expectedPort, settings.Port);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ssh://")] // missing hostname
+    [InlineData("ssh://host.com/path")]
+    [InlineData("ssh://host.com?query")]
+    [InlineData("ssh://host.com#fragment")]
+    [InlineData("ssh://user:password@host.com")]
+    [InlineData("foo..bar")]
+    public void InvalidArgumentDestinations(string destination)
+    {
+        Assert.Throws<ArgumentException>(() => new SshClientSettings(destination));
+    }
+
+    [Theory]
+    [InlineData("ssh:// host.com")]
+    [InlineData("[::1")]
+    [InlineData("[::1]5000")]
+    public void InvalidFormatDestinations(string destination)
+    {
+        Assert.Throws<FormatException>(() => new SshClientSettings(destination));
     }
 
     private static string DefaultKnownHostsFile
