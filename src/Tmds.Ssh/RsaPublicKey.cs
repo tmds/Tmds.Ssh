@@ -29,11 +29,8 @@ class RsaPublicKey : PublicKey
         return new RsaPublicKey(e, n);
     }
 
-    internal override bool VerifySignature(IReadOnlyList<Name> allowedAlgorithms, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
     {
-        var reader = new SequenceReader(signature);
-        Name algorithmName = reader.ReadName(allowedAlgorithms);
-
         HashAlgorithmName hashAlgorithm;
         if (algorithmName == AlgorithmNames.RsaSshSha2_256)
         {
@@ -57,9 +54,11 @@ class RsaPublicKey : PublicKey
         using var rsa = RSA.Create(rsaParameters);
         int signatureLength = rsa.KeySize / 8;
 
-        ReadOnlySequence<byte> signatureData = reader.ReadStringAsBytes(maxLength: signatureLength);
-        reader.ReadEnd();
+        if (signature.Length != signatureLength)
+        {
+            ThrowHelper.ThrowProtocolUnexpectedValue();
+        }
 
-        return rsa.VerifyData(data, signatureData.ToArray(), hashAlgorithm, RSASignaturePadding.Pkcs1);
+        return rsa.VerifyData(data, signature.ToArray(), hashAlgorithm, RSASignaturePadding.Pkcs1);
     }
 }

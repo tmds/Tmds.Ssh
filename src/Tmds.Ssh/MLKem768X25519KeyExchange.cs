@@ -51,7 +51,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         var hybridReply = ParseHybridReply(hybridReplyMsg);
 
         // Verify received key is valid.
-        PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, hybridReply.public_host_key, ct).ConfigureAwait(false);
+        HostKey hostKey = await VerifyHostKeyAsync(hostKeyVerification, input, hybridReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         byte[] sharedSecret;
@@ -68,7 +68,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, hybridReply.public_host_key.Data, c_init, hybridReply.s_reply, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
-        VerifySignature(publicHostKey, input.HostKeyAlgorithms, exchangeHash, hybridReply.exchange_hash_signature, connectionInfo);
+        VerifySignature(hostKey, input.HostKeyAlgorithms, exchangeHash, hybridReply.exchange_hash_signature, connectionInfo);
 
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }

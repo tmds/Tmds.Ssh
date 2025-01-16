@@ -27,16 +27,13 @@ class Ed25519PublicKey : PublicKey
         return new Ed25519PublicKey(publicKey.ToArray());
     }
 
-    internal override bool VerifySignature(IReadOnlyList<Name> allowedAlgorithms, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
     {
-        var reader = new SequenceReader(signature);
-        reader.ReadName(AlgorithmNames.SshEd25519, allowedAlgorithms);
-        ReadOnlySequence<byte> signatureSequence = reader.ReadStringAsBytes();
-        if (signatureSequence.Length != Ed25519.SignatureSize)
+        if (signature.Length != Ed25519.SignatureSize)
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
         }
 
-        return Ed25519.Verify(signatureSequence.ToArray(), 0, _publicKey, 0, data.ToArray(), 0, data.Length);
+        return Ed25519.Verify(signature.ToArray(), 0, _publicKey, 0, data.ToArray(), 0, data.Length);
     }
 }

@@ -7,7 +7,6 @@ namespace Tmds.Ssh;
 
 public sealed class HostKey : IEquatable<HostKey>
 {
-    internal SshKey SshKey { get; }
     private string? _sha256FingerPrint;
 
     public string SHA256FingerPrint
@@ -24,13 +23,6 @@ public sealed class HostKey : IEquatable<HostKey>
         }
     }
 
-    internal HostKey(SshKey sshKey)
-    {
-        SshKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
-    }
-
-    internal Name Type => SshKey.Type;
-
     public bool Equals(HostKey? other)
     {
         if (other is null)
@@ -45,4 +37,27 @@ public sealed class HostKey : IEquatable<HostKey>
     {
         return SshKey.GetHashCode();
     }
+
+    internal SshKey SshKey { get; }
+    internal PublicKey PublicKey { get; }
+    internal Name[] HostKeyAlgorithms { get; }
+    internal Name Type => SshKey.Type;
+
+    internal HostKey(SshKey sshKey)
+    {
+        SshKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
+        PublicKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
+        HostKeyAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(sshKey.Type);
+    }
+
+    internal Name GetHostKeyAlgorithmForSignatureAlgorithm(Name signatureAlgorithm)
+    {
+        Name hostKeyAlgorithm = signatureAlgorithm;
+        if (!HostKeyAlgorithms.Contains(hostKeyAlgorithm))
+        {
+            ThrowHelper.ThrowProtocolUnexpectedValue();
+        }
+        return hostKeyAlgorithm;
+    }
+
 }

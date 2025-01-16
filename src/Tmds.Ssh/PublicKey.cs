@@ -31,17 +31,5 @@ abstract class PublicKey
         }
     }
 
-    public static ReadOnlySpan<Name> AlgorithmsForKeyType(ref Name keyType)
-    {
-        if (keyType == AlgorithmNames.SshRsa)
-        {
-            return AlgorithmNames.SshRsaAlgorithms;
-        }
-        else
-        {
-            return new ReadOnlySpan<Name>(ref keyType);
-        }
-    }
-
-    internal abstract bool VerifySignature(IReadOnlyList<Name> allowedAlgorithms, Span<byte> data, ReadOnlySequence<byte> signature);
+    internal abstract bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature);
 }

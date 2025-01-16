@@ -35,7 +35,7 @@ class ECDHKeyExchange : KeyExchange
         var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        PublicKey publicHostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
+        HostKey hostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         byte[] sharedSecret;
@@ -52,7 +52,7 @@ class ECDHKeyExchange : KeyExchange
         byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
-        VerifySignature(publicHostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
+        VerifySignature(hostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
