@@ -52,13 +52,9 @@ class ECDsaPublicKey : PublicKey
         return null!;
     }
 
-    internal override bool VerifySignature(IReadOnlyList<Name> allowedAlgorithms, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
     {
         var reader = new SequenceReader(signature);
-        reader.ReadName(_name, allowedAlgorithms);
-        ReadOnlySequence<byte> ecdsa_signature_blob = reader.ReadStringAsBytes();
-        reader.ReadEnd();
-        reader = new SequenceReader(ecdsa_signature_blob);
         BigInteger r = reader.ReadMPInt();
         BigInteger s = reader.ReadMPInt();
         reader.ReadEnd();

@@ -50,7 +50,7 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
     public static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
 
-    public static Name[] GetAlgorithmsForKeyType(Name keyType)
+    public static Name[] GetSignatureAlgorithmsForPrivateKeyType(Name keyType)
     {
         if (keyType == SshRsa)
         {
@@ -74,10 +74,12 @@ static class AlgorithmNames // TODO: rename to KnownNames
         }
         else
         {
-            // Unknown key types.
             return [ keyType ];
         }
     }
+
+    public static Name[] GetHostKeyAlgorithmsForHostKeyType(Name keyType)
+        => GetSignatureAlgorithmsForPrivateKeyType(keyType);
 
     // Encryption algorithms.
     private static readonly byte[] Aes128CbcBytes = "aes128-cbc"u8.ToArray();

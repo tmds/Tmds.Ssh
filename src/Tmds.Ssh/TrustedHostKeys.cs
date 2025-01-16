@@ -68,7 +68,7 @@ sealed class TrustedHostKeys
         {
             SshKey hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
-            ReadOnlySpan<Name> preferredAlgorithms = PublicKey.AlgorithmsForKeyType(ref keyType);
+            ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(keyType);
             Sort(algorithmNames, preferredAlgorithms);
         }
         else
@@ -78,7 +78,7 @@ sealed class TrustedHostKeys
             for (int i = TrustedKeys.Count - 1; i >= 0; i--)
             {
                 Name keyType = TrustedKeys[i].Type;
-                foreach (var algorithm in PublicKey.AlgorithmsForKeyType(ref keyType))
+                foreach (var algorithm in AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(keyType))
                 {
                     keyAlgorithms.Add(algorithm);
                 }
