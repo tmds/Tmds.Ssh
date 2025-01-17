@@ -357,7 +357,7 @@ public sealed class RemoteProcess : IDisposable
         return ReadToEndAsync(null, null, null, null, cancellationToken);
     }
 
-    public async ValueTask<(string? stdout, string? stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    public async ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
@@ -367,8 +367,8 @@ public sealed class RemoteProcess : IDisposable
             if (readType == ProcessReadType.ProcessExit)
             {
                 _readMode = ReadMode.Exited;
-                string? stdout = readStdout ? _stdoutBuffer.BuildString() : null;
-                string? stderr = readStderr ? _stderrBuffer.BuildString() : null;
+                string stdout = readStdout ? _stdoutBuffer.BuildString()! : "";
+                string stderr = readStderr ? _stderrBuffer.BuildString()! : "";
                 return (stdout, stderr);
             }
         }

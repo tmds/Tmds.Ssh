@@ -96,9 +96,9 @@ public class KerberosTests : IDisposable
 
                 {
                     using var process = await client.ExecuteAsync("whoami");
-                    (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync();
+                    (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
                     Assert.Equal(0, process.ExitCode);
-                    Assert.Equal(userName, stdout?.Trim());
+                    Assert.Equal(userName, stdout.Trim());
                 }
             },
             [ connectionName, targetName ?? string.Empty, _sshServer.KnownHostsFilePath, userName, _sshServer.TestKerberosCredential.UserName, _sshServer.TestKerberosCredential.Password ]
@@ -163,14 +163,14 @@ public class KerberosTests : IDisposable
 
                 {
                     using var process = await client.ExecuteAsync("whoami");
-                    (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync();
+                    (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
                     Assert.Equal(0, process.ExitCode);
-                    Assert.Equal(userName, stdout?.Trim());
+                    Assert.Equal(userName, stdout.Trim());
                 }
 
                 {
                     using var process = await client.ExecuteAsync("klist -f");
-                    (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync();
+                    (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
 
                     if (requestDelegate)
                     {

@@ -294,9 +294,9 @@ public class RemoteProcess
         await process.WriteLineAsync("echo -n 'hello stderr2' >&2");
         await process.WriteLineAsync("exit 0");
 
-        (string? stdout, string? stderr) = await process.ReadToEndAsStringAsync(readStdout, readStderr);
-        Assert.Equal(readStdout ? "hello stdout1hello stdout2" : null, stdout);
-        Assert.Equal(readStderr ? "hello stderr1hello stderr2" : null, stderr);
+        (string stdout, string stderr) = await process.ReadToEndAsStringAsync(readStdout, readStderr);
+        Assert.Equal(readStdout ? "hello stdout1hello stdout2" : "", stdout);
+        Assert.Equal(readStderr ? "hello stderr1hello stderr2" : "", stderr);
     }
 
     [Theory]
