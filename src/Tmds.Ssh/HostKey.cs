@@ -1,27 +1,18 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Security.Cryptography;
-
 namespace Tmds.Ssh;
 
-public sealed class HostKey : IEquatable<HostKey>
+public sealed partial class HostKey : IEquatable<HostKey>
 {
     private string? _sha256FingerPrint;
+    private string? _issuerSha256FingerPrint;
 
     public string SHA256FingerPrint
-    {
-        get
-        {
-            if (_sha256FingerPrint == null)
-            {
-                Span<byte> hash = stackalloc byte[32];
-                SHA256.HashData(SshKey.Data, hash);
-                _sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
-            }
-            return _sha256FingerPrint;
-        }
-    }
+        => _sha256FingerPrint ??= SshKey.GetSHA256FingerPrint();
+
+    public string? IssuerSHA256FingerPrint
+        => _issuerSha256FingerPrint ??= CertInfo?.CAKey?.GetSHA256FingerPrint();
 
     public bool Equals(HostKey? other)
     {
@@ -40,24 +31,27 @@ public sealed class HostKey : IEquatable<HostKey>
 
     internal SshKey SshKey { get; }
     internal PublicKey PublicKey { get; }
-    internal Name[] HostKeyAlgorithms { get; }
     internal Name Type => SshKey.Type;
+    internal CertificateInfo? CertInfo { get; }
 
-    internal HostKey(SshKey sshKey)
+    internal HostKey(SshKey sshKey, bool parseKey = true)
     {
         SshKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
-        PublicKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
-        HostKeyAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(sshKey.Type);
-    }
 
-    internal Name GetHostKeyAlgorithmForSignatureAlgorithm(Name signatureAlgorithm)
-    {
-        Name hostKeyAlgorithm = signatureAlgorithm;
-        if (!HostKeyAlgorithms.Contains(hostKeyAlgorithm))
+        if (parseKey)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            if (sshKey.Type.AsSpan().EndsWith(AlgorithmNames.CertSuffix))
+            {
+                (PublicKey, CertInfo) = ParseCertificate(sshKey);
+            }
+            else
+            {
+                PublicKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
+            }
         }
-        return hostKeyAlgorithm;
+        else
+        {
+            PublicKey = null!;
+        }
     }
-
 }

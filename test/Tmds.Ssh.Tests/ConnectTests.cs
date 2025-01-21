@@ -104,6 +104,7 @@ public class ConnectTests
                         Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                         return ValueTask.FromResult(true);
                     };
+                    settings.ServerHostKeyAlgorithms = [ AlgorithmNames.RsaSshSha2_256 ];
                     settings.UpdateKnownHostsFileAfterAuthentication = true;
                 });
             client.Dispose();

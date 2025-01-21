@@ -16,7 +16,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     private readonly HashAlgorithmName _hashAlgorithm;
 
     public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, SshKey sshPublicKey) :
-        base(AlgorithmNames.GetSignatureAlgorithmsForPrivateKeyType(algorithm), sshPublicKey)
+        base(AlgorithmNames.GetSignatureAlgorithmsForEncryptionKeyType(algorithm), sshPublicKey)
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
         _algorithm = algorithm;

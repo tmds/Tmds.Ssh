@@ -316,6 +316,7 @@ enum SshConfigOption
     ServerAliveInterval,
     IdentitiesOnly,
     ProxyJump,
+    CASignatureAlgorithms,
 }
 struct SshConfigOptionValue
 {
@@ -471,6 +472,7 @@ static class UnixFilePermissionsExtensions
 class HostKey
 {
   string SHA256FingerPrint { get; }
+  string? IssuerSHA256FingerPrint { get; }
 }
 enum KnownHostResult
 {
@@ -572,6 +574,12 @@ Supported client key algorithms:
 - rsa-sha2-256
 
 Supported server key algorithms:
+- ssh-ed25519-cert-v01@openssh.com
+- ecdsa-sha2-nistp521-cert-v01@openssh.com
+- ecdsa-sha2-nistp384-cert-v01@openssh.com
+- ecdsa-sha2-nistp256-cert-v01@openssh.com
+- rsa-sha2-512-cert-v01@openssh.com
+- rsa-sha2-256-cert-v01@openssh.com
 - ssh-ed25519
 - ecdsa-sha2-nistp521
 - ecdsa-sha2-nistp384

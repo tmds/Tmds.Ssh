@@ -1,6 +1,8 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Security.Cryptography;
+
 namespace Tmds.Ssh;
 
 sealed class SshKey : IEquatable<SshKey>
@@ -34,5 +36,12 @@ sealed class SshKey : IEquatable<SshKey>
         HashCode hashCode = new HashCode();
         hashCode.AddBytes(Data.AsSpan());
         return hashCode.ToHashCode();
+    }
+
+    internal string GetSHA256FingerPrint()
+    {
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(Data, hash);
+        return Convert.ToBase64String(hash).TrimEnd('=');
     }
 }

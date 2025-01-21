@@ -15,7 +15,7 @@ class ECDsaPublicKey : PublicKey
     private readonly ECPoint _q;
     private readonly HashAlgorithmName _hashAlgorithm;
 
-    private ECDsaPublicKey(Name name, ECCurve curve, ECPoint q, HashAlgorithmName hashAlgorithm)
+    public ECDsaPublicKey(Name name, ECCurve curve, ECPoint q, HashAlgorithmName hashAlgorithm)
     {
         _q = q;
         _curve = curve;
@@ -54,6 +54,11 @@ class ECDsaPublicKey : PublicKey
 
     internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
     {
+        if (algorithmName != _name)
+        {
+            ThrowHelper.ThrowProtocolUnexpectedValue();
+        }
+
         var reader = new SequenceReader(signature);
         BigInteger r = reader.ReadMPInt();
         BigInteger s = reader.ReadMPInt();

@@ -18,7 +18,7 @@ class Curve25519KeyExchange : KeyExchange
 {
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 
-    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
@@ -40,7 +40,7 @@ class Curve25519KeyExchange : KeyExchange
         var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
 
         // Verify received key is valid.
-        HostKey hostKey = await VerifyHostKeyAsync(hostKeyVerification, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
+        await VerifyHostKeyAsync(hostKeyAuthentication, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         byte[] sharedSecret;
@@ -57,7 +57,7 @@ class Curve25519KeyExchange : KeyExchange
         byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
-        VerifySignature(hostKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
+        VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }

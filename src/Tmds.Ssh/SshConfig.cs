@@ -49,6 +49,7 @@ sealed class SshConfig
     public AlgorithmList? HostKeyAlgorithms { get; set; }
     public AlgorithmList? KexAlgorithms { get; set; }
     public AlgorithmList? Macs { get; set; }
+    public AlgorithmList? CASignatureAlgorithms { get; set; }
     public AlgorithmList? PublicKeyAcceptedAlgorithms { get; set; }
     public int? RequiredRSASize { get; set; }
     public Name[]? PreferredAuthentications { get; set; }
@@ -443,6 +444,9 @@ sealed class SshConfig
                     PatternList = remainder.Trim(WhiteSpace).ToString()
                 };
                 break;
+            case "casignaturealgorithms":
+                config.CASignatureAlgorithms ??= ReadAlgorithmList(keyword, remainder);
+                break;
             case "compression":
                 config.Compression ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
@@ -549,8 +553,7 @@ sealed class SshConfig
             case "enablesshkeysign":        // host-based auth is not supported
             case "hostbasedacceptedalgorithms": // host-based auth is not supported
             case "connectionattempts":      // Only a single attempt is supported (currently)
-            case "certificatefile":         // certificate based auth is not supported
-            case "casignaturealgorithms":   // certificate based auth is not supported
+            case "certificatefile":         // certificate based client auth is not supported
             case "addkeystoagent":          // auth agent is not supported
             case "identityagent":           // auth agent is not supported
             case "pkcs11provider":          // not supported

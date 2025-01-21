@@ -20,13 +20,8 @@ RUN [ -z "$PASSWORD" ] && passwd --delete testuser || echo "$PASSWORD" | passwd 
 RUN echo 'Subsystem test_subsystem /usr/bin/sh' >> /etc/ssh/sshd_config
 
 # Add server keys.
-COPY server_key_rsa /etc/ssh/ssh_host_rsa_key
-COPY server_key_ecdsa /etc/ssh/ssh_host_ecdsa_key
-COPY server_key_ecdsa_nistp384 /etc/ssh/ssh_host_ecdsa_nistp384_key
-COPY server_key_ecdsa_nistp521 /etc/ssh/ssh_host_ecdsa_nistp521_key
-COPY server_key_ed25519 /etc/ssh/ssh_host_ed25519_key
-RUN chmod 600 /etc/ssh/ssh_host_{rsa,ecdsa,ed25519,ecdsa_nistp384,ecdsa_nistp521}_key
-RUN dos2unix /etc/ssh/ssh_host_{rsa,ecdsa,ed25519,ecdsa_nistp384,ecdsa_nistp521}_key
+COPY server_key_* /etc/ssh
+RUN chmod 600 /etc/ssh/server_key_* && dos2unix /etc/ssh/server_key_*
 COPY 91-keys.conf /etc/ssh/sshd_config.d/91-keys.conf
 
 # Add user authorized key.

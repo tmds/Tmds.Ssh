@@ -13,7 +13,7 @@ static class Constants
     public const int DefaultWindowSize = 64 * MaxDataPacketSize;
     public const int MaxNameLength = 128;        // Arbitrary limit, may be increased.
     public const int MaxECPointLength = 256 + 1; // Arbitrary limit, may be increased.
-    public const int MaxKeyLength = 1024;        // Arbitrary limit, may be increased.
+    public const int MaxKeyLength = 2048;        // Arbitrary limit, may be increased.
     public const int MaxMPIntLength = 1024;      // Arbitrary limit, may be increased.
     public const int MaxBannerPackets = 1024;    // Abitrary limit
     public const int MaxPartialAuths = 16;       // Abitrary limit

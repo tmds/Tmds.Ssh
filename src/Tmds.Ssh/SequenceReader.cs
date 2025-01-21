@@ -15,7 +15,7 @@ ref struct SequenceReader
     private SequenceReader<byte> _reader;
 
     public long Length => _reader.Length;
-    public long Remaining => _reader.Remaining;
+    public bool AtEnd => _reader.End;
     public long Consumed => _reader.Consumed;
 
     public SequenceReader(Sequence sequence)
@@ -437,7 +437,7 @@ ref struct SequenceReader
 
     public void ReadEnd()
     {
-        if (Remaining != 0)
+        if (!AtEnd)
         {
             ThrowHelper.ThrowProtocolPacketLongerThanExpected();
         }

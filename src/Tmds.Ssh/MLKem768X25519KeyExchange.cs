@@ -21,7 +21,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
     private readonly MLKemParameters _mlKemParameters = MLKemParameters.ml_kem_768;
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
 
-    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
     {
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
@@ -51,7 +51,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         var hybridReply = ParseHybridReply(hybridReplyMsg);
 
         // Verify received key is valid.
-        HostKey hostKey = await VerifyHostKeyAsync(hostKeyVerification, input, hybridReply.public_host_key, ct).ConfigureAwait(false);
+        await VerifyHostKeyAsync(hostKeyAuthentication, input, hybridReply.public_host_key, ct).ConfigureAwait(false);
 
         // Compute shared secret.
         byte[] sharedSecret;
@@ -68,7 +68,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, hybridReply.public_host_key.Data, c_init, hybridReply.s_reply, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
-        VerifySignature(hostKey, input.HostKeyAlgorithms, exchangeHash, hybridReply.exchange_hash_signature, connectionInfo);
+        VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, hybridReply.exchange_hash_signature, connectionInfo);
 
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }

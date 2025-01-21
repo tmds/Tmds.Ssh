@@ -9,7 +9,7 @@ sealed class SshAgentPrivateKey : PrivateKey
     private readonly SshAgent _sshAgent;
 
     public SshAgentPrivateKey(SshAgent sshAgent, SshKey publicKey) :
-        base(AlgorithmNames.GetSignatureAlgorithmsForPrivateKeyType(publicKey.Type), publicKey)
+        base(AlgorithmNames.GetSignatureAlgorithmsForEncryptionKeyType(publicKey.Type), publicKey)
     {
         _sshAgent = sshAgent;
     }

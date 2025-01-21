@@ -1,6 +1,4 @@
 using Xunit;
-using System.Net;
-using System.Net.Sockets;
 
 namespace Tmds.Ssh.Tests;
 

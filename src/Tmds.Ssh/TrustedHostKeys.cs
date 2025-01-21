@@ -4,6 +4,7 @@ sealed class TrustedHostKeys
 {
     private List<SshKey>? TrustedKeys { get; set; }
     private List<SshKey>? TrustedPatternMatchedKeys { get; set; }
+    private List<SshKey>? CAKeys { get; set; }
     private List<SshKey>? RevokedKeys { get; set; }
 
     public void AddTrustedKey(SshKey key, bool isPatternMatch)
@@ -20,13 +21,54 @@ sealed class TrustedHostKeys
         }
     }
 
+    public void AddCAKey(SshKey key)
+    {
+        CAKeys ??= new List<SshKey>();
+        CAKeys.Add(key);
+    }
+
     public void AddRevokedKey(SshKey key)
     {
         RevokedKeys ??= new List<SshKey>();
         RevokedKeys.Add(key);
     }
 
-    public KnownHostResult IsTrusted(SshKey serverKey)
+    public KnownHostResult IsTrusted(SshKey serverKey, SshKey? caKey)
+    {
+        KnownHostResult result = KnownHostResult.Unknown;
+        if (caKey is not null)
+        {
+            result = IsTrustedCA(caKey);
+        }
+        if (result == KnownHostResult.Unknown)
+        {
+            result = IsTrusted(serverKey);
+        }
+        return result;
+    }
+
+    private KnownHostResult IsTrustedCA(SshKey caKey)
+    {
+        if (RevokedKeys is not null)
+        {
+            if (RevokedKeys.Contains(caKey))
+            {
+                return KnownHostResult.Revoked;
+            }
+        }
+
+        if (CAKeys is not null)
+        {
+            if (CAKeys.Contains(caKey))
+            {
+                return KnownHostResult.Trusted;
+            }
+        }
+
+        return KnownHostResult.Unknown;
+    }
+
+    private KnownHostResult IsTrusted(SshKey serverKey)
     {
         if (RevokedKeys is not null)
         {
@@ -57,8 +99,14 @@ sealed class TrustedHostKeys
         return anyTrusted ? KnownHostResult.Changed : KnownHostResult.Unknown;
     }
 
-    public void SortAlgorithms(List<Name> algorithmNames)
+    public void SortAlgorithms(List<Name> hostKeyAlgorithms)
     {
+        if (CAKeys is not null)
+        {
+            SortCAAlgorithmsFirst(hostKeyAlgorithms);
+            return;
+        }
+
         if (TrustedKeys is null || TrustedKeys.Count == 0)
         {
             return;
@@ -68,8 +116,8 @@ sealed class TrustedHostKeys
         {
             SshKey hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
-            ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(keyType);
-            Sort(algorithmNames, preferredAlgorithms);
+            ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref keyType);
+            Sort(hostKeyAlgorithms, preferredAlgorithms);
         }
         else
         {
@@ -78,13 +126,30 @@ sealed class TrustedHostKeys
             for (int i = TrustedKeys.Count - 1; i >= 0; i--)
             {
                 Name keyType = TrustedKeys[i].Type;
-                foreach (var algorithm in AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(keyType))
+                foreach (var algorithm in AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref keyType))
                 {
                     keyAlgorithms.Add(algorithm);
                 }
             }
             ReadOnlySpan<Name> preferredAlgorithms = keyAlgorithms.OrderedItems;
-            Sort(algorithmNames, preferredAlgorithms);
+            Sort(hostKeyAlgorithms, preferredAlgorithms);
+        }
+
+        static void SortCAAlgorithmsFirst(List<Name> algorithms)
+        {
+            int sortedIdx = 0;
+            for (int i = 0; i < algorithms.Count; i++)
+            {
+                bool isCertAlgorithm = algorithms[i].AsSpan().StartsWith(AlgorithmNames.CertSuffix);
+                if (isCertAlgorithm)
+                {
+                    if (sortedIdx != i)
+                    {
+                        (algorithms[sortedIdx], algorithms[i]) = (algorithms[i], algorithms[sortedIdx]);
+                    }
+                    sortedIdx++;
+                }
+            }
         }
 
         static void Sort(List<Name> algorithms, ReadOnlySpan<Name> preferredAlgorithms)
