@@ -42,7 +42,7 @@ public class SshServer : IDisposable
     private string EcdsaKeyCertNistp256SHA256FingerPrint => "e2utj7oy7iLfnMpc1FPd0oGo1ZnBZLVvXPQe/LIVKKI";
     private string EcdsaKeyCertNistp384SHA256FingerPrint => "QSIE3DZTPzgDrMeGLki+w9MKLPLKMAME4YVkEjChE9Y";
     private string EcdsaKeyCertNistp521SHA256FingerPrint => "gN4CGGEfs+6n7F9vIvl6xUEKcCzOu82+YtqwzjjirB8";
-    private string CaSHA256FingerPrint => "0AheLeF8Ytfrk79e3sauimh2vFOK3Q03o0C3B9DmbWA";
+    public string CaSHA256FingerPrint => "0AheLeF8Ytfrk79e3sauimh2vFOK3Q03o0C3B9DmbWA";
 
     public string[] ServerKeySHA256FingerPrints => new string[]
     {
@@ -51,6 +51,17 @@ public class SshServer : IDisposable
         EcdsaKeyNistp256SHA256FingerPrint,
         EcdsaKeyNistp384SHA256FingerPrint,
         EcdsaKeyNistp521SHA256FingerPrint,
+
+        // ServerKeyCertSHA256FingerPrints:
+        RsaKeyCertSHA256FingerPrint,
+        Ed25519KeyCertSHA256FingerPrint,
+        EcdsaKeyCertNistp256SHA256FingerPrint,
+        EcdsaKeyCertNistp384SHA256FingerPrint,
+        EcdsaKeyCertNistp521SHA256FingerPrint,
+    };
+
+    public string[] ServerKeyCertSHA256FingerPrints => new string[]
+    {
         RsaKeyCertSHA256FingerPrint,
         Ed25519KeyCertSHA256FingerPrint,
         EcdsaKeyCertNistp256SHA256FingerPrint,
