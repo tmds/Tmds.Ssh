@@ -80,6 +80,10 @@ static class HostKeyVerification
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Server certificate signature does not match CA key.", connectionInfo);
         }
+
+#if DEBUG
+        certInfo.IsVerified = true;
+#endif
     }
 
     private static bool IsAlgorithmAllowed(ReadOnlySpan<Name> availableAlgorithms, IReadOnlyList<Name> allowedAlgorithms)

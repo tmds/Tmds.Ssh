@@ -27,6 +27,10 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
     {
         HostKey serverKey = connectionInfo.ServerKey!;
         bool isCertificate = serverKey.CertInfo is not null;
+#if DEBUG
+        // The certificate (if present) has already been validated (expiration, matching host, ...).
+        Debug.Assert(serverKey.CertInfo?.IsVerified != false);
+#endif
 
         KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.SshKey, serverKey.CertInfo?.CAKey);
         bool isTrusted = result == KnownHostResult.Trusted;

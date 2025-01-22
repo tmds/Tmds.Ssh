@@ -9,6 +9,7 @@ public class KnownHostTests : IDisposable
     private static readonly string GitHubKey = "AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==";
     private static readonly string HashedHostKey = "AAAAC3NzaC1lZDI1NTE5AAAAINLpitgznNAi49RhCzb9BxMwyPe/VuPya7V7tWRnO10P";
     private static readonly string RevokedKey = "AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBRF7kE8vbr7bS8HLHNmr4e0Bez8co0l5tgLl1+H7LoLfvHTzMpW0M9FtM9+ObTo6j1gxRp73Cp1ycNwvSm4I4k=";
+    private static readonly string CAKey = "AAAAC3NzaC1lZDI1NTE5AAAAIIVaJXZKIKOgS/l0IbSZXGfb+4LEHc09TnkhvG77s3mQ";
     private static readonly string KnownHostsContent =
 @"github.com,140.82.118.3 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
 # line with comments
@@ -22,6 +23,8 @@ changed ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABB
 
 wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
 
+@cert-authority *.ca-domain ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIVaJXZKIKOgS/l0IbSZXGfb+4LEHc09TnkhvG77s3mQ
+
 |1|N2OS+FENATANi2PcV/Pk/weRLR8=|owwUJqp0/ouG9BsGvOId6wQcKd0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINLpitgznNAi49RhCzb9BxMwyPe/VuPya7V7tWRnO10P
 ";
 
@@ -30,69 +33,87 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
     [Fact]
     public void UnknownHost()
     {
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("unknown", ip: null, 22, CreateHostKey("type", Array.Empty<byte>())));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("unknown", ip: null, 22, CreateKey("type", Array.Empty<byte>())));
     }
 
     [Fact]
     public void KnownHost()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("github.com", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("github.com", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void DefaultPort()
     {
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("github.com", ip: null, 1234, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("github.com", ip: null, 1234, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void BracketHostname()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("brackethostname", ip: null, 1234, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("brackethostname", ip: null, 1234, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("brackethostname", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("brackethostname", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void WildcardHostname()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("wildcardhostna.me", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("wildcardhostna.me", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("wildcardhostnaxme", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("wildcardhostnaxme", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("prewildcardhostna.me", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("prewildcardhostna.me", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
 
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("wildcardhostna.mepost", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("wildcardhostna.mepost", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void KnownIp()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("", ip: "140.82.118.3", 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("", ip: "140.82.118.3", 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void Revoked()
     {
-        Assert.Equal(KnownHostResult.Revoked, CheckHost("trudy", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Revoked, CheckHost("trudy", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void Changed()
     {
-        Assert.Equal(KnownHostResult.Changed, CheckHost("changed", ip: null, 22, CreateHostKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
+        Assert.Equal(KnownHostResult.Changed, CheckHost("changed", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey))));
     }
 
     [Fact]
     public void WildcardRevoke()
     {
-        Assert.Equal(KnownHostResult.Revoked, CheckHost("changed", ip: null, 22, CreateHostKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey))));
+        Assert.Equal(KnownHostResult.Revoked, CheckHost("changed", ip: null, 22, CreateKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey))));
     }
 
     [Fact]
     public void Hashed()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("127.0.0.7", ip: null, 22, CreateHostKey("ssh-ed25519", Convert.FromBase64String(HashedHostKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("127.0.0.7", ip: null, 22, CreateKey("ssh-ed25519", Convert.FromBase64String(HashedHostKey))));
+    }
+
+    [Fact]
+    public void CertificateAuthority()
+    {
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("host.domain.ca-domain", ip: null, 22, CreateKey("type", Array.Empty<byte>()), CreateKey("ssh-ed25519", Convert.FromBase64String(CAKey))));
+    }
+
+    [Fact]
+    public void RevokedKeyTrustedCA()
+    {
+        Assert.Equal(KnownHostResult.Revoked, CheckHost("host.domain.ca-domain", ip: null, 22, CreateKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey)), CreateKey("ssh-ed25519", Convert.FromBase64String(CAKey))));
+    }
+
+    [Fact]
+    public void TrustedKeyRevokedCA()
+    {
+        Assert.Equal(KnownHostResult.Revoked, CheckHost("github.com", ip: null, 22, CreateKey("ssh-rsa", Convert.FromBase64String(GitHubKey)), CreateKey("ecdsa-sha2-nistp256", Convert.FromBase64String(RevokedKey))));
     }
 
     public KnownHostTests()
@@ -114,16 +135,16 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
         { }
     }
 
-    private SshKey CreateHostKey(string type, byte[] key)
+    private SshKey CreateKey(string type, byte[] key)
     {
         return new SshKey(new Name(type), key);
     }
 
-    private KnownHostResult CheckHost(string host, string? ip, int port, SshKey serverKey)
+    private KnownHostResult CheckHost(string host, string? ip, int port, SshKey serverKey, SshKey? caKey = null)
     {
         ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         TrustedHostKeys hostKeys = new();
         KnownHostsFile.AddHostKeysFromFile(_knownHostsFilename, hostKeys, host, ip, port, logger);
-        return hostKeys.IsTrusted(serverKey, caKey: null);
+        return hostKeys.IsTrusted(serverKey, caKey);
     }
 }

@@ -224,5 +224,8 @@ partial class HostKey
         internal required SshKey CAKey { get; init; }
         internal required PublicKey CAPublicKey { get; init; }
         internal required List<string> Principals { get; init; }
+#if DEBUG
+        internal bool IsVerified;
+#endif
     }
 }
