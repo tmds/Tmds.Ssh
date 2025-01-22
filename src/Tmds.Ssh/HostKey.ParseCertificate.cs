@@ -163,8 +163,29 @@ partial class HostKey
         // must refuse to authorise a key that has an unrecognised option.
         bool hasCriticalOptions = !ros.IsEmpty;
 
-        // No extensions are defined for host certificates at present.
-        reader.SkipString();
+        // No extensions are defined for host certificates in the OpenSSH spec at present.
+        // Custom extensions may be included.
+        ros = reader.ReadStringAsBytes(); // extensions
+        innerReader = new SequenceReader(ros);
+        string? previousExtensionName = null;
+        while (!innerReader.AtEnd)
+        {
+            string extensionName = innerReader.ReadUtf8String(); // name
+            if (extensionName.Length == 0)
+            {
+                ThrowHelper.ThrowProtocolUnexpectedValue();
+            }
+            innerReader.SkipString(); // data
+
+            if (previousExtensionName is not null)
+            {
+                if (string.CompareOrdinal(extensionName, previousExtensionName) <= 0)
+                {
+                    ThrowHelper.ThrowProtocolUnexpectedValue();
+                }
+            }
+            previousExtensionName = extensionName;
+        }
 
         reader.SkipString(); // reserved
 
