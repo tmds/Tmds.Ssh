@@ -1,6 +1,8 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Diagnostics;
+
 namespace Tmds.Ssh;
 
 static class AlgorithmNames // TODO: rename to KnownNames
@@ -28,7 +30,7 @@ static class AlgorithmNames // TODO: rename to KnownNames
     private static readonly byte[] MLKem768X25519Sha256Bytes = "mlkem768x25519-sha256"u8.ToArray();
     public static Name MLKem768X25519Sha256 => new Name(MLKem768X25519Sha256Bytes);
 
-    // Host key algorithms: key types and signature algorithms.
+    // Host key types, host key algorithms, and signature algorithms.
     private static readonly byte[] SshRsaBytes = "ssh-rsa"u8.ToArray();
     public static Name SshRsa => new Name(SshRsaBytes);
     private static readonly byte[] RsaSshSha2_256Bytes = "rsa-sha2-256"u8.ToArray();
@@ -43,15 +45,36 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static Name EcdsaSha2Nistp521 => new Name(EcdsaSha2Nistp521Bytes);
     private static readonly byte[] SshEd25519Bytes = "ssh-ed25519"u8.ToArray();
     public static Name SshEd25519 => new Name(SshEd25519Bytes);
-    // Key type to signature algorithms.
+    public static readonly byte[] CertSuffix = "-cert-v01@openssh.com"u8.ToArray();
+    private static readonly byte[] SshRsaCertBytes = "ssh-rsa-cert-v01@openssh.com"u8.ToArray();
+    public static Name SshRsaCert => new Name(SshRsaCertBytes);
+    private static readonly byte[] RsaSshSha2_256CertBytes = "rsa-sha2-256-cert-v01@openssh.com"u8.ToArray();
+    public static Name RsaSshSha2_256Cert => new Name(RsaSshSha2_256CertBytes);
+    private static readonly byte[] RsaSshSha2_512CertBytes = "rsa-sha2-512-cert-v01@openssh.com"u8.ToArray();
+    public static Name RsaSshSha2_512Cert => new Name(RsaSshSha2_512CertBytes);
+    private static readonly byte[] EcdsaSha2Nistp256CertBytes = "ecdsa-sha2-nistp256-cert-v01@openssh.com"u8.ToArray();
+    public static Name EcdsaSha2Nistp256Cert => new Name(EcdsaSha2Nistp256CertBytes);
+    private static readonly byte[] EcdsaSha2Nistp384CertBytes = "ecdsa-sha2-nistp384-cert-v01@openssh.com"u8.ToArray();
+    public static Name EcdsaSha2Nistp384Cert => new Name(EcdsaSha2Nistp384CertBytes);
+    private static readonly byte[] EcdsaSha2Nistp521CertBytes = "ecdsa-sha2-nistp521-cert-v01@openssh.com"u8.ToArray();
+    public static Name EcdsaSha2Nistp521Cert => new Name(EcdsaSha2Nistp521CertBytes);
+    private static readonly byte[] SshEd25519CertBytes = "ssh-ed25519-cert-v01@openssh.com"u8.ToArray();
+    public static Name SshEd25519Cert => new Name(SshEd25519CertBytes);
+
+    // For GetSignatureAlgorithmsForEncryptionKeyType.
     public static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
+    public static readonly Name[] SshRsaCertAlgorithms = [ RsaSshSha2_512Cert, RsaSshSha2_256Cert ];
     public static readonly Name[] EcdsaSha2Nistp256Algorithms = [ EcdsaSha2Nistp256 ];
     public static readonly Name[] EcdsaSha2Nistp384Algorithms = [ EcdsaSha2Nistp384 ];
     public static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
     public static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
 
-    public static Name[] GetSignatureAlgorithmsForPrivateKeyType(Name keyType)
+    // Returns the signature algorithms supported by the key. Note: not implemented for certificate key types.
+    public static Name[] GetSignatureAlgorithmsForEncryptionKeyType(Name keyType)
     {
+        // This method doesn't map cert host key types to signature algorithms.
+        Debug.Assert(!keyType.AsSpan().EndsWith(CertSuffix));
+
         if (keyType == SshRsa)
         {
             return SshRsaAlgorithms;
@@ -78,8 +101,43 @@ static class AlgorithmNames // TODO: rename to KnownNames
         }
     }
 
-    public static Name[] GetHostKeyAlgorithmsForHostKeyType(Name keyType)
-        => GetSignatureAlgorithmsForPrivateKeyType(keyType);
+    // Returns the host key algorithms that this key supports.
+    public static ReadOnlySpan<Name> GetHostKeyAlgorithmsForHostKeyType(ref Name hostKeyType)
+    {
+        if (hostKeyType == SshRsa)
+        {
+            return SshRsaAlgorithms;
+        }
+        else if (hostKeyType == SshRsaCert)
+        {
+            return SshRsaCertAlgorithms;
+        }
+        else
+        {
+            return new ReadOnlySpan<Name>(ref hostKeyType);
+        }
+    }
+
+    // Returns the host key algorithm name for using the specified signature with the specified hostkey.
+    public static Name GetHostKeyAlgorithmForSignatureAlgorithm(Name hostKeyType, Name signatureType)
+    {
+        if (hostKeyType == SshRsa)
+        {
+            return signatureType;
+        }
+        else if (hostKeyType == SshRsaCert)
+        {
+            if (signatureType == RsaSshSha2_256)
+            {
+                return RsaSshSha2_256Cert;
+            }
+            else if (signatureType == RsaSshSha2_512)
+            {
+                return RsaSshSha2_512Cert;
+            }
+        }
+        return hostKeyType;
+    }
 
     // Encryption algorithms.
     private static readonly byte[] Aes128CbcBytes = "aes128-cbc"u8.ToArray();

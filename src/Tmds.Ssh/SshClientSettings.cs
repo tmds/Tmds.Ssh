@@ -353,4 +353,5 @@ public sealed partial class SshClientSettings
     internal List<Name> CompressionAlgorithmsServerToClient { get; set; } = DefaultCompressionAlgorithms;
     internal List<Name> LanguagesClientToServer { get; set; } = EmptyList;
     internal List<Name> LanguagesServerToClient { get; set; } = EmptyList;
+    internal List<Name> CASignatureAlgorithms { get; set; } = DefaultCASignatureAlgorithms;
 }

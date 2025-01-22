@@ -6,7 +6,9 @@ namespace Tmds.Ssh;
 // POCO input for IKeyExchangeAlgorithm.TryExchangeAsync
 sealed class KeyExchangeInput
 {
-    public KeyExchangeInput(IReadOnlyList<Name> hostKeyAlgorithms,
+    public KeyExchangeInput(
+        IReadOnlyList<Name> hostKeyAlgorithms,
+        IReadOnlyList<Name> caSignatureAlgorithms,
         ReadOnlyPacket clientKexInitMsg,
         ReadOnlyPacket serverKexInitMsg,
         SshConnectionInfo connectionInfo,
@@ -19,6 +21,7 @@ sealed class KeyExchangeInput
         int minimumRSAKeySize)
     {
         HostKeyAlgorithms = hostKeyAlgorithms;
+        CASignatureAlgorithms = caSignatureAlgorithms;
         ClientKexInitMsg = clientKexInitMsg;
         ServerKexInitMsg = serverKexInitMsg;
         ConnectionInfo = connectionInfo;
@@ -32,6 +35,7 @@ sealed class KeyExchangeInput
     }
 
     public IReadOnlyList<Name> HostKeyAlgorithms { get; set; }
+    public IReadOnlyList<Name> CASignatureAlgorithms { get; set; }
     public ReadOnlyPacket ClientKexInitMsg { get; set; }
     public ReadOnlyPacket ServerKexInitMsg { get; set; }
     public SshConnectionInfo ConnectionInfo { get; set; }

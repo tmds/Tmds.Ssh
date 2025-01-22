@@ -81,6 +81,7 @@ sealed class KeyExchangeContext
 
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
+    public required List<Name> CASignatureAlgorithms { get; init; }
     public required List<Name> EncryptionAlgorithmsClientToServer { get; init; }
     public required List<Name> EncryptionAlgorithmsServerToClient { get; init; }
     public required List<Name> MacAlgorithmsClientToServer { get; init; }
@@ -89,7 +90,7 @@ sealed class KeyExchangeContext
     public required List<Name> CompressionAlgorithmsServerToClient { get; init; }
     public required List<Name> LanguagesClientToServer { get; init; }
     public required List<Name> LanguagesServerToClient { get; init; }
-    public required IHostKeyVerification HostKeyVerification { get; init; }
+    public required IHostKeyAuthentication HostKeyAuthentication { get; init; }
     public required int MinimumRSAKeySize { get; init; }
     public bool IsInitialKex { get; }
 

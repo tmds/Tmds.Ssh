@@ -110,7 +110,7 @@ sealed partial class SshSession
             Logger.KexAlgorithms(kexAlgorithms, hostKeyAlgorithms,
                 encC2S, encS2C, macC2S, macS2C, comC2S, comS2C);
 
-            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, clientKexInitMsg, serverKexInitMsg, ConnectionInfo,
+            var keyExchangeInput = new KeyExchangeInput(hostKeyAlgorithms, context.CASignatureAlgorithms, clientKexInitMsg, serverKexInitMsg, ConnectionInfo,
                 encC2SAlg.IVLength, encS2CAlg.IVLength, encC2SAlg.KeyLength, encS2CAlg.KeyLength, hmacC2SAlg?.KeyLength ?? 0, hmacS2CAlg?.KeyLength ?? 0,
                 context.MinimumRSAKeySize);
 
@@ -120,7 +120,7 @@ sealed partial class SshSession
 
                 using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
                 {
-                    keyExchangeOutput = await algorithm.TryExchangeAsync(context, context.HostKeyVerification, firstPacket.Move(), keyExchangeInput, Logger, ct).ConfigureAwait(false);
+                    keyExchangeOutput = await algorithm.TryExchangeAsync(context, context.HostKeyAuthentication, firstPacket.Move(), keyExchangeInput, Logger, ct).ConfigureAwait(false);
                 }
                 if (keyExchangeOutput != null)
                 {
@@ -284,7 +284,7 @@ sealed partial class SshSession
         // Add keys to first KnownHostsFilePaths.
         IReadOnlyList<string> userKnownHostsFilePaths = _settings.UserKnownHostsFilePathsOrDefault;
         string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && userKnownHostsFilePaths.Count > 0 ? userKnownHostsFilePaths[0] : null;
-        IHostKeyVerification hostKeyVerification = new HostKeyVerification(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
+        IHostKeyAuthentication hostKeyAuthentication = new HostKeyAuthentication(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
 
         return new KeyExchangeContext(connection, this, isInitialKex)
         {
@@ -298,8 +298,9 @@ sealed partial class SshSession
             CompressionAlgorithmsServerToClient = _settings.CompressionAlgorithmsServerToClient,
             LanguagesClientToServer = _settings.LanguagesClientToServer,
             LanguagesServerToClient = _settings.LanguagesServerToClient,
-            HostKeyVerification = hostKeyVerification,
-            MinimumRSAKeySize = _settings.MinimumRSAKeySize
+            HostKeyAuthentication = hostKeyAuthentication,
+            MinimumRSAKeySize = _settings.MinimumRSAKeySize,
+            CASignatureAlgorithms = _settings.CASignatureAlgorithms
         };
     }
 

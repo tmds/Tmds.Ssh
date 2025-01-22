@@ -25,6 +25,7 @@ partial class SshClientSettings
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
         List<Name> kexAlgorithms = DetermineAlgorithms(sshConfig.KexAlgorithms, DefaultKeyExchangeAlgorithms, SupportedKeyExchangeAlgorithms);
         List<Name> macs = DetermineAlgorithms(sshConfig.Macs, DefaultMacAlgorithms, SupportedMacAlgorithms);
+        List<Name> caSignatureAlgorithms = DetermineAlgorithms(sshConfig.CASignatureAlgorithms, DefaultCASignatureAlgorithms, SupportedCASignatureAlgorithms);
         List<Name> compressionAlgorithms = sshConfig.Compression == true ? EnableCompressionAlgorithms : DisableCompressionAlgorithms;
         List<Name>? publicKeyAcceptedAlgorithms =
             // Do not restrict if not specified.

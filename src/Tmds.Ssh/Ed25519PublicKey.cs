@@ -10,7 +10,7 @@ class Ed25519PublicKey : PublicKey
 {
     private readonly byte[] _publicKey;
 
-    private Ed25519PublicKey(byte[] publicKey)
+    public Ed25519PublicKey(byte[] publicKey)
     {
         _publicKey = publicKey;
     }
@@ -29,6 +29,11 @@ class Ed25519PublicKey : PublicKey
 
     internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
     {
+        if (algorithmName != AlgorithmNames.SshEd25519)
+        {
+            ThrowHelper.ThrowProtocolUnexpectedValue();
+        }
+
         if (signature.Length != Ed25519.SignatureSize)
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();

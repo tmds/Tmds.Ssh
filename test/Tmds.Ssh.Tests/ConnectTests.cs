@@ -44,6 +44,8 @@ public class ConnectTests
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
                     Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    bool isCertificate = _sshServer.ServerKeyCertSHA256FingerPrints.Contains(connectionInfo.ServerKey.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.IssuerSHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 };
             }
@@ -104,6 +106,7 @@ public class ConnectTests
                         Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                         return ValueTask.FromResult(true);
                     };
+                    settings.ServerHostKeyAlgorithms = [ AlgorithmNames.RsaSshSha2_256 ];
                     settings.UpdateKnownHostsFileAfterAuthentication = true;
                 });
             client.Dispose();
@@ -433,6 +436,8 @@ public class ConnectTests
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
                     Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
+                    bool isCertificate = _sshServer.ServerKeyCertSHA256FingerPrints.Contains(connectionInfo.ServerKey.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.IssuerSHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 },
                 ConfigFilePaths = [ configFile.Path ]

@@ -37,4 +37,5 @@ public enum SshConfigOption
     ServerAliveInterval,
     IdentitiesOnly,
     ProxyJump,
+    CASignatureAlgorithms,
 }

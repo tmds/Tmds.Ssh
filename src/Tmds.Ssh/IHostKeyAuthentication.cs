@@ -3,7 +3,7 @@
 
 namespace Tmds.Ssh;
 
-interface IHostKeyVerification
+interface IHostKeyAuthentication
 {
-    ValueTask VerifyAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
+    ValueTask AuthenticateAsync(SshConnectionInfo connectionInfo, CancellationToken ct);
 }

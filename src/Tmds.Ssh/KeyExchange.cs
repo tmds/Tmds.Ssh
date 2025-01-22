@@ -1,5 +1,4 @@
 ﻿using System.Buffers;
-using System.Numerics;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
@@ -7,37 +6,24 @@ namespace Tmds.Ssh;
 
 abstract class KeyExchange : IKeyExchangeAlgorithm
 {
-    public abstract Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyVerification hostKeyVerification, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
+    public abstract Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
 
-    protected static async Task<HostKey> VerifyHostKeyAsync(IHostKeyVerification hostKeyVerification, KeyExchangeInput input, SshKey public_host_key, CancellationToken ct)
+    protected static async Task VerifyHostKeyAsync(IHostKeyAuthentication hostKeyAuthentication, KeyExchangeInput input, SshKey public_host_key, CancellationToken ct)
     {
-        HostKey hostKey = new HostKey(public_host_key);
         var connectionInfo = input.ConnectionInfo;
-        connectionInfo.ServerKey = hostKey;
 
-        // Verify the HostKey is permitted by HostKeyAlgorithms.
-        bool algorithmAllowed = false;
-        foreach (var hostKeyAlgorithm in hostKey.HostKeyAlgorithms)
+        // First.
+        HostKeyVerification.CheckAllowedHostKeyAlgoritms(connectionInfo, public_host_key, input.HostKeyAlgorithms);
+
+        HostKeyVerification.CheckMinimumRSAKeySize(connectionInfo, input.MinimumRSAKeySize);
+
+        if (connectionInfo.ServerKey.CertInfo is not null)
         {
-            if (input.HostKeyAlgorithms.Contains(hostKeyAlgorithm))
-            {
-                algorithmAllowed = true;
-                break;
-            }
-        }
-        if (!algorithmAllowed)
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server host key type {hostKey.Type} is not accepted.", connectionInfo);
+            HostKeyVerification.CheckCertificate(connectionInfo, connectionInfo.ServerKey.CertInfo, input.CASignatureAlgorithms);
         }
 
-        if (hostKey.PublicKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < input.MinimumRSAKeySize)
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server RSA key size {rsaPublicKey.KeySize} is less than {input.MinimumRSAKeySize}.", connectionInfo);
-        }
-
-        await hostKeyVerification.VerifyAsync(connectionInfo, ct).ConfigureAwait(false);
-
-        return hostKey;
+        // Last.
+        await hostKeyAuthentication.AuthenticateAsync(connectionInfo, ct).ConfigureAwait(false);
     }
 
     protected static void VerifySignature(HostKey hostKey, IReadOnlyList<Name> allowedHostKeyAlgorithms, byte[] data, ReadOnlySequence<byte> signatureBlob, SshConnectionInfo connectionInfo)
@@ -48,7 +34,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
         reader.ReadEnd();
 
         // Verify the signature algorithm is permitted by HostKeyAlgorithms.
-        Name hostKeyAlgorithm = hostKey.GetHostKeyAlgorithmForSignatureAlgorithm(algorithmName);
+        Name hostKeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(hostKey.Type, algorithmName);
         if (!allowedHostKeyAlgorithms.Contains(hostKeyAlgorithm))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Signature type {algorithmName} is not accepted.", connectionInfo);

@@ -115,12 +115,6 @@ static class KnownHostsFile
             string keytype = lineParts[idx++];
             string base64key = lineParts[idx++];
 
-            bool certauth = markers == "@cert-authority";
-            if (certauth)
-            {
-                continue;
-            }
-
             MatchType matchType = IsMatch(hostnames, host, ip, port);
             if (matchType == MatchType.NoMatch)
             {
@@ -128,6 +122,7 @@ static class KnownHostsFile
             }
 
             bool revoked = markers == "@revoked";
+            bool certauth = markers == "@cert-authority";
 
             byte[] key;
             try
@@ -139,15 +134,19 @@ static class KnownHostsFile
                 continue;
             }
 
-            SshKey hostKey = new SshKey(new Name(keytype), key);
+            SshKey sshKey = new SshKey(new Name(keytype), key);
 
             if (revoked)
             {
-                hostKeys.AddRevokedKey(hostKey);
+                hostKeys.AddRevokedKey(sshKey);
+            }
+            else if (certauth)
+            {
+                hostKeys.AddCAKey(sshKey);
             }
             else
             {
-                hostKeys.AddTrustedKey(hostKey, isPatternMatch: matchType == MatchType.PatternMatch);
+                hostKeys.AddTrustedKey(sshKey, isPatternMatch: matchType == MatchType.PatternMatch);
             }
         }
     }

@@ -37,6 +37,12 @@ public class SshServer : IDisposable
     private string EcdsaKeyNistp256SHA256FingerPrint => "0983BezNRxXiCSK+ZY835dHQ3tSzx+i2oHd6vKKlOeE";
     private string EcdsaKeyNistp384SHA256FingerPrint => "O8vDVOPKzyWp38LkIyQwo+o9pZlV/10lCzCuWNuls+A";
     private string EcdsaKeyNistp521SHA256FingerPrint => "ki9Csen6gPmw24YqojLm12bNuftv+PgPlPIW/lwMk40";
+    private string RsaKeyCertSHA256FingerPrint => "doUWiEWO/lCrZb9Z0xYUUmjodBViJ4+yg8nvmZJDxFg";
+    private string Ed25519KeyCertSHA256FingerPrint => "UgJfSX2djCaEygDMBUWhZUOFWCqwnhFVMuRsPA+NPE4";
+    private string EcdsaKeyCertNistp256SHA256FingerPrint => "e2utj7oy7iLfnMpc1FPd0oGo1ZnBZLVvXPQe/LIVKKI";
+    private string EcdsaKeyCertNistp384SHA256FingerPrint => "QSIE3DZTPzgDrMeGLki+w9MKLPLKMAME4YVkEjChE9Y";
+    private string EcdsaKeyCertNistp521SHA256FingerPrint => "gN4CGGEfs+6n7F9vIvl6xUEKcCzOu82+YtqwzjjirB8";
+    public string CaSHA256FingerPrint => "0AheLeF8Ytfrk79e3sauimh2vFOK3Q03o0C3B9DmbWA";
 
     public string[] ServerKeySHA256FingerPrints => new string[]
     {
@@ -45,6 +51,22 @@ public class SshServer : IDisposable
         EcdsaKeyNistp256SHA256FingerPrint,
         EcdsaKeyNistp384SHA256FingerPrint,
         EcdsaKeyNistp521SHA256FingerPrint,
+
+        // ServerKeyCertSHA256FingerPrints:
+        RsaKeyCertSHA256FingerPrint,
+        Ed25519KeyCertSHA256FingerPrint,
+        EcdsaKeyCertNistp256SHA256FingerPrint,
+        EcdsaKeyCertNistp384SHA256FingerPrint,
+        EcdsaKeyCertNistp521SHA256FingerPrint,
+    };
+
+    public string[] ServerKeyCertSHA256FingerPrints => new string[]
+    {
+        RsaKeyCertSHA256FingerPrint,
+        Ed25519KeyCertSHA256FingerPrint,
+        EcdsaKeyCertNistp256SHA256FingerPrint,
+        EcdsaKeyCertNistp384SHA256FingerPrint,
+        EcdsaKeyCertNistp521SHA256FingerPrint,
     };
 
     private string RsaKeyPubFile = $"{ContainerBuildContext}/server_key_rsa.pub";
@@ -52,6 +74,7 @@ public class SshServer : IDisposable
     private string EcdsaKeyNistp256PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp384.pub";
     private string EcdsaKeyNistp384PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp521.pub";
     private string EcdsaKeyNistp521PubFile = $"{ContainerBuildContext}/server_key_ed25519.pub";
+    private string CAPubFile = $"{ContainerBuildContext}/ca.pub";
 
     private string[] KeyPubFiles => new string[]
     {
@@ -168,7 +191,9 @@ public class SshServer : IDisposable
 
         string WriteKnownHostsFile(string host, int port)
         {
-            IEnumerable<string> lines = KeyPubFiles.Select(file => $"[{host}]:{port} {File.ReadAllText(file).Trim()}");
+            string hostPattern = $"[{host}]:{port}";
+            IEnumerable<string> lines = KeyPubFiles.Select(file => $"{hostPattern} {File.ReadAllText(file).Trim()}");
+            lines = lines.Concat([ $"@cert-authority {hostPattern} {File.ReadAllText(CAPubFile).Trim()}" ]);
             string filename = Path.GetTempFileName();
             File.WriteAllLines(filename, lines);
             return filename;
