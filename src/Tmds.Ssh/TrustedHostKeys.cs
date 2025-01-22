@@ -35,46 +35,23 @@ sealed class TrustedHostKeys
 
     public KnownHostResult IsTrusted(SshKey serverKey, SshKey? caKey)
     {
-        KnownHostResult result = KnownHostResult.Unknown;
-        if (caKey is not null)
-        {
-            result = IsTrustedCA(caKey);
-        }
-        if (result == KnownHostResult.Unknown)
-        {
-            result = IsTrusted(serverKey);
-        }
-        return result;
-    }
-
-    private KnownHostResult IsTrustedCA(SshKey caKey)
-    {
         if (RevokedKeys is not null)
         {
-            if (RevokedKeys.Contains(caKey))
+            if (caKey is not null && RevokedKeys.Contains(caKey))
+            {
+                return KnownHostResult.Revoked;
+            }
+            if (RevokedKeys.Contains(serverKey))
             {
                 return KnownHostResult.Revoked;
             }
         }
 
-        if (CAKeys is not null)
+        if (caKey is not null && CAKeys is not null)
         {
             if (CAKeys.Contains(caKey))
             {
                 return KnownHostResult.Trusted;
-            }
-        }
-
-        return KnownHostResult.Unknown;
-    }
-
-    private KnownHostResult IsTrusted(SshKey serverKey)
-    {
-        if (RevokedKeys is not null)
-        {
-            if (RevokedKeys.Contains(serverKey))
-            {
-                return KnownHostResult.Revoked;
             }
         }
 
@@ -101,10 +78,10 @@ sealed class TrustedHostKeys
 
     public void SortAlgorithms(List<Name> hostKeyAlgorithms)
     {
+        int sortedIdx = 0;
         if (CAKeys is not null)
         {
-            SortCAAlgorithmsFirst(hostKeyAlgorithms);
-            return;
+            SortCAAlgorithmsFirst(hostKeyAlgorithms, ref sortedIdx);
         }
 
         if (TrustedKeys is null || TrustedKeys.Count == 0)
@@ -117,7 +94,7 @@ sealed class TrustedHostKeys
             SshKey hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
             ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref keyType);
-            Sort(hostKeyAlgorithms, preferredAlgorithms);
+            Sort(hostKeyAlgorithms, preferredAlgorithms, ref sortedIdx);
         }
         else
         {
@@ -132,12 +109,11 @@ sealed class TrustedHostKeys
                 }
             }
             ReadOnlySpan<Name> preferredAlgorithms = keyAlgorithms.OrderedItems;
-            Sort(hostKeyAlgorithms, preferredAlgorithms);
+            Sort(hostKeyAlgorithms, preferredAlgorithms, ref sortedIdx);
         }
 
-        static void SortCAAlgorithmsFirst(List<Name> algorithms)
+        static void SortCAAlgorithmsFirst(List<Name> algorithms, ref int sortedIdx)
         {
-            int sortedIdx = 0;
             for (int i = 0; i < algorithms.Count; i++)
             {
                 bool isCertAlgorithm = algorithms[i].AsSpan().StartsWith(AlgorithmNames.CertSuffix);
@@ -152,9 +128,8 @@ sealed class TrustedHostKeys
             }
         }
 
-        static void Sort(List<Name> algorithms, ReadOnlySpan<Name> preferredAlgorithms)
+        static void Sort(List<Name> algorithms, ReadOnlySpan<Name> preferredAlgorithms, ref int sortedIdx)
         {
-            int sortedIdx = 0;
             foreach (var preferred in preferredAlgorithms)
             {
                 int idx = algorithms.IndexOf(preferred, sortedIdx);
