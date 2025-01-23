@@ -3,55 +3,31 @@
 
 namespace Tmds.Ssh;
 
-public sealed partial class HostKey : IEquatable<HostKey>
+public sealed partial class HostKey
 {
-    private string? _sha256FingerPrint;
-    private string? _issuerSha256FingerPrint;
+    public string SHA256FingerPrint => PublicKey.SHA256FingerPrint;
+    public string? IssuerSHA256FingerPrint => IssuerKey?.SHA256FingerPrint;
 
-    public string SHA256FingerPrint
-        => _sha256FingerPrint ??= SshKey.GetSHA256FingerPrint();
+    internal SshKey RawKey { get; }
 
-    public string? IssuerSHA256FingerPrint
-        => _issuerSha256FingerPrint ??= CertInfo?.CAKey?.GetSHA256FingerPrint();
+    internal SshKey PublicKey => CertInfo?.SignedKey ?? RawKey;
+    internal SshKey? IssuerKey => CertInfo?.CAKey;
+    internal SshKey? CertificateKey => IssuerKey is not null ? RawKey : null;
 
-    public bool Equals(HostKey? other)
-    {
-        if (other is null)
-        {
-            return false;
-        }
-
-        return SshKey.Equals(other.SshKey);
-    }
-
-    public override int GetHashCode()
-    {
-        return SshKey.GetHashCode();
-    }
-
-    internal SshKey SshKey { get; }
-    internal PublicKey PublicKey { get; }
-    internal Name Type => SshKey.Type;
+    internal PublicKey SignatureKey { get; }
     internal CertificateInfo? CertInfo { get; }
 
-    internal HostKey(SshKey sshKey, bool parseKey = true)
+    internal HostKey(SshKey sshKey)
     {
-        SshKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
+        RawKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
 
-        if (parseKey)
+        if (sshKey.Type.AsSpan().EndsWith(AlgorithmNames.CertSuffix))
         {
-            if (sshKey.Type.AsSpan().EndsWith(AlgorithmNames.CertSuffix))
-            {
-                (PublicKey, CertInfo) = ParseCertificate(sshKey);
-            }
-            else
-            {
-                PublicKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
-            }
+            (SignatureKey, CertInfo) = ParseCertificate(sshKey);
         }
         else
         {
-            PublicKey = null!;
+            SignatureKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
         }
     }
 }

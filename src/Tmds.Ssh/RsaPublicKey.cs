@@ -19,6 +19,16 @@ class RsaPublicKey : PublicKey
 
     public int KeySize => _n.Length * 8;
 
+    public static SshKey DeterminePublicSshKey(byte[] e, byte[] n)
+    {
+        using var writer = new ArrayWriter();
+        writer.WriteString(AlgorithmNames.SshRsa);
+        writer.WriteMPInt(e);
+        writer.WriteMPInt(n);
+
+        return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
+    }
+
     public static RsaPublicKey CreateFromSshKey(byte[] key)
     {
         SequenceReader reader = new SequenceReader(key);

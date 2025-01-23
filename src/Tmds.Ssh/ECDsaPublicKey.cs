@@ -23,6 +23,15 @@ class ECDsaPublicKey : PublicKey
         _hashAlgorithm = hashAlgorithm;
     }
 
+    public static SshKey DeterminePublicSshKey(Name algorithm, Name curveName, ECPoint q)
+    {
+        using var writer = new ArrayWriter();
+        writer.WriteString(algorithm);
+        writer.WriteString(curveName);
+        writer.WriteString(q);
+        return new SshKey(algorithm, writer.ToArray());
+    }
+
     public static ECDsaPublicKey CreateFromSshKey(byte[] key)
     {
         SequenceReader reader = new SequenceReader(key);

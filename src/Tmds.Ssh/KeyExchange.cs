@@ -34,13 +34,13 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
         reader.ReadEnd();
 
         // Verify the signature algorithm is permitted by HostKeyAlgorithms.
-        Name hostKeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(hostKey.Type, algorithmName);
+        Name hostKeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(hostKey.RawKey.Type, algorithmName);
         if (!allowedHostKeyAlgorithms.Contains(hostKeyAlgorithm))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Signature type {algorithmName} is not accepted.", connectionInfo);
         }
 
-        if (!hostKey.PublicKey.VerifySignature(algorithmName, data, signature))
+        if (!hostKey.SignatureKey.VerifySignature(algorithmName, data, signature))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Signature does not match host key.", connectionInfo);
         }

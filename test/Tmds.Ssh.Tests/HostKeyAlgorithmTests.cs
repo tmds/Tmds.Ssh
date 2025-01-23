@@ -21,6 +21,27 @@ public class HostKeyAlgorithmTests
         );
     }
 
+    [Theory]
+    [MemberData(nameof(CertificateAlgorithms))]
+    public async Task ConnectWithHostKeyAlgorithmCertificateAuth(string algorithm)
+    {
+        string hostPattern = $"[{_sshServer.ServerHost}]:{_sshServer.ServerPort}";
+        using TempFile knownHostsFile = new TempFile(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+        File.WriteAllText(knownHostsFile.Path, $"@cert-authority {hostPattern} {File.ReadAllText(_sshServer.CAPubFile).Trim()}");
+        using var _ = await _sshServer.CreateClientAsync(
+            settings =>
+            {
+                settings.ServerHostKeyAlgorithms = [ new Name(algorithm) ];
+                settings.UserKnownHostsFilePaths = [ knownHostsFile.Path ];
+            }
+        );
+    }
+
     public static IEnumerable<object[]> Algorithms =>
         SshClientSettings.SupportedServerHostKeyAlgorithms.Select(algorithm => new object[] { algorithm.ToString() });
+
+    public static IEnumerable<object[]> CertificateAlgorithms =>
+        SshClientSettings.SupportedServerHostKeyAlgorithms.Where(name => name.AsSpan().EndsWith(AlgorithmNames.CertSuffix)).Select(algorithm => new object[] { algorithm.ToString() });
 }
+
+//              // lines = lines.Concat([  ]);

@@ -15,6 +15,14 @@ class Ed25519PublicKey : PublicKey
         _publicKey = publicKey;
     }
 
+    public static SshKey DeterminePublicSshKey(byte[] publicKey)
+    {
+        using var writer = new ArrayWriter();
+        writer.WriteString(AlgorithmNames.SshEd25519);
+        writer.WriteString(publicKey);
+        return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
+    }
+
     public static Ed25519PublicKey CreateFromSshKey(byte[] key)
     {
         SequenceReader reader = new SequenceReader(key);

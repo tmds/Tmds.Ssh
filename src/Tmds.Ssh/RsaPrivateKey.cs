@@ -27,12 +27,7 @@ sealed class RsaPrivateKey : PrivateKey
     {
         RSAParameters parameters = rsa.ExportParameters(includePrivateParameters: false);
 
-        using var writer = new ArrayWriter();
-        writer.WriteString(AlgorithmNames.SshRsa);
-        writer.WriteMPInt(parameters.Exponent);
-        writer.WriteMPInt(parameters.Modulus);
-
-        return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
+        return RsaPublicKey.DeterminePublicSshKey(parameters.Exponent!, parameters.Modulus!);
     }
 
     public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)

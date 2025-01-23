@@ -68,6 +68,11 @@ static class AlgorithmNames // TODO: rename to KnownNames
     public static readonly Name[] EcdsaSha2Nistp384Algorithms = [ EcdsaSha2Nistp384 ];
     public static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
     public static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
+    public static readonly Name[] SshRsaKnownHostAlgorithms = [ RsaSshSha2_512Cert, RsaSshSha2_256Cert, RsaSshSha2_512, RsaSshSha2_256 ];
+    public static readonly Name[] EcdsaSha2Nistp256KnownHostAlgorithms = [ EcdsaSha2Nistp256Cert, EcdsaSha2Nistp256 ];
+    public static readonly Name[] EcdsaSha2Nistp384KnownHostAlgorithms = [ EcdsaSha2Nistp384Cert, EcdsaSha2Nistp384 ];
+    public static readonly Name[] EcdsaSha2Nistp521KnownHostAlgorithms = [ EcdsaSha2Nistp521Cert, EcdsaSha2Nistp521 ];
+    public static readonly Name[] SshEd25519KnownHostAlgorithms = [ SshEd25519Cert, SshEd25519 ];
 
     // Returns the signature algorithms supported by the key. Note: not implemented for certificate key types.
     public static Name[] GetSignatureAlgorithmsForEncryptionKeyType(Name keyType)
@@ -101,7 +106,7 @@ static class AlgorithmNames // TODO: rename to KnownNames
         }
     }
 
-    // Returns the host key algorithms that this key supports.
+    // Returns the host key algorithms that this host key supports.
     public static ReadOnlySpan<Name> GetHostKeyAlgorithmsForHostKeyType(ref Name hostKeyType)
     {
         if (hostKeyType == SshRsa)
@@ -115,6 +120,35 @@ static class AlgorithmNames // TODO: rename to KnownNames
         else
         {
             return new ReadOnlySpan<Name>(ref hostKeyType);
+        }
+    }
+
+    // Returns the host key algorithms that this known host key can be checked against.
+    public static ReadOnlySpan<Name> GetHostKeyAlgorithmsForKnownHostKeyType(ref Name knownHostKeyType)
+    {
+        if (knownHostKeyType == SshRsa)
+        {
+            return SshRsaKnownHostAlgorithms;
+        }
+        if (knownHostKeyType == EcdsaSha2Nistp256)
+        {
+            return EcdsaSha2Nistp256KnownHostAlgorithms;
+        }
+        if (knownHostKeyType == EcdsaSha2Nistp384)
+        {
+            return EcdsaSha2Nistp384KnownHostAlgorithms;
+        }
+        if (knownHostKeyType == EcdsaSha2Nistp521)
+        {
+            return EcdsaSha2Nistp521KnownHostAlgorithms;
+        }
+        if (knownHostKeyType == SshEd25519)
+        {
+            return SshEd25519KnownHostAlgorithms;
+        }
+        else
+        {
+            return new ReadOnlySpan<Name>(ref knownHostKeyType);
         }
     }
 
