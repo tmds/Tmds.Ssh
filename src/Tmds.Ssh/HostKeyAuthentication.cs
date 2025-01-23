@@ -26,18 +26,18 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
     public async ValueTask AuthenticateAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         HostKey serverKey = connectionInfo.ServerKey!;
-        bool isCertificate = serverKey.CertInfo is not null;
+        bool isCertificate = serverKey.IssuerKey is not null;
 #if DEBUG
         // The certificate (if present) has already been validated (expiration, matching host, ...).
         Debug.Assert(serverKey.CertInfo?.IsVerified != false);
 #endif
 
-        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.SshKey, serverKey.CertInfo?.CAKey);
+        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.RawKey, serverKey.CertInfo?.CAKey, serverKey.CertInfo?.SignedKey);
         bool isTrusted = result == KnownHostResult.Trusted;
 
         if (isTrusted)
         {
-            _logger.ServerKeyIsKnownHost(connectionInfo.HostName, serverKey.Type, serverKey.SHA256FingerPrint);
+            _logger.ServerKeyIsKnownHost(connectionInfo.HostName, serverKey.RawKey.Type, serverKey.RawKey.SHA256FingerPrint);
             return;
         }
         else if (result == KnownHostResult.Revoked)
@@ -49,15 +49,16 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
                 isTrusted = await _hostAuthentication(result, connectionInfo, ct);
                 if (isTrusted)
                 {
-                    _logger.ServerKeyIsApproved(serverKey.Type, serverKey.SHA256FingerPrint);
+                    _logger.ServerKeyIsApproved(serverKey.RawKey.Type, serverKey.RawKey.SHA256FingerPrint);
 
                     // Don't update for certificates.
                     if (!isCertificate)
                     {
                         if (!string.IsNullOrEmpty(_updateKnownHostsFile))
                         {
-                            KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, serverKey, _hashKnownHosts);
-                            _logger.ServerKeyAddKnownHost(connectionInfo.HostName, serverKey.Type, serverKey.SHA256FingerPrint, _updateKnownHostsFile);
+                            SshKey publicKey = serverKey.PublicKey;
+                            KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, publicKey, _hashKnownHosts);
+                            _logger.ServerKeyAddKnownHost(connectionInfo.HostName, publicKey.Type, publicKey.SHA256FingerPrint, _updateKnownHostsFile);
                         }
                     }
 
@@ -67,8 +68,8 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
         }
 
         Debug.Assert(!isTrusted);
-        SshKey key = isCertificate ? serverKey.CertInfo!.CAKey : serverKey.SshKey;
-        string message = $"The {(isCertificate ? "CA " : "")}key {key.Type} SHA256:{key.GetSHA256FingerPrint()} is not trusted.";
+        SshKey key = serverKey.IssuerKey ?? serverKey.RawKey;
+        string message = $"The {(isCertificate ? "CA " : "")}key {key.Type} SHA256:{key.SHA256FingerPrint} is not trusted.";
         throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
     }
 }

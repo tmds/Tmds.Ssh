@@ -53,7 +53,9 @@ partial class HostKey
         byte[] n = reader.ReadMPIntAsByteArray(isUnsigned: true);
         PublicKey publicKey = new RsaPublicKey(e, n);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader);
+        SshKey signedKey = RsaPublicKey.DeterminePublicSshKey(e, n);
+
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
 
         return (publicKey, certificateInfo);
     }
@@ -74,31 +76,36 @@ partial class HostKey
         reader.ReadName(name);
         reader.SkipString(); // nonce
         PublicKey publicKey;
+        SshKey signedKey;
         if (name == AlgorithmNames.EcdsaSha2Nistp256Cert)
         {
             reader.ReadName(AlgorithmNames.Nistp256);
             ECPoint q = reader.ReadStringAsECPoint();
             publicKey = new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp256, ECCurve.NamedCurves.nistP256, q, HashAlgorithmName.SHA256);
+            signedKey = ECDsaPublicKey.DeterminePublicSshKey(AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.Nistp256, q);
         }
         else if (name == AlgorithmNames.EcdsaSha2Nistp384Cert)
         {
             reader.ReadName(AlgorithmNames.Nistp384);
             ECPoint q = reader.ReadStringAsECPoint();
             publicKey = new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp384, ECCurve.NamedCurves.nistP384, q, HashAlgorithmName.SHA384);
+            signedKey = ECDsaPublicKey.DeterminePublicSshKey(AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.Nistp384, q);
         }
         else if (name == AlgorithmNames.EcdsaSha2Nistp521Cert)
         {
             reader.ReadName(AlgorithmNames.Nistp521);
             ECPoint q = reader.ReadStringAsECPoint();
             publicKey = new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp521, ECCurve.NamedCurves.nistP521, q, HashAlgorithmName.SHA512);
+            signedKey = ECDsaPublicKey.DeterminePublicSshKey(AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.Nistp521, q);
         }
         else
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
             publicKey = null!;
+            signedKey = null!;
         }
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader);
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
 
         return (publicKey, certificateInfo);
     }
@@ -120,14 +127,17 @@ partial class HostKey
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
         }
-        PublicKey publicKey = new Ed25519PublicKey(pk.ToArray());
+        byte[] pkArray = pk.ToArray();
+        PublicKey publicKey = new Ed25519PublicKey(pkArray);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader);
+        SshKey signedKey = Ed25519PublicKey.DeterminePublicSshKey(pkArray);
+
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
 
         return (publicKey, certificateInfo);
     }
 
-    private static CertificateInfo ParseCommonHostCertificateFields(byte[] keyData, SequenceReader reader)
+    private static CertificateInfo ParseCommonHostCertificateFields(byte[] keyData, SequenceReader reader, SshKey signedKey)
     {
         /*
             uint64    serial
@@ -210,7 +220,8 @@ partial class HostKey
             ValidBefore = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validBefore, dateTimeOffsetMax)),
             ValidAfter = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validAfter, dateTimeOffsetMax)),
             Principals = principals,
-            CAPublicKey = caPublicKey
+            CAPublicKey = caPublicKey,
+            SignedKey = signedKey
         };
     }
 
@@ -223,6 +234,7 @@ partial class HostKey
         internal required DateTimeOffset ValidAfter { get; init; }
         internal required SshKey CAKey { get; init; }
         internal required PublicKey CAPublicKey { get; init; }
+        internal required SshKey SignedKey { get; init; }
         internal required List<string> Principals { get; init; }
 #if DEBUG
         internal bool IsVerified;

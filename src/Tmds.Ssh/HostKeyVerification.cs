@@ -13,8 +13,8 @@ static class HostKeyVerification
         // Verify the HostKey is permitted by HostKeyAlgorithms.
         if (!IsAlgorithmAllowed(AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref hostKeyType), allowedHostKeyAlgorithms))
         {
-            connectionInfo.ServerKey = new HostKey(public_host_key, parseKey: false);
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server host key type {public_host_key.Type} is not accepted.", connectionInfo);
+            // Don't throw ConnectFailedException as we haven't assigned SshConnectionInfo.ServerKey.
+            throw new SshConnectionException($"Server host key type {public_host_key.Type} is not accepted.");
         }
 
         HostKey hostKey = new HostKey(public_host_key);
@@ -24,7 +24,7 @@ static class HostKeyVerification
     public static void CheckMinimumRSAKeySize(SshConnectionInfo connectionInfo, int minimumRSAKeySize)
     {
         {
-            if (connectionInfo.ServerKey.PublicKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
+            if (connectionInfo.ServerKey.SignatureKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
             {
                 throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server RSA key size {rsaPublicKey.KeySize} is less than {minimumRSAKeySize}.", connectionInfo);
             }

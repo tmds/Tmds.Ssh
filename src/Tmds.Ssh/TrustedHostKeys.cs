@@ -33,7 +33,7 @@ sealed class TrustedHostKeys
         RevokedKeys.Add(key);
     }
 
-    public KnownHostResult IsTrusted(SshKey serverKey, SshKey? caKey)
+    public KnownHostResult IsTrusted(SshKey hostKey, SshKey? caKey, SshKey? signedKey)
     {
         if (RevokedKeys is not null)
         {
@@ -41,7 +41,11 @@ sealed class TrustedHostKeys
             {
                 return KnownHostResult.Revoked;
             }
-            if (RevokedKeys.Contains(serverKey))
+            if (signedKey is not null && RevokedKeys.Contains(signedKey))
+            {
+                return KnownHostResult.Revoked;
+            }
+            if (RevokedKeys.Contains(hostKey))
             {
                 return KnownHostResult.Revoked;
             }
@@ -58,7 +62,11 @@ sealed class TrustedHostKeys
         bool anyTrusted = false;
         if (TrustedKeys is not null)
         {
-            if (TrustedKeys.Contains(serverKey))
+            if (TrustedKeys.Contains(hostKey))
+            {
+                return KnownHostResult.Trusted;
+            }
+            if (signedKey is not null && TrustedKeys.Contains(signedKey))
             {
                 return KnownHostResult.Trusted;
             }
@@ -67,7 +75,11 @@ sealed class TrustedHostKeys
 
         if (TrustedPatternMatchedKeys is not null)
         {
-            if (TrustedPatternMatchedKeys.Contains(serverKey))
+            if (TrustedPatternMatchedKeys.Contains(hostKey))
+            {
+                return KnownHostResult.Trusted;
+            }
+            if (signedKey is not null && TrustedPatternMatchedKeys.Contains(signedKey))
             {
                 return KnownHostResult.Trusted;
             }
@@ -93,7 +105,7 @@ sealed class TrustedHostKeys
         {
             SshKey hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
-            ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref keyType);
+            ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForKnownHostKeyType(ref keyType);
             Sort(hostKeyAlgorithms, preferredAlgorithms, ref sortedIdx);
         }
         else
@@ -103,7 +115,7 @@ sealed class TrustedHostKeys
             for (int i = TrustedKeys.Count - 1; i >= 0; i--)
             {
                 Name keyType = TrustedKeys[i].Type;
-                foreach (var algorithm in AlgorithmNames.GetHostKeyAlgorithmsForHostKeyType(ref keyType))
+                foreach (var algorithm in AlgorithmNames.GetHostKeyAlgorithmsForKnownHostKeyType(ref keyType))
                 {
                     keyAlgorithms.Add(algorithm);
                 }

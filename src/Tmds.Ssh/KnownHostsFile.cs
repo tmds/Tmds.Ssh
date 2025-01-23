@@ -13,9 +13,9 @@ static class KnownHostsFile
 {
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
-    public static void AddKnownHost(string knownHostsFile, string host, int port, HostKey key, bool hash)
+    public static void AddKnownHost(string knownHostsFile, string host, int port, SshKey sshKey, bool hash)
     {
-        string knownHostLine = FormatLine(host, port, key.SshKey, hash) + '\n';
+        string knownHostLine = FormatLine(host, port, sshKey, hash) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
 
         string directoryPath = Path.GetDirectoryName(knownHostsFile)!;

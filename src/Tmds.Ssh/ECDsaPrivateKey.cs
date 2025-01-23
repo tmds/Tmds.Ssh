@@ -33,12 +33,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     {
         ECParameters parameters = ecdsa.ExportParameters(includePrivateParameters: false);
 
-        using var writer = new ArrayWriter();
-        writer.WriteString(algorithm);
-        writer.WriteString(curveName);
-        writer.WriteString(parameters.Q);
-
-        return new SshKey(algorithm, writer.ToArray());
+        return ECDsaPublicKey.DeterminePublicSshKey(algorithm, curveName, parameters.Q);
     }
 
     public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)

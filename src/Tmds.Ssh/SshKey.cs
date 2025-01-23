@@ -7,6 +7,8 @@ namespace Tmds.Ssh;
 
 sealed class SshKey : IEquatable<SshKey>
 {
+    private string? _sha256FingerPrint;
+
     public SshKey(Name type, byte[] data)
     {
         if (type.IsEmpty)
@@ -38,10 +40,17 @@ sealed class SshKey : IEquatable<SshKey>
         return hashCode.ToHashCode();
     }
 
-    internal string GetSHA256FingerPrint()
+    internal string SHA256FingerPrint
     {
-        Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(Data, hash);
-        return Convert.ToBase64String(hash).TrimEnd('=');
+        get
+        {
+            if (_sha256FingerPrint is null)
+            {
+                Span<byte> hash = stackalloc byte[32];
+                SHA256.HashData(Data, hash);
+                _sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
+            }
+            return _sha256FingerPrint;
+        }
     }
 }
