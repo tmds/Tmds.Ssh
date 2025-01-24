@@ -2,70 +2,121 @@
 // See file LICENSE for full license details.
 
 using System.Text;
+using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
-// Internal names used to identify algorithms or protocols are normally
-// never displayed to users, and must be in US-ASCII.
-readonly struct Name : IEquatable<Name>, ISpanFormattable
+// Represents a fixed name used to identify an algorithm, key type, ...
+// The type is optimized to work with the identifiers that are known to the library.
+readonly struct Name : IEquatable<Name>
 {
-    // By design, we treat _name == null the same as _name == byte[0] {}.
-    private readonly byte[] _name;
+    // Disallow control characters, space, non ASCII.
+    private const byte LowInclusive = 33;
+    private const byte HighInclusive = 126;
 
-    internal Name(byte[] name)
+    private readonly string _name;
+    private readonly bool _isKnown;
+
+    private Name(string name, bool isKnown)
     {
         _name = name;
+        _isKnown = isKnown;
     }
 
     internal Name(string name)
     {
-        _name = Encoding.ASCII.GetBytes(name);
+        string? knownNameString = KnownNameStrings.FindKnownName(name);
+        if (knownNameString is not null)
+        {
+            _name = knownNameString;
+            _isKnown = true;
+        }
+        else
+        {
+            if (name.AsSpan().ContainsAnyExceptInRange((char)LowInclusive, (char)HighInclusive))
+            {
+                ThrowHelper.ThrowProtocolInvalidName();
+            }
+            _name = name;
+        }
     }
 
     internal Name(ReadOnlySpan<char> name)
     {
-        _name = new byte[Encoding.ASCII.GetByteCount(name)];
-        Encoding.ASCII.GetBytes(name, _name);
+        string? knownNameString = KnownNameStrings.FindKnownName(name);
+        if (knownNameString is not null)
+        {
+            _name = knownNameString;
+            _isKnown = true;
+        }
+        else
+        {
+            if (name.ContainsAnyExceptInRange((char)LowInclusive, (char)HighInclusive))
+            {
+                ThrowHelper.ThrowProtocolInvalidName();
+            }
+            _name = name.ToString();
+        }
     }
 
-    public static bool TryCreate(byte[] bytes, out Name name)
+    internal static Name FromKnownNameString(string name)
     {
-        if (bytes == null)
+        // Ensure MaxNameLength is large enough to fit any known name.
+        Debug.Assert(name.Length <= Constants.MaxParseNameLength);
+        Debug.Assert(KnownNameStrings.FindKnownName(name) is not null);
+        return new Name(name, isKnown: true);
+    }
+
+    internal bool IsKnown => _isKnown;
+
+    internal bool EndsWith(string suffix)
+        => ToString().EndsWith(suffix, StringComparison.Ordinal);
+
+    internal static Name Parse(ReadOnlySpan<byte> name)
+    {
+        // Refuse to parse names that are very long.
+        if (name.Length > Constants.MaxParseNameLength)
         {
-            ThrowHelper.ThrowArgumentNull(nameof(name));
+            ThrowHelper.ThrowProtocolNameTooLong();
         }
 
-        for (int i = 0; i < bytes.Length; i++)
+        if (name.ContainsAnyExceptInRange(LowInclusive, HighInclusive))
         {
-            byte b = bytes[i];
-            if (b < 32 || b > 126)
-            {
-                ThrowHelper.ThrowProtocolInvalidAscii();
-            }
+            ThrowHelper.ThrowProtocolInvalidName();
         }
-        name = new Name(bytes);
-        return true;
+
+        Debug.Assert(Constants.MaxParseNameLength <= Constants.StackallocThreshold);
+        Span<char> charSpan = stackalloc char[name.Length];
+        Encoding.ASCII.GetChars(name, charSpan);
+
+        string? knownNameString = KnownNameStrings.FindKnownName(charSpan);
+        if (knownNameString is not null)
+        {
+            return FromKnownNameString(knownNameString);
+        }
+
+        return new Name(charSpan.ToString(), isKnown: false);
     }
 
     public override string ToString()
     {
-        return _name == null ? string.Empty : Encoding.ASCII.GetString(_name);
+        return _name  ?? "";
     }
 
     public override int GetHashCode()
-    {
-        var span = _name.AsSpan();
-        int hashCode = span.Length == 0 ? 0 : 0x38723781;
-        for (int i = 0; i < span.Length; i++)
-        {
-            hashCode = (hashCode << 8) ^ span[i];
-        }
-        return hashCode;
-    }
+        => ToString().GetHashCode();
 
     public bool Equals(Name other)
     {
-        return _name.AsSpan().SequenceEqual(other._name.AsSpan());
+        if (ReferenceEquals(_name, other._name))
+        {
+            return true;
+        }
+        if (IsKnown || other.IsKnown)
+        {
+            return false;
+        }
+        return ToString() == other.ToString();
     }
 
     public override bool Equals(object? obj)
@@ -83,13 +134,5 @@ readonly struct Name : IEquatable<Name>, ISpanFormattable
         return !(left == right);
     }
 
-    public ReadOnlySpan<byte> AsSpan() => _name;
-
-    public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
-        => Encoding.UTF8.TryGetChars(_name, destination, out charsWritten);
-
-    public string ToString(string? format, IFormatProvider? formatProvider)
-        => ToString();
-
-    public bool IsEmpty => _name == null || _name.Length == 0;
+    public bool IsEmpty => ToString().Length == 0;
 }

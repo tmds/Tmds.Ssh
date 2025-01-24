@@ -21,7 +21,7 @@ public sealed partial class HostKey
     {
         RawKey = sshKey ?? throw new ArgumentNullException(nameof(sshKey));
 
-        if (sshKey.Type.AsSpan().EndsWith(AlgorithmNames.CertSuffix))
+        if (sshKey.Type.EndsWith(AlgorithmNames.CertSuffix))
         {
             (SignatureKey, CertInfo) = ParseCertificate(sshKey);
         }

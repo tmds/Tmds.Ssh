@@ -40,7 +40,7 @@ static class HostKeyVerification
     public static void CheckCertificate(SshConnectionInfo connectionInfo, HostKey.CertificateInfo certInfo, IReadOnlyList<Name> allowedCASignaturelgorithms)
     {
         // Check if the certificate signature algorithm is allowed.
-        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForEncryptionKeyType(certInfo.CAKey.Type);
+        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(certInfo.CAKey.Type);
         if (!IsAlgorithmAllowed(keySignatureAlgorithms, allowedCASignaturelgorithms))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server CA signature algorithm {certInfo.CAKey.Type} is not accepted.", connectionInfo);

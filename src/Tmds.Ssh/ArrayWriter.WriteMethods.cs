@@ -74,7 +74,7 @@ ref partial struct ArrayWriter
 
     public void WriteString(Name value)
     {
-        WriteString(value.AsSpan());
+        WriteString(value.ToString());
     }
 
     public void WriteNameList(List<Name> names)
@@ -86,9 +86,7 @@ ref partial struct ArrayWriter
 
         for (int i = 0; i < names.Count; i++)
         {
-            ReadOnlySpan<byte> span = names[i].AsSpan();
-            Write(span);
-            bytesWritten += span.Length;
+            bytesWritten += Write(names[i].ToString(), writeLength: false);
             if (i != names.Count - 1)
             {
                 WriteByte((byte)',');

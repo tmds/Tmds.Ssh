@@ -141,7 +141,7 @@ public class PrivateKeyCredentialTests
     [Fact]
     public async Task Ecdsa256InMemoryKey()
     {
-        Name expectedalgorithm = new Name("ecdsa-sha2-nistp256"u8.ToArray());
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp256");
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP256);
         using var key = await credential.LoadKeyAsync(default);
@@ -154,7 +154,7 @@ public class PrivateKeyCredentialTests
     [Fact]
     public async Task Ecdsa384InMemoryKey()
     {
-        Name expectedalgorithm = new Name("ecdsa-sha2-nistp384"u8.ToArray());
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp384");
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP384);
         using var key = await credential.LoadKeyAsync(default);
@@ -167,7 +167,7 @@ public class PrivateKeyCredentialTests
     [Fact]
     public async Task Ecdsa521InMemoryKey()
     {
-        Name expectedalgorithm = new Name("ecdsa-sha2-nistp521"u8.ToArray());
+        Name expectedalgorithm = new Name("ecdsa-sha2-nistp521");
 
         var credential = new ECDsaKeyCredential(ECCurve.NamedCurves.nistP521);
         using var key = await credential.LoadKeyAsync(default);

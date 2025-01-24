@@ -66,12 +66,6 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolInvalidAscii()
-    {
-        throw new ProtocolException("Data contains an invalid ASCII characters.");
-    }
-
-    [DoesNotReturn]
     public static void ThrowProtocolUnsupportedVersion(string identificationString)
     {
         throw new ProtocolException($"Unsupported protocol version: {identificationString}.");
