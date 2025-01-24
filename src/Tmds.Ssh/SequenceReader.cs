@@ -239,23 +239,23 @@ ref struct SequenceReader
 
     private Name ReadName(long length)
     {
-        if (length > Constants.MaxNameLength)
-        {
-            ThrowHelper.ThrowProtocolNameTooLong();
-        }
-
         try
         {
-            byte[] bytes = _reader.UnreadSpan.Length >= length ?
-                             _reader.UnreadSpan.Slice(0, (int)length).ToArray() :
-                             _reader.Sequence.Slice(_reader.Position, length).ToArray();
+            Name name;
+            if (_reader.UnreadSpan.Length >= length)
+            {
+                name = Name.Parse(_reader.UnreadSpan.Slice(0, (int)length));
+            }
+            else
+            {
+                if (length > Constants.MaxParseNameLength)
+                {
+                    ThrowHelper.ThrowProtocolNameTooLong();
+                }
+                name = Name.Parse(_reader.Sequence.Slice(_reader.Position, length).ToArray());
+            }
 
             _reader.Advance(length);
-
-            if (!Name.TryCreate(bytes, out Name name))
-            {
-                ThrowHelper.ThrowProtocolInvalidName();
-            }
 
             return name;
         }
@@ -297,18 +297,18 @@ ref struct SequenceReader
 
         static Name ReadName(ReadOnlySequence<byte> nameSequence)
         {
-            if (nameSequence.Length > Constants.MaxNameLength)
+            if (nameSequence.FirstSpan.Length == nameSequence.Length)
             {
-                ThrowHelper.ThrowProtocolNameTooLong();
+                return Name.Parse(nameSequence.FirstSpan);
             }
-
-            byte[] bytes = nameSequence.ToArray();
-            if (!Name.TryCreate(bytes, out Name name))
+            else
             {
-                ThrowHelper.ThrowProtocolInvalidName();
+                if (nameSequence.Length > Constants.MaxParseNameLength)
+                {
+                    ThrowHelper.ThrowProtocolNameTooLong();
+                }
+                return Name.Parse(nameSequence.ToArray());
             }
-
-            return name;
         }
     }
 
@@ -370,7 +370,7 @@ ref struct SequenceReader
 
         bool skipFirstByte = isUnsigned && firstByte == 0;
 
-        int arrayLength = Math.Max(minLength, length + (skipFirstByte ? - 1 : 0));
+        int arrayLength = Math.Max(minLength, length + (skipFirstByte ? -1 : 0));
         byte[] array = new byte[arrayLength];
 
         length--;

@@ -41,7 +41,7 @@ public class HostKeyAlgorithmTests
         SshClientSettings.SupportedServerHostKeyAlgorithms.Select(algorithm => new object[] { algorithm.ToString() });
 
     public static IEnumerable<object[]> CertificateAlgorithms =>
-        SshClientSettings.SupportedServerHostKeyAlgorithms.Where(name => name.AsSpan().EndsWith(AlgorithmNames.CertSuffix)).Select(algorithm => new object[] { algorithm.ToString() });
+        SshClientSettings.SupportedServerHostKeyAlgorithms.Where(name => name.EndsWith(AlgorithmNames.CertSuffix)).Select(algorithm => new object[] { algorithm.ToString() });
 }
 
 //              // lines = lines.Concat([  ]);
