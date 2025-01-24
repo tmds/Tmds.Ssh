@@ -51,7 +51,7 @@ partial class UserAuthentication
             }
             else
             {
-                RsaPublicKey publicKey = RsaPublicKey.CreateFromSshKey(privateKey.PublicKey.Data);
+                RsaPublicKey publicKey = RsaPublicKey.CreateFromSshKey(privateKey.PublicKey.RawData);
                 return publicKey.KeySize >= minimumRSAKeySize;
             }
         }
@@ -91,7 +91,7 @@ partial class UserAuthentication
                 if (queryKey)
                 {
                     {
-                        using var queryKeyMsg = CreatePublicKeyRequestMessage(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data, signature: null);
+                        using var queryKeyMsg = CreatePublicKeyRequestMessage(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData, signature: null);
                         await context.SendPacketAsync(queryKeyMsg.Move(), ct).ConfigureAwait(false);
                     }
                     using Packet response = await context.ReceivePacketAsync(ct).ConfigureAwait(false);
@@ -113,7 +113,7 @@ partial class UserAuthentication
                     }
                 }
 
-                byte[] data = CreateDataForSigning(signAlgorithm, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data);
+                byte[] data = CreateDataForSigning(signAlgorithm, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData);
                 byte[] signature;
                 try
                 {
@@ -127,7 +127,7 @@ partial class UserAuthentication
 
                 {
                     using var userAuthMsg = CreatePublicKeyRequestMessage(
-                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.Data, signature);
+                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData, signature);
                     await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                 }
 
@@ -149,7 +149,7 @@ partial class UserAuthentication
             return result;
         }
 
-        private static byte[] CreateDataForSigning(Name algorithm, string userName, byte[] sessionId, byte[] publicKey)
+        private static byte[] CreateDataForSigning(Name algorithm, string userName, byte[] sessionId, ReadOnlyMemory<byte> publicKey)
         {
             using var dataWriter = new ArrayWriter();
             dataWriter.WriteString(sessionId);
@@ -163,7 +163,7 @@ partial class UserAuthentication
             return dataWriter.ToArray();
         }
 
-        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, byte[] publicKey, byte[]? signature)
+        private static Packet CreatePublicKeyRequestMessage(Name algorithm, SequencePool sequencePool, string userName, byte[] sessionId, ReadOnlyMemory<byte> publicKey, byte[]? signature)
         {
             /*
                 byte      SSH_MSG_USERAUTH_REQUEST

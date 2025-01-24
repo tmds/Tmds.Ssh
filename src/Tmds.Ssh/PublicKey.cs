@@ -14,15 +14,15 @@ abstract class PublicKey
             name == AlgorithmNames.EcdsaSha2Nistp384 ||
             name == AlgorithmNames.EcdsaSha2Nistp521)
         {
-            return ECDsaPublicKey.CreateFromSshKey(key.Data);
+            return ECDsaPublicKey.CreateFromSshKey(key.RawData);
         }
         else if (name == AlgorithmNames.SshRsa)
         {
-            return RsaPublicKey.CreateFromSshKey(key.Data);
+            return RsaPublicKey.CreateFromSshKey(key.RawData);
         }
         else if (name == AlgorithmNames.SshEd25519)
         {
-            return Ed25519PublicKey.CreateFromSshKey(key.Data);
+            return Ed25519PublicKey.CreateFromSshKey(key.RawData);
         }
         else
         {
@@ -31,5 +31,5 @@ abstract class PublicKey
         }
     }
 
-    internal abstract bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature);
+    internal abstract bool VerifySignature(Name algorithmName, ReadOnlySpan<byte> data, ReadOnlySequence<byte> signature);
 }

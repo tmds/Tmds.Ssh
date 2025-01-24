@@ -24,7 +24,7 @@ sealed class SshAgentPrivateKey : PrivateKey
             ThrowHelper.ThrowProtocolUnexpectedValue();
         }
 
-        byte[]? signature = await _sshAgent.TrySignAsync(algorithm, PublicKey.Data, data, cancellationToken).ConfigureAwait(false);
+        byte[]? signature = await _sshAgent.TrySignAsync(algorithm, PublicKey.RawData, data, cancellationToken).ConfigureAwait(false);
 
         if (signature is null)
         {

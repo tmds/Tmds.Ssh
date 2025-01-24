@@ -113,7 +113,7 @@ namespace Tmds.Ssh
             }
         }
 
-        public async Task<byte[]?> TrySignAsync(Name algorithm, byte[] publicKey, byte[] data, CancellationToken ct)
+        public async Task<byte[]?> TrySignAsync(Name algorithm, ReadOnlyMemory<byte> publicKey, byte[] data, CancellationToken ct)
         {
             var connection = GetAgentConnection();
             // SSH_AGENTC_SIGN_REQUEST
@@ -160,7 +160,7 @@ namespace Tmds.Ssh
             return packet.Move();
         }
 
-        private static Packet CreateSignRequestMessage(Name algorithm, SequencePool sequencePool, byte[] publicKey, byte[] data)
+        private static Packet CreateSignRequestMessage(Name algorithm, SequencePool sequencePool, ReadOnlyMemory<byte> publicKey, byte[] data)
         {
             uint flags = algorithm == AlgorithmNames.RsaSshSha2_512 ? SSH_AGENT_RSA_SHA2_512
                         : algorithm == AlgorithmNames.RsaSshSha2_256 ? SSH_AGENT_RSA_SHA2_256

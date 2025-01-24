@@ -54,11 +54,21 @@ ref partial struct ArrayWriter
     {
         WriteByte(value ? (byte)1 : (byte)0);
     }
+    
+    public void WriteString(byte[] value)
+    {
+        WriteString(value.AsSpan());
+    }
 
     public void WriteString(ReadOnlySpan<byte> value)
     {
         WriteUInt32(value.Length);
         Write(value);
+    }
+
+    public void WriteString(ReadOnlyMemory<byte> value)
+    {
+        WriteString(value.Span);
     }
 
     public void WriteString(ReadOnlySequence<byte> value)

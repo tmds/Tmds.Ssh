@@ -24,7 +24,7 @@ static class HostKeyVerification
     public static void CheckMinimumRSAKeySize(SshConnectionInfo connectionInfo, int minimumRSAKeySize)
     {
         {
-            if (connectionInfo.ServerKey.SignatureKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
+            if (connectionInfo.ServerKey.PublicKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
             {
                 throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server RSA key size {rsaPublicKey.KeySize} is less than {minimumRSAKeySize}.", connectionInfo);
             }
@@ -40,10 +40,10 @@ static class HostKeyVerification
     public static void CheckCertificate(SshConnectionInfo connectionInfo, HostKey.CertificateInfo certInfo, IReadOnlyList<Name> allowedCASignaturelgorithms)
     {
         // Check if the certificate signature algorithm is allowed.
-        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(certInfo.CAKey.Type);
+        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(certInfo.IssuerKey.Type);
         if (!IsAlgorithmAllowed(keySignatureAlgorithms, allowedCASignaturelgorithms))
         {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server CA signature algorithm {certInfo.CAKey.Type} is not accepted.", connectionInfo);
+            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server CA signature algorithm {certInfo.IssuerKey.Type} is not accepted.", connectionInfo);
         }
 
         // Critical options musn't be ignored.
@@ -76,7 +76,7 @@ static class HostKeyVerification
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"CA signature type {algorithmName} is not accepted.", connectionInfo);
         }
 
-        if (!certInfo.CAPublicKey.VerifySignature(algorithmName, certInfo.SignedData, signature))
+        if (!certInfo.CAPublicKey.VerifySignature(algorithmName, certInfo.SignedData.Span, signature))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Server certificate signature does not match CA key.", connectionInfo);
         }

@@ -32,7 +32,7 @@ class ECDsaPublicKey : PublicKey
         return new SshKey(algorithm, writer.ToArray());
     }
 
-    public static ECDsaPublicKey CreateFromSshKey(byte[] key)
+    public static ECDsaPublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)
     {
         SequenceReader reader = new SequenceReader(key);
         var name = reader.ReadName();
@@ -61,7 +61,7 @@ class ECDsaPublicKey : PublicKey
         return null!;
     }
 
-    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, ReadOnlySpan<byte> data, ReadOnlySequence<byte> signature)
     {
         if (algorithmName != _name)
         {

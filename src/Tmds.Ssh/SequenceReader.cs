@@ -38,6 +38,11 @@ ref struct SequenceReader
         _reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(array));
     }
 
+    public SequenceReader(ReadOnlyMemory<byte> memory)
+    {
+        _reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(memory));
+    }
+
     public SequenceReader(ReadOnlySequence<byte> data)
     {
         _reader = new SequenceReader<byte>(data);

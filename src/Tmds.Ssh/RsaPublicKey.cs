@@ -29,7 +29,7 @@ class RsaPublicKey : PublicKey
         return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
     }
 
-    public static RsaPublicKey CreateFromSshKey(byte[] key)
+    public static RsaPublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)
     {
         SequenceReader reader = new SequenceReader(key);
         reader.ReadName(AlgorithmNames.SshRsa);
@@ -39,7 +39,7 @@ class RsaPublicKey : PublicKey
         return new RsaPublicKey(e, n);
     }
 
-    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, ReadOnlySpan<byte> data, ReadOnlySequence<byte> signature)
     {
         HashAlgorithmName hashAlgorithm;
         if (algorithmName == AlgorithmNames.RsaSshSha2_256)

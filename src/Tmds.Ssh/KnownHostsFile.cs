@@ -61,7 +61,7 @@ static class KnownHostsFile
             Debug.Assert(bytesWritten == 20);
             host = $"|1|{Convert.ToBase64String(salt)}|{Convert.ToBase64String(destination)}";
         }
-        return $"{host} {key.Type} {Convert.ToBase64String(key.Data)}";
+        return $"{host} {key.Type} {Convert.ToBase64String(key.RawData.Span)}";
     }
 
     public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port, ILogger<SshClient> logger)
