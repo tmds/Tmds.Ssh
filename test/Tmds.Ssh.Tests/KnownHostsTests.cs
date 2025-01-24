@@ -145,6 +145,6 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
         ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         TrustedHostKeys hostKeys = new();
         KnownHostsFile.AddHostKeysFromFile(_knownHostsFilename, hostKeys, host, ip, port, logger);
-        return hostKeys.IsTrusted(serverKey, caKey, signedKey: null);
+        return hostKeys.IsTrusted(serverKey, caKey);
     }
 }
