@@ -49,7 +49,7 @@ class ECDHKeyExchange : KeyExchange
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawData, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
         VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
@@ -57,7 +57,7 @@ class ECDHKeyExchange : KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, byte[] public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)

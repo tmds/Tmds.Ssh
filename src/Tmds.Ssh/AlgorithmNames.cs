@@ -74,11 +74,6 @@ static class AlgorithmNames
     internal static readonly Name[] EcdsaSha2Nistp384Algorithms = [ EcdsaSha2Nistp384 ];
     internal static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
     internal static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
-    internal static readonly Name[] SshRsaKnownHostAlgorithms = [ RsaSshSha2_512Cert, RsaSshSha2_256Cert, RsaSshSha2_512, RsaSshSha2_256 ];
-    internal static readonly Name[] EcdsaSha2Nistp256KnownHostAlgorithms = [ EcdsaSha2Nistp256Cert, EcdsaSha2Nistp256 ];
-    internal static readonly Name[] EcdsaSha2Nistp384KnownHostAlgorithms = [ EcdsaSha2Nistp384Cert, EcdsaSha2Nistp384 ];
-    internal static readonly Name[] EcdsaSha2Nistp521KnownHostAlgorithms = [ EcdsaSha2Nistp521Cert, EcdsaSha2Nistp521 ];
-    internal static readonly Name[] SshEd25519KnownHostAlgorithms = [ SshEd25519Cert, SshEd25519 ];
 
     // Returns the signature algorithms supported by the public key.
     // Note: not implemented for certificate key types. The caller needs to pass in the public key that is signed by the certificate.
@@ -132,8 +127,15 @@ static class AlgorithmNames
         }
     }
 
+    // For GetHostKeyAlgorithmsForKnownHostKeyType
+    internal static readonly Name[] SshRsaKnownHostAlgorithms = [ RsaSshSha2_512Cert, RsaSshSha2_256Cert, RsaSshSha2_512, RsaSshSha2_256 ];
+    internal static readonly Name[] EcdsaSha2Nistp256KnownHostAlgorithms = [ EcdsaSha2Nistp256Cert, EcdsaSha2Nistp256 ];
+    internal static readonly Name[] EcdsaSha2Nistp384KnownHostAlgorithms = [ EcdsaSha2Nistp384Cert, EcdsaSha2Nistp384 ];
+    internal static readonly Name[] EcdsaSha2Nistp521KnownHostAlgorithms = [ EcdsaSha2Nistp521Cert, EcdsaSha2Nistp521 ];
+    internal static readonly Name[] SshEd25519KnownHostAlgorithms = [ SshEd25519Cert, SshEd25519 ];
+
     // Returns the host key algorithms that this known_hosts key can be checked against.
-    // The returned value includes certificate host algorithms that may  the known_hosts key.
+    // The returned value includes certificate host algorithms compatible with the host key.
     public static ReadOnlySpan<Name> GetHostKeyAlgorithmsForKnownHostKeyType(ref Name knownHostKeyType)
     {
         if (knownHostKeyType == SshRsa)

@@ -23,7 +23,7 @@ class Ed25519PublicKey : PublicKey
         return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
-    public static Ed25519PublicKey CreateFromSshKey(byte[] key)
+    public static Ed25519PublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)
     {
         SequenceReader reader = new SequenceReader(key);
         reader.ReadName(AlgorithmNames.SshEd25519);
@@ -35,7 +35,7 @@ class Ed25519PublicKey : PublicKey
         return new Ed25519PublicKey(publicKey.ToArray());
     }
 
-    internal override bool VerifySignature(Name algorithmName, Span<byte> data, ReadOnlySequence<byte> signature)
+    internal override bool VerifySignature(Name algorithmName, ReadOnlySpan<byte> data, ReadOnlySequence<byte> signature)
     {
         if (algorithmName != AlgorithmNames.SshEd25519)
         {

@@ -65,7 +65,7 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, hybridReply.public_host_key.Data, c_init, hybridReply.s_reply, sharedSecret, _hashAlgorithmName);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, hybridReply.public_host_key.RawData, c_init, hybridReply.s_reply, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
         VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, hybridReply.exchange_hash_signature, connectionInfo);

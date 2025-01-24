@@ -64,7 +64,7 @@ sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
         }
 
         // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.Data, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
+        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawData, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
 
         // Verify the server's signature.
         VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);

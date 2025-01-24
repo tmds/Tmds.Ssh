@@ -45,7 +45,7 @@ partial class HostKey
             mpint     n
             ...
         */
-        var ros = new ReadOnlySequence<byte>(key.Data);
+        var ros = new ReadOnlySequence<byte>(key.RawData);
         var reader = new SequenceReader(ros);
         reader.ReadName(AlgorithmNames.SshRsaCert);
         reader.SkipString(); // nonce
@@ -55,7 +55,7 @@ partial class HostKey
 
         SshKey signedKey = RsaPublicKey.DeterminePublicSshKey(e, n);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
@@ -71,7 +71,7 @@ partial class HostKey
             string    public_key
             ...
         */
-        var ros = new ReadOnlySequence<byte>(key.Data);
+        var ros = new ReadOnlySequence<byte>(key.RawData);
         var reader = new SequenceReader(ros);
         reader.ReadName(name);
         reader.SkipString(); // nonce
@@ -105,7 +105,7 @@ partial class HostKey
             signedKey = null!;
         }
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
@@ -118,7 +118,7 @@ partial class HostKey
             string    pk
             ...
         */
-        var ros = new ReadOnlySequence<byte>(key.Data);
+        var ros = new ReadOnlySequence<byte>(key.RawData);
         var reader = new SequenceReader(ros);
         reader.ReadName(AlgorithmNames.SshEd25519Cert);
         reader.SkipString(); // nonce
@@ -132,12 +132,12 @@ partial class HostKey
 
         SshKey signedKey = Ed25519PublicKey.DeterminePublicSshKey(pkArray);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.Data, reader, signedKey);
+        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
 
-    private static CertificateInfo ParseCommonHostCertificateFields(byte[] keyData, SequenceReader reader, SshKey signedKey)
+    private static CertificateInfo ParseCommonHostCertificateFields(ReadOnlyMemory<byte> keyData, SequenceReader reader, SshKey certificateKey, SshKey signedKey)
     {
         /*
             uint64    serial
@@ -202,7 +202,7 @@ partial class HostKey
         SshKey caKey = reader.ReadSshKey();
 
         int signedDataLength = (int)reader.Consumed;
-        ArraySegment<byte> signedData = new ArraySegment<byte>(keyData, 0, signedDataLength);
+        ReadOnlyMemory<byte> signedData = keyData.Slice(0, signedDataLength);
 
         var signature = reader.ReadStringAsBytes(); // signature
 
@@ -213,10 +213,11 @@ partial class HostKey
         ulong dateTimeOffsetMax = (ulong)DateTimeOffset.MaxValue.ToUnixTimeSeconds();
         return new CertificateInfo()
         {
+            CertificateKey = certificateKey,
             HasCriticalOptions = hasCriticalOptions,
             SignedData = signedData,
             Signature = signature,
-            CAKey = caKey,
+            IssuerKey = caKey,
             ValidBefore = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validBefore, dateTimeOffsetMax)),
             ValidAfter = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validAfter, dateTimeOffsetMax)),
             Principals = principals,
@@ -227,15 +228,18 @@ partial class HostKey
 
     internal sealed class CertificateInfo
     {
+        internal required SshKey CertificateKey { get; init; }
+        internal required SshKey SignedKey { get; init; }
+        internal required SshKey IssuerKey { get; init; }
+
         internal required bool HasCriticalOptions { get; init; }
-        internal required ArraySegment<byte> SignedData { get; init; }
-        internal required ReadOnlySequence<byte> Signature { get; init; }
         internal required DateTimeOffset ValidBefore { get; init; }
         internal required DateTimeOffset ValidAfter { get; init; }
-        internal required SshKey CAKey { get; init; }
-        internal required PublicKey CAPublicKey { get; init; }
-        internal required SshKey SignedKey { get; init; }
         internal required List<string> Principals { get; init; }
+
+        internal required ReadOnlyMemory<byte> SignedData { get; init; }
+        internal required ReadOnlySequence<byte> Signature { get; init; }
+        internal required PublicKey CAPublicKey { get; init; }
 #if DEBUG
         internal bool IsVerified;
 #endif
