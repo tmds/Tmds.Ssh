@@ -8,7 +8,7 @@ namespace Tmds.Ssh;
 
 // Represents a fixed name used to identify an algorithm, key type, ...
 // The type is optimized to work with the identifiers that are known to the library.
-readonly struct Name : IEquatable<Name>
+readonly struct Name : IEquatable<Name>, ISpanFormattable
 {
     // Disallow control characters, space, non ASCII.
     private const byte LowInclusive = 33;
@@ -123,6 +123,22 @@ readonly struct Name : IEquatable<Name>
     {
         return obj is Name name && Equals(name);
     }
+
+    bool ISpanFormattable.TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+    {
+        string s = ToString();
+        if (destination.Length < s.Length)
+        {
+            charsWritten = 0;
+            return false;
+        }
+        s.AsSpan().CopyTo(destination);
+        charsWritten = s.Length;
+        return true;
+    }
+
+    string IFormattable.ToString(string? format, IFormatProvider? formatProvider)
+        => ToString();
 
     public static bool operator ==(Name left, Name right)
     {
