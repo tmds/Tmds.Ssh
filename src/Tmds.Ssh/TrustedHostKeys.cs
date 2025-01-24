@@ -33,15 +33,11 @@ sealed class TrustedHostKeys
         RevokedKeys.Add(key);
     }
 
-    public KnownHostResult IsTrusted(SshKey hostKey, SshKey? caKey, SshKey? signedKey)
+    public KnownHostResult IsTrusted(SshKey hostKey, SshKey? caKey)
     {
         if (RevokedKeys is not null)
         {
             if (caKey is not null && RevokedKeys.Contains(caKey))
-            {
-                return KnownHostResult.Revoked;
-            }
-            if (signedKey is not null && RevokedKeys.Contains(signedKey))
             {
                 return KnownHostResult.Revoked;
             }
@@ -66,20 +62,12 @@ sealed class TrustedHostKeys
             {
                 return KnownHostResult.Trusted;
             }
-            if (signedKey is not null && TrustedKeys.Contains(signedKey))
-            {
-                return KnownHostResult.Trusted;
-            }
             anyTrusted = TrustedKeys.Count > 0;
         }
 
         if (TrustedPatternMatchedKeys is not null)
         {
             if (TrustedPatternMatchedKeys.Contains(hostKey))
-            {
-                return KnownHostResult.Trusted;
-            }
-            if (signedKey is not null && TrustedPatternMatchedKeys.Contains(signedKey))
             {
                 return KnownHostResult.Trusted;
             }
