@@ -5,32 +5,29 @@ namespace Tmds.Ssh;
 
 public sealed partial class HostKey
 {
-    public string SHA256FingerPrint => Key.SHA256FingerPrint;
-    public string? IssuerSHA256FingerPrint => IssuerKey?.SHA256FingerPrint;
-
     // Public host key used by the server.
-    internal SshKey Key { get; }
-    // Public key used by the CA.
-    internal SshKey? IssuerKey => CertInfo?.IssuerKey;
-    internal CertificateInfo? CertInfo { get; }
+    public PublicKey Key { get; }
+    public HostCertificateInfo? CertificateInfo { get; }
 
-    internal SshKey ReceivedKey => CertInfo?.CertificateKey ?? Key;
+    [Obsolete($"Call {nameof(Key)}.{nameof(Key.SHA256FingerPrint)} instead.")]
+    public string SHA256FingerPrint => Key.SHA256FingerPrint;
 
-    internal PublicKey PublicKey { get; }
+    internal Name ReceivedKeyType { get; }
+    internal PublicKeyAlgorithm PublicKey { get; }
 
-    internal HostKey(SshKey sshKey)
+    internal HostKey(SshKeyData sshKey)
     {
-        ArgumentNullException.ThrowIfNull(sshKey);
+        ReceivedKeyType = sshKey.Type;
 
         if (sshKey.Type.EndsWith(AlgorithmNames.CertSuffix))
         {
-            (PublicKey, CertInfo) = ParseCertificate(sshKey);
-            Key = CertInfo.SignedKey;
+            (PublicKey, CertificateInfo) = ParseCertificate(sshKey);
+            Key = new PublicKey(CertificateInfo.SignedKey);
         }
         else
         {
-            PublicKey = Ssh.PublicKey.CreateFromSshKey(sshKey);
-            Key = sshKey;
+            PublicKey = PublicKeyAlgorithm.CreateFromSshKey(sshKey);
+            Key = new PublicKey(sshKey);
         }
     }
 }

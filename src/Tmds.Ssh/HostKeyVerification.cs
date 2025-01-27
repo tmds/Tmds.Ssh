@@ -7,7 +7,7 @@ namespace Tmds.Ssh;
 
 static class HostKeyVerification
 {
-    public static void CheckAllowedHostKeyAlgoritms(SshConnectionInfo connectionInfo, SshKey public_host_key, IReadOnlyList<Name> allowedHostKeyAlgorithms)
+    public static void CheckAllowedHostKeyAlgoritms(SshConnectionInfo connectionInfo, SshKeyData public_host_key, IReadOnlyList<Name> allowedHostKeyAlgorithms)
     {
         Name hostKeyType = public_host_key.Type;
         // Verify the HostKey is permitted by HostKeyAlgorithms.
@@ -30,17 +30,17 @@ static class HostKeyVerification
             }
         }
         {
-            if (connectionInfo.ServerKey.CertInfo?.CAPublicKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
+            if (connectionInfo.ServerKey.CertificateInfo?.CAPublicKey is RsaPublicKey rsaPublicKey && rsaPublicKey.KeySize < minimumRSAKeySize)
             {
                 throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server CA RSA key size {rsaPublicKey.KeySize} is less than {minimumRSAKeySize}.", connectionInfo);
             }
         }
     }
 
-    public static void CheckCertificate(SshConnectionInfo connectionInfo, HostKey.CertificateInfo certInfo, IReadOnlyList<Name> allowedCASignaturelgorithms)
+    public static void CheckCertificate(SshConnectionInfo connectionInfo, HostCertificateInfo certInfo, IReadOnlyList<Name> allowedCASignaturelgorithms)
     {
         // Check if the certificate signature algorithm is allowed.
-        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(certInfo.IssuerKey.Type);
+        Name[] keySignatureAlgorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(certInfo.IssuerKey.SshKeyData.Type);
         if (!IsAlgorithmAllowed(keySignatureAlgorithms, allowedCASignaturelgorithms))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server CA signature algorithm {certInfo.IssuerKey.Type} is not accepted.", connectionInfo);

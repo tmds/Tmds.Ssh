@@ -105,7 +105,7 @@ partial class UserAuthentication
                         SequenceReader reader = response.GetReader();
                         reader.ReadMessageId(SSH_MSG_USERAUTH_PK_OK);
                         reader.ReadName(signAlgorithm);
-                        SshKey key = reader.ReadSshKey();
+                        SshKeyData key = reader.ReadSshKey();
                         if (!key.Equals(pk.PublicKey))
                         {
                             ThrowHelper.ThrowProtocolUnexpectedValue();

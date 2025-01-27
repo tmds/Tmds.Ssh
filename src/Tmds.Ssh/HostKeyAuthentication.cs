@@ -26,13 +26,13 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
     public async ValueTask AuthenticateAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
     {
         HostKey serverKey = connectionInfo.ServerKey!;
-        bool isCertificate = serverKey.IssuerKey is not null;
+        bool hasCertificate = serverKey.CertificateInfo is not null;
 #if DEBUG
         // The certificate (if present) has already been validated (expiration, matching host, ...).
-        Debug.Assert(serverKey.CertInfo?.IsVerified != false);
+        Debug.Assert(serverKey.CertificateInfo?.IsVerified != false);
 #endif
 
-        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.Key, serverKey.IssuerKey);
+        KnownHostResult result = _knownHostKeys.IsTrusted(serverKey.Key, serverKey.CertificateInfo?.IssuerKey);
         bool isTrusted = result == KnownHostResult.Trusted;
 
         if (isTrusted)
@@ -52,11 +52,11 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
                     _logger.ServerKeyIsApproved(serverKey.Key.Type, serverKey.Key.SHA256FingerPrint);
 
                     // Don't update for certificates.
-                    if (!isCertificate)
+                    if (!hasCertificate)
                     {
                         if (!string.IsNullOrEmpty(_updateKnownHostsFile))
                         {
-                            SshKey publicKey = serverKey.Key;
+                            PublicKey publicKey = serverKey.Key;
                             KnownHostsFile.AddKnownHost(_updateKnownHostsFile, connectionInfo.HostName, connectionInfo.Port, publicKey, _hashKnownHosts);
                             _logger.ServerKeyAddKnownHost(connectionInfo.HostName, publicKey.Type, publicKey.SHA256FingerPrint, _updateKnownHostsFile);
                         }
@@ -68,8 +68,9 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
         }
 
         Debug.Assert(!isTrusted);
-        SshKey key = serverKey.IssuerKey ?? serverKey.Key;
-        string message = $"The {(isCertificate ? "CA " : "")}key {key.Type} SHA256:{key.SHA256FingerPrint} is not trusted.";
+        PublicKey? issuerKey = serverKey.CertificateInfo?.IssuerKey;
+        string signedByCA = issuerKey is null ? "" : $" (signed by CA {issuerKey.Type} SHA256:{issuerKey.SHA256FingerPrint})";
+        string message = $"The key {serverKey.Key.Type} SHA256:{serverKey.Key.SHA256FingerPrint}{signedByCA} is not trusted.";
         throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
     }
 }

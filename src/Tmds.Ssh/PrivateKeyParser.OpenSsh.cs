@@ -14,7 +14,7 @@ partial class PrivateKeyParser
     /// Parses an OpenSSH PEM formatted key. This is a new key format used by
     /// OpenSSH for private keys.
     /// </summary>
-    internal static (SshKey PublicKey, PrivateKey? PrivateKey) ParseOpenSshKey(
+    internal static (SshKeyData PublicKey, PrivateKey? PrivateKey) ParseOpenSshKey(
         byte[] keyData,
         Func<string?> passwordPrompt,
         bool parsePrivate)
@@ -49,7 +49,7 @@ partial class PrivateKeyParser
             throw new InvalidDataException($"The data contains multiple keys.");
         }
 
-        SshKey publicKey = reader.ReadSshKey();
+        SshKeyData publicKey = reader.ReadSshKey();
         if (!parsePrivate)
         {
             return (publicKey, null);
@@ -168,7 +168,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshRsaKey(SshKey publicKey, SequenceReader reader)
+    private static PrivateKey ParseOpenSshRsaKey(SshKeyData publicKey, SequenceReader reader)
     {
         // .NET RSA's class has some length expectations:
         // D must have the same length as Modulus.
@@ -209,7 +209,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEcdsaKey(SshKey publicKey, Name keyType, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEcdsaKey(SshKeyData publicKey, Name keyType, SequenceReader reader)
     {
         Name curveName = reader.ReadName();
 
@@ -258,7 +258,7 @@ partial class PrivateKeyParser
         }
     }
 
-    private static PrivateKey ParseOpenSshEd25519Key(SshKey sshPublicKey, SequenceReader reader)
+    private static PrivateKey ParseOpenSshEd25519Key(SshKeyData sshPublicKey, SequenceReader reader)
     {
         // https://datatracker.ietf.org/doc/html/draft-miller-ssh-agent-14#section-3.2.3
         /*

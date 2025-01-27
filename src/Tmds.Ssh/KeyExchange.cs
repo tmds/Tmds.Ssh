@@ -8,7 +8,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
 {
     public abstract Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
 
-    protected static async Task VerifyHostKeyAsync(IHostKeyAuthentication hostKeyAuthentication, KeyExchangeInput input, SshKey public_host_key, CancellationToken ct)
+    protected static async Task VerifyHostKeyAsync(IHostKeyAuthentication hostKeyAuthentication, KeyExchangeInput input, SshKeyData public_host_key, CancellationToken ct)
     {
         var connectionInfo = input.ConnectionInfo;
 
@@ -17,9 +17,9 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
 
         HostKeyVerification.CheckMinimumRSAKeySize(connectionInfo, input.MinimumRSAKeySize);
 
-        if (connectionInfo.ServerKey.CertInfo is not null)
+        if (connectionInfo.ServerKey.CertificateInfo is not null)
         {
-            HostKeyVerification.CheckCertificate(connectionInfo, connectionInfo.ServerKey.CertInfo, input.CASignatureAlgorithms);
+            HostKeyVerification.CheckCertificate(connectionInfo, connectionInfo.ServerKey.CertificateInfo, input.CASignatureAlgorithms);
         }
 
         // Last.
@@ -34,7 +34,7 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
         reader.ReadEnd();
 
         // Verify the signature algorithm is permitted by HostKeyAlgorithms.
-        Name hostKeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(hostKey.ReceivedKey.Type, algorithmName);
+        Name hostKeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(hostKey.ReceivedKeyType, algorithmName);
         if (!allowedHostKeyAlgorithms.Contains(hostKeyAlgorithm))
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Signature type {algorithmName} is not accepted.", connectionInfo);

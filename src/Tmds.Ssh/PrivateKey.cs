@@ -5,14 +5,14 @@ namespace Tmds.Ssh;
 
 abstract class PrivateKey : IDisposable
 {
-    private protected PrivateKey(Name[] algorithms, SshKey publicKey)
+    private protected PrivateKey(Name[] algorithms, SshKeyData publicKey)
     {
         Algorithms = algorithms;
         PublicKey = publicKey;
     }
 
     public Name[] Algorithms { get; }
-    public SshKey PublicKey { get; }
+    public SshKeyData PublicKey { get; }
 
     public abstract void Dispose();
 

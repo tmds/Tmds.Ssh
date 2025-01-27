@@ -15,7 +15,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     private readonly Name _curveName;
     private readonly HashAlgorithmName _hashAlgorithm;
 
-    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, SshKey sshPublicKey) :
+    public ECDsaPrivateKey(ECDsa ecdsa, Name algorithm, Name curveName, HashAlgorithmName hashAlgorithm, SshKeyData sshPublicKey) :
         base(AlgorithmNames.GetSignatureAlgorithmsForKeyType(algorithm), sshPublicKey)
     {
         _ecdsa = ecdsa ?? throw new ArgumentNullException(nameof(ecdsa));
@@ -29,7 +29,7 @@ sealed class ECDsaPrivateKey : PrivateKey
         _ecdsa.Dispose();
     }
 
-    public static SshKey DeterminePublicSshKey(ECDsa ecdsa, Name algorithm, Name curveName)
+    public static SshKeyData DeterminePublicSshKey(ECDsa ecdsa, Name algorithm, Name curveName)
     {
         ECParameters parameters = ecdsa.ExportParameters(includePrivateParameters: false);
 

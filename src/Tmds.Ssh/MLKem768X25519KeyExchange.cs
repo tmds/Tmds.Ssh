@@ -103,14 +103,14 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
     }
 
     private static (
-        SshKey public_host_key,
+        SshKeyData public_host_key,
         byte[] s_reply,
         ReadOnlySequence<byte> exchange_hash_signature)
         ParseHybridReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-        SshKey public_host_key = reader.ReadSshKey();
+        SshKeyData public_host_key = reader.ReadSshKey();
         byte[] s_reply = reader.ReadStringAsByteArray();
         ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
         reader.ReadEnd();

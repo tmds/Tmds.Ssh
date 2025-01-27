@@ -10,10 +10,10 @@ partial class PrivateKeyParser
     internal static PrivateKey ParsePrivateKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
         => ParseKey(rawKey, passwordPrompt, parsePrivate: true).PrivateKey!;
 
-    internal static SshKey ParsePublicKey(ReadOnlyMemory<char> rawKey)
+    internal static SshKeyData ParsePublicKey(ReadOnlyMemory<char> rawKey)
         => ParseKey(rawKey, passwordPrompt: delegate { return null; }, parsePrivate: false).PublicKey;
 
-    private static (SshKey PublicKey, PrivateKey? PrivateKey) ParseKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool parsePrivate)
+    private static (SshKeyData PublicKey, PrivateKey? PrivateKey) ParseKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool parsePrivate)
     {
         ReadOnlySpan<char> content = rawKey.Span;
 

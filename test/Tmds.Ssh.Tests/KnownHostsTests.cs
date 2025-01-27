@@ -33,7 +33,7 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
     [Fact]
     public void UnknownHost()
     {
-        Assert.Equal(KnownHostResult.Unknown, CheckHost("unknown", ip: null, 22, CreateKey("type", Array.Empty<byte>())));
+        Assert.Equal(KnownHostResult.Unknown, CheckHost("unknown", ip: null, 22, CreateKey("type", new byte[1])));
     }
 
     [Fact]
@@ -101,7 +101,7 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
     [Fact]
     public void CertificateAuthority()
     {
-        Assert.Equal(KnownHostResult.Trusted, CheckHost("host.domain.ca-domain", ip: null, 22, CreateKey("type", Array.Empty<byte>()), CreateKey("ssh-ed25519", Convert.FromBase64String(CAKey))));
+        Assert.Equal(KnownHostResult.Trusted, CheckHost("host.domain.ca-domain", ip: null, 22, CreateKey("type", new byte[1]), CreateKey("ssh-ed25519", Convert.FromBase64String(CAKey))));
     }
 
     [Fact]
@@ -135,12 +135,12 @@ wild*hos?na.me ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
         { }
     }
 
-    private SshKey CreateKey(string type, byte[] key)
+    private PublicKey CreateKey(string type, byte[] key)
     {
-        return new SshKey(new Name(type), key);
+        return new PublicKey(new Name(type), key);
     }
 
-    private KnownHostResult CheckHost(string host, string? ip, int port, SshKey serverKey, SshKey? caKey = null)
+    private KnownHostResult CheckHost(string host, string? ip, int port, PublicKey serverKey, PublicKey? caKey = null)
     {
         ILogger<SshClient> logger = new NullLoggerFactory().CreateLogger<SshClient>();
         TrustedHostKeys hostKeys = new();

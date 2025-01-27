@@ -8,7 +8,7 @@ using System.Formats.Asn1;
 
 namespace Tmds.Ssh;
 
-class ECDsaPublicKey : PublicKey
+class ECDsaPublicKey : PublicKeyAlgorithm
 {
     private readonly Name _name;
     private readonly ECCurve _curve;
@@ -23,13 +23,13 @@ class ECDsaPublicKey : PublicKey
         _hashAlgorithm = hashAlgorithm;
     }
 
-    public static SshKey DeterminePublicSshKey(Name algorithm, Name curveName, ECPoint q)
+    public static SshKeyData DeterminePublicSshKey(Name algorithm, Name curveName, ECPoint q)
     {
         using var writer = new ArrayWriter();
         writer.WriteString(algorithm);
         writer.WriteString(curveName);
         writer.WriteString(q);
-        return new SshKey(algorithm, writer.ToArray());
+        return new SshKeyData(algorithm, writer.ToArray());
     }
 
     public static ECDsaPublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)

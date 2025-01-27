@@ -471,8 +471,17 @@ static class UnixFilePermissionsExtensions
 }
 class HostKey
 {
+  PublicKey Key { get; }
+  HostCertificateInfo? CertificateInfo { get; }
+}
+class HostCertificateInfo
+{
+  PublicKey IssuerKey { get; }
+}
+class PublicKey
+{
   string SHA256FingerPrint { get; }
-  string? IssuerSHA256FingerPrint { get; }
+  string ToString(); // format matches the known_hosts representation.
 }
 enum KnownHostResult
 {

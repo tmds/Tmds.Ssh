@@ -113,14 +113,14 @@ class ECDHKeyExchange : KeyExchange
     }
 
     private static (
-        SshKey public_host_key,
+        SshKeyData public_host_key,
         ECPoint q_s,
         ReadOnlySequence<byte> exchange_hash_signature)
         ParseEcdhReply(ReadOnlyPacket packet)
     {
         var reader = packet.GetReader();
         reader.ReadMessageId(MessageId.SSH_MSG_KEX_ECDH_REPLY);
-        SshKey public_host_key = reader.ReadSshKey();
+        SshKeyData public_host_key = reader.ReadSshKey();
         ECPoint q_s = reader.ReadStringAsECPoint();
         ReadOnlySequence<byte> exchange_hash_signature = reader.ReadStringAsBytes();
         reader.ReadEnd();

@@ -13,7 +13,7 @@ static class KnownHostsFile
 {
     private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
 
-    public static void AddKnownHost(string knownHostsFile, string host, int port, SshKey sshKey, bool hash)
+    public static void AddKnownHost(string knownHostsFile, string host, int port, PublicKey sshKey, bool hash)
     {
         string knownHostLine = FormatLine(host, port, sshKey, hash) + '\n';
         byte[] buffer = Encoding.UTF8.GetBytes(knownHostLine);
@@ -46,7 +46,7 @@ static class KnownHostsFile
         fileStream.Write(buffer);
     }
 
-    private static string FormatLine(string host, int port, SshKey key, bool hash = false)
+    private static string FormatLine(string host, int port, PublicKey key, bool hash = false)
     {
         if (port != 22)
         {
@@ -134,7 +134,7 @@ static class KnownHostsFile
                 continue;
             }
 
-            SshKey sshKey = new SshKey(new Name(keytype), key);
+            SshKeyData sshKey = new SshKeyData(new Name(keytype), key);
 
             if (revoked)
             {

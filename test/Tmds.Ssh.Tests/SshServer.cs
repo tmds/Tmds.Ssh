@@ -31,6 +31,8 @@ public class SshServer : IDisposable
     public string KerberosConfigFilePath => _krbConfigFilePath;
     public string SshConfigFilePath => _sshConfigFilePath;
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
+    public string KnownHostAlgorithmThatUsesCertificate => AlgorithmNames.RsaSshSha2_256Cert;
+    public string KnownHostAlgorithmThatDoesntUseCertificate => AlgorithmNames.RsaSshSha2_256;
 
     private string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
     private string Ed25519KeySHA256FingerPrint => "Y/HuDkfhwjCreznEiaX5tshGRPXZJvZ/Nj42hCsw9II";
