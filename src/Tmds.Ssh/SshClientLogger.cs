@@ -141,19 +141,19 @@ static partial class SshClientLogger
     public static partial void KexAlgorithms(this ILogger<SshClient> logger,
             List<Name> keyExchangeAlgorithms,
             List<Name> ServerHostKeyAlgorithms,
-            Name encryptionAlgorithmClientToServer,
-            Name encryptionAlgorithmServerToClient,
-            Name macAlgorithmClientToServer,
-            Name macAlgorithmServerToClient,
-            Name compressionAlgorithmClientToServer,
-            Name compressionAlgorithmServerToClient
+            string encryptionAlgorithmClientToServer,
+            string encryptionAlgorithmServerToClient,
+            string macAlgorithmClientToServer,
+            string macAlgorithmServerToClient,
+            string compressionAlgorithmClientToServer,
+            string compressionAlgorithmServerToClient
         );
 
     [LoggerMessage(
         EventId = 8,
         Level = LogLevel.Information,
         Message = "Exchanging keys using {Algorithm}")]
-    public static partial void ExchangingKeys(this ILogger<SshClient> logger, Name algorithm);
+    public static partial void ExchangingKeys(this ILogger<SshClient> logger, string algorithm);
 
     [LoggerMessage(
         EventId = 9,
@@ -165,19 +165,19 @@ static partial class SshClientLogger
         EventId = 10,
         Level = LogLevel.Information,
         Message = "Host '{HostName}' is known and matches {Type} SHA256:{SHA256Fingerprint} key")]
-    public static partial void ServerKeyIsKnownHost(this ILogger<SshClient> logger, string hostname, Name type, string sha256Fingerprint);
+    public static partial void ServerKeyIsKnownHost(this ILogger<SshClient> logger, string hostname, string type, string sha256Fingerprint);
 
     [LoggerMessage(
         EventId = 11,
         Level = LogLevel.Information,
         Message = "Server key {Type} SHA256:{SHA256Fingerprint} is approved")]
-    public static partial void ServerKeyIsApproved(this ILogger<SshClient> logger, Name type, string sha256Fingerprint);
+    public static partial void ServerKeyIsApproved(this ILogger<SshClient> logger, string type, string sha256Fingerprint);
 
     [LoggerMessage(
         EventId = 12,
         Level = LogLevel.Information,
         Message = "Adding {Type} key SHA256:{SHA256Fingerprint} for '{HostName}' to '{KnownHostsFilePath}'")]
-    public static partial void ServerKeyAddKnownHost(this ILogger<SshClient> logger, string hostname, Name type, string sha256Fingerprint, string knownHostsFilePath);
+    public static partial void ServerKeyAddKnownHost(this ILogger<SshClient> logger, string hostname, string type, string sha256Fingerprint, string knownHostsFilePath);
 
     [LoggerMessage(
         EventId = 13,
@@ -201,7 +201,7 @@ static partial class SshClientLogger
         EventId = 16,
         Level = LogLevel.Information,
         Message = "Authenticated succesfully using {AuthMethod}")]
-    public static partial void Authenticated(this ILogger<SshClient> logger, Name authMethod);
+    public static partial void Authenticated(this ILogger<SshClient> logger, string authMethod);
 
     [LoggerMessage(
         EventId = 17,
@@ -219,7 +219,7 @@ static partial class SshClientLogger
         EventId = 19,
         Level = LogLevel.Information,
         Message = "Auth using publickey '{keyIdentifier}' with {SignatureAlgorithm} signature")]
-    public static partial void PublicKeyAuth(this ILogger<SshClient> logger, string keyIdentifier, Name signatureAlgorithm);
+    public static partial void PublicKeyAuth(this ILogger<SshClient> logger, string keyIdentifier, string signatureAlgorithm);
 
     [LoggerMessage(
         EventId = 20,
@@ -231,7 +231,7 @@ static partial class SshClientLogger
         EventId = 21,
         Level = LogLevel.Information,
         Message = "Auth {AuthMethod} method failed, continue with: {AllowedMethods}")]
-    public static partial void AuthMethodFailed(this ILogger<SshClient> logger, Name authMethod, Name[] allowedMethods);
+    public static partial void AuthMethodFailed(this ILogger<SshClient> logger, string authMethod, Name[] allowedMethods);
 
     [LoggerMessage(
         EventId = 22,
@@ -285,7 +285,7 @@ static partial class SshClientLogger
         EventId = 29,
         Level = LogLevel.Information,
         Message = "Auth {AuthMethod} method partial success, continue with: {AllowedMethods}")]
-    public static partial void PartialSuccessAuth(this ILogger<SshClient> logger, Name authMethod, Name[] allowedMethods);
+    public static partial void PartialSuccessAuth(this ILogger<SshClient> logger, string authMethod, Name[] allowedMethods);
 
     [LoggerMessage(
         EventId = 30,
@@ -297,7 +297,7 @@ static partial class SshClientLogger
         EventId = 31,
         Level = LogLevel.Error,
         Message = "Private key '{KeyIdentifier}' failed to sign with {Algorithm}")]
-    public static partial void PrivateKeyFailedToSign(this ILogger<SshClient> logger, string keyIdentifier, Name algorithm, Exception exception);
+    public static partial void PrivateKeyFailedToSign(this ILogger<SshClient> logger, string keyIdentifier, string algorithm, Exception exception);
 
     [LoggerMessage(
         EventId = 32,

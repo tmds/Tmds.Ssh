@@ -12,7 +12,7 @@ partial class HostKey
 {
     const int SSH_CERT_TYPE_HOST = 2;
 
-    private static (PublicKey, CertificateInfo) ParseCertificate(SshKey key)
+    private static (PublicKeyAlgorithm, HostCertificateInfo) ParseCertificate(SshKeyData key)
     {
         Name type = key.Type;
         if (key.Type == AlgorithmNames.SshEd25519Cert)
@@ -36,7 +36,7 @@ partial class HostKey
         }
     }
 
-    private static (PublicKey, CertificateInfo) ParseRsaCert(SshKey key)
+    private static (PublicKeyAlgorithm, HostCertificateInfo) ParseRsaCert(SshKeyData key)
     {
         /*
             string    "ssh-rsa-cert-v01@openssh.com"
@@ -51,16 +51,16 @@ partial class HostKey
         reader.SkipString(); // nonce
         byte[] e = reader.ReadMPIntAsByteArray(isUnsigned: true);
         byte[] n = reader.ReadMPIntAsByteArray(isUnsigned: true);
-        PublicKey publicKey = new RsaPublicKey(e, n);
+        PublicKeyAlgorithm publicKey = new RsaPublicKey(e, n);
 
-        SshKey signedKey = RsaPublicKey.DeterminePublicSshKey(e, n);
+        SshKeyData signedKey = RsaPublicKey.DeterminePublicSshKey(e, n);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
+        HostCertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
 
-    private static (PublicKey, CertificateInfo) ParseEcdsaCert(Name name, SshKey key)
+    private static (PublicKeyAlgorithm, HostCertificateInfo) ParseEcdsaCert(Name name, SshKeyData key)
     {
         /*
             string  "ecdsa-sha2-nistp256-cert-v01@openssh.com" |
@@ -75,8 +75,8 @@ partial class HostKey
         var reader = new SequenceReader(ros);
         reader.ReadName(name);
         reader.SkipString(); // nonce
-        PublicKey publicKey;
-        SshKey signedKey;
+        PublicKeyAlgorithm publicKey;
+        SshKeyData signedKey;
         if (name == AlgorithmNames.EcdsaSha2Nistp256Cert)
         {
             reader.ReadName(AlgorithmNames.Nistp256);
@@ -102,15 +102,15 @@ partial class HostKey
         {
             ThrowHelper.ThrowProtocolUnexpectedValue();
             publicKey = null!;
-            signedKey = null!;
+            signedKey = default;
         }
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
+        HostCertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
 
-    private static (PublicKey, CertificateInfo) ParseEd25519Cert(SshKey key)
+    private static (PublicKeyAlgorithm, HostCertificateInfo) ParseEd25519Cert(SshKeyData key)
     {
         /*
             string    "ssh-ed25519-cert-v01@openssh.com"
@@ -128,16 +128,16 @@ partial class HostKey
             ThrowHelper.ThrowProtocolUnexpectedValue();
         }
         byte[] pkArray = pk.ToArray();
-        PublicKey publicKey = new Ed25519PublicKey(pkArray);
+        PublicKeyAlgorithm publicKey = new Ed25519PublicKey(pkArray);
 
-        SshKey signedKey = Ed25519PublicKey.DeterminePublicSshKey(pkArray);
+        SshKeyData signedKey = Ed25519PublicKey.DeterminePublicSshKey(pkArray);
 
-        CertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
+        HostCertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
         return (publicKey, certificateInfo);
     }
 
-    private static CertificateInfo ParseCommonHostCertificateFields(ReadOnlyMemory<byte> keyData, SequenceReader reader, SshKey certificateKey, SshKey signedKey)
+    private static HostCertificateInfo ParseCommonHostCertificateFields(ReadOnlyMemory<byte> keyData, SequenceReader reader, SshKeyData certificateKey, SshKeyData signedKey)
     {
         /*
             uint64    serial
@@ -199,7 +199,7 @@ partial class HostKey
 
         reader.SkipString(); // reserved
 
-        SshKey caKey = reader.ReadSshKey();
+        SshKeyData caKey = reader.ReadSshKey();
 
         int signedDataLength = (int)reader.Consumed;
         ReadOnlyMemory<byte> signedData = keyData.Slice(0, signedDataLength);
@@ -208,40 +208,21 @@ partial class HostKey
 
         reader.ReadEnd();
 
-        PublicKey caPublicKey = Ssh.PublicKey.CreateFromSshKey(caKey);
+        PublicKeyAlgorithm caPublicKey = Ssh.PublicKeyAlgorithm.CreateFromSshKey(caKey);
 
         ulong dateTimeOffsetMax = (ulong)DateTimeOffset.MaxValue.ToUnixTimeSeconds();
-        return new CertificateInfo()
-        {
-            CertificateKey = certificateKey,
-            HasCriticalOptions = hasCriticalOptions,
-            SignedData = signedData,
-            Signature = signature,
-            IssuerKey = caKey,
-            ValidBefore = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validBefore, dateTimeOffsetMax)),
-            ValidAfter = DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validAfter, dateTimeOffsetMax)),
-            Principals = principals,
-            CAPublicKey = caPublicKey,
-            SignedKey = signedKey
-        };
-    }
-
-    internal sealed class CertificateInfo
-    {
-        internal required SshKey CertificateKey { get; init; }
-        internal required SshKey SignedKey { get; init; }
-        internal required SshKey IssuerKey { get; init; }
-
-        internal required bool HasCriticalOptions { get; init; }
-        internal required DateTimeOffset ValidBefore { get; init; }
-        internal required DateTimeOffset ValidAfter { get; init; }
-        internal required List<string> Principals { get; init; }
-
-        internal required ReadOnlyMemory<byte> SignedData { get; init; }
-        internal required ReadOnlySequence<byte> Signature { get; init; }
-        internal required PublicKey CAPublicKey { get; init; }
-#if DEBUG
-        internal bool IsVerified;
-#endif
+        return new HostCertificateInfo
+        (
+            issuerKey: new PublicKey(caKey),
+            certificateKey: certificateKey,
+            signedKey: signedKey,
+            hasCriticalOptions: hasCriticalOptions,
+            validBefore: DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validBefore, dateTimeOffsetMax)),
+            validAfter: DateTimeOffset.FromUnixTimeSeconds((long)Math.Min(validAfter, dateTimeOffsetMax)),
+            principals: principals,
+            signedData: signedData,
+            signature: signature,
+            caPublicKey: caPublicKey
+        );
     }
 }

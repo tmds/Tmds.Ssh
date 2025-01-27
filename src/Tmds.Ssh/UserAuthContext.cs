@@ -10,7 +10,7 @@ sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
     private readonly ILogger<SshClient> _logger;
-    private readonly HashSet<SshKey> _publicKeysToSkip = new(); // track keys that were already attempted.
+    private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
     private readonly HashSet<Name> _supportedAcceptedPublicKeyAlgorithms; // Algorithms the library supports.
     private int _bannerPacketCount = 0;
@@ -140,22 +140,15 @@ sealed class UserAuthContext
         }
     }
 
-    public bool IsSkipPublicAuthKey(SshKey publicKey)
+    public bool IsSkipPublicAuthKey(SshKeyData publicKey)
     {
-        if (publicKey is null)
-        {
-            return false;
-        }
-
+        Debug.Assert(!publicKey.IsDefault);
         return _publicKeysToSkip.Contains(publicKey);
     }
 
-    public void AddPublicAuthKeyToSkip(SshKey publicKey)
+    public void AddPublicAuthKeyToSkip(SshKeyData publicKey)
     {
-        if (publicKey is null)
-        {
-            return;
-        }
+        Debug.Assert(!publicKey.IsDefault);
         _publicKeysToSkip.Add(publicKey);
     }
 

@@ -1,35 +1,69 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Buffers;
+using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-abstract class PublicKey
+public sealed class PublicKey : IEquatable<PublicKey>
 {
-    public static PublicKey CreateFromSshKey(SshKey key)
+    internal SshKeyData SshKeyData { get; }
+    private string? _sha256FingerPrint;
+    private string? _toString;
+
+    // For testing.
+    internal PublicKey(string type, ReadOnlySpan<byte> rawData)
+        : this(new SshKeyData(new Name(type), rawData.ToArray()))
+    {  }
+
+    internal PublicKey(SshKeyData sshKey)
     {
-        Name name = key.Type;
-        if (name == AlgorithmNames.EcdsaSha2Nistp256 ||
-            name == AlgorithmNames.EcdsaSha2Nistp384 ||
-            name == AlgorithmNames.EcdsaSha2Nistp521)
+        if (sshKey.IsDefault)
         {
-            return ECDsaPublicKey.CreateFromSshKey(key.RawData);
+            throw new ArgumentException("Empty key");
         }
-        else if (name == AlgorithmNames.SshRsa)
+        SshKeyData = sshKey;
+    }
+
+    internal string Type => SshKeyData.Type.ToString();
+    internal ReadOnlyMemory<byte> RawData => SshKeyData.RawData;
+
+    public string SHA256FingerPrint
+    {
+        get
         {
-            return RsaPublicKey.CreateFromSshKey(key.RawData);
-        }
-        else if (name == AlgorithmNames.SshEd25519)
-        {
-            return Ed25519PublicKey.CreateFromSshKey(key.RawData);
-        }
-        else
-        {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
-            return null;
+            if (_sha256FingerPrint is null)
+            {
+                Span<byte> hash = stackalloc byte[32];
+                SHA256.HashData(RawData.Span, hash);
+                _sha256FingerPrint = Convert.ToBase64String(hash).TrimEnd('=');
+            }
+            return _sha256FingerPrint;
         }
     }
 
-    internal abstract bool VerifySignature(Name algorithmName, ReadOnlySpan<byte> data, ReadOnlySequence<byte> signature);
+    public override string ToString()
+    {
+        if (_toString is null)
+        {
+            // Format matches the known_hosts representation.
+            _toString = $"{Type} {Convert.ToBase64String(RawData.Span)}";
+        }
+        return _toString;
+    }
+
+    public bool Equals(PublicKey? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        return SshKeyData.Equals(other.RawData);
+    }
+
+    public override int GetHashCode()
+    {
+        return SshKeyData.GetHashCode();
+    }
 }

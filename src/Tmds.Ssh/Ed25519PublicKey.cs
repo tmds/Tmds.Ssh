@@ -6,7 +6,7 @@ using Org.BouncyCastle.Math.EC.Rfc8032;
 
 namespace Tmds.Ssh;
 
-class Ed25519PublicKey : PublicKey
+class Ed25519PublicKey : PublicKeyAlgorithm
 {
     private readonly byte[] _publicKey;
 
@@ -15,12 +15,12 @@ class Ed25519PublicKey : PublicKey
         _publicKey = publicKey;
     }
 
-    public static SshKey DeterminePublicSshKey(byte[] publicKey)
+    public static SshKeyData DeterminePublicSshKey(byte[] publicKey)
     {
         using var writer = new ArrayWriter();
         writer.WriteString(AlgorithmNames.SshEd25519);
         writer.WriteString(publicKey);
-        return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
+        return new SshKeyData(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
     public static Ed25519PublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)

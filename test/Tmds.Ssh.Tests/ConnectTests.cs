@@ -31,21 +31,24 @@ public class ConnectTests
             ));
     }
 
-    [Fact]
-    public async Task KeyVerificationHasConnectionInfo()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task KeyVerificationHasConnectionInfo(bool isCertificate)
     {
+        string hostKeyAlgorithm = isCertificate ? _sshServer.KnownHostAlgorithmThatUsesCertificate : _sshServer.KnownHostAlgorithmThatDoesntUseCertificate;
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
+                settings.ServerHostKeyAlgorithms = [ new Name(hostKeyAlgorithm) ];
                 settings.HostAuthentication =
                 (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
                 {
                     Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
-                    bool isCertificate = _sshServer.ServerKeyCertSHA256FingerPrints.Contains(connectionInfo.ServerKey.CertInfo?.CertificateKey?.SHA256FingerPrint ?? "");
-                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.IssuerSHA256FingerPrint);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.Key.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 };
             }
@@ -417,14 +420,18 @@ public class ConnectTests
             _sshServer.CreateClientAsync(SshConfigSettings.NoConfig));
     }
 
-    [Fact]
-    public async Task SshConfig_HostAuthentication()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SshConfig_HostAuthentication(bool isCertificate)
     {
         using TempFile configFile = new TempFile(Path.GetTempFileName());
+        string hostKeyAlgorithm = isCertificate ? _sshServer.KnownHostAlgorithmThatUsesCertificate : _sshServer.KnownHostAlgorithmThatDoesntUseCertificate;
         File.WriteAllText(configFile.Path,
             $"""
             IdentityFile "{_sshServer.TestUserIdentityFile}"
             UserKnownHostsFile {Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())}
+            HostKeyAlgorithms {hostKeyAlgorithm}
             """);
         using var _ = await _sshServer.CreateClientAsync(
             new SshConfigSettings()
@@ -435,9 +442,8 @@ public class ConnectTests
                     Assert.Equal(KnownHostResult.Unknown, knownHostResult);
                     Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
                     Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.SHA256FingerPrint);
-                    bool isCertificate = _sshServer.ServerKeyCertSHA256FingerPrints.Contains(connectionInfo.ServerKey.CertInfo?.CertificateKey?.SHA256FingerPrint ?? "");
-                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.IssuerSHA256FingerPrint);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.Key.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 },
                 ConfigFilePaths = [ configFile.Path ]

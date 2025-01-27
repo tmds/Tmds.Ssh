@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
-class RsaPublicKey : PublicKey
+class RsaPublicKey : PublicKeyAlgorithm
 {
     private readonly byte[] _e;
     private readonly byte[] _n;
@@ -19,14 +19,14 @@ class RsaPublicKey : PublicKey
 
     public int KeySize => _n.Length * 8;
 
-    public static SshKey DeterminePublicSshKey(byte[] e, byte[] n)
+    public static SshKeyData DeterminePublicSshKey(byte[] e, byte[] n)
     {
         using var writer = new ArrayWriter();
         writer.WriteString(AlgorithmNames.SshRsa);
         writer.WriteMPInt(e);
         writer.WriteMPInt(n);
 
-        return new SshKey(AlgorithmNames.SshRsa, writer.ToArray());
+        return new SshKeyData(AlgorithmNames.SshRsa, writer.ToArray());
     }
 
     public static RsaPublicKey CreateFromSshKey(ReadOnlyMemory<byte> key)

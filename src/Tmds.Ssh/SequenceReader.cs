@@ -166,12 +166,12 @@ ref struct SequenceReader
         return byteArray;
     }
 
-    public SshKey ReadSshKey()
+    public SshKeyData ReadSshKey()
     {
         ReadOnlySequence<byte> key = ReadStringAsBytes(Constants.MaxKeyLength);
         SequenceReader keyReader = new SequenceReader(key);
         Name type = keyReader.ReadName();
-        return new SshKey(type, key.ToArray());
+        return new SshKeyData(type, key.ToArray());
     }
 
     public void SkipString()

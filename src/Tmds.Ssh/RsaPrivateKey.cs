@@ -10,7 +10,7 @@ sealed class RsaPrivateKey : PrivateKey
 {
     private readonly RSA _rsa;
 
-    public RsaPrivateKey(RSA rsa, SshKey sshPublicKey) :
+    public RsaPrivateKey(RSA rsa, SshKeyData sshPublicKey) :
         base(AlgorithmNames.SshRsaAlgorithms, sshPublicKey)
     {
         _rsa = rsa ?? throw new ArgumentNullException(nameof(rsa));
@@ -23,7 +23,7 @@ sealed class RsaPrivateKey : PrivateKey
         _rsa.Dispose();
     }
 
-    public static SshKey DeterminePublicSshKey(RSA rsa)
+    public static SshKeyData DeterminePublicSshKey(RSA rsa)
     {
         RSAParameters parameters = rsa.ExportParameters(includePrivateParameters: false);
 

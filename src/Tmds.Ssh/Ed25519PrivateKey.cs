@@ -12,7 +12,7 @@ sealed class Ed25519PrivateKey : PrivateKey
     private readonly byte[] _privateKey;
     private readonly byte[] _publicKey;
 
-    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, SshKey sshPublicKey) :
+    public Ed25519PrivateKey(byte[] privateKey, byte[] publicKey, SshKeyData sshPublicKey) :
         base(AlgorithmNames.SshEd25519Algorithms, sshPublicKey)
     {
         _privateKey = privateKey;
@@ -22,13 +22,13 @@ sealed class Ed25519PrivateKey : PrivateKey
     public override void Dispose()
     { }
 
-    public static SshKey DeterminePublicSshKey(byte[] privateKey, byte[] publicKey)
+    public static SshKeyData DeterminePublicSshKey(byte[] privateKey, byte[] publicKey)
     {
         using var writer = new ArrayWriter();
         writer.WriteString(AlgorithmNames.SshEd25519);
         writer.WriteString(publicKey);
 
-        return new SshKey(AlgorithmNames.SshEd25519, writer.ToArray());
+        return new SshKeyData(AlgorithmNames.SshEd25519, writer.ToArray());
     }
 
     public override ValueTask<byte[]> SignAsync(Name algorithm, byte[] data, CancellationToken cancellationToken)

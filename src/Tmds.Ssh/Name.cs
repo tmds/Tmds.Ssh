@@ -150,5 +150,8 @@ readonly struct Name : IEquatable<Name>, ISpanFormattable
         return !(left == right);
     }
 
+    public static implicit operator string(Name name)
+        => name.ToString();
+
     public bool IsEmpty => ToString().Length == 0;
 }

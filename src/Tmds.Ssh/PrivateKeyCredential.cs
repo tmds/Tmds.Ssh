@@ -152,12 +152,12 @@ public class PrivateKeyCredential : Credential
 
         public static PrivateKey Create(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
         {
-            SshKey sshKey = PrivateKeyParser.ParsePublicKey(rawKey);
+            SshKeyData sshKey = PrivateKeyParser.ParsePublicKey(rawKey);
             Name[] algorithms = AlgorithmNames.GetSignatureAlgorithmsForKeyType(sshKey.Type);
             return new ParsedPrivateKey(algorithms, sshKey, rawKey, passwordPrompt);
         }
 
-        private ParsedPrivateKey(Name[] algorithms, SshKey publicKey, ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
+        private ParsedPrivateKey(Name[] algorithms, SshKeyData publicKey, ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt)
             : base(algorithms, publicKey)
         {
             _rawKey = rawKey;

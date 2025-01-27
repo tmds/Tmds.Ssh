@@ -26,7 +26,7 @@ namespace Tmds.Ssh
         public struct Identity
         {
             public string Comment { init; get; }
-            public SshKey PublicKey { init; get; }
+            public SshKeyData PublicKey { init; get; }
         }
 
         public static string? DefaultAddress
@@ -195,7 +195,7 @@ namespace Tmds.Ssh
             List<Identity> keys = new(capacity: nkeys);
             for (int i = 0; i < nkeys; i++)
             {
-                SshKey key = reader.ReadSshKey();
+                SshKeyData key = reader.ReadSshKey();
                 string comment = reader.ReadUtf8String();
                 keys.Add(new Identity() { Comment = comment, PublicKey = key });
             }

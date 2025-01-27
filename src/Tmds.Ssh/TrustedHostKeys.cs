@@ -2,46 +2,46 @@ namespace Tmds.Ssh;
 
 sealed class TrustedHostKeys
 {
-    private List<SshKey>? TrustedKeys { get; set; }
-    private List<SshKey>? TrustedPatternMatchedKeys { get; set; }
-    private List<SshKey>? CAKeys { get; set; }
-    private List<SshKey>? RevokedKeys { get; set; }
+    private List<SshKeyData>? TrustedKeys { get; set; }
+    private List<SshKeyData>? TrustedPatternMatchedKeys { get; set; }
+    private List<SshKeyData>? CAKeys { get; set; }
+    private List<SshKeyData>? RevokedKeys { get; set; }
 
-    public void AddTrustedKey(SshKey key, bool isPatternMatch)
+    public void AddTrustedKey(SshKeyData key, bool isPatternMatch)
     {
         if (isPatternMatch)
         {
-            TrustedPatternMatchedKeys ??= new List<SshKey>();
+            TrustedPatternMatchedKeys ??= new List<SshKeyData>();
             TrustedPatternMatchedKeys.Add(key);
         }
         else
         {
-            TrustedKeys ??= new List<SshKey>();
+            TrustedKeys ??= new List<SshKeyData>();
             TrustedKeys.Add(key);
         }
     }
 
-    public void AddCAKey(SshKey key)
+    public void AddCAKey(SshKeyData key)
     {
-        CAKeys ??= new List<SshKey>();
+        CAKeys ??= new List<SshKeyData>();
         CAKeys.Add(key);
     }
 
-    public void AddRevokedKey(SshKey key)
+    public void AddRevokedKey(SshKeyData key)
     {
-        RevokedKeys ??= new List<SshKey>();
+        RevokedKeys ??= new List<SshKeyData>();
         RevokedKeys.Add(key);
     }
 
-    public KnownHostResult IsTrusted(SshKey hostKey, SshKey? caKey)
+    public KnownHostResult IsTrusted(PublicKey hostKey, PublicKey? caKey)
     {
         if (RevokedKeys is not null)
         {
-            if (caKey is not null && RevokedKeys.Contains(caKey))
+            if (caKey is not null && RevokedKeys.Contains(caKey.SshKeyData))
             {
                 return KnownHostResult.Revoked;
             }
-            if (RevokedKeys.Contains(hostKey))
+            if (RevokedKeys.Contains(hostKey.SshKeyData))
             {
                 return KnownHostResult.Revoked;
             }
@@ -49,7 +49,7 @@ sealed class TrustedHostKeys
 
         if (caKey is not null && CAKeys is not null)
         {
-            if (CAKeys.Contains(caKey))
+            if (CAKeys.Contains(caKey.SshKeyData))
             {
                 return KnownHostResult.Trusted;
             }
@@ -58,7 +58,7 @@ sealed class TrustedHostKeys
         bool anyTrusted = false;
         if (TrustedKeys is not null)
         {
-            if (TrustedKeys.Contains(hostKey))
+            if (TrustedKeys.Contains(hostKey.SshKeyData))
             {
                 return KnownHostResult.Trusted;
             }
@@ -67,7 +67,7 @@ sealed class TrustedHostKeys
 
         if (TrustedPatternMatchedKeys is not null)
         {
-            if (TrustedPatternMatchedKeys.Contains(hostKey))
+            if (TrustedPatternMatchedKeys.Contains(hostKey.SshKeyData))
             {
                 return KnownHostResult.Trusted;
             }
@@ -91,7 +91,7 @@ sealed class TrustedHostKeys
 
         if (TrustedKeys.Count == 1)
         {
-            SshKey hostKey = TrustedKeys[0];
+            SshKeyData hostKey = TrustedKeys[0];
             Name keyType = hostKey.Type;
             ReadOnlySpan<Name> preferredAlgorithms = AlgorithmNames.GetHostKeyAlgorithmsForKnownHostKeyType(ref keyType);
             Sort(hostKeyAlgorithms, preferredAlgorithms, ref sortedIdx);
