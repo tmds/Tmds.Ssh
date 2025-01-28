@@ -68,8 +68,9 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
         }
 
         Debug.Assert(!isTrusted);
-        PublicKey? issuerKey = serverKey.CertificateInfo?.IssuerKey;
-        string signedByCA = issuerKey is null ? "" : $" (signed by CA {issuerKey.Type} SHA256:{issuerKey.SHA256FingerPrint})";
+        HostCertificateInfo? certInfo = serverKey.CertificateInfo;
+        PublicKey? issuerKey = certInfo?.IssuerKey;
+        string signedByCA = issuerKey is null ? "" : $" (signed by CA {issuerKey.Type} SHA256:{issuerKey.SHA256FingerPrint} with id '{certInfo!.Identifier}' and serial '{certInfo.SerialNumber}')";
         string message = $"The key {serverKey.Key.Type} SHA256:{serverKey.Key.SHA256FingerPrint}{signedByCA} is not trusted.";
         throw new ConnectFailedException(ConnectFailedReason.UntrustedPeer, message, connectionInfo);
     }

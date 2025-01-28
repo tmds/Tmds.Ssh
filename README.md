@@ -477,6 +477,9 @@ class HostKey
 class HostCertificateInfo
 {
   PublicKey IssuerKey { get; }
+  string Type { get; }
+  ulong SerialNumber { get; }
+  string Identifier { get; }
 }
 class PublicKey
 {
