@@ -1,0 +1,509 @@
+﻿[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
+namespace Tmds.Ssh
+{
+    public abstract class Credential { }
+    public sealed class DirectForward : System.IDisposable
+    {
+        public System.Net.EndPoint LocalEndPoint { get; }
+        public System.Threading.CancellationToken Stopped { get; }
+        public void Dispose() { }
+        public void ThrowIfStopped() { }
+    }
+    public sealed class DownloadEntriesOptions
+    {
+        public DownloadEntriesOptions() { }
+        public Tmds.Ssh.UnixFileTypeFilter FileTypeFilter { get; set; }
+        public bool FollowDirectoryLinks { get; set; }
+        public bool FollowFileLinks { get; set; }
+        public bool Overwrite { get; set; }
+        public bool RecurseSubdirectories { get; set; }
+        public Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters ReplaceInvalidCharacters { get; set; }
+        public Tmds.Ssh.SftpFileEntryPredicate? ShouldInclude { get; set; }
+        public Tmds.Ssh.SftpFileEntryPredicate? ShouldRecurse { get; set; }
+        public delegate System.ReadOnlySpan<char> ReplaceCharacters(System.ReadOnlySpan<char> invalidPath, System.ReadOnlySpan<char> invalidChars, System.Span<char> buffer);
+    }
+    public sealed class EnumerationOptions
+    {
+        public EnumerationOptions() { }
+        public Tmds.Ssh.UnixFileTypeFilter FileTypeFilter { get; set; }
+        public bool FollowDirectoryLinks { get; set; }
+        public bool FollowFileLinks { get; set; }
+        public bool RecurseSubdirectories { get; set; }
+        public Tmds.Ssh.SftpFileEntryPredicate? ShouldInclude { get; set; }
+        public Tmds.Ssh.SftpFileEntryPredicate? ShouldRecurse { get; set; }
+    }
+    public sealed class ExecuteOptions
+    {
+        public ExecuteOptions() { }
+        public System.Text.Encoding StandardErrorEncoding { get; set; }
+        public System.Text.Encoding StandardInputEncoding { get; set; }
+        public System.Text.Encoding StandardOutputEncoding { get; set; }
+    }
+    public sealed class FileEntryAttributes
+    {
+        public FileEntryAttributes() { }
+        public System.Collections.Generic.Dictionary<string, string>? ExtendedAttributes { get; set; }
+        public Tmds.Ssh.UnixFileType FileType { get; set; }
+        public int Gid { get; set; }
+        public System.DateTimeOffset LastAccessTime { get; set; }
+        public System.DateTimeOffset LastWriteTime { get; set; }
+        public long Length { get; set; }
+        public Tmds.Ssh.UnixFilePermissions Permissions { get; set; }
+        public int Uid { get; set; }
+    }
+    public sealed class FileOpenOptions
+    {
+        public FileOpenOptions() { }
+        public bool CacheLength { get; set; }
+        public Tmds.Ssh.UnixFilePermissions CreatePermissions { get; set; }
+        public Tmds.Ssh.OpenMode OpenMode { get; set; }
+        public bool Seekable { get; set; }
+    }
+    public delegate System.Threading.Tasks.ValueTask<bool> HostAuthentication(Tmds.Ssh.KnownHostResult knownHostResult, Tmds.Ssh.SshConnectionInfo connectionInfo, System.Threading.CancellationToken cancellationToken);
+    public sealed class HostCertificateInfo
+    {
+        public string Identifier { get; }
+        public Tmds.Ssh.PublicKey IssuerKey { get; }
+        public ulong SerialNumber { get; }
+        public string Type { get; }
+    }
+    public sealed class HostKey
+    {
+        public Tmds.Ssh.HostCertificateInfo? CertificateInfo { get; }
+        public Tmds.Ssh.PublicKey Key { get; }
+        [System.Obsolete("Call Key.SHA256FingerPrint instead.")]
+        public string SHA256FingerPrint { get; }
+    }
+    public sealed class KerberosCredential : Tmds.Ssh.Credential
+    {
+        public KerberosCredential(System.Net.NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null) { }
+    }
+    public enum KnownHostResult
+    {
+        Trusted = 0,
+        Revoked = 1,
+        Changed = 2,
+        Unknown = 3,
+    }
+    public ref struct LocalFileEntry
+    {
+        public string ToFullPath() { }
+    }
+    public delegate bool LocalFileEntryPredicate(ref Tmds.Ssh.LocalFileEntry entry);
+    public sealed class NoCredential : Tmds.Ssh.Credential
+    {
+        public NoCredential() { }
+    }
+    [System.Flags]
+    public enum OpenMode
+    {
+        Default = 0,
+        Append = 1,
+        Truncate = 2,
+    }
+    public sealed class PasswordCredential : Tmds.Ssh.Credential
+    {
+        public PasswordCredential(System.Func<string?> passwordPrompt) { }
+        public PasswordCredential(string password) { }
+    }
+    public class PrivateKeyCredential : Tmds.Ssh.Credential
+    {
+        protected PrivateKeyCredential(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tmds.Ssh.PrivateKeyCredential.Key>> loadKey, string identifier) { }
+        public PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]") { }
+        public PrivateKeyCredential(string path, string? password = null, string? identifier = null) { }
+        public PrivateKeyCredential(char[] rawKey, System.Func<string?> passwordPrompt, bool queryKey = true, string identifier = "[raw key]") { }
+        public PrivateKeyCredential(string path, System.Func<string?> passwordPrompt, bool queryKey = true, string? identifier = null) { }
+        protected readonly struct Key : System.IDisposable
+        {
+            public Key(System.Security.Cryptography.ECDsa ecdsa) { }
+            public Key(System.Security.Cryptography.RSA rsa) { }
+            public Key(System.ReadOnlyMemory<char> rawKey, string? password = null) { }
+            public Key(System.ReadOnlyMemory<char> rawKey, System.Func<string?> passwordPrompt, bool queryKey = true) { }
+            public void Dispose() { }
+        }
+    }
+    public abstract class Proxy
+    {
+        protected Proxy() { }
+        public static Tmds.Ssh.Proxy? Chain(params Tmds.Ssh.Proxy[] proxies) { }
+    }
+    public sealed class PublicKey : System.IEquatable<Tmds.Ssh.PublicKey>
+    {
+        public string SHA256FingerPrint { get; }
+        public bool Equals(Tmds.Ssh.PublicKey? other) { }
+        public override int GetHashCode() { }
+        public override string ToString() { }
+    }
+    public class RemoteEndPoint { }
+    public sealed class RemoteHostEndPoint : Tmds.Ssh.RemoteEndPoint
+    {
+        public RemoteHostEndPoint(string host, int port) { }
+        public string Host { get; }
+        public int Port { get; }
+        public override string ToString() { }
+    }
+    public sealed class RemoteIPEndPoint : Tmds.Ssh.RemoteEndPoint
+    {
+        public RemoteIPEndPoint(System.Net.IPAddress address, int port) { }
+        public System.Net.IPAddress Address { get; }
+        public int Port { get; }
+        public override string ToString() { }
+    }
+    public sealed class RemoteProcess : System.IDisposable
+    {
+        public System.Threading.CancellationToken ExecutionAborted { get; }
+        public int ExitCode { get; }
+        public string? ExitSignal { get; }
+        public System.IO.Stream StandardInputStream { get; }
+        public System.IO.StreamWriter StandardInputWriter { get; }
+        public void Dispose() { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__40))]
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "isError",
+                "line"})]
+        public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<bool, string>> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "isError",
+                "bytesRead"})]
+        public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, int>> ReadAsync(System.Memory<byte>? stdoutBuffer, System.Memory<byte>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "isError",
+                "line"})]
+        public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, string?>> ReadLineAsync(bool readStdout = true, bool readStderr = true, System.Threading.CancellationToken cancellationToken = default) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "stdout",
+                "stderr"})]
+        public System.Threading.Tasks.ValueTask<System.ValueTuple<string, string>> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask ReadToEndAsync(System.IO.Stream? stdoutStream, System.IO.Stream? stderrStream, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask ReadToEndAsync(System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForExitAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<char> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(string value, System.Threading.CancellationToken cancellationToken = default) { }
+        public void WriteEof() { }
+        public System.Threading.Tasks.ValueTask WriteLineAsync(System.ReadOnlyMemory<char> buffer = default, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteLineAsync(string? value, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class RemoteUnixEndPoint : Tmds.Ssh.RemoteEndPoint
+    {
+        public RemoteUnixEndPoint(string path) { }
+        public string Path { get; }
+        public override string ToString() { }
+    }
+    public sealed class SftpClient : System.IDisposable
+    {
+        public const Tmds.Ssh.UnixFilePermissions DefaultCreateDirectoryPermissions = 511;
+        public const Tmds.Ssh.UnixFilePermissions DefaultCreateFilePermissions = 438;
+        public SftpClient(Tmds.Ssh.SshClient client, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public SftpClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public SftpClient(string destination, Tmds.Ssh.SshConfigSettings configSettings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask CreateDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteFileAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, Tmds.Ssh.DownloadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, System.IO.Stream destination, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, System.Threading.CancellationToken cancellationToken = default) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Path",
+                "Attributes"})]
+        public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<string, Tmds.Ssh.FileEntryAttributes>> GetDirectoryEntriesAsync(string path, Tmds.Ssh.EnumerationOptions? options = null) { }
+        public System.Collections.Generic.IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, Tmds.Ssh.SftpFileEntryTransform<T> transform, Tmds.Ssh.EnumerationOptions? options = null) { }
+        public System.Threading.Tasks.ValueTask<string> GetFullPathAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<string> GetLinkTargetAsync(string linkPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?> OpenFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?> OpenFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> OpenOrCreateFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> OpenOrCreateFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask RenameAsync(string oldPath, string newPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask SetAttributesAsync(string path, Tmds.Ssh.UnixFilePermissions? permissions = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "LastAccess",
+                "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Uid",
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions createPermissions = 438, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions? createPermissions = default, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SftpClientOptions
+    {
+        public SftpClientOptions() { }
+    }
+    public enum SftpError
+    {
+        None = 0,
+        Eof = 1,
+        NoSuchFile = 2,
+        PermissionDenied = 3,
+        Failure = 4,
+        BadMessage = 5,
+        Unsupported = 8,
+    }
+    public class SftpException : System.IO.IOException
+    {
+        public Tmds.Ssh.SftpError Error { get; }
+    }
+    public sealed class SftpFile : System.IO.Stream
+    {
+        public override bool CanRead { get; }
+        public override bool CanSeek { get; }
+        public override bool CanWrite { get; }
+        public override long Length { get; }
+        public override long Position { get; set; }
+        public System.Threading.Tasks.ValueTask CloseAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        protected override void Dispose(bool disposing) { }
+        public override void Flush() { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes> GetAttributesAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<long> GetLengthAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public override int Read(byte[] buffer, int offset, int count) { }
+        public override System.Threading.Tasks.ValueTask<int> ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public override System.Threading.Tasks.Task<int> ReadAsync(byte[] buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<int> ReadAtAsync(System.Memory<byte> buffer, long offset, System.Threading.CancellationToken cancellationToken = default) { }
+        public override long Seek(long offset, System.IO.SeekOrigin origin) { }
+        public System.Threading.Tasks.ValueTask SetAttributesAsync(Tmds.Ssh.UnixFilePermissions? permissions = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "LastAccess",
+                "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Uid",
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public override void SetLength(long value) { }
+        public System.Threading.Tasks.ValueTask SetLengthAsync(long length, System.Threading.CancellationToken cancellationToken = default) { }
+        public override void Write(byte[] buffer, int offset, int count) { }
+        public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public override System.Threading.Tasks.Task WriteAsync(byte[] buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask WriteAtAsync(System.ReadOnlyMemory<byte> buffer, long offset, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public ref struct SftpFileEntry
+    {
+        public System.ReadOnlySpan<char> FileName { get; }
+        public Tmds.Ssh.UnixFileType FileType { get; }
+        public int Gid { get; }
+        public System.DateTimeOffset LastAccessTime { get; }
+        public System.DateTimeOffset LastWriteTime { get; }
+        public long Length { get; }
+        public System.ReadOnlySpan<char> Path { get; }
+        public Tmds.Ssh.UnixFilePermissions Permissions { get; }
+        public int Uid { get; }
+        public Tmds.Ssh.FileEntryAttributes ToAttributes() { }
+        public string ToPath() { }
+    }
+    public delegate bool SftpFileEntryPredicate(ref Tmds.Ssh.SftpFileEntry entry);
+    public delegate T SftpFileEntryTransform<T>(ref Tmds.Ssh.SftpFileEntry entry);
+    public sealed class SocksForward : System.IDisposable
+    {
+        public System.Net.EndPoint LocalEndPoint { get; }
+        public System.Threading.CancellationToken Stopped { get; }
+        public void Dispose() { }
+        public void ThrowIfStopped() { }
+    }
+    public sealed class SshAgentCredentials : Tmds.Ssh.Credential
+    {
+        public SshAgentCredentials() { }
+    }
+    public class SshChannelClosedException : Tmds.Ssh.SshChannelException { }
+    public class SshChannelException : Tmds.Ssh.SshException { }
+    public sealed class SshClient : System.IDisposable
+    {
+        public SshClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public SshClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public SshClient(string destination, Tmds.Ssh.SshConfigSettings sshConfigOptions, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public System.Threading.CancellationToken Disconnected { get; }
+        public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void Dispose() { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteAsync(string command, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteAsync(string command, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenUnixConnectionAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.DirectForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SocksForward> StartSocksForward(System.Net.EndPoint bindEP, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class SshClientSettings
+    {
+        public SshClientSettings() { }
+        public SshClientSettings(string destination) { }
+        public bool AutoConnect { get; set; }
+        public bool AutoReconnect { get; set; }
+        public System.TimeSpan ConnectTimeout { get; set; }
+        public System.Collections.Generic.List<Tmds.Ssh.Credential> Credentials { get; set; }
+        public System.Collections.Generic.Dictionary<string, string>? EnvironmentVariables { get; set; }
+        public System.Collections.Generic.List<string> GlobalKnownHostsFilePaths { get; set; }
+        public bool HashKnownHosts { get; set; }
+        public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
+        public string HostName { get; set; }
+        public int KeepAliveCountMax { get; set; }
+        public System.TimeSpan KeepAliveInterval { get; set; }
+        public int MinimumRSAKeySize { get; set; }
+        public int Port { get; set; }
+        public Tmds.Ssh.Proxy? Proxy { get; set; }
+        public bool TcpKeepAlive { get; set; }
+        public bool UpdateKnownHostsFileAfterAuthentication { get; set; }
+        public System.Collections.Generic.List<string> UserKnownHostsFilePaths { get; set; }
+        public string UserName { get; set; }
+        public static System.Collections.Generic.IReadOnlyList<Tmds.Ssh.Credential> DefaultCredentials { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; }
+    }
+    public enum SshConfigOption
+    {
+        Hostname = 0,
+        User = 1,
+        Port = 2,
+        ConnectTimeout = 3,
+        GlobalKnownHostsFile = 4,
+        UserKnownHostsFile = 5,
+        HashKnownHosts = 6,
+        StrictHostKeyChecking = 7,
+        PreferredAuthentications = 8,
+        PubkeyAuthentication = 9,
+        IdentityFile = 10,
+        GSSAPIAuthentication = 11,
+        GSSAPIDelegateCredentials = 12,
+        GSSAPIServerIdentity = 13,
+        RequiredRSASize = 14,
+        SendEnv = 15,
+        Ciphers = 16,
+        HostKeyAlgorithms = 17,
+        KexAlgorithms = 18,
+        MACs = 19,
+        PubkeyAcceptedAlgorithms = 20,
+        TCPKeepAlive = 21,
+        ServerAliveCountMax = 22,
+        ServerAliveInterval = 23,
+        IdentitiesOnly = 24,
+        ProxyJump = 25,
+        CASignatureAlgorithms = 26,
+    }
+    public readonly struct SshConfigOptionValue
+    {
+        public SshConfigOptionValue(System.Collections.Generic.IEnumerable<string> values) { }
+        public SshConfigOptionValue(string value) { }
+        public string? FirstValue { get; }
+        public bool IsEmpty { get; }
+        public bool IsSingleValue { get; }
+        public System.Collections.Generic.IEnumerable<string> Values { get; }
+        public static Tmds.Ssh.SshConfigOptionValue op_Implicit(string value) { }
+    }
+    public sealed class SshConfigSettings
+    {
+        public SshConfigSettings() { }
+        public bool AutoConnect { get; set; }
+        public bool AutoReconnect { get; set; }
+        public System.Collections.Generic.List<string> ConfigFilePaths { get; set; }
+        public System.TimeSpan ConnectTimeout { get; set; }
+        public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
+        public System.Collections.Generic.Dictionary<Tmds.Ssh.SshConfigOption, Tmds.Ssh.SshConfigOptionValue> Options { get; set; }
+        public static Tmds.Ssh.SshConfigSettings DefaultConfig { get; }
+        public static System.Collections.Generic.IReadOnlyList<string> DefaultConfigFilePaths { get; }
+        public static Tmds.Ssh.SshConfigSettings NoConfig { get; }
+    }
+    public class SshConnectionClosedException : Tmds.Ssh.SshConnectionException { }
+    public class SshConnectionException : Tmds.Ssh.SshException { }
+    public sealed class SshConnectionInfo
+    {
+        public string HostName { get; }
+        public bool IsProxy { get; }
+        public int Port { get; }
+        public Tmds.Ssh.HostKey ServerKey { get; }
+    }
+    public sealed class SshDataStream : System.IO.Stream
+    {
+        public override bool CanRead { get; }
+        public override bool CanSeek { get; }
+        public override bool CanWrite { get; }
+        public override long Length { get; }
+        public override long Position { get; set; }
+        public System.Threading.CancellationToken StreamAborted { get; }
+        public override void Close() { }
+        protected override void Dispose(bool disposing) { }
+        public override void Flush() { }
+        public override System.Threading.Tasks.Task FlushAsync(System.Threading.CancellationToken cancellationToken) { }
+        public override int Read(byte[] buffer, int offset, int count) { }
+        public override System.Threading.Tasks.ValueTask<int> ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public override long Seek(long offset, System.IO.SeekOrigin origin) { }
+        public override void SetLength(long value) { }
+        public override void Write(byte[] buffer, int offset, int count) { }
+        public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public void WriteEof() { }
+    }
+    public class SshException : System.Exception { }
+    public class SshOperationException : Tmds.Ssh.SshException { }
+    public sealed class SshProxy : Tmds.Ssh.Proxy
+    {
+        public SshProxy(string destination) { }
+        public SshProxy(Tmds.Ssh.SshClientSettings settings) { }
+        public SshProxy(string destination, Tmds.Ssh.SshConfigSettings configSettings) { }
+    }
+    public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
+    public class SshSessionException : Tmds.Ssh.SshException { }
+    [System.Flags]
+    public enum UnixFilePermissions : short
+    {
+        None = 0,
+        OtherExecute = 1,
+        OtherWrite = 2,
+        OtherRead = 4,
+        GroupExecute = 8,
+        GroupWrite = 16,
+        GroupRead = 32,
+        UserExecute = 64,
+        UserWrite = 128,
+        UserRead = 256,
+        StickyBit = 512,
+        SetGroup = 1024,
+        SetUser = 2048,
+    }
+    public static class UnixFilePermissionsExtensions
+    {
+        public static System.IO.UnixFileMode ToUnixFileMode(this Tmds.Ssh.UnixFilePermissions permissions) { }
+        public static Tmds.Ssh.UnixFilePermissions ToUnixFilePermissions(this System.IO.UnixFileMode mode) { }
+    }
+    public enum UnixFileType : short
+    {
+        RegularFile = 264,
+        Directory = 516,
+        SymbolicLink = 1034,
+        CharacterDevice = 2050,
+        BlockDevice = 4102,
+        Socket = 8204,
+        Fifo = 16385,
+    }
+    [System.Flags]
+    public enum UnixFileTypeFilter : byte
+    {
+        RegularFile = 1,
+        Directory = 2,
+        SymbolicLink = 4,
+        CharacterDevice = 8,
+        BlockDevice = 16,
+        Socket = 32,
+        Fifo = 64,
+    }
+    public sealed class UploadEntriesOptions
+    {
+        public UploadEntriesOptions() { }
+        public bool FollowDirectoryLinks { get; set; }
+        public bool FollowFileLinks { get; set; }
+        public bool Overwrite { get; set; }
+        public bool RecurseSubdirectories { get; set; }
+        public Tmds.Ssh.LocalFileEntryPredicate? ShouldRecurse { get; set; }
+    }
+}
