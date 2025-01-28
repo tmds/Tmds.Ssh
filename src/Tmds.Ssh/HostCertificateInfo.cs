@@ -8,9 +8,14 @@ namespace Tmds.Ssh;
 public sealed class HostCertificateInfo
 {
     public PublicKey IssuerKey { get; }
+    public ulong SerialNumber { get; }
+    public string Identifier { get; }
+    public string Type => CertificateKey.Type.ToString();
 
     internal HostCertificateInfo(
         PublicKey issuerKey,
+        ulong serialNumber,
+        string identifier,
         SshKeyData certificateKey,
         SshKeyData signedKey,
         bool hasCriticalOptions,
@@ -23,6 +28,8 @@ public sealed class HostCertificateInfo
     )
     {
         IssuerKey = issuerKey;
+        SerialNumber = serialNumber;
+        Identifier = identifier;
         CertificateKey = certificateKey;
         SignedKey = signedKey;
         HasCriticalOptions = hasCriticalOptions;

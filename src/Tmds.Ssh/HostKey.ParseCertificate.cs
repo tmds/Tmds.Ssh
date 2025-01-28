@@ -152,9 +152,9 @@ partial class HostKey
             string    signature key
             string    signature
         */
-        reader.ReadUInt64();
+        ulong serialNumber = reader.ReadUInt64();
         reader.ReadUInt32(SSH_CERT_TYPE_HOST);
-        reader.SkipString();
+        string keyId = reader.ReadUtf8String();
 
         var ros = reader.ReadStringAsBytes(); // principals
         var innerReader = new SequenceReader(ros);
@@ -214,6 +214,8 @@ partial class HostKey
         return new HostCertificateInfo
         (
             issuerKey: new PublicKey(caKey),
+            serialNumber: serialNumber,
+            identifier: keyId,
             certificateKey: certificateKey,
             signedKey: signedKey,
             hasCriticalOptions: hasCriticalOptions,
