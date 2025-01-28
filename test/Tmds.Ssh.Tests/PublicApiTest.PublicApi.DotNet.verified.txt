@@ -1,5 +1,5 @@
 ﻿[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
-[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh.git")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
     public abstract class Credential { }
