@@ -30,6 +30,15 @@ public class PublicApiTest
 
         var publicApi = assembly.GeneratePublicApi(options);
 
+        int repositoryUrlIndexOf = publicApi.IndexOf("[assembly: System.Reflection.AssemblyMetadata(\"RepositoryUrl\"");
+        if (repositoryUrlIndexOf != -1)
+        {
+            int endOfLine = publicApi.IndexOf(']', repositoryUrlIndexOf);
+            publicApi = publicApi.Substring(0, repositoryUrlIndexOf) +
+                "[assembly: System.Reflection.AssemblyMetadata(\"RepositoryUrl\", \"https://github.com/tmds/Tmds.Ssh\")]" +
+                publicApi.Substring(endOfLine + 1);
+        }
+
         // Run a snapshot test on the returned string
         var settings = new VerifySettings();
         settings.UniqueForRuntime();
