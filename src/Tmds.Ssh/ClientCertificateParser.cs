@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
+// https://cvsweb.openbsd.org/cgi-bin/cvsweb/~checkout~/src/usr.bin/ssh/PROTOCOL.certkeys
 sealed class ClientCertificateParser
 {
     private static ReadOnlySpan<char> WhitespaceSeparators => [ ' ', '\t' ];

@@ -631,6 +631,7 @@ Supported compression algorithms:
 Authentications:
 - publickey (`PrivateKeyCredential`)
 - publickey from SSH Agent (`SshAgentCredentials`)
+- publickey with OpenSSH certificate (`CertificateCredential`)
 - password (`PasswordCredential`)
 - gssapi-with-mic (`KerberosCredential`)
 - none (`NoCredential`)
