@@ -26,7 +26,9 @@ public class ClientSettingsTests
             new Name("ssh-ed25519-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp521-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp384-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp256-cert-v01@openssh.com"), new Name("rsa-sha2-512-cert-v01@openssh.com"), new Name("rsa-sha2-256-cert-v01@openssh.com"),
             new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, settings.ServerHostKeyAlgorithms);
         Assert.Null(settings.PublicKeyAcceptedAlgorithms);
-        Assert.Equal(new[] { new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, SshClientSettings.SupportedPublicKeyAlgorithms);
+        Assert.Equal(new[] {
+            new Name("ssh-ed25519-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp521-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp384-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp256-cert-v01@openssh.com"), new Name("rsa-sha2-512-cert-v01@openssh.com"), new Name("rsa-sha2-256-cert-v01@openssh.com"),
+            new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, SshClientSettings.SupportedPublicKeyAlgorithms);
         Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsClientToServer);
         Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsServerToClient);
         Assert.Equal(Array.Empty<Name>(), settings.MacAlgorithmsClientToServer);

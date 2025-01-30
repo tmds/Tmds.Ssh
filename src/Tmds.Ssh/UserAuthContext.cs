@@ -36,7 +36,7 @@ sealed class UserAuthContext
 
     public SequencePool SequencePool => _connection.SequencePool;
 
-    public void FilterAcceptedPublicKeyAlgorithms(IReadOnlyCollection<Name> names)
+    private void FilterAcceptedPublicKeyAlgorithms(IReadOnlyCollection<Name> names)
     {
         if (_acceptedPublicKeyAlgorithms is null)
         {

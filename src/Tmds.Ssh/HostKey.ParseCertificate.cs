@@ -15,7 +15,7 @@ partial class HostKey
     private static (PublicKeyAlgorithm, HostCertificateInfo) ParseCertificate(SshKeyData key)
     {
         Name type = key.Type;
-        if (key.Type == AlgorithmNames.SshEd25519Cert)
+        if (type == AlgorithmNames.SshEd25519Cert)
         {
             return ParseEd25519Cert(key);
         }

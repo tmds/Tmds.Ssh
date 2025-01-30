@@ -69,6 +69,10 @@ static class KnownHostsFile
         IEnumerable<string> lines;
         try
         {
+            // known_host files may have revoked keys.
+            // We'd like to know the difference between files that don't exist and files that are not accessible.
+            // So we can't use File.Exists (which returns false for both these cases).
+            // If the file is not accessible the method throws UnauthorizedAccessException.
             lines = File.ReadLines(filename);
             logger.LoadingKnownHostKeys(filename);
         }

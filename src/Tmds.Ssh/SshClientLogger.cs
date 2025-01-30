@@ -317,6 +317,24 @@ static partial class SshClientLogger
         Message = "Proxying at {ProxyUri} to {ProxyTarget} for {Destination}")]
     public static partial void Proxy(this ILogger<SshClient> logger, Uri proxyUri, ConnectEndPoint proxyTarget, ConnectEndPoint destination);
 
+    [LoggerMessage(
+        EventId = 35,
+        Level = LogLevel.Information,
+        Message = "Certificate '{Identifier}' not found.")]
+    public static partial void ClientCertificateNotFound(this ILogger<SshClient> logger, string identifier);
+
+    [LoggerMessage(
+        EventId = 36,
+        Level = LogLevel.Error,
+        Message = "Failed to load certificate '{Identifier}'.")]
+    public static partial void ClientCertificateCanNotLoad(this ILogger<SshClient> logger, string identifier, Exception exception);
+
+    [LoggerMessage(
+        EventId = 37,
+        Level = LogLevel.Error,
+        Message = "Certificate '{CertificateIdentifier}' does not match private key '{KeyIdentifier}'.")]
+    public static partial void ClientCertificatePrivateKeyMismatch(this ILogger<SshClient> logger, string certificateIdentifier, string keyIdentifier);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private ReadOnlyPacket _packet;

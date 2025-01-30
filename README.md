@@ -522,6 +522,10 @@ class PrivateKeyCredential : Credential
     Key(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool queryKey = true);
   }
 }
+class CertificateCredential : Credential
+{
+  CertificateCredential(string path, PrivateKeyCredential privateKey);
+}
 class PasswordCredential : Credential
 {
   PasswordCredential(string password);
@@ -578,6 +582,12 @@ Supported private key formats*:
   - chacha20-poly1305@openssh.com
 
 Supported client key algorithms:
+- ssh-ed25519-cert-v01@openssh.com
+- ecdsa-sha2-nistp521-cert-v01@openssh.com
+- ecdsa-sha2-nistp384-cert-v01@openssh.com
+- ecdsa-sha2-nistp256-cert-v01@openssh.com
+- rsa-sha2-512-cert-v01@openssh.com
+- rsa-sha2-256-cert-v01@openssh.com
 - ssh-ed25519
 - ecdsa-sha2-nistp521
 - ecdsa-sha2-nistp384

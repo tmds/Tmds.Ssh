@@ -2,6 +2,10 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
+    public sealed class CertificateCredential : Tmds.Ssh.Credential
+    {
+        public CertificateCredential(string path, Tmds.Ssh.PrivateKeyCredential privateKey) { }
+    }
     public abstract class Credential { }
     public sealed class DirectForward : System.IDisposable
     {
