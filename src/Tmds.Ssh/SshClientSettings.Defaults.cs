@@ -47,7 +47,9 @@ partial class SshClientSettings
         AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256
     ];
     internal readonly static List<Name> SupportedEncryptionAlgorithms = CreatePreferredEncryptionAlgorithms();
-    internal readonly static List<Name> SupportedPublicKeyAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
+    internal readonly static List<Name> SupportedPublicKeyAlgorithms = [
+        AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert,
+        AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedCASignatureAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedMacAlgorithms = EmptyList;
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];

@@ -21,6 +21,7 @@ RUN echo 'Subsystem test_subsystem /usr/bin/sh' >> /etc/ssh/sshd_config
 
 # Add server keys.
 COPY server_key_* /etc/ssh
+COPY ca.pub /etc/ssh/user_ca.pub
 RUN chmod 600 /etc/ssh/server_key_* && dos2unix /etc/ssh/server_key_*
 COPY 91-keys.conf /etc/ssh/sshd_config.d/91-keys.conf
 

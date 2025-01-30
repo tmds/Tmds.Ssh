@@ -54,10 +54,15 @@ public class PrivateKeyCredential : Credential
     private static Func<CancellationToken, ValueTask<Key>> LoadKeyFromFile(string path, Func<string?> passwordPrompt, bool queryKey)
         => (CancellationToken cancellationToken) =>
         {
+            // Avoid throw when the private key file does not exist/is not accessible.
+            if (!File.Exists(path))
+            {
+                return ValueTask.FromResult(default(Key)); // not found.
+            }
+
             string rawKey;
             try
             {
-                // We read the file so we get UnauthorizedAccessException in case it is not accessible
                 rawKey = File.ReadAllText(path);
             }
             catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)

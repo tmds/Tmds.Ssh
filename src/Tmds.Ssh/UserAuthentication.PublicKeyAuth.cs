@@ -56,9 +56,12 @@ partial class UserAuthentication
             }
         }
 
-        public static async ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+            => DoAuthAsync(keyIdentifier, pk, pk.PublicKey, queryKey, context, acceptedAlgorithms, connectionInfo, logger, ct);
+
+        public static async ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, SshKeyData clientKey, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            if (context.IsSkipPublicAuthKey(pk.PublicKey))
+            if (context.IsSkipPublicAuthKey(clientKey))
             {
                 return AuthResult.Skipped;
             }
@@ -67,7 +70,7 @@ partial class UserAuthentication
             {
                 logger.PrivateKeyDoesNotMeetMinimalKeyLength(keyIdentifier);
 
-                context.AddPublicAuthKeyToSkip(pk.PublicKey);
+                context.AddPublicAuthKeyToSkip(clientKey);
 
                 return AuthResult.Skipped;
             }
@@ -77,21 +80,22 @@ partial class UserAuthentication
             bool acceptedAnyAlgorithm = false;
             foreach (var signAlgorithm in pk.Algorithms)
             {
-                if (acceptedAlgorithms is not null && !acceptedAlgorithms.Contains(signAlgorithm))
+                Name pubkeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(clientKey.Type, signAlgorithm);
+                if (acceptedAlgorithms is not null && !acceptedAlgorithms.Contains(pubkeyAlgorithm))
                 {
                     continue;
                 }
                 acceptedAnyAlgorithm = true;
 
                 context.StartAuth(AlgorithmNames.PublicKey);
-                logger.PublicKeyAuth(keyIdentifier, signAlgorithm);
+                logger.PublicKeyAuth(keyIdentifier, pubkeyAlgorithm);
 
                 // Check if the server accepts the key before making a signing attempt.
                 // This is to avoid interactive prompts for unlocking keys that don't match the target server.
                 if (queryKey)
                 {
                     {
-                        using var queryKeyMsg = CreatePublicKeyRequestMessage(signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData, signature: null);
+                        using var queryKeyMsg = CreatePublicKeyRequestMessage(pubkeyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, clientKey.RawData, signature: null);
                         await context.SendPacketAsync(queryKeyMsg.Move(), ct).ConfigureAwait(false);
                     }
                     using Packet response = await context.ReceivePacketAsync(ct).ConfigureAwait(false);
@@ -104,16 +108,16 @@ partial class UserAuthentication
                     {
                         SequenceReader reader = response.GetReader();
                         reader.ReadMessageId(SSH_MSG_USERAUTH_PK_OK);
-                        reader.ReadName(signAlgorithm);
+                        reader.ReadName(pubkeyAlgorithm);
                         SshKeyData key = reader.ReadSshKey();
-                        if (!key.Equals(pk.PublicKey))
+                        if (!key.Equals(clientKey))
                         {
                             ThrowHelper.ThrowProtocolUnexpectedValue();
                         }
                     }
                 }
 
-                byte[] data = CreateDataForSigning(signAlgorithm, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData);
+                byte[] data = CreateDataForSigning(pubkeyAlgorithm, context.UserName, connectionInfo.SessionId!, clientKey.RawData);
                 byte[] signature;
                 try
                 {
@@ -127,7 +131,7 @@ partial class UserAuthentication
 
                 {
                     using var userAuthMsg = CreatePublicKeyRequestMessage(
-                            signAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, pk.PublicKey.RawData, signature);
+                            pubkeyAlgorithm, context.SequencePool, context.UserName, connectionInfo.SessionId!, clientKey.RawData, signature);
                     await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
                 }
 
@@ -144,7 +148,7 @@ partial class UserAuthentication
                 logger.PrivateKeyAlgorithmsNotAccepted(keyIdentifier, acceptedAlgorithms!);
             }
 
-            context.AddPublicAuthKeyToSkip(pk.PublicKey);
+            context.AddPublicAuthKeyToSkip(clientKey);
 
             return result;
         }
