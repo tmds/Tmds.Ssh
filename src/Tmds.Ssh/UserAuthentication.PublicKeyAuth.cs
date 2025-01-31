@@ -56,10 +56,10 @@ partial class UserAuthentication
             }
         }
 
-        public static ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
-            => DoAuthAsync(keyIdentifier, pk, pk.PublicKey, queryKey, context, acceptedAlgorithms, connectionInfo, logger, ct);
+        public static ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedHostKeyAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+            => DoAuthAsync(keyIdentifier, pk, pk.PublicKey, queryKey, context, acceptedHostKeyAlgorithms, connectionInfo, logger, ct);
 
-        public static async ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, SshKeyData clientKey, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static async ValueTask<AuthResult> DoAuthAsync(string keyIdentifier, PrivateKey pk, SshKeyData clientKey, bool queryKey, UserAuthContext context, IReadOnlyCollection<Name>? acceptedHostKeyAlgorithms, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
             if (context.IsSkipPublicAuthKey(clientKey))
             {
@@ -80,8 +80,12 @@ partial class UserAuthentication
             bool acceptedAnyAlgorithm = false;
             foreach (var signAlgorithm in pk.Algorithms)
             {
+                if (context.AcceptedPublicKeySignatureAlgorithms?.Contains(signAlgorithm) == false)
+                {
+                    continue;
+                }
                 Name pubkeyAlgorithm = AlgorithmNames.GetHostKeyAlgorithmForSignatureAlgorithm(clientKey.Type, signAlgorithm);
-                if (acceptedAlgorithms is not null && !acceptedAlgorithms.Contains(pubkeyAlgorithm))
+                if (acceptedHostKeyAlgorithms?.Contains(pubkeyAlgorithm) == false)
                 {
                     continue;
                 }
@@ -145,7 +149,7 @@ partial class UserAuthentication
 
             if (!acceptedAnyAlgorithm)
             {
-                logger.PrivateKeyAlgorithmsNotAccepted(keyIdentifier, acceptedAlgorithms!);
+                logger.PrivateKeyAlgorithmsNotAccepted(keyIdentifier, acceptedHostKeyAlgorithms, context.AcceptedPublicKeySignatureAlgorithms);
             }
 
             context.AddPublicAuthKeyToSkip(clientKey);

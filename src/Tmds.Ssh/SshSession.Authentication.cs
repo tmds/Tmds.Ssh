@@ -1,6 +1,7 @@
 ﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Diagnostics;
 using static Tmds.Ssh.UserAuthentication;
 
@@ -14,19 +15,33 @@ sealed partial class SshSession
 
         Logger.Authenticating(ConnectionInfo.HostName, _settings.UserName);
 
+        IReadOnlyList<Name>? keySignatureAlgorithms = null;
+
         // Request ssh-userauth service
         {
             using var serviceRequestMsg = CreateServiceRequestMessage(connection.SequencePool);
             await connection.SendPacketAsync(serviceRequestMsg.Move(), ct).ConfigureAwait(false);
         }
         {
-            using Packet serviceAcceptMsg = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
-            ParseServiceAccept(serviceAcceptMsg);
+            Packet reply = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+
+            // Before the reply we may receive SSH_MSG_EXT_INFO as the first message after SSH_MSG_NEWKEYS.
+            // https://datatracker.ietf.org/doc/html/rfc8308#section-2.4
+            if (reply.MessageId == MessageId.SSH_MSG_EXT_INFO)
+            {
+                keySignatureAlgorithms = ParseMsgExtInfo(reply);
+                reply.Dispose();
+                reply = await connection.ReceivePacketAsync(ct).ConfigureAwait(false);
+            }
+
+            ParseServiceAccept(reply);
+            reply.Dispose();
         }
 
         UserAuthContext context = new UserAuthContext(
             connection, _settings.UserName,
             _settings.PublicKeyAcceptedAlgorithms, SshClientSettings.SupportedPublicKeyAlgorithms,
+            keySignatureAlgorithms,
             _settings.MinimumRSAKeySize, Logger);
 
         HashSet<Name>? rejectedMethods = null;
@@ -162,6 +177,32 @@ sealed partial class SshSession
         static string DescribeMethodListBehavior(string state, IEnumerable<Name>? methods)
             => methods is null ? $"No methods {state}."
                               : $"These methods {state}: {string.Join(", ", methods)}.";
+    }
+
+    // https://datatracker.ietf.org/doc/html/rfc8308
+    private Name[]? ParseMsgExtInfo(ReadOnlyPacket packet)
+    {
+        Name[]? keySignatureAlgorithms = null;
+        var reader = packet.GetReader();
+        reader.ReadMessageId(MessageId.SSH_MSG_EXT_INFO);
+        uint nrExtensions = reader.ReadUInt32();
+        while (nrExtensions-- > 0)
+        {
+            ReadOnlySequence<byte> extensionName = reader.ReadStringAsBytes();
+            if (extensionName.Equals("server-sig-algs"u8))
+            {
+                keySignatureAlgorithms = reader.ReadNameList();
+            }
+            else
+            {
+                reader.SkipString();
+            }
+        }
+        reader.ReadEnd();
+
+        Logger.ServerExtensionNegotiation(keySignatureAlgorithms);
+
+        return keySignatureAlgorithms;
     }
 
     private static Packet CreateServiceRequestMessage(SequencePool sequencePool)
