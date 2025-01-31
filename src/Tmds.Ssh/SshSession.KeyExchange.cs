@@ -329,6 +329,10 @@ sealed partial class SshSession
         {
             kexAlgorithms = [..kexAlgorithms, AlgorithmNames.ClientStrictKex];
         }
+        if (context.IsInitialKex)
+        {
+            kexAlgorithms = [..kexAlgorithms, AlgorithmNames.ClientExtensionNegotiation];
+        }
         using var packet = _sequencePool.RentPacket();
         var writer = packet.GetWriter();
         writer.WriteMessageId(MessageId.SSH_MSG_KEXINIT);

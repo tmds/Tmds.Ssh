@@ -64,8 +64,8 @@ static class AlgorithmNames
     // Strict key exchange
     public static Name ClientStrictKex => Name.FromKnownNameString(KnownNameStrings.ClientStrictKex);
     public static Name ServerStrictKex => Name.FromKnownNameString(KnownNameStrings.ServerStrictKex);
-
-
+    // Extension Negotiation
+    public static Name ClientExtensionNegotiation => Name.FromKnownNameString(KnownNameStrings.ClientExtensionNegotiation);
 
     // For GetSignatureAlgorithmsForKeyType
     internal static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];

@@ -248,8 +248,8 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 24,
         Level = LogLevel.Information,
-        Message = "Private key '{KeyIdentifier}' has no accepted algorithms. Accepted algorithms: {AcceptedAlgorithms}")]
-    public static partial void PrivateKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, IReadOnlyCollection<Name> acceptedAlgorithms);
+        Message = "Private key '{KeyIdentifier}' has no accepted algorithms. Accepted host algorithms: {AcceptedHostAlgorithms}. Accepted signature algorithms: {AcceptedSignatureAlgorithms}")]
+    public static partial void PrivateKeyAlgorithmsNotAccepted(this ILogger<SshClient> logger, string keyIdentifier, IReadOnlyCollection<Name>? acceptedHostAlgorithms, IReadOnlyCollection<Name>? acceptedSignatureAlgorithms);
 
     [LoggerMessage(
         EventId = 25,
@@ -334,6 +334,18 @@ static partial class SshClientLogger
         Level = LogLevel.Error,
         Message = "Certificate '{CertificateIdentifier}' does not match private key '{KeyIdentifier}'.")]
     public static partial void ClientCertificatePrivateKeyMismatch(this ILogger<SshClient> logger, string certificateIdentifier, string keyIdentifier);
+
+    [LoggerMessage(
+        EventId = 38,
+        Level = LogLevel.Information,
+        Message =
+        """
+        Server Extension Negotiation
+        keysig: {KeySignatureAlgorithms}
+        """)]
+    public static partial void ServerExtensionNegotiation(this ILogger<SshClient> logger,
+            Name[]? keySignatureAlgorithms
+        );
 
     struct PacketPayload // TODO: implement ISpanFormattable
     {

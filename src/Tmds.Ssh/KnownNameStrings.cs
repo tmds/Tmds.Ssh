@@ -49,6 +49,7 @@ static class KnownNameStrings
     internal const string PublicKey = "publickey";
     internal const string ClientStrictKex = "kex-strict-c-v00@openssh.com";
     internal const string ServerStrictKex = "kex-strict-s-v00@openssh.com";
+    internal const string ClientExtensionNegotiation = "ext-info-c";
 
     public static string? FindKnownName(ReadOnlySpan<char> name)
     {
@@ -101,6 +102,7 @@ static class KnownNameStrings
             case PublicKey: return PublicKey;
             case ClientStrictKex: return ClientStrictKex;
             case ServerStrictKex: return ServerStrictKex;
+            case ClientExtensionNegotiation: return ClientExtensionNegotiation;
             default: return null;
         }
     }

@@ -13,12 +13,19 @@ sealed class UserAuthContext
     private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
     private readonly HashSet<Name> _supportedAcceptedPublicKeyAlgorithms; // Algorithms the library supports.
+    private readonly HashSet<Name>? _allowedSignatureAlgorithms; // Algorithms the server accepts.
     private int _bannerPacketCount = 0;
+    private bool _msgInfoReceived = false;
     private Name[]? _allowedAuthentications;
     private AuthResult _authResult;
     private Name _currentMethod;
 
-    public UserAuthContext(SshConnection connection, string userName, IReadOnlyList<Name>? acceptedPublicKeyAlgorithms, IReadOnlyList<Name> supportedPublicKeyAlgorithms, int minimumRSAKeySize, ILogger<SshClient> logger)
+    public UserAuthContext(SshConnection connection, string userName,
+        IReadOnlyList<Name>? acceptedPublicKeyAlgorithms, // what the client is allowed to accept
+        IReadOnlyList<Name> supportedPublicKeyAlgorithms, // what the library supports
+        IReadOnlyList<Name>? allowedSignatureAlgorithms,  // what the server accepts
+        int minimumRSAKeySize,
+        ILogger<SshClient> logger)
     {
         _connection = connection;
         _logger = logger;
@@ -29,6 +36,11 @@ sealed class UserAuthContext
         if (acceptedPublicKeyAlgorithms is not null)
         {
             FilterAcceptedPublicKeyAlgorithms(acceptedPublicKeyAlgorithms);
+        }
+
+        if (allowedSignatureAlgorithms is not null)
+        {
+            _allowedSignatureAlgorithms = new HashSet<Name>(allowedSignatureAlgorithms);
         }
     }
 
@@ -53,6 +65,8 @@ sealed class UserAuthContext
 
     public IReadOnlyCollection<Name>? AcceptedPublicKeyAlgorithms => _acceptedPublicKeyAlgorithms;
 
+    public IReadOnlyCollection<Name>? AcceptedPublicKeySignatureAlgorithms => _allowedSignatureAlgorithms;
+
     public int MinimumRSAKeySize { get; }
 
     public async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, int maxLength = Constants.PreAuthMaxPacketLength)
@@ -72,7 +86,19 @@ sealed class UserAuthContext
 
             MessageId messageId = packet.MessageId!.Value;
 
-            if (messageId == MessageId.SSH_MSG_USERAUTH_BANNER)
+            // https://datatracker.ietf.org/doc/html/rfc8308#section-2.4
+            // The server may send SSH_MSG_EXT_INFO preceeding SSH_MSG_USERAUTH_SUCCESS.
+            if (_msgInfoReceived && messageId != MessageId.SSH_MSG_USERAUTH_SUCCESS)
+            {
+                packet.Dispose();
+                ThrowHelper.ThrowProtocolUnexpectedMessageId(messageId);
+            }
+            else if (messageId == MessageId.SSH_MSG_EXT_INFO)
+            {
+                packet.Dispose();
+                _msgInfoReceived = true;
+            }
+            else if (messageId == MessageId.SSH_MSG_USERAUTH_BANNER)
             {
                 /* The SSH server may send an SSH_MSG_USERAUTH_BANNER message at any
                    time after this authentication protocol starts and before
