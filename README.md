@@ -235,7 +235,12 @@ class SftpFile : Stream
 class SshClientSettings
 {
   static IReadOnlyList<Credential> DefaultCredentials { get; }
-    = [ PrivateKeyCredential("~/.ssh/id_ed25519"), PrivateKeyCredential("~/.ssh/id_ecdsa"), PrivateKeyCredential("~/.ssh/id_rsa"),
+    = [ PrivateKeyCredential("~/.ssh/id_ed25519"),
+        PrivateKeyCredential("~/.ssh/id_ecdsa"),
+        PrivateKeyCredential("~/.ssh/id_rsa"),
+        CertificateCredential("~/.ssh/id_ed25519-cert.pub", PrivateKeyCredential("~/.ssh/id_ed25519")),
+        CertificateCredential("~/.ssh/id_ecdsa-cert.pub", PrivateKeyCredential("~/.ssh/id_ecdsa")),
+        CertificateCredential("~/.ssh/id_rsa-cert.pub", PrivateKeyCredential("~/.ssh/id_rsa")),
         SshAgentCredentials(),
         KerberosCredential(),
         NoCredential() ]

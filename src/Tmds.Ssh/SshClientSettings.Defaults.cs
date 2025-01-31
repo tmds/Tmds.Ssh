@@ -69,6 +69,13 @@ partial class SshClientSettings
         {
             credentials.Add(new PrivateKeyCredential(identityFile));
         }
+        int i = 0;
+        foreach (var identityFile in DefaultIdentityFiles)
+        {
+            var privateKeyCredential = (PrivateKeyCredential)credentials[i++];
+            Debug.Assert(privateKeyCredential.Identifier == identityFile);
+            credentials.Add(new CertificateCredential($"{identityFile}-cert.pub", privateKeyCredential));
+        }
         credentials.Add(new SshAgentCredentials());
         credentials.Add(new KerberosCredential());
         credentials.Add(new NoCredential());
