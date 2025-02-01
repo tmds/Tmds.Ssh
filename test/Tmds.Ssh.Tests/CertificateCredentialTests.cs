@@ -49,7 +49,25 @@ public class CertificateCredentialTests
     public async Task Connect(string certIdentityFile)
     {
         using var client = await _sshServer.CreateClientAsync(
-            settings => settings.Credentials = [ new CertificateCredential($"{certIdentityFile}-cert.pub", new PrivateKeyCredential(certIdentityFile)) ]
+            settings => settings.Credentials = [new CertificateCredential($"{certIdentityFile}-cert.pub", new PrivateKeyCredential(certIdentityFile))]
+        );
+    }
+
+    [Fact]
+    public async Task SshConfig_CertificateFile()
+    {
+        using TempFile configFile = new TempFile(Path.GetTempFileName());
+        File.WriteAllText(configFile.Path,
+            $"""
+            IdentityFile "{TestUserIdentityFile}"
+            CertificateFile "{TestUserIdentityFile}-cert.pub"
+            UserKnownHostsFile {_sshServer.KnownHostsFilePath}
+            """);
+        using var _ = await _sshServer.CreateClientAsync(
+            new SshConfigSettings()
+            {
+                ConfigFilePaths = [configFile.Path]
+            }
         );
     }
 }

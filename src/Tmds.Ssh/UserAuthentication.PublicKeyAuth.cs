@@ -20,7 +20,7 @@ partial class UserAuthentication
             PrivateKeyCredential.Key key;
             try
             {
-                key = await keyCredential.LoadKeyAsync(ct);
+                key = await keyCredential.LoadKeyAsync(ct).ConfigureAwait(false);
                 if (key.PrivateKey is null)
                 {
                     logger.PrivateKeyNotFound(keyIdentifier);
@@ -125,7 +125,7 @@ partial class UserAuthentication
                 byte[] signature;
                 try
                 {
-                    signature = await pk.SignAsync(signAlgorithm, data, ct);
+                    signature = await pk.SignAsync(signAlgorithm, data, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

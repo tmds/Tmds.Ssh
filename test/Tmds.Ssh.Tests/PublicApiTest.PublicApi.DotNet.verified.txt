@@ -395,6 +395,7 @@ namespace Tmds.Ssh
         IdentitiesOnly = 24,
         ProxyJump = 25,
         CASignatureAlgorithms = 26,
+        CertificateFile = 27,
     }
     public readonly struct SshConfigOptionValue
     {
