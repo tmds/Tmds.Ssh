@@ -78,6 +78,13 @@ sealed partial class SshSession
                     authResult = await CertificateAuth.TryAuthenticate(certificateCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
                 }
             }
+            else if (credential is CertificateFileCredential certificateFileCredential)
+            {
+                if (TryMethod(AlgorithmNames.PublicKey))
+                {
+                    authResult = await CertificateAuth.TryAuthenticate(certificateFileCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                }
+            }
             else if (credential is KerberosCredential kerberosCredential)
             {
                 if (TryMethod(AlgorithmNames.GssApiWithMic))

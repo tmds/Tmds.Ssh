@@ -115,7 +115,7 @@ partial class UserAuthentication
 
         private static async Task<bool> TryStageAuthentication(UserAuthContext context, ILogger<SshClient> logger, AsyncNegotiateAuthentication authContext, CancellationToken ct)
         {
-            (byte[]? outToken, NegotiateAuthenticationStatusCode statusCode) = await authContext.GetOutgoingBlobAsync(Array.Empty<byte>(), ct);
+            (byte[]? outToken, NegotiateAuthenticationStatusCode statusCode) = await authContext.GetOutgoingBlobAsync(Array.Empty<byte>(), ct).ConfigureAwait(false);
 
             while (outToken is not null)
             {
@@ -138,7 +138,7 @@ partial class UserAuthentication
                     break;
                 }
 
-                (outToken, statusCode) = await authContext.GetOutgoingBlobAsync(tokenResponse.Value.ToArray(), ct);
+                (outToken, statusCode) = await authContext.GetOutgoingBlobAsync(tokenResponse.Value.ToArray(), ct).ConfigureAwait(false);
             }
 
             if (statusCode == NegotiateAuthenticationStatusCode.Completed)

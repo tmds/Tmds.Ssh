@@ -38,4 +38,5 @@ public enum SshConfigOption
     IdentitiesOnly,
     ProxyJump,
     CASignatureAlgorithms,
+    CertificateFile
 }

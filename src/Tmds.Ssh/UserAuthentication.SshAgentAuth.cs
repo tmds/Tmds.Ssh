@@ -23,7 +23,7 @@ partial class UserAuthentication
 
             try
             {
-                await sshAgent.ConnectAsync(ct);
+                await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -32,7 +32,7 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            List<SshAgent.Identity> keys = await sshAgent.RequestIdentitiesAsync(ct);
+            List<SshAgent.Identity> keys = await sshAgent.RequestIdentitiesAsync(ct).ConfigureAwait(false);
             if (keys.Count == 0)
             {
                 return AuthResult.None;

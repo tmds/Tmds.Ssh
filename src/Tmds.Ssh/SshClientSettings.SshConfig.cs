@@ -176,16 +176,36 @@ partial class SshClientSettings
                 {
                     if (addPubKeyCredentials)
                     {
-                        IReadOnlyList<string> identityFiles = config.IdentityFiles as IReadOnlyList<string> ?? DefaultIdentityFiles;
-                        foreach (var identityFile in identityFiles)
-                        {
-                            credentials.Add(new PrivateKeyCredential(identityFile));
-                        }
-
+                        SshAgentCredentials? sshAgentCredential = null;
                         if (addSshAgentCredentials)
                         {
-                            credentials.Add(new SshAgentCredentials());
+                            sshAgentCredential = new SshAgentCredentials();
                             addSshAgentCredentials = false;
+                        }
+                        bool useDefaultIdentityFiles = config.IdentityFiles is null && config.CertificateFiles is null;
+                        IReadOnlyList<string>? identityFiles = useDefaultIdentityFiles ? DefaultIdentityFiles : config.IdentityFiles;
+                        if (config.CertificateFiles is not null)
+                        {
+                            if (config.IdentityFiles is not null || sshAgentCredential is not null)
+                            {
+                                foreach (var certificateFile in config.CertificateFiles)
+                                {
+                                    credentials.Add(new CertificateFileCredential(certificateFile, config.IdentityFiles, sshAgentCredential));
+                                }
+                            }
+                        }
+                        if (identityFiles is not null)
+                        {
+                            foreach (var identityFile in identityFiles)
+                            {
+                                PrivateKeyCredential privateKey = new PrivateKeyCredential(identityFile);
+                                credentials.Add(privateKey);
+                                credentials.Add(new CertificateCredential($"{identityFile}-cert.pub", privateKey));
+                            }
+                        }
+                        if (sshAgentCredential is not null)
+                        {
+                            credentials.Add(sshAgentCredential);
                         }
 
                         addPubKeyCredentials = false;

@@ -58,6 +58,7 @@ sealed class SshConfig
     public bool? GssApiDelegateCredentials { get; set; }
     public string? GssApiServerIdentity { get; set; }
     public List<string>? IdentityFiles { get; set; }
+    public List<string>? CertificateFiles { get; set; }
     public StrictHostKeyChecking? HostKeyChecking { get; set; }
     public bool? HashKnownHosts { get; set; }
     public List<string>? SendEnv { get; set; }
@@ -355,23 +356,24 @@ sealed class SshConfig
                 {
                     config.IdentityFiles ??= new();
 
-                    // Don't add duplicates.
-                    bool found = false;
-                    string path = TildeExpand(value);
-                    // TODO: TOKEN expand.
-                    for (int i = 0; i < config.IdentityFiles.Count; i++)
-                    {
-                        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-                        if (string.Equals(path, config.IdentityFiles[i], comparison))
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found)
-                    {
-                        config.IdentityFiles.Add(path);
-                    }
+                    AddToListOfFiles(config.IdentityFiles, value);
+                }
+                break;
+            }
+            case "certificatefile":
+            {
+                ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+
+                if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+                {
+                    config.CertificateFiles = ListOfNone;
+                }
+
+                if (!object.ReferenceEquals(config.IdentityFiles, ListOfNone))
+                {
+                    config.CertificateFiles ??= new();
+
+                    AddToListOfFiles(config.CertificateFiles, value);
                 }
                 break;
             }
@@ -553,7 +555,6 @@ sealed class SshConfig
             case "enablesshkeysign":        // host-based auth is not supported
             case "hostbasedacceptedalgorithms": // host-based auth is not supported
             case "connectionattempts":      // Only a single attempt is supported (currently)
-            case "certificatefile":         // certificate based client auth is not supported
             case "addkeystoagent":          // auth agent is not supported
             case "identityagent":           // auth agent is not supported
             case "pkcs11provider":          // not supported
@@ -584,6 +585,27 @@ sealed class SshConfig
             default:
                 ThrowUnsupportedKeyword(keyword, remainder);
                 break;
+        }
+    }
+
+    private static void AddToListOfFiles(List<string> list, ReadOnlySpan<char> value)
+    {
+        // Don't add duplicates.
+        bool found = false;
+        string path = TildeExpand(value);
+        // TODO: TOKEN expand.
+        for (int i = 0; i < list.Count; i++)
+        {
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Equals(path, list[i], comparison))
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            list.Add(path);
         }
     }
 

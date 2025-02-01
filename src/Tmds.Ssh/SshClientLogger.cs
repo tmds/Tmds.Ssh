@@ -236,13 +236,13 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 22,
         Level = LogLevel.Information,
-        Message = "Private key '{KeyIdentifier}' not found.")]
+        Message = "Private key '{KeyIdentifier}' not found")]
     public static partial void PrivateKeyNotFound(this ILogger<SshClient> logger, string keyIdentifier);
 
     [LoggerMessage(
         EventId = 23,
         Level = LogLevel.Error,
-        Message = "Failed to load private key '{KeyIdentifier}'.")]
+        Message = "Failed to load private key '{KeyIdentifier}'")]
     public static partial void PrivateKeyCanNotLoad(this ILogger<SshClient> logger, string keyIdentifier, Exception exception);
 
     [LoggerMessage(
@@ -320,19 +320,19 @@ static partial class SshClientLogger
     [LoggerMessage(
         EventId = 35,
         Level = LogLevel.Information,
-        Message = "Certificate '{Identifier}' not found.")]
+        Message = "Certificate '{Identifier}' not found")]
     public static partial void ClientCertificateNotFound(this ILogger<SshClient> logger, string identifier);
 
     [LoggerMessage(
         EventId = 36,
         Level = LogLevel.Error,
-        Message = "Failed to load certificate '{Identifier}'.")]
+        Message = "Failed to load certificate '{Identifier}'")]
     public static partial void ClientCertificateCanNotLoad(this ILogger<SshClient> logger, string identifier, Exception exception);
 
     [LoggerMessage(
         EventId = 37,
         Level = LogLevel.Error,
-        Message = "Certificate '{CertificateIdentifier}' does not match private key '{KeyIdentifier}'.")]
+        Message = "Certificate '{CertificateIdentifier}' does not match private key '{KeyIdentifier}'")]
     public static partial void ClientCertificatePrivateKeyMismatch(this ILogger<SshClient> logger, string certificateIdentifier, string keyIdentifier);
 
     [LoggerMessage(
@@ -346,6 +346,12 @@ static partial class SshClientLogger
     public static partial void ServerExtensionNegotiation(this ILogger<SshClient> logger,
             Name[]? keySignatureAlgorithms
         );
+
+    [LoggerMessage(
+        EventId = 39,
+        Level = LogLevel.Error,
+        Message = "Failed to find key for certificate '{CertificateIdentifier}'. Identities checked: {IdentitiesCount}, SSH Agent keys checked: {SshAgentKeyCount}")]
+    public static partial void CertificateFileKeyNotFound(this ILogger<SshClient> logger, string certificateIdentifier, int identitiesCount, int? sshAgentKeyCount);
 
     struct PacketPayload // TODO: implement ISpanFormattable
     {

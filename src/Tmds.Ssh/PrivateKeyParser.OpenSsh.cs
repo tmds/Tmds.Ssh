@@ -14,7 +14,7 @@ partial class PrivateKeyParser
     /// Parses an OpenSSH PEM formatted key. This is a new key format used by
     /// OpenSSH for private keys.
     /// </summary>
-    internal static (SshKeyData PublicKey, PrivateKey? PrivateKey) ParseOpenSshKey(
+    internal static (SshKeyData PublicKey, bool isEncrypted, PrivateKey? PrivateKey) ParseOpenSshKey(
         byte[] keyData,
         Func<string?> passwordPrompt,
         bool parsePrivate)
@@ -41,6 +41,7 @@ partial class PrivateKeyParser
         ros = ros.Slice(AUTH_MAGIC.Length);
         var reader = new SequenceReader(ros);
         Name cipherName = reader.ReadName();
+        bool isEncrypted = cipherName != AlgorithmNames.None;
         Name kdfName = reader.ReadName();
         ReadOnlySequence<byte> kdfOptions = reader.ReadStringAsBytes();
         uint nrOfKeys = reader.ReadUInt32();
@@ -52,11 +53,11 @@ partial class PrivateKeyParser
         SshKeyData publicKey = reader.ReadSshKey();
         if (!parsePrivate)
         {
-            return (publicKey, null);
+            return (publicKey, isEncrypted, null);
         }
 
         ReadOnlySequence<byte> privateKeyList;
-        if (cipherName == AlgorithmNames.None)
+        if (!isEncrypted)
         {
             privateKeyList = reader.ReadStringAsBytes();
         }
@@ -100,15 +101,15 @@ partial class PrivateKeyParser
         Name keyType = reader.ReadName();
         if (keyType == AlgorithmNames.SshRsa)
         {
-            return (publicKey, ParseOpenSshRsaKey(publicKey, reader));
+            return (publicKey, isEncrypted, ParseOpenSshRsaKey(publicKey, reader));
         }
         else if (keyType.ToString().StartsWith("ecdsa-sha2-"))
         {
-            return (publicKey, ParseOpenSshEcdsaKey(publicKey, keyType, reader));
+            return (publicKey, isEncrypted, ParseOpenSshEcdsaKey(publicKey, keyType, reader));
         }
         else if (keyType == AlgorithmNames.SshEd25519)
         {
-            return (publicKey, ParseOpenSshEd25519Key(publicKey, reader));
+            return (publicKey, isEncrypted, ParseOpenSshEd25519Key(publicKey, reader));
         }
         else
         {
