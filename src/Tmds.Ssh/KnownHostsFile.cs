@@ -64,18 +64,80 @@ static class KnownHostsFile
         return $"{host} {key.Type} {Convert.ToBase64String(key.RawData.Span)}";
     }
 
+    private static bool MaySkipFile(string path)
+    {
+        // We want to avoid skipping files that are not accessible and throw for those while opening.
+        // File.Exists (and Directory.Exists) return false when a parent directory is not accessible.
+        // We can open the file but that causes a first chance File/DirectoryNotFoundException.
+        // The code below avoids that exception when the files live under a directory that is accessible.
+        // This was added in particular for the checking of '/etc/ssh/known_hosts' (which often doesn't exist).
+
+        // File exists, don't skip.
+        if (File.Exists(path))
+        {
+            return false;
+        }
+
+        // The file does not exist, but that may be due to its parent directory being inaccessible.
+        path = Path.GetFullPath(path);
+        string directoryPath = Path.GetDirectoryName(path)!;
+        do
+        {
+            if (!Directory.Exists(directoryPath))
+            {
+                // The directory does not exist, but that may be due to its parent directory being inaccessible.
+                string parentPath = Path.GetDirectoryName(directoryPath)!;
+                if (parentPath == directoryPath)
+                {
+                    // We're at the root and it doesn't exist.
+                    // Try to open the file.
+                    return false;
+                }
+                directoryPath = parentPath;
+                continue;
+            }
+            // The directory exists, if we can see its children, we know we're able to check their existance.
+            var enumerationOptions = new System.IO.EnumerationOptions()
+            {
+                IgnoreInaccessible = false,
+                AttributesToSkip = FileAttributes.None,
+                ReturnSpecialDirectories = true,
+                RecurseSubdirectories = false
+            };
+            try
+            {
+                IEnumerable<string> entries = Directory.EnumerateFileSystemEntries(directoryPath, "*", enumerationOptions);
+                foreach (var entry in entries)
+                {
+                    break;
+                }
+                // Skip the file.
+                return true;
+            }
+            catch
+            {
+                // Some error occurred, probably unauthorized access.
+                // Try to open the file.
+                return false;
+            }
+        } while (true);
+    }
+
     public static void AddHostKeysFromFile(string filename, TrustedHostKeys hostKeys, string host, string? ip, int port, ILogger<SshClient> logger)
     {
+        if (MaySkipFile(filename))
+        {
+            return;
+        }
+
         IEnumerable<string> lines;
         try
         {
-            // known_host files may have revoked keys.
-            // We'd like to know the difference between files that don't exist and files that are not accessible.
-            // So we can't use File.Exists (which returns false for both these cases).
-            // If the file is not accessible the method throws UnauthorizedAccessException.
             lines = File.ReadLines(filename);
             logger.LoadingKnownHostKeys(filename);
         }
+        // If the file is not accessible the method throws UnauthorizedAccessException.
+        // We intentionally don't catch that exception because the file may contain revoked keys.
         catch (IOException ex)
         {
             logger.CanNotReadKnownHostKeys(filename, ex.Message);
