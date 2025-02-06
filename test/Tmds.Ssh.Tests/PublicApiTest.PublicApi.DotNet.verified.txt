@@ -203,6 +203,7 @@ namespace Tmds.Ssh
         public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(string destination, Tmds.Ssh.SshConfigSettings configSettings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public Tmds.Ssh.SftpDirectory WorkingDirectory { get; }
         public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask CreateDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken) { }
@@ -221,6 +222,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, System.Threading.CancellationToken cancellationToken = default) { }
+        public Tmds.Ssh.SftpDirectory GetDirectory(string path) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Path",
                 "Attributes"})]
@@ -248,6 +250,50 @@ namespace Tmds.Ssh
     public sealed class SftpClientOptions
     {
         public SftpClientOptions() { }
+    }
+    public sealed class SftpDirectory
+    {
+        public string Path { get; }
+        public System.Threading.Tasks.ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask CreateDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteFileAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, Tmds.Ssh.DownloadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, System.IO.Stream destination, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, System.Threading.CancellationToken cancellationToken = default) { }
+        public Tmds.Ssh.SftpDirectory GetDirectory(string path) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Path",
+                "Attributes"})]
+        public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<string, Tmds.Ssh.FileEntryAttributes>> GetDirectoryEntriesAsync(string path, Tmds.Ssh.EnumerationOptions? options = null) { }
+        public System.Collections.Generic.IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, Tmds.Ssh.SftpFileEntryTransform<T> transform, Tmds.Ssh.EnumerationOptions? options = null) { }
+        public System.Threading.Tasks.ValueTask<string> GetFullPathAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<string> GetLinkTargetAsync(string linkPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?> OpenFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?> OpenFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> OpenOrCreateFileAsync(string path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> OpenOrCreateFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask RenameAsync(string oldPath, string newPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask SetAttributesAsync(string path, Tmds.Ssh.UnixFilePermissions? permissions = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "LastAccess",
+                "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Uid",
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions createPermissions = 438, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions? createPermissions = default, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public enum SftpError
     {

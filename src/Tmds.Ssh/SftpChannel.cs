@@ -27,11 +27,12 @@ sealed partial class SftpChannel : IDisposable
     // An onGoing ValueTask may allocate multiple buffers.
     const int MaxConcurrentBuffers = 64;
 
-    internal SftpChannel(ISshChannel channel, SftpClientOptions options)
+    internal SftpChannel(ISshChannel channel, SftpClientOptions options, string? workingDirectory)
     {
         _channel = channel;
         _receivePacketSize = _channel.ReceiveMaxPacket;
         _options = options;
+        WorkingDirectory = workingDirectory ?? "";
     }
 
     public CancellationToken ChannelAborted
@@ -49,6 +50,7 @@ sealed partial class SftpChannel : IDisposable
     private int GetNextId() => Interlocked.Increment(ref _nextId);
     private int _receivePacketSize;
     private SftpExtension _supportedExtensions;
+    public string WorkingDirectory { get; private set; }
 
     internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
         => _channel.SendMaxPacket
@@ -71,11 +73,11 @@ sealed partial class SftpChannel : IDisposable
         _channel.Dispose();
     }
 
-    public ValueTask<SftpFile?> OpenFileAsync(string path, SftpOpenFlags flags, FileAccess access, FileOpenOptions options, CancellationToken cancellationToken)
+    public ValueTask<SftpFile?> OpenFileAsync(string workingDirectory, string path, SftpOpenFlags flags, FileAccess access, FileOpenOptions options, CancellationToken cancellationToken)
     {
         flags = GetOpenFlags(flags, access, options.OpenMode);
 
-        ValueTask<SftpFile?> result = OpenFileCoreAsync(path, flags, options.CreatePermissions, options, cancellationToken);
+        ValueTask<SftpFile?> result = OpenFileCoreAsync(workingDirectory, path, flags, options.CreatePermissions, options, cancellationToken);
 
         if (options.CacheLength)
         {
@@ -119,7 +121,7 @@ sealed partial class SftpChannel : IDisposable
         return file;
     }
 
-    private ValueTask<SftpFile?> OpenFileCoreAsync(string path, SftpOpenFlags flags, UnixFilePermissions permissions, FileOpenOptions options, CancellationToken cancellationToken)
+    private ValueTask<SftpFile?> OpenFileCoreAsync(string workingDirectory, string path, SftpOpenFlags flags, UnixFilePermissions permissions, FileOpenOptions options, CancellationToken cancellationToken)
     {
         PacketType packetType = PacketType.SSH_FXP_OPEN;
 
@@ -128,14 +130,14 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
         packet.WriteUInt((uint)flags);
         packet.WriteAttributes(permissions: permissions & CreateFilePermissionMask, fileType: UnixFileType.RegularFile);
 
         return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
+    public ValueTask DeleteFileAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_REMOVE;
 
@@ -144,12 +146,12 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
+    public ValueTask DeleteDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_RMDIR;
 
@@ -158,12 +160,12 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
+    public ValueTask RenameAsync(string workingDirectory, string oldPath, string newPath, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_RENAME;
 
@@ -172,18 +174,18 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(oldPath);
-        packet.WriteString(newPath);
+        packet.WritePath(workingDirectory, oldPath);
+        packet.WritePath(workingDirectory, newPath);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async ValueTask CopyFileAsync(string workingDirectory, string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
     {
         // Get the source file attributes and open it in parallel.
         // We get the attribute to dermine the permissions for the destination path.
-        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(sourcePath, followLinks: true, cancellationToken);
-        using SftpFile? sourceFile = await OpenFileCoreAsync(sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(workingDirectory, sourcePath, followLinks: true, cancellationToken);
+        using SftpFile? sourceFile = await OpenFileCoreAsync(workingDirectory, sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
         if (sourceFile is null)
         {
             throw new SftpException(SftpError.NoSuchFile);
@@ -212,7 +214,7 @@ sealed partial class SftpChannel : IDisposable
         // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
         // To avoid that, we'll truncate after copying the data instead.
         SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
-        using SftpFile destinationFile = (await OpenFileCoreAsync(destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+        using SftpFile destinationFile = (await OpenFileCoreAsync(workingDirectory, destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
 
         // Get the length before we start writing so we know if we need to truncate.
         ValueTask<long> initialLengthTask = overwrite ? destinationFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
@@ -381,7 +383,7 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+    public ValueTask<FileEntryAttributes?> GetAttributesAsync(string workingDirectory, string path, bool followLinks = true, CancellationToken cancellationToken = default)
     {
         PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT;
 
@@ -390,12 +392,13 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
 
         return ExecuteAsync<FileEntryAttributes?>(packet, id, pendingOperation, cancellationToken);
     }
 
     public ValueTask SetAttributesAsync(
+        string workingDirectory,
         string path,
         UnixFilePermissions? permissions = default,
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
@@ -419,7 +422,7 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
         packet.WriteAttributes(length: length,
                                ids: ids,
                                permissions: permissions,
@@ -479,7 +482,7 @@ sealed partial class SftpChannel : IDisposable
         }
     }
 
-    public ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)
+    public ValueTask<string> GetLinkTargetAsync(string workingDirectory, string linkPath, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_READLINK;
 
@@ -488,12 +491,12 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(linkPath);
+        packet.WritePath(workingDirectory, linkPath);
 
         return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+    public ValueTask<string> GetFullPathAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_REALPATH;
 
@@ -507,7 +510,7 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken)
+    public ValueTask CreateSymbolicLinkAsync(string workingDirectory, string linkPath, string targetPath, bool overwrite, CancellationToken cancellationToken)
     {
         int id;
         Packet packet;
@@ -518,7 +521,7 @@ sealed partial class SftpChannel : IDisposable
 
             packet = new Packet(PacketType.SSH_FXP_REMOVE);
             packet.WriteInt(id);
-            packet.WriteString(linkPath);
+            packet.WritePath(workingDirectory, linkPath);
 
             _ = ExecuteAsync(packet, id, pendingOperation: null, cancellationToken: default);
         }
@@ -532,12 +535,12 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteInt(id);
         // ... OpenSSH has these arguments swapped: https://bugzilla.mindrot.org/show_bug.cgi?id=861
         packet.WriteString(targetPath);
-        packet.WriteString(linkPath);
+        packet.WritePath(workingDirectory, linkPath);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<SftpFile?> OpenDirectoryAsync(string path, CancellationToken cancellationToken = default)
+    public ValueTask<SftpFile?> OpenDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_OPENDIR;
 
@@ -546,18 +549,18 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
 
         // note: Return as 'SftpFile' so it gets Disposed in case the open is cancelled.
         return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
+    public async ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         // This method doesn't throw if the target directory already exists.
         // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
-        ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
-        ValueTask mkdir = CreateNewDirectoryAsync(path, createParents, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
+        ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(workingDirectory, path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
+        ValueTask mkdir = CreateNewDirectoryAsync(workingDirectory, path, createParents, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
         try
         {
@@ -588,14 +591,14 @@ sealed partial class SftpChannel : IDisposable
         }
     }
 
-    public async ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
+    public async ValueTask CreateNewDirectoryAsync(string workingDirectory, string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         if (createParents)
         {
             CreateParents(path);
         }
 
-        await CreateNewDirectory(path.AsSpan(), awaitable: true, permissions, cancellationToken).ConfigureAwait(false);
+        await CreateNewDirectory(workingDirectory, path.AsSpan(), awaitable: true, permissions, cancellationToken).ConfigureAwait(false);
 
         void CreateParents(string path)
         {
@@ -606,13 +609,13 @@ sealed partial class SftpChannel : IDisposable
             {
                 offset += idx;
                 // note: parent directories are created using the default permissions, not the permissions arg.
-                _ = CreateNewDirectory(span.Slice(0, offset), awaitable: false, permissions: SftpClient.DefaultCreateDirectoryPermissions, cancellationToken: default);
+                _ = CreateNewDirectory(workingDirectory, span.Slice(0, offset), awaitable: false, permissions: SftpClient.DefaultCreateDirectoryPermissions, cancellationToken: default);
                 offset++;
             }
         }
     }
 
-    public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask UploadDirectoryEntriesAsync(string workingDirectory, string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
     {
         options ??= SftpClient.DefaultUploadEntriesOptions;
         bool overwrite = options.Overwrite;
@@ -695,15 +698,15 @@ sealed partial class SftpChannel : IDisposable
                     case UnixFileType.Directory:
                         if (overwrite)
                         {
-                            onGoing.Enqueue(CreateDirectoryAsync(item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
+                            onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
                         }
                         else
                         {
-                            onGoing.Enqueue(CreateNewDirectoryAsync(item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
+                            onGoing.Enqueue(CreateNewDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
                         }
                         break;
                     case UnixFileType.RegularFile:
-                        onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
+                        onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
                         break;
                     case UnixFileType.SymbolicLink:
                         FileInfo file = new FileInfo(item.LocalPath);
@@ -712,7 +715,7 @@ sealed partial class SftpChannel : IDisposable
                             (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
                         {
                             // Pass linkTarget.Length because item.Length is the length of the link target path.
-                            onGoing.Enqueue(UploadFileAsync(item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, cancellationToken));
+                            onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, cancellationToken));
                         }
                         else
                         {
@@ -725,7 +728,7 @@ sealed partial class SftpChannel : IDisposable
                             {
                                 targetPath = targetPath.Replace('\\', '/');
                             }
-                            onGoing.Enqueue(CreateSymbolicLinkAsync(item.RemotePath, targetPath, overwrite, cancellationToken));
+                            onGoing.Enqueue(CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, cancellationToken));
                         }
                         break;
                     default:
@@ -780,18 +783,18 @@ sealed partial class SftpChannel : IDisposable
 #endif
     }
 
-    public async ValueTask UploadFileAsync(string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
+    public async ValueTask UploadFileAsync(string workingDirectory, string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
     {
         using FileStream localFile = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
 
         permissions ??= GetPermissionsForFile(localFile.SafeFileHandle);
 
-        await UploadFileAsync(localFile, remotePath, length, overwrite, permissions.Value, cancellationToken).ConfigureAwait(false);
+        await UploadFileAsync(workingDirectory, localFile, remotePath, length, overwrite, permissions.Value, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask UploadFileAsync(Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
+    public async ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
     {
-        using SftpFile remoteFile = (await OpenFileCoreAsync(remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+        using SftpFile remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
 
         // Pipeline the writes when the source is a sync, seekable Stream.
         bool pipelineSyncWrites = source.CanSeek && IsSyncStream(source);
@@ -916,7 +919,7 @@ sealed partial class SftpChannel : IDisposable
     private IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
         => new SftpFileSystemEnumerable<T>(this, path, transform, options);
 
-    public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadDirectoryEntriesAsync(string workingDirectory, string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
     {
         options ??= SftpClient.DefaultDownloadEntriesOptions;
 
@@ -933,6 +936,9 @@ sealed partial class SftpChannel : IDisposable
         bool overwrite = options.Overwrite;
         DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
 
+        remoteDirPath = RemotePath.ResolvePath([workingDirectory, remoteDirPath]);
+        workingDirectory = "";
+
         int trimRemoteDirectory = remoteDirPath.Length;
         if (remoteDirPath.Length != 0 && !RemotePath.EndsInDirectorySeparator(remoteDirPath))
         {
@@ -947,7 +953,8 @@ sealed partial class SftpChannel : IDisposable
         string lastDirectory = localDirPath;
 
         char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
-        var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(remoteDirPath,
+        var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(
+            remoteDirPath,
             (ref SftpFileEntry entry) =>
             {
                 string remotePath = entry.ToPath();
@@ -1008,11 +1015,11 @@ sealed partial class SftpChannel : IDisposable
                         break;
                     case UnixFileType.RegularFile:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadFileAsync(item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
+                        onGoing.Enqueue(DownloadFileAsync(workingDirectory, item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
                         break;
                     case UnixFileType.SymbolicLink:
                         lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadLinkAsync(item.RemotePath, item.LocalPath, overwrite, cancellationToken));
+                        onGoing.Enqueue(DownloadLinkAsync(workingDirectory, item.RemotePath, item.LocalPath, overwrite, cancellationToken));
                         break;
                     default:
                         throw new NotSupportedException($"Downloading file type '{item.Type}' is not supported.");
@@ -1086,7 +1093,7 @@ sealed partial class SftpChannel : IDisposable
         return new FileStream(path, options);
     }
 
-    private async ValueTask DownloadLinkAsync(string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
+    private async ValueTask DownloadLinkAsync(string workingDirectory, string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
     {
         bool exists =
 #if NET7_0_OR_GREATER
@@ -1100,7 +1107,7 @@ sealed partial class SftpChannel : IDisposable
         }
 
         // note: the remote server is expected to return a path that has forward slashes, also when that server runs on Windows.
-        string targetPath = await GetLinkTargetAsync(remotePath, cancellationToken).ConfigureAwait(false);
+        string targetPath = await GetLinkTargetAsync(workingDirectory, remotePath, cancellationToken).ConfigureAwait(false);
         if (exists)
         {
             File.Delete(localPath);
@@ -1108,19 +1115,19 @@ sealed partial class SftpChannel : IDisposable
         File.CreateSymbolicLink(localPath, targetPath);
     }
 
-    public ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
+    public ValueTask DownloadFileAsync(string workingDirectory, string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
+        => DownloadFileAsync(workingDirectory, remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
 
-    public ValueTask DownloadFileAsync(string remotePath, Stream destination, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, cancellationToken);
+    public ValueTask DownloadFileAsync(string workingDirectory, string remotePath, Stream destination, CancellationToken cancellationToken = default)
+        => DownloadFileAsync(workingDirectory, remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, cancellationToken);
 
-    private async ValueTask DownloadFileAsync(string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+    private async ValueTask DownloadFileAsync(string workingDirectory, string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
     {
         // Call GetAttributesAsync in parallel with OpenFileAsync.
         // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
-        ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(remotePath, followLinks: true) : default;
+        ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(workingDirectory, remotePath, followLinks: true) : default;
 
-        using SftpFile? remoteFile = await OpenFileAsync(remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+        using SftpFile? remoteFile = await OpenFileAsync(workingDirectory, remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
         if (remoteFile is null)
         {
             if (throwIfNotFound)
@@ -1226,7 +1233,7 @@ sealed partial class SftpChannel : IDisposable
         }
     }
 
-    private ValueTask CreateNewDirectory(ReadOnlySpan<char> path, bool awaitable, UnixFilePermissions permissions, CancellationToken cancellationToken)
+    private ValueTask CreateNewDirectory(string workingDirectory, ReadOnlySpan<char> path, bool awaitable, UnixFilePermissions permissions, CancellationToken cancellationToken)
     {
         PacketType packetType = PacketType.SSH_FXP_MKDIR;
 
@@ -1235,7 +1242,7 @@ sealed partial class SftpChannel : IDisposable
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
-        packet.WriteString(path);
+        packet.WritePath(workingDirectory, path);
         packet.WriteAttributes(permissions: permissions & CreateDirectoryPermissionMask, fileType: UnixFileType.Directory);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
@@ -1243,16 +1250,34 @@ sealed partial class SftpChannel : IDisposable
 
     internal async Task ProtocolInitAsync(CancellationToken cancellationToken)
     {
-        using Packet packet = new Packet(PacketType.SSH_FXP_INIT);
-        packet.WriteUInt(ProtocolVersion);
-        await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
-
-        ReadOnlyMemory<byte> versionPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
-        if (versionPacket.Length == 0)
         {
-            throw new SshChannelException("Channel closed during SFTP protocol initialization.");
+            using Packet packet = new Packet(PacketType.SSH_FXP_INIT);
+            packet.WriteUInt(ProtocolVersion);
+            await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
         }
-        HandleVersionPacket(versionPacket.Span);
+        // In parallel with the init, get the remote working dir.
+        {
+            using Packet packet = new Packet(PacketType.SSH_FXP_REALPATH);
+            packet.WriteInt(GetNextId());
+            packet.WriteString(".");
+            await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
+        }
+        {
+            ReadOnlyMemory<byte> versionPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
+            if (versionPacket.Length == 0)
+            {
+                throw new SshChannelException("Channel closed during SFTP protocol initialization.");
+            }
+            HandleVersionPacket(versionPacket.Span);
+        }
+        {
+            ReadOnlyMemory<byte> pathPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
+            if (pathPacket.Length == 0)
+            {
+                throw new SshChannelException("Channel closed during SFTP protocol initialization.");
+            }
+            HandleWorkingDirectoryPacket(pathPacket.Span);
+        }
 
         _ = ReadAllPacketsAsync();
         _ = SendPacketsAsync();
@@ -1422,6 +1447,19 @@ sealed partial class SftpChannel : IDisposable
         }
 
         _supportedExtensions = supportedExtensions & ~_options.DisabledExtensions;
+    }
+
+    private void HandleWorkingDirectoryPacket(ReadOnlySpan<byte> packet)
+    {
+        PacketReader reader = new(packet);
+        PacketType type = reader.ReadPacketType();
+        if (type != PacketType.SSH_FXP_NAME)
+        {
+            throw new SshChannelException($"Expected packet SSH_FXP_NAME, but received {type}.");
+        }
+        reader.ReadInt(); // id
+        reader.ReadInt(); // count
+        WorkingDirectory = reader.ReadString(); // filename
     }
 
     internal ValueTask<int> ReadFileAsync(byte[] handle, long offset, Memory<byte> buffer, CancellationToken cancellationToken)
