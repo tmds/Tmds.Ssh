@@ -11,16 +11,13 @@ Create a new Console application:
 dotnet new console -o example
 cd example
 dotnet add package Tmds.Ssh
-dotnet add package Microsoft.Extensions.Logging.Console
 ```
 
 Update `Program.cs`:
 ```cs
-using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
-using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-using var sshClient = new SshClient("localhost", SshConfigSettings.DefaultConfig, loggerFactory);
+using var sshClient = new SshClient("localhost");
 using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
 (bool isError, string? line) = await process.ReadLineAsync();
 Console.WriteLine(line);
@@ -31,6 +28,8 @@ Now run the application:
 $ dotnet run
 hello world!
 ```
+
+See [Getting Started](docs/getting-started.md) for more information.
 
 ## Examples
 
@@ -518,7 +517,7 @@ delegate ValueTask<bool> HostAuthentication(KnownHostResult knownHostResult, Ssh
 class SshConnectionInfo
 {
   HostKey ServerKey { get; }
-  string Host { get; }
+  string HostName { get; }
   int Port { get; }
   bool IsProxy { get; }
 }
@@ -690,6 +689,16 @@ Under these levels, the logged messages may include:
 - file paths (including those of private keys)
 
 The `Debug` and `Trace` loglevels should not be used in production. Under the `Trace` level all packets are logged. This will expose sensitive data related to the SSH connection and the application itself.
+
+To use logging, create an `ILoggerFactory` and pass it to the `SshClient` constructor.
+
+```cs
+using Microsoft.Extensions.Logging;
+using Tmds.Ssh;
+
+using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole()); // From Microsoft.Extensions.Logging.Console
+using var sshClient = new SshClient(..., loggerFactory);
+```
 
 ## CI Feed
 
