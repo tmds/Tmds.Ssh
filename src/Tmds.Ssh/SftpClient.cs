@@ -329,10 +329,14 @@ public sealed partial class SftpClient : IDisposable
         return await dir.GetLinkTargetAsync(linkPath, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+    [Obsolete($"Use {nameof(GetRealPathAsync)} instead.")]
+    public ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+        => GetRealPathAsync(path, cancellationToken);
+
+    public async ValueTask<string> GetRealPathAsync(string path, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        return await dir.GetFullPathAsync(path, cancellationToken).ConfigureAwait(false);
+        return await dir.GetRealPathAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
