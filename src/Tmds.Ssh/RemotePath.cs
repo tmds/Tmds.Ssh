@@ -161,16 +161,10 @@ static class RemotePath
                 span = span.Slice(separatorPos + 1);
             }
 
-            if (segment.Length == 0 || segment.SequenceEqual(".")) // empty segment or
+            if (segment.Length == 0 || segment.SequenceEqual(".")) // empty segment or '.'.
             { }
             else if (segment.SequenceEqual(".."))
             {
-                // Remove the final '/' unless it is the root.
-                if (sb.EndsWith('/') && sb.Length != 1)
-                {
-                    sb.Length--;
-                }
-
                 ReadOnlySpan<char> chars = sb.AsSpan();
                 if (chars.Length == 0)
                 {

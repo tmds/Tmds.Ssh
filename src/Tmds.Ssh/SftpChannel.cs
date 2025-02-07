@@ -1256,6 +1256,8 @@ sealed partial class SftpChannel : IDisposable
             await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
         }
         // In parallel with the init, get the remote working dir.
+        bool getWorkingDirectory = string.IsNullOrEmpty(WorkingDirectory);
+        if (getWorkingDirectory)
         {
             using Packet packet = new Packet(PacketType.SSH_FXP_REALPATH);
             packet.WriteInt(GetNextId());
@@ -1270,6 +1272,7 @@ sealed partial class SftpChannel : IDisposable
             }
             HandleVersionPacket(versionPacket.Span);
         }
+        if (getWorkingDirectory)
         {
             ReadOnlyMemory<byte> pathPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
             if (pathPacket.Length == 0)
