@@ -20,9 +20,9 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolUnexpectedEndOfPacket()
+    public static void ThrowDataUnexpectedEndOfPacket()
     {
-        throw new ProtocolException("Unexpected end of packet.");
+        throw new InvalidDataException("Unexpected end of packet.");
     }
 
     [DoesNotReturn]
@@ -44,9 +44,9 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolInvalidUtf8()
+    public static void ThrowDataInvalidUtf8()
     {
-        throw new ProtocolException("Data contains an invalid UTF-8 sequence.");
+        throw new InvalidDataException("Data contains an invalid UTF-8 sequence.");
     }
 
     [DoesNotReturn]
@@ -84,57 +84,57 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolPacketLongerThanExpected()
+    public static void ThrowDataPacketLongerThanExpected()
     {
-        throw new ProtocolException("The packet contains more data than expected.");
+        throw new InvalidDataException("The packet contains more data than expected.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolValueOutOfRange()
+    public static void ThrowDataValueOutOfRange()
     {
-        throw new ProtocolException("The value is out of the expected range.");
+        throw new InvalidDataException("The value is out of the expected range.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolUnexpectedValue()
+    public static void ThrowDataUnexpectedValue()
     {
-        throw new ProtocolException("The packet contains an unexpected value.");
+        throw new InvalidDataException("The packet contains an unexpected value.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolStringTooLong()
+    public static void ThrowDataStringTooLong()
     {
-        throw new ProtocolException("The string is too long.");
+        throw new InvalidDataException("The string is too long.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolNameTooLong()
+    public static void ThrowDataNameTooLong()
     {
-        throw new ProtocolException("The identifier name is too long.");
+        throw new InvalidDataException("The identifier name is too long.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolInvalidName()
+    public static void ThrowDataInvalidName()
     {
-        throw new ProtocolException("The identifier name is invalid.");
+        throw new InvalidDataException("The identifier name is invalid.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolECPointInvalidLength()
+    public static void ThrowDataECPointInvalidLength()
     {
-        throw new ProtocolException("The elliptic curve point has an invalid length.");
+        throw new InvalidDataException("The elliptic curve point has an invalid length.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolECPointTooLong()
+    public static void ThrowDataECPointTooLong()
     {
-        throw new ProtocolException("The elliptic curve point is too long.");
+        throw new InvalidDataException("The elliptic curve point is too long.");
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolMPIntTooLong()
+    public static void ThrowDataMPIntTooLong()
     {
-        throw new ProtocolException("The mpint is too long.");
+        throw new InvalidDataException("The mpint is too long.");
     }
 
     [DoesNotReturn]

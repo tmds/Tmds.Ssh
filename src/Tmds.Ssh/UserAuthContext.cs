@@ -161,7 +161,7 @@ sealed class UserAuthContext
             case MessageId.SSH_MSG_USERAUTH_FAILURE:
                 return _authResult;
             default:
-                ThrowHelper.ThrowProtocolUnexpectedValue();
+                ThrowHelper.ThrowDataUnexpectedValue();
                 return AuthResult.Failure;
         }
     }

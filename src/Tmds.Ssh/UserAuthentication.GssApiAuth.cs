@@ -97,7 +97,7 @@ partial class UserAuthentication
                 }
                 else if (messageId != MessageId.SSH_MSG_USERAUTH_GSSAPI_RESPONSE)
                 {
-                    ThrowHelper.ThrowProtocolUnexpectedValue();
+                    ThrowHelper.ThrowDataUnexpectedValue();
                 }
 
                 ReadOnlySequence<byte> oidResponse = GetGssapiOidResponse(response);
@@ -107,7 +107,7 @@ partial class UserAuthentication
                 }
                 else
                 {
-                    ThrowHelper.ThrowProtocolUnexpectedValue();
+                    ThrowHelper.ThrowDataUnexpectedValue();
                     return false;
                 }
             }
@@ -257,7 +257,7 @@ partial class UserAuthentication
                 case MessageId.SSH_MSG_USERAUTH_FAILURE:
                     return null;
                 default:
-                    ThrowHelper.ThrowProtocolUnexpectedValue();
+                    ThrowHelper.ThrowDataUnexpectedValue();
                     return null;
             }
         }

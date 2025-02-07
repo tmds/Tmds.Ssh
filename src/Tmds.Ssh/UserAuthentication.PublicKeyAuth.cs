@@ -116,7 +116,7 @@ partial class UserAuthentication
                         SshKeyData key = reader.ReadSshKey();
                         if (!key.Equals(clientKey))
                         {
-                            ThrowHelper.ThrowProtocolUnexpectedValue();
+                            ThrowHelper.ThrowDataUnexpectedValue();
                         }
                     }
                 }

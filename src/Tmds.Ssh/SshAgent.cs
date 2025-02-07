@@ -275,7 +275,7 @@ namespace Tmds.Ssh
 
                 if (packetLength > MaxPacketSize)
                 {
-                    ThrowHelper.ThrowProtocolPacketTooLong();
+                    throw new InvalidDataException($"SSH Agent packet length ({packetLength}) exceeds maximum packet length.");
                 }
 
                 // Wait for the packet content.
