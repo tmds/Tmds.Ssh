@@ -37,6 +37,67 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task WorkingDirectoryPath()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        Assert.Equal(_sshServer.TestUserHome, sftpClient.WorkingDirectory.Path);
+    }
+
+    [Fact]
+    public async Task SftpDirectoryUsesRelativePaths()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        // Directory itself.
+        var sftpDirectory = sftpClient.GetDirectory(directoryPath);
+        foreach (var path in new[] { ".", "", directoryPath })
+        {
+            FileEntryAttributes? attributes = await sftpDirectory.GetAttributesAsync(path);
+            Assert.Null(attributes);
+        }
+
+        await sftpDirectory.CreateNewDirectoryAsync("");
+
+        foreach (var path in new[] { ".", "", directoryPath })
+        {
+            FileEntryAttributes? attributes = await sftpDirectory.GetAttributesAsync(path);
+            Assert.NotNull(attributes);
+        }
+
+        // File in the directory.
+        string fileName = Path.GetRandomFileName();
+        var file = await sftpDirectory.CreateNewFileAsync(fileName, FileAccess.Write);
+        file.Dispose();
+
+        foreach (var path in new[] { fileName, $"{directoryPath}/{fileName}" })
+        {
+            FileEntryAttributes? attributes = await sftpDirectory.GetAttributesAsync(path);
+            Assert.NotNull(attributes);
+        }
+        {
+            FileEntryAttributes? attributes = await sftpClient.GetAttributesAsync($"{directoryPath}/{fileName}");
+            Assert.NotNull(attributes);
+        }
+    }
+
+    [Fact]
+    public async Task GetDirectoryResolvesPaths()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var sftpClient = await client.OpenSftpClientAsync();
+
+        SftpDirectory dir = sftpClient.GetDirectory("/base");
+
+        Assert.Equal("/base/relative", dir.GetDirectory("relative").Path);
+        Assert.Equal("/absolute", dir.GetDirectory("/absolute").Path);
+    }
+
+    [Fact]
     public async Task SftpClientCtorFromSshClient()
     {
         using var client = await _sshServer.CreateClientAsync();

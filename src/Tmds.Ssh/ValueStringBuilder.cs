@@ -41,6 +41,11 @@ namespace System.Text
             }
         }
 
+        public bool EndsWith(char c)
+        {
+            return _pos > 0 && _chars[_pos - 1] == c;
+        }
+
         public int Capacity => _chars.Length;
 
         public void EnsureCapacity(int capacity)
@@ -111,9 +116,9 @@ namespace System.Text
             return _chars.Slice(0, _pos);
         }
 
-        public ReadOnlySpan<char> AsSpan() => _chars.Slice(0, _pos);
-        public ReadOnlySpan<char> AsSpan(int start) => _chars.Slice(start, _pos - start);
-        public ReadOnlySpan<char> AsSpan(int start, int length) => _chars.Slice(start, length);
+        public Span<char> AsSpan() => _chars.Slice(0, _pos);
+        public Span<char> AsSpan(int start) => _chars.Slice(start, _pos - start);
+        public Span<char> AsSpan(int start, int length) => _chars.Slice(start, length);
 
         public bool TryCopyTo(Span<char> destination, out int charsWritten)
         {

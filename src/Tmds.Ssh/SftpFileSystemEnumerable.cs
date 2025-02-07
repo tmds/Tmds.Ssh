@@ -184,6 +184,8 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             Debug.Assert(_client is not null);
             _channel = await _client.GetChannelAsync(_cancellationToken);
+            Debug.Assert(_path is not null);
+            _path = RemotePath.ResolvePath([_channel.WorkingDirectory, _path]);
         }
 
         string? path = _path;
@@ -199,7 +201,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             }
             Debug.Assert(path is not null);
 
-            _fileHandle = await _channel.OpenDirectoryAsync(path, _cancellationToken).ConfigureAwait(false);
+            _fileHandle = await _channel.OpenDirectoryAsync(workingDirectory: "", path, _cancellationToken).ConfigureAwait(false);
             if (_fileHandle is null)
             {
                 if (isRootPath)
@@ -271,7 +273,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
         Debug.Assert(_path is not null);
-        FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
+        FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(workingDirectory: "", linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
             if ((!_followDirectoryLinks && attributes.FileType == UnixFileType.Directory) ||

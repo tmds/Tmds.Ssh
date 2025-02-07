@@ -155,6 +155,21 @@ class SftpClient : IDisposable
   // Only usable when the SftpClient was constructed directly using the constructor that accepts a destination/SshClientSettings.
   Task ConnectAsync(CancellationToken cancellationToken = default);
 
+  // May be used once the client is connected.
+  SftpDirectory WorkingDirectory { get; }  // The working directory used for SftpClient operations.
+  SftpDirectory GetDirectory(string path); // Change into another working directory.
+
+  // SftpDirectory operations
+  // ...
+}
+class SftpDirectory
+{
+  string Path { get; }
+
+  SftpDirectory GetDirectory(string path);
+
+  // Directory operations
+
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);

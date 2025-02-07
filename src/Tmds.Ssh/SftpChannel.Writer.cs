@@ -150,7 +150,28 @@ partial class SftpChannel
             WriteInt(mode);
         }
 
-        public unsafe void WriteString(ReadOnlySpan<char> value)
+        public unsafe void WritePath(ReadOnlySpan<char> workingDirectory, ReadOnlySpan<char> value)
+        {
+            if (value.Length == 0 || value.SequenceEqual("."))
+            {
+                // '' and '.' refer to the working directory itself.
+                WriteString(workingDirectory);
+            }
+            else if (workingDirectory.Length == 0 || value[0] == '/')
+            {
+                // absolute path or relative to an empty working directory.
+                WriteString(value);
+            }
+            else
+            {
+                WriteInt(workingDirectory.Length + value.Length + 1);
+                WriteString(workingDirectory, writeLength: false);
+                WriteByte((byte)'/');
+                WriteString(value, writeLength: false);
+            }
+        }
+
+        public unsafe void WriteString(ReadOnlySpan<char> value, bool writeLength = true)
         {
             byte[]? poolBuffer = null;
 
@@ -165,7 +186,11 @@ partial class SftpChannel
 
             int bytesWritten = s_utf8Encoding.GetBytes(value, byteSpan);
 
-            WriteInt(bytesWritten);
+            if (writeLength)
+            {
+                WriteInt(bytesWritten);
+            }
+
             WriteSpan(byteSpan.Slice(0, bytesWritten));
 
             if (poolBuffer != null)
