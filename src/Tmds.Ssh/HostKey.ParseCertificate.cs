@@ -31,7 +31,7 @@ partial class HostKey
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return (null!, null!);
         }
     }
@@ -100,7 +100,7 @@ partial class HostKey
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             publicKey = null!;
             signedKey = default;
         }
@@ -125,7 +125,7 @@ partial class HostKey
         ReadOnlySequence<byte> pk = reader.ReadStringAsBytes();
         if (pk.Length != Ed25519.PublicKeySize)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
         byte[] pkArray = pk.ToArray();
         PublicKeyAlgorithm publicKey = new Ed25519PublicKey(pkArray);
@@ -183,7 +183,7 @@ partial class HostKey
             string extensionName = innerReader.ReadUtf8String(); // name
             if (extensionName.Length == 0)
             {
-                ThrowHelper.ThrowProtocolUnexpectedValue();
+                ThrowHelper.ThrowDataUnexpectedValue();
             }
             innerReader.SkipString(); // data
 
@@ -191,7 +191,7 @@ partial class HostKey
             {
                 if (string.CompareOrdinal(extensionName, previousExtensionName) <= 0)
                 {
-                    ThrowHelper.ThrowProtocolUnexpectedValue();
+                    ThrowHelper.ThrowDataUnexpectedValue();
                 }
             }
             previousExtensionName = extensionName;

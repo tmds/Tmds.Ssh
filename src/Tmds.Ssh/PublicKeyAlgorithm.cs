@@ -26,7 +26,7 @@ abstract class PublicKeyAlgorithm
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return null;
         }
     }

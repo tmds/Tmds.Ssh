@@ -52,7 +52,7 @@ class RsaPublicKey : PublicKeyAlgorithm
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return false;
         }
 
@@ -66,7 +66,7 @@ class RsaPublicKey : PublicKeyAlgorithm
 
         if (signature.Length != signatureLength)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
 
         return rsa.VerifyData(data, signature.ToArray(), hashAlgorithm, RSASignaturePadding.Pkcs1);

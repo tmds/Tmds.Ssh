@@ -35,7 +35,7 @@ sealed class Ed25519PrivateKey : PrivateKey
     {
         if (algorithm != Algorithms[0])
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return default;
         }
 

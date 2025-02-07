@@ -54,7 +54,7 @@ ref struct SequenceReader
         {
             return b;
         }
-        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         return 0;
     }
 
@@ -63,7 +63,7 @@ ref struct SequenceReader
         byte value = ReadByte();
         if (value != expectedValue)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
     }
 
@@ -77,7 +77,7 @@ ref struct SequenceReader
         MessageId value = ReadMessageId();
         if (value != expectedValue)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
     }
 
@@ -87,7 +87,7 @@ ref struct SequenceReader
         {
             return unchecked((uint)i);
         }
-        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         return 0;
     }
 
@@ -101,7 +101,7 @@ ref struct SequenceReader
         uint value = ReadUInt32();
         if (value != expectedValue)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
         return value;
     }
@@ -122,7 +122,7 @@ ref struct SequenceReader
         {
             return unchecked((ulong)i);
         }
-        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         return 0;
     }
 
@@ -133,7 +133,7 @@ ref struct SequenceReader
         {
             return value;
         }
-        ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+        ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         return default;
     }
 
@@ -142,7 +142,7 @@ ref struct SequenceReader
         ReadOnlySequence<byte> data = ReadStringAsBytes();
         if (data.Length > maxLength)
         {
-            ThrowHelper.ThrowProtocolStringTooLong();
+            ThrowHelper.ThrowDataStringTooLong();
         }
         return data;
     }
@@ -195,13 +195,13 @@ ref struct SequenceReader
             }
             catch (DecoderFallbackException)
             {
-                ThrowHelper.ThrowProtocolInvalidUtf8();
+                ThrowHelper.ThrowDataInvalidUtf8();
                 throw;
             }
         }
         catch (ArgumentOutOfRangeException)
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
             throw;
         }
     }
@@ -217,7 +217,7 @@ ref struct SequenceReader
         // MAYDO: implement without allocating.
         if (ReadName() != expected)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
     }
 
@@ -226,7 +226,7 @@ ref struct SequenceReader
         var name = ReadName();
         if (name != expected || !allowedNames.Contains(name))
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
     }
 
@@ -235,7 +235,7 @@ ref struct SequenceReader
         var name = ReadName();
         if (!allowedNames.Contains(name))
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return default;
         }
 
@@ -255,7 +255,7 @@ ref struct SequenceReader
             {
                 if (length > Constants.MaxParseNameLength)
                 {
-                    ThrowHelper.ThrowProtocolNameTooLong();
+                    ThrowHelper.ThrowDataNameTooLong();
                 }
                 name = Name.Parse(_reader.Sequence.Slice(_reader.Position, length).ToArray());
             }
@@ -266,7 +266,7 @@ ref struct SequenceReader
         }
         catch (ArgumentOutOfRangeException)
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
             throw;
         }
     }
@@ -295,7 +295,7 @@ ref struct SequenceReader
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         }
 
         return names.ToArray();
@@ -310,7 +310,7 @@ ref struct SequenceReader
             {
                 if (nameSequence.Length > Constants.MaxParseNameLength)
                 {
-                    ThrowHelper.ThrowProtocolNameTooLong();
+                    ThrowHelper.ThrowDataNameTooLong();
                 }
                 return Name.Parse(nameSequence.ToArray());
             }
@@ -323,7 +323,7 @@ ref struct SequenceReader
 
         if (length > Constants.MaxMPIntLength)
         {
-            ThrowHelper.ThrowProtocolMPIntTooLong();
+            ThrowHelper.ThrowDataMPIntTooLong();
         }
 
         if (length == 0)
@@ -342,7 +342,7 @@ ref struct SequenceReader
         }
         catch (ArgumentOutOfRangeException)
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
             throw;
         }
     }
@@ -355,7 +355,7 @@ ref struct SequenceReader
 
         if (Math.Max(l, minLength) > Constants.MaxMPIntLength)
         {
-            ThrowHelper.ThrowProtocolMPIntTooLong();
+            ThrowHelper.ThrowDataMPIntTooLong();
         }
 
         int length = (int)l;
@@ -370,7 +370,7 @@ ref struct SequenceReader
         bool isNegative = firstByte >= 128;
         if (isUnsigned && isNegative)
         {
-            ThrowHelper.ThrowProtocolValueOutOfRange();
+            ThrowHelper.ThrowDataValueOutOfRange();
         }
 
         bool skipFirstByte = isUnsigned && firstByte == 0;
@@ -389,7 +389,7 @@ ref struct SequenceReader
 
         if (!_reader.TryCopyTo(array.AsSpan(arrayLength - length)))
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         }
 
         _reader.Advance(length);
@@ -402,11 +402,11 @@ ref struct SequenceReader
         long length = ReadUInt32();
         if (length == 0)
         {
-            ThrowHelper.ThrowProtocolECPointInvalidLength();
+            ThrowHelper.ThrowDataECPointInvalidLength();
         }
         if (length > Constants.MaxECPointLength)
         {
-            ThrowHelper.ThrowProtocolECPointTooLong();
+            ThrowHelper.ThrowDataECPointTooLong();
         }
 
         byte firstByte = ReadByte();
@@ -418,7 +418,7 @@ ref struct SequenceReader
 
         if (length % 2 != 0)
         {
-            ThrowHelper.ThrowProtocolECPointInvalidLength();
+            ThrowHelper.ThrowDataECPointInvalidLength();
         }
 
         return new ECPoint
@@ -436,7 +436,7 @@ ref struct SequenceReader
         }
         catch (ArgumentOutOfRangeException)
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
         }
     }
 
@@ -444,7 +444,7 @@ ref struct SequenceReader
     {
         if (!AtEnd)
         {
-            ThrowHelper.ThrowProtocolPacketLongerThanExpected();
+            ThrowHelper.ThrowDataPacketLongerThanExpected();
         }
     }
 
@@ -480,7 +480,7 @@ ref struct SequenceReader
         }
         catch (ArgumentOutOfRangeException)
         {
-            ThrowHelper.ThrowProtocolUnexpectedEndOfPacket();
+            ThrowHelper.ThrowDataUnexpectedEndOfPacket();
             throw;
         }
     }

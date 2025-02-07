@@ -30,7 +30,7 @@ class Ed25519PublicKey : PublicKeyAlgorithm
         ReadOnlySequence<byte> publicKey = reader.ReadStringAsBytes();
         if (publicKey.Length != Ed25519.PublicKeySize)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
         return new Ed25519PublicKey(publicKey.ToArray());
     }
@@ -39,12 +39,12 @@ class Ed25519PublicKey : PublicKeyAlgorithm
     {
         if (algorithmName != AlgorithmNames.SshEd25519)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
 
         if (signature.Length != Ed25519.SignatureSize)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
 
         return Ed25519.Verify(signature.ToArray(), 0, _publicKey, 0, data.ToArray(), 0, data.Length);

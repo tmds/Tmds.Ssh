@@ -35,7 +35,7 @@ readonly struct Name : IEquatable<Name>, ISpanFormattable
         {
             if (name.AsSpan().ContainsAnyExceptInRange((char)LowInclusive, (char)HighInclusive))
             {
-                ThrowHelper.ThrowProtocolInvalidName();
+                throw new ArgumentException($"Name '{name}' contains invalid characters.", nameof(name));
             }
             _name = name;
         }
@@ -53,7 +53,7 @@ readonly struct Name : IEquatable<Name>, ISpanFormattable
         {
             if (name.ContainsAnyExceptInRange((char)LowInclusive, (char)HighInclusive))
             {
-                ThrowHelper.ThrowProtocolInvalidName();
+                ThrowHelper.ThrowDataInvalidName();
             }
             _name = name.ToString();
         }
@@ -77,12 +77,12 @@ readonly struct Name : IEquatable<Name>, ISpanFormattable
         // Refuse to parse names that are very long.
         if (name.Length > Constants.MaxParseNameLength)
         {
-            ThrowHelper.ThrowProtocolNameTooLong();
+            ThrowHelper.ThrowDataNameTooLong();
         }
 
         if (name.ContainsAnyExceptInRange(LowInclusive, HighInclusive))
         {
-            ThrowHelper.ThrowProtocolInvalidName();
+            ThrowHelper.ThrowDataInvalidName();
         }
 
         Debug.Assert(Constants.MaxParseNameLength <= Constants.StackallocThreshold);

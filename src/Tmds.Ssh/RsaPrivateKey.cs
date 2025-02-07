@@ -43,7 +43,7 @@ sealed class RsaPrivateKey : PrivateKey
         }
         else
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return default;
         }
         var innerWriter = new ArrayWriter();

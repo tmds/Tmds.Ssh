@@ -40,7 +40,7 @@ sealed class ECDsaPrivateKey : PrivateKey
     {
         if (algorithm != _algorithm)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
             return default;
         }
 

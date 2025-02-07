@@ -141,7 +141,7 @@ sealed class StreamSshConnection : SshConnection
             }
             catch (DecoderFallbackException)
             {
-                ThrowHelper.ThrowProtocolInvalidUtf8();
+                ThrowHelper.ThrowDataInvalidUtf8();
                 throw;
             }
             _receiveBuffer.Remove(reader.Consumed);
@@ -227,7 +227,7 @@ sealed class StreamSshConnection : SshConnection
         {
             if (_receiveSequenceNumber == 0 && throwIfReceiveSNZero)
             {
-                ThrowHelper.ThrowProtocolValueOutOfRange();
+                ThrowHelper.ThrowDataValueOutOfRange();
             }
             _sendSequenceNumber = 0;
             _receiveSequenceNumber = 0;

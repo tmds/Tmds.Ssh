@@ -57,7 +57,7 @@ class ECDsaPublicKey : PublicKeyAlgorithm
             reader.ReadEnd();
             return new ECDsaPublicKey(AlgorithmNames.EcdsaSha2Nistp521, ECCurve.NamedCurves.nistP521, q, HashAlgorithmName.SHA512);
         }
-        ThrowHelper.ThrowProtocolUnexpectedValue();
+        ThrowHelper.ThrowDataUnexpectedValue();
         return null!;
     }
 
@@ -65,7 +65,7 @@ class ECDsaPublicKey : PublicKeyAlgorithm
     {
         if (algorithmName != _name)
         {
-            ThrowHelper.ThrowProtocolUnexpectedValue();
+            ThrowHelper.ThrowDataUnexpectedValue();
         }
 
         var reader = new SequenceReader(signature);
