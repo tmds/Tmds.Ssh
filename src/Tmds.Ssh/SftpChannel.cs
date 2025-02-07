@@ -496,7 +496,7 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync<string>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<string> GetFullPathAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    public ValueTask<string> GetRealPathAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_REALPATH;
 

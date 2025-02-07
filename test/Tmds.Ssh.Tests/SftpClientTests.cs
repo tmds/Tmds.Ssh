@@ -29,7 +29,7 @@ public class SftpClientTests
         using var client = await _sshServer.CreateClientAsync();
         using var sftpClient = await client.OpenSftpClientAsync();
 
-        await sftpClient.GetFullPathAsync("");
+        await sftpClient.GetRealPathAsync("");
 
         sftpClient.Dispose();
         Assert.True(sftpClient.IsDisposed);
@@ -103,7 +103,7 @@ public class SftpClientTests
         using var client = await _sshServer.CreateClientAsync();
         using var sftpClient = new SftpClient(client);
 
-        await sftpClient.GetFullPathAsync("");
+        await sftpClient.GetRealPathAsync("");
 
         sftpClient.Dispose();
         Assert.True(sftpClient.IsDisposed);
@@ -115,7 +115,7 @@ public class SftpClientTests
     {
         using var sftpClient = new SftpClient(_sshServer.CreateSshClientSettings());
 
-        await sftpClient.GetFullPathAsync("");
+        await sftpClient.GetRealPathAsync("");
 
         sftpClient.Dispose();
         Assert.True(sftpClient.IsDisposed);
@@ -979,7 +979,7 @@ public class SftpClientTests
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
 
-        string fullPath = await sftpClient.GetFullPathAsync(".");
+        string fullPath = await sftpClient.GetRealPathAsync(".");
         Assert.StartsWith(_sshServer.TestUserHome, fullPath);
     }
 
@@ -1250,11 +1250,11 @@ public class SftpClientTests
 
         if (autoConnect)
         {
-            await client.GetFullPathAsync("");
+            await client.GetRealPathAsync("");
         }
         else
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetFullPathAsync("").AsTask());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => client.GetRealPathAsync("").AsTask());
         }
     }
 
@@ -1268,7 +1268,7 @@ public class SftpClientTests
 
         await client.ConnectAsync();
 
-        await client.GetFullPathAsync("");
+        await client.GetRealPathAsync("");
     }
 
     [Fact]
@@ -1282,7 +1282,7 @@ public class SftpClientTests
             connect: false
         );
 
-        var pending = client.GetFullPathAsync("");
+        var pending = client.GetRealPathAsync("");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
     }
@@ -1296,17 +1296,17 @@ public class SftpClientTests
             configureSsh: settings => settings.AutoReconnect = autoReconnect
         );
 
-        await client.GetFullPathAsync("");
+        await client.GetRealPathAsync("");
 
         client.SshClient.ForceConnectionClose();
 
         if (autoReconnect)
         {
-            await client.GetFullPathAsync("");
+            await client.GetRealPathAsync("");
         }
         else
         {
-            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.GetFullPathAsync("").AsTask());
+            await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.GetRealPathAsync("").AsTask());
         }
     }
 

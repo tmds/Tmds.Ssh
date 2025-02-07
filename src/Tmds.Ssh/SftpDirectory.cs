@@ -112,10 +112,10 @@ public sealed class SftpDirectory
         return await channel.GetLinkTargetAsync(_workingDirectory, linkPath, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
+    public async ValueTask<string> GetRealPathAsync(string path, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        return await channel.GetFullPathAsync(_workingDirectory, path, cancellationToken).ConfigureAwait(false);
+        return await channel.GetRealPathAsync(_workingDirectory, path, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)

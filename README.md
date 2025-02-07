@@ -225,7 +225,7 @@ class SftpDirectory
   ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default);
   ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default);
 
-  ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default);
+  ValueTask<string> GetRealPathAsync(string path, CancellationToken cancellationToken = default);
 }
 class SftpFile : Stream
 {
