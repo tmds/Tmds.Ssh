@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Net;
+using System.Net.Sockets;
 
 namespace Tmds.Ssh;
 
@@ -27,7 +28,7 @@ public sealed class RemoteHostEndPoint : RemoteEndPoint
     }
 
     public override string ToString()
-        => (_toString ??= $"{Host}:{Port}");
+        => _toString ??= Host.Contains(':') ? $"[{Host}]:{Port}" : $"{Host}:{Port}";
 }
 
 public sealed class RemoteIPEndPoint : RemoteEndPoint
@@ -46,7 +47,7 @@ public sealed class RemoteIPEndPoint : RemoteEndPoint
     }
 
     public override string ToString()
-        => (_toString ??= $"{Address}:{Port}");
+        => _toString ??= Address.AddressFamily == AddressFamily.InterNetworkV6 ?  $"[{Address}]:{Port}" : $"{Address}:{Port}";
 }
 
 public sealed class RemoteUnixEndPoint : RemoteEndPoint
