@@ -21,5 +21,5 @@ sealed class ConnectEndPoint
     public int Port { get; }
 
     public override string ToString()
-        => (_toString ??= $"{Host}:{Port}");
+        => _toString ??= Host.Contains(':') ? $"[{Host}]:{Port}" : $"{Host}:{Port}";
 }
