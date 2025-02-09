@@ -70,7 +70,7 @@ static class KnownHostsFile
         // File.Exists (and Directory.Exists) return false when a parent directory is not accessible.
         // We can open the file but that causes a first chance File/DirectoryNotFoundException.
         // The code below avoids that exception when the files live under a directory that is accessible.
-        // This was added in particular for the checking of '/etc/ssh/known_hosts' (which often doesn't exist).
+        // This was added in particular for the checking of '/etc/ssh/ssh_known_hosts' (which often doesn't exist).
 
         // File exists, don't skip.
         if (File.Exists(path))

@@ -121,18 +121,19 @@ partial class SshClientSettings
 
     private static IReadOnlyList<string> CreateDefaultGlobalKnownHostsFilePaths()
     {
-        string path;
+        string globalSshKnownHostsPath;
         if (Platform.IsWindows)
         {
-            path = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts");
+            globalSshKnownHostsPath = Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "ssh_known_hosts");
         }
         else
         {
-            path = "/etc/ssh/known_hosts";
+            globalSshKnownHostsPath = "/etc/ssh/ssh_known_hosts";
         }
         return
         [
-            path
+            globalSshKnownHostsPath,
+            $"{globalSshKnownHostsPath}2"
         ];
     }
 }

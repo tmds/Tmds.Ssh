@@ -19,7 +19,7 @@ public class ClientSettingsTests
         Assert.True(settings.AutoConnect);
         Assert.False(settings.AutoReconnect);
         Assert.Equal(new[] { DefaultKnownHostsFile }, settings.UserKnownHostsFilePaths);
-        Assert.Equal(new[] { DefaultGlobalKnownHostsFile }, settings.GlobalKnownHostsFilePaths);
+        Assert.Equal(new[] { DefaultGlobalKnownHostsFile, $"{DefaultGlobalKnownHostsFile}2" }, settings.GlobalKnownHostsFilePaths);
         Assert.Null(settings.HostAuthentication);
         Assert.Equal(new[] { new Name("mlkem768x25519-sha256"), new Name("sntrup761x25519-sha512"), new Name("sntrup761x25519-sha512@openssh.com"), new Name("curve25519-sha256"), new Name("curve25519-sha256@libssh.org"), new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms);
         Assert.Equal(new[] {
@@ -110,6 +110,6 @@ public class ClientSettingsTests
 
     private static string DefaultGlobalKnownHostsFile
         => OperatingSystem.IsWindows()
-        ? Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "known_hosts")
-        : "/etc/ssh/known_hosts";
+        ? Path.Combine(Environment.GetFolderPath(SpecialFolder.CommonApplicationData, SpecialFolderOption.DoNotVerify), "ssh", "ssh_known_hosts")
+        : "/etc/ssh/ssh_known_hosts";
 }
