@@ -259,7 +259,7 @@ class SshClientSettings
         KerberosCredential(),
         NoCredential() ]
   static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } = [ '~/.ssh/known_hosts' ]
-  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = [ '/etc/ssh/known_hosts' ]
+  static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = [ '/etc/ssh//etc/ssh/ssh_known_hosts', '/etc/ssh/etc/ssh/ssh_known_hosts2' ]
 
   SshClientSettings();
   SshClientSettings(string destination);
