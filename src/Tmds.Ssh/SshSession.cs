@@ -929,7 +929,6 @@ sealed partial class SshSession
     public async Task<ushort> StartRemoteForwardAsync(Name forwardType, string address, ushort port, ChannelWriter<RemoteConnection> listener, CancellationToken cancellationToken)
     {
         address = ReplaceAnyAddress(forwardType, address);
-        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
 
         GlobalRequestReply reply;
         if (forwardType == AlgorithmNames.ForwardTcpIp)
@@ -953,6 +952,7 @@ sealed partial class SshSession
             port = (ushort)reader.ReadUInt32();
         }
 
+        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
         lock (_gate)
         {
             _remoteForwardHandlers ??= new();

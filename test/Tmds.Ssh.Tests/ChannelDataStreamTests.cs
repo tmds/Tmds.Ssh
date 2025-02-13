@@ -67,4 +67,61 @@ public class SshDataStreamTests
         Assert.Equal(helloWorldBytes.Length, bytesRead);
         Assert.Equal(helloWorldBytes, receiveBuffer.AsSpan(0, bytesRead).ToArray());
     }
+
+    [Theory]
+    [InlineData("*", 5000, true)]
+    [InlineData("127.0.0.1", 5000, false)]
+    [InlineData("localhost", 5000, true)]
+    [InlineData("localhost", 0, false)]
+    public async Task ListenTcp(string address, int port, bool closeConnectionFirst)
+    {
+        byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
+        byte[] receiveBuffer = new byte[128];
+        int bytesRead;
+
+        using var client = await _sshServer.CreateClientAsync();
+        using var listener = await client.ListenTcpAsync(address, port);
+
+        if (port == 0)
+        {
+            port = (listener.ListenEndPoint as RemoteIPListenEndPoint)!.Port;
+            Assert.NotEqual(0, port);
+        }
+
+        using var connection = await client.OpenTcpConnectionAsync("localhost", port);
+
+        (SshDataStream? stream, RemoteEndPoint? endpoint) = await listener.AcceptAsync();
+        Assert.NotNull(stream);
+        using var _ = stream;
+
+        // Write connection -> stream
+        await connection.WriteAsync(helloWorldBytes);
+        bytesRead = await stream.ReadAsync(receiveBuffer);
+        Assert.Equal(helloWorldBytes.Length, bytesRead);
+        Assert.Equal(helloWorldBytes, receiveBuffer.AsSpan(0, bytesRead).ToArray());
+
+        // Write stream -> connection
+        await stream.WriteAsync(helloWorldBytes);
+        receiveBuffer.AsSpan().Clear();
+        bytesRead = await connection.ReadAsync(receiveBuffer);
+        Assert.Equal(helloWorldBytes.Length, bytesRead);
+        Assert.Equal(helloWorldBytes, receiveBuffer.AsSpan(0, bytesRead).ToArray());
+
+        if (closeConnectionFirst)
+        {
+            // Close connection -> stream
+            connection.Dispose();
+            bytesRead = await stream.ReadAsync(receiveBuffer);
+            Assert.Equal(0, bytesRead);
+            stream.Dispose();
+        }
+        else
+        {
+            // Close stream -> connection
+            stream.Dispose();
+            bytesRead = await connection.ReadAsync(receiveBuffer);
+            Assert.Equal(0, bytesRead);
+            connection.Dispose();
+        }
+    }
 }
