@@ -34,6 +34,46 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateChannelOpenFailureMessage(this SequencePool sequencePool, uint remoteChannel)
+    {
+        const uint SSH_OPEN_ADMINISTRATIVELY_PROHIBITED = 1;
+        /*
+            byte      SSH_MSG_CHANNEL_OPEN_FAILURE
+            uint32    recipient channel
+            uint32    reason code
+            string    description in ISO-10646 UTF-8 encoding [RFC3629]
+            string    language tag [RFC3066]
+        */
+        var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_FAILURE);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteUInt32(SSH_OPEN_ADMINISTRATIVELY_PROHIBITED);
+        writer.WriteString("open failed");
+        writer.WriteString("");
+        return packet;
+    }
+
+    public static Packet CreateChannelOpenConfirmationMessage(this SequencePool sequencePool, uint remoteChannel, uint localChannel, uint localWindowSize, uint maxPacketSize)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_OPEN_CONFIRMATION
+            uint32    recipient channel
+            uint32    sender channel
+            uint32    initial window size
+            uint32    maximum packet size
+            ....      channel type specific data follows
+        */
+        var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteUInt32(localChannel);
+        writer.WriteUInt32(localWindowSize);
+        writer.WriteUInt32(maxPacketSize);
+        return packet;
+    }
+
     public static Packet CreateChannelFailureMessage(this SequencePool sequencePool, uint remoteChannel)
     {
         /*
@@ -223,6 +263,44 @@ static class SshSequencePoolExtensions
         writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST);
         writer.WriteUInt32(remoteChannel);
         writer.WriteUInt32(bytesToAdd);
+        return packet.Move();
+    }
+
+    public static Packet CreateCancelTcpIpForwardMessage(this SequencePool sequencePool, string address, ushort port)
+    {
+        /*
+            byte      SSH_MSG_GLOBAL_REQUEST
+            string    "cancel-tcpip-forward"
+            boolean   want reply
+            string    address_to_bind (e.g., "127.0.0.1")
+            uint32    port number to bind
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_GLOBAL_REQUEST);
+        writer.WriteString("cancel-tcpip-forward");
+        writer.WriteBoolean(false); // want reply
+        writer.WriteString(address);
+        writer.WriteUInt32(port);
+        return packet.Move();
+    }
+
+    public static Packet CreateTcpIpForwardMessage(this SequencePool sequencePool, string address, ushort port)
+    {
+        /*
+            byte      SSH_MSG_GLOBAL_REQUEST
+            string    "tcpip-forward"
+            boolean   want reply
+            string    address to bind (e.g., "0.0.0.0")
+            uint32    port number to bind
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_GLOBAL_REQUEST);
+        writer.WriteString("tcpip-forward");
+        writer.WriteBoolean(true); // want reply
+        writer.WriteString(address);
+        writer.WriteUInt32(port);
         return packet.Move();
     }
 

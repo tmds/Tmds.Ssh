@@ -71,6 +71,8 @@ class SshClient : IDisposable
   Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
+  Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
+
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
 }
@@ -125,6 +127,8 @@ class RemoteIPEndPoint(IPAddress address, int port) : RemoteEndPoint
 { }
 class RemoteUnixEndPoint(string path) : RemoteEndPoint
 { }
+class RemoteIPListenEndPoint(string address, int port) : RemoteEndPoint
+{ }
 class DirectForward : IDisposable
 {
   EndPoint LocalEndPoint { get; }
@@ -136,6 +140,19 @@ class SocksForward : IDisposable
   EndPoint LocalEndPoint { get; }
   CancellationToken Stopped { get; }
   void ThrowIfStopped();
+}
+class RemoteListener : IDisposable
+{
+  // For ListenTcpAsync, returned type is RemoteIPListenEndPoint.
+  RemoteEndPoint ListenEndPoint { get; }
+
+  // This method throws when the SshClient disconnects (SshConnectionClosedException), or the RemoteListener is disposed (ObjectDisposedException).
+  // Calling Stop makes the method return a `null` Stream instead.
+  //
+  // For ListenTcpAsync, the EndPoint type is RemoteIPEndPoint.
+  ValueTask<(Tmds.Ssh.SshDataStream? Stream, Tmds.Ssh.RemoteEndPoint? EndPoint)> AcceptAsync(CancellationToken cancellationToken = default);
+
+  void Stop();
 }
 class SftpClient : IDisposable
 {

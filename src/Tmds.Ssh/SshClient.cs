@@ -312,6 +312,15 @@ public sealed partial class SshClient : IDisposable
         return forward;
     }
 
+    public async Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var listener = new RemoteListener();
+        await listener.OpenTcpAsync(session, address, port, cancellationToken).ConfigureAwait(false);
+        return listener;
+    }
+
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 

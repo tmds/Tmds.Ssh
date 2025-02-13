@@ -21,7 +21,8 @@ sealed partial class SshChannel : ISshChannel
         Disposed // By user
     }
 
-    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType, Action<SshChannel>? onAbort = null)
+    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType, Action<SshChannel>? onAbort = null,
+        uint remoteChannel = 0, int sendMaxPacket = 0, int sendWindow = 0)
     {
         LocalChannel = channelNumber;
         _client = client;
@@ -29,6 +30,10 @@ sealed partial class SshChannel : ISshChannel
         _receiveWindow = MaxWindowSize;
         _channelType = channelType;
         _onAbort = onAbort;
+
+        RemoteChannel = remoteChannel;
+        SendMaxPacket = sendMaxPacket;
+        _sendWindow = sendWindow;
     }
 
     public CancellationToken ChannelAborted

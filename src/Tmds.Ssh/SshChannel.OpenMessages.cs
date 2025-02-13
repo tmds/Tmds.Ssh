@@ -10,6 +10,12 @@ sealed partial class SshChannel : ISshChannel
     public void TrySendChannelOpenDirectStreamLocalMessage(string socketPath)
         => TrySendPacket(_sequencePool.CreateChannelOpenDirectStreamLocalMessage(LocalChannel, (uint)_receiveWindow, (uint)ReceiveMaxPacket, socketPath));
 
+    public void TrySendChannelOpenConfirmationMessage(uint remoteChannel)
+    {
+        TrySendPacket(_sequencePool.CreateChannelOpenConfirmationMessage(remoteChannel, LocalChannel, (uint)_receiveWindow, (uint)ReceiveMaxPacket));
+        _sendCloseOnDispose = 1;
+    }
+
     public void TrySendChannelOpenSessionMessage()
         => TrySendPacket(_sequencePool.CreateChannelOpenSessionMessage(LocalChannel, (uint)_receiveWindow, (uint)ReceiveMaxPacket));
 

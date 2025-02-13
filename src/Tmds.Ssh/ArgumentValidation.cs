@@ -13,6 +13,26 @@ static class ArgumentValidation
         }
     }
 
+    public static void ValidateIPListenAddress(string address, string argumentName = "address")
+    {
+        if (address is null)
+        {
+            throw new ArgumentNullException(argumentName);
+        }
+
+        if (address.Length == 0)
+        {
+            throw new ArgumentException("The address can not be empty.", argumentName);
+        }
+
+        if (address == Constants.AnyAddress)
+        {
+            return;
+        }
+
+        ValidateHost(address, allowEmpty: false, argumentName);
+    }
+
     public static void ValidateHost(string host, bool allowEmpty = false, string argumentName = "host")
     {
         if (host is null)
