@@ -70,8 +70,8 @@ public class SshDataStreamTests
 
     [Theory]
     [InlineData("*", 5000, true)]
-    [InlineData("127.0.0.1", 5000, false)]
-    [InlineData("localhost", 5000, true)]
+    [InlineData("127.0.0.1", 6000, false)]
+    [InlineData("localhost", 7000, true)]
     [InlineData("localhost", 0, false)]
     public async Task ListenTcp(string address, int port, bool closeConnectionFirst)
     {
@@ -80,16 +80,26 @@ public class SshDataStreamTests
         int bytesRead;
 
         using var client = await _sshServer.CreateClientAsync();
-        using var listener = await client.ListenTcpAsync(address, port);
 
+        // Start listening.
+        using var listener = await client.ListenTcpAsync(address, port);
+        RemoteIPListenEndPoint? listenEndPoint = listener.ListenEndPoint as RemoteIPListenEndPoint;
+        Assert.NotNull(listenEndPoint);
+        Assert.Equal(address, listenEndPoint.Address);
         if (port == 0)
         {
-            port = (listener.ListenEndPoint as RemoteIPListenEndPoint)!.Port;
+            port = listenEndPoint.Port;
             Assert.NotEqual(0, port);
         }
+        else
+        {
+            Assert.Equal(port, listenEndPoint.Port);
+        }
 
+        // Open a connection.
         using var connection = await client.OpenTcpConnectionAsync("localhost", port);
 
+        // Accept the connection on the listener as 'stream'.
         using var remoteConnection = await listener.AcceptAsync();
         Assert.True(remoteConnection.HasStream);
         using var stream = remoteConnection.MoveStream();
@@ -124,5 +134,14 @@ public class SshDataStreamTests
             Assert.Equal(0, bytesRead);
             connection.Dispose();
         }
+
+        // Stop the listener.
+        listener.Dispose();
+
+        // No new connections are accepted.
+        await Assert.ThrowsAsync<SshChannelException>(async () =>
+        {
+            using var connection = await client.OpenTcpConnectionAsync("localhost", port);
+        });
     }
 }
