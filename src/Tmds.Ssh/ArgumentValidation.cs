@@ -30,7 +30,10 @@ static class ArgumentValidation
             return;
         }
 
-        ValidateHost(address, allowEmpty: false, argumentName);
+        if (!IsValidHostName(address))
+        {
+            throw new ArgumentException("The address is not valid", argumentName);
+        }
     }
 
     public static void ValidateHost(string host, bool allowEmpty = false, string argumentName = "host")
@@ -49,12 +52,16 @@ static class ArgumentValidation
             throw new ArgumentException("The host can not be empty.", argumentName);
         }
 
-        UriHostNameType hostNameType = Uri.CheckHostName(host);
-        bool isValid = hostNameType is UriHostNameType.IPv4 or UriHostNameType.IPv6 or UriHostNameType.Dns;
-
-        if (!isValid)
+        if (!IsValidHostName(host))
         {
             throw new ArgumentException("The host name is not valid", argumentName);
         }
+    }
+
+    private static bool IsValidHostName(string address)
+    {
+        // Check whether the name is an IPv4/IPv6/DNS name using 'Uri.CheckHostName'.
+        // Disallow IPv6 addresses to be enclosed with '[]'.
+        return !address.StartsWith('[') && Uri.CheckHostName(address) is UriHostNameType.IPv4 or UriHostNameType.IPv6 or UriHostNameType.Dns;
     }
 }

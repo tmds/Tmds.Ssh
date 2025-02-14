@@ -152,14 +152,14 @@ class RemoteListener : IDisposable
 
   void Stop();
 }
-public struct RemoteConnection : IDisposable
+struct RemoteConnection : IDisposable
 {
   // For ListenTcpAsync, type is RemoteIPEndPoint.
-    RemoteEndPoint? RemoteEndPoint { get; }
+  RemoteEndPoint? RemoteEndPoint { get; }
 
-    SshDataStream? Stream { get; }
-    bool HasStream { get; }
-    Stream MoveStream(); // Transfers ownership of the Stream to the caller.
+  SshDataStream? Stream { get; }
+  bool HasStream { get; }
+  Stream MoveStream(); // Transfers ownership of the Stream to the caller.
 }
 class SftpClient : IDisposable
 {

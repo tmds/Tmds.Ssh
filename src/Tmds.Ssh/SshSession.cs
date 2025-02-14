@@ -609,7 +609,7 @@ sealed partial class SshSession
 
             if (listener is not null)
             {
-                SshChannel channel = CreateChannel(typeof(SshDataStream), onAbort: null, remoteChannel, (int)maxPacketSize, (int)initialWindowSize);
+                SshChannel channel = CreateChannel(typeof(SshDataStream), onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
                 channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
                 SshDataStream sshDataStream = new SshDataStream(channel);
 
