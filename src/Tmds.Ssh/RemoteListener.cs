@@ -78,17 +78,27 @@ public sealed class RemoteListener : IDisposable
         {
             _ctr.Dispose();
 
-            string address = ((RemoteIPListenEndPoint)_listenEndPoint).Address;
-            ushort port = (ushort)((RemoteIPListenEndPoint)_listenEndPoint).Port;
-            _session?.StopRemoteForward(_forwardType, address, port);
-
-            _connectionChannel.Writer.Complete();
-
-            while (_connectionChannel.Reader.TryRead(out RemoteConnection connection))
+            string? address = null;
+            ushort port = 0;
+            if (_listenEndPoint is RemoteIPListenEndPoint ipListenEndPoint)
             {
-                Debug.Assert(connection.HasStream);
-                connection.Dispose();
+                address = ipListenEndPoint.Address;
+                port = (ushort)ipListenEndPoint.Port;
             }
+            else
+            {
+                Debug.Assert(false);
+            }
+            Debug.Assert(address is not null);
+            _session?.StopRemoteForward(_forwardType, address, port);
+        }
+
+        _connectionChannel.Writer.Complete();
+
+        while (_connectionChannel.Reader.TryRead(out RemoteConnection connection))
+        {
+            Debug.Assert(connection.HasStream);
+            connection.Dispose();
         }
     }
 

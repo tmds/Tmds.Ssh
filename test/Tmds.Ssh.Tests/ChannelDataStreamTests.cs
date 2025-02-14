@@ -142,4 +142,52 @@ public class SshDataStreamTests
             using var connection = await client.OpenTcpConnectionAsync("localhost", port);
         });
     }
+
+    [Fact]
+    public async Task RemoteListener_AcceptOnDispose()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var listener = await client.ListenTcpAsync("localhost", 0);
+
+        var pendingAccept = listener.AcceptAsync();
+
+        listener.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => { using var _ = await pendingAccept; });
+    }
+
+    [Fact]
+    public async Task RemoteListener_AcceptOnClientClose()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var listener = await client.ListenTcpAsync("localhost", 0);
+
+        var pendingAccept = listener.AcceptAsync();
+
+        client.Dispose();
+
+        await Assert.ThrowsAsync<SshConnectionClosedException>(async () => { using var _ = await pendingAccept; });
+    }
+
+    [Fact]
+    public async Task RemoteListener_AcceptOnStop()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var listener = await client.ListenTcpAsync("localhost", 0);
+
+        var pendingAccept = listener.AcceptAsync();
+
+        listener.Stop();
+
+        using RemoteConnection conn1 = await pendingAccept;
+        Assert.False(conn1.HasStream);
+
+        listener.Dispose();
+
+        using RemoteConnection conn2 = await pendingAccept;
+        Assert.False(conn2.HasStream);
+    }
 }

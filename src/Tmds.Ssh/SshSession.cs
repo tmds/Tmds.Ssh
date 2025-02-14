@@ -37,7 +37,7 @@ sealed partial class SshSession
     private readonly SshLoggers _loggers;
     private int _keepAliveMax;
     private int _keepAliveCount;
-    private Dictionary<ListenAddress, ChannelWriter<RemoteConnection>>? _remoteForwardHandlers;
+    private Dictionary<ListenAddress, ChannelWriter<RemoteConnection>>? _remoteListeners;
 
     record struct ListenAddress(Name ForwardType, string Address, ushort Port)
     { }
@@ -604,7 +604,7 @@ sealed partial class SshSession
             ChannelWriter<RemoteConnection>? listener = null;
             lock (_gate)
             {
-                _remoteForwardHandlers?.TryGetValue(listenAddress, out listener);
+                _remoteListeners?.TryGetValue(listenAddress, out listener);
             }
 
             if (listener is not null)
@@ -930,47 +930,58 @@ sealed partial class SshSession
     {
         address = ReplaceAnyAddress(forwardType, address);
 
-        GlobalRequestReply reply;
+        Task<GlobalRequestReply> pendingReply;
         if (forwardType == AlgorithmNames.ForwardTcpIp)
         {
-            reply = await SendGlobalRequestAsync(_sequencePool.CreateTcpIpForwardMessage(address, port), wantReply: true, wantPayload: port == 0, runSync: true).ConfigureAwait(false);
+            pendingReply = SendGlobalRequestAsync(_sequencePool.CreateTcpIpForwardMessage(address, port), wantReply: true, wantPayload: port == 0, runSync: true);
         }
         else
         {
             throw new ArgumentException(nameof(forwardType));
         }
 
-        if (reply.Id != MessageId.SSH_MSG_REQUEST_SUCCESS)
+        try
         {
-            throw new SshException($"Request to start forward failed on the server with {reply.Id}.");
-        }
+            GlobalRequestReply reply = await pendingReply.ConfigureAwait(false);
 
-        if (forwardType == AlgorithmNames.ForwardTcpIp && port == 0)
+            if (reply.Id != MessageId.SSH_MSG_REQUEST_SUCCESS)
+            {
+                throw new SshException($"Request to start forward failed on the server with {reply.Id}.");
+            }
+
+            if (forwardType == AlgorithmNames.ForwardTcpIp && port == 0)
+            {
+                SequenceReader reader = new(reply.Payload);
+                reader.ReadMessageId();
+                port = (ushort)reader.ReadUInt32();
+            }
+
+            ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
+            lock (_gate)
+            {
+                _remoteListeners ??= new();
+                _remoteListeners[listenAddress] = listener;
+            }
+
+            return port;
+        }
+        finally
         {
-            SequenceReader reader = new(reply.Payload);
-            reader.ReadMessageId();
-            port = (ushort)reader.ReadUInt32();
+            // We complete the request from the receive loop to update the remote listeners Dictionary.
+            // To prevent our caller from blocking that loop, this method MUST Yield before returning.
+            await Task.Yield();
         }
-
-        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
-        lock (_gate)
-        {
-            _remoteForwardHandlers ??= new();
-            _remoteForwardHandlers[listenAddress] = listener;
-        }
-
-        return port;
     }
 
     public void StopRemoteForward(Name forwardType, string address, ushort port)
     {
         address = ReplaceAnyAddress(forwardType, address);
-        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
 
         bool sendCancel;
+        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
         lock (_gate)
         {
-            sendCancel = _remoteForwardHandlers?.Remove(listenAddress) == true;
+            sendCancel = _remoteListeners?.Remove(listenAddress) == true;
         }
 
         if (sendCancel)
