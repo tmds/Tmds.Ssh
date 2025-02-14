@@ -1,6 +1,7 @@
 ﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -32,14 +33,19 @@ sealed partial class SshSession
     private SemaphoreSlim? _keyReExchangeSemaphore;
     private const int BitsPerAllocatedItem = sizeof(int) * 8;
     private readonly List<int> _allocatedChannels = new List<int>();
-    private readonly Queue<TaskCompletionSource<GlobalRequestReply>?> _pendingGlobalRequestReplies = new();
+    private readonly Queue<(TaskCompletionSource<GlobalRequestReply>? Tcs, bool ReturnPayload)> _pendingGlobalRequestReplies = new();
     private readonly SshLoggers _loggers;
     private int _keepAliveMax;
     private int _keepAliveCount;
+    private Dictionary<ListenAddress, ChannelWriter<RemoteConnection>>? _remoteListeners;
+
+    record struct ListenAddress(Name ForwardType, string Address, ushort Port)
+    { }
 
     internal struct GlobalRequestReply
     {
         public required MessageId Id { get; init; }
+        public required byte[] Payload { get; init; }
     }
 
     private ILogger<SshClient> Logger => _loggers.SshClientLogger;
@@ -278,21 +284,21 @@ sealed partial class SshSession
         }
     }
 
-    private SshChannel CreateChannel(Type channelType, Action<SshChannel>? onAbort = null)
+    private SshChannel CreateChannel(Type channelType, Action<SshChannel>? onAbort = null, uint remoteChannel = 0, int sendMaxPacket = 0, int sendWindow = 0)
     {
         lock (_gate)
         {
             ThrowIfNotConnected();
 
             uint channelNumber = AllocateChannel();
-            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType, onAbort);
+            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType, onAbort, remoteChannel, sendMaxPacket, sendWindow);
             _channels[channelNumber] = channelContext;
 
             return channelContext;
         }
     }
 
-    private Task<GlobalRequestReply> SendGlobalRequestAsync(Packet packet, bool wantReply, bool ignoreReply = false)
+    private Task<GlobalRequestReply> SendGlobalRequestAsync(Packet packet, bool wantReply, bool ignoreReply = false, bool wantPayload = false, bool runSync = false)
     {
         if (!wantReply)
         {
@@ -300,10 +306,10 @@ sealed partial class SshSession
             return Task.FromResult(default(GlobalRequestReply));
         }
 
-        TaskCompletionSource<GlobalRequestReply>? tcs = ignoreReply ? null : new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<GlobalRequestReply>? tcs = ignoreReply ? null : new(!runSync ? TaskCreationOptions.RunContinuationsAsynchronously : TaskCreationOptions.None);
         lock (_pendingGlobalRequestReplies)
         {
-            _pendingGlobalRequestReplies.Enqueue(tcs);
+            _pendingGlobalRequestReplies.Enqueue((tcs, wantPayload));
             bool packetQueued = TrySendPacketCore(packet);
             if (tcs is null)
             {
@@ -392,10 +398,10 @@ sealed partial class SshSession
             // so SendGlobalRequestAsync can act upon not being able to send when enqueueing.
             lock (_pendingGlobalRequestReplies)
             {
-                while (_pendingGlobalRequestReplies.TryDequeue(out TaskCompletionSource<GlobalRequestReply>? tcs))
+                while (_pendingGlobalRequestReplies.TryDequeue(out var item))
                 {
                     // Use Try as we're competing with the read loop and SendGlobalRequestAsync (for failed sends).
-                    tcs?.TrySetException(CreateCloseException());
+                    item.Tcs?.TrySetException(CreateCloseException());
                 }
             }
         }
@@ -530,6 +536,9 @@ sealed partial class SshSession
             case MessageId.SSH_MSG_REQUEST_FAILURE:
                 HandleGlobalRequestReply(packet);
                 break;
+            case MessageId.SSH_MSG_CHANNEL_OPEN:
+                HandleChannelOpen(packet);
+                break;
             default:
                 ThrowHelper.ThrowProtocolUnexpectedMessageId(msgId);
                 break;
@@ -547,12 +556,86 @@ sealed partial class SshSession
     {
         _keepAliveCount = 0;
 
-        TaskCompletionSource<GlobalRequestReply>? tcs;
+        (TaskCompletionSource<GlobalRequestReply>? Tcs, bool ReturnPayload) item;
         lock (_pendingGlobalRequestReplies)
         {
-            _pendingGlobalRequestReplies.TryDequeue(out tcs);
+            _pendingGlobalRequestReplies.TryDequeue(out item);
         }
-        tcs?.SetResult(new GlobalRequestReply { Id = packet.MessageId!.Value });
+        item.Tcs?.SetResult(new GlobalRequestReply { Id = packet.MessageId!.Value, Payload = item.ReturnPayload ? packet.Payload.ToArray() : Array.Empty<byte>() });
+    }
+
+    private void HandleChannelOpen(ReadOnlyPacket packet)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_OPEN
+            string    channel type in US-ASCII only
+            uint32    sender channel
+            uint32    initial window size
+            uint32    maximum packet size
+            ....      channel type specific data follows
+         */
+        var reader = packet.GetReader();
+        reader.ReadMessageId(MessageId.SSH_MSG_CHANNEL_OPEN);
+        Name channelType = reader.ReadName();
+        uint remoteChannel = reader.ReadUInt32();
+        uint initialWindowSize = reader.ReadUInt32();
+        uint maxPacketSize = reader.ReadUInt32();
+
+        ListenAddress listenAddress = default;
+
+        if (channelType == AlgorithmNames.ForwardTcpIp)
+        {
+            /*
+                string    address that was connected
+                uint32    port that was connected
+                string    originator IP address
+                uint32    originator port
+            */
+            string address = reader.ReadUtf8String();
+            uint port = reader.ReadUInt32();
+            if (port <= ushort.MaxValue)
+            {
+                listenAddress = new ListenAddress(channelType, address, (ushort)port);
+            }
+        }
+
+        if (listenAddress != default)
+        {
+            ChannelWriter<RemoteConnection>? listener = null;
+            lock (_gate)
+            {
+                _remoteListeners?.TryGetValue(listenAddress, out listener);
+            }
+
+            if (listener is not null)
+            {
+                SshChannel channel = CreateChannel(typeof(SshDataStream), onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
+                channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
+                SshDataStream sshDataStream = new SshDataStream(channel);
+
+                RemoteEndPoint? remoteEndPoint = null;
+                if (channelType == AlgorithmNames.ForwardTcpIp)
+                {
+                    /*
+                        string    originator IP address
+                        uint32    originator port
+                    */
+                    string originatorIP = reader.ReadUtf8String();
+                    uint originatorPort = reader.ReadUInt32();
+                    IPAddress.TryParse(originatorIP, out  IPAddress? originatorIPAddress);
+                    remoteEndPoint = new RemoteIPEndPoint(originatorIPAddress ?? IPAddress.Broadcast, originatorPort <= ushort.MaxValue ? (int)originatorPort : 0);
+                }
+
+                if (!listener.TryWrite(new RemoteConnection(sshDataStream, remoteEndPoint)))
+                {
+                    // Listener stopped, close the channel.
+                    sshDataStream.Dispose();
+                }
+                return;
+            }
+        }
+
+        TrySendPacket(_sequencePool.CreateChannelOpenFailureMessage(remoteChannel));
     }
 
     private void HandleDisconnectMessage(ReadOnlyPacket packet)
@@ -841,6 +924,82 @@ sealed partial class SshSession
         {
             channel.TrySendEnvMessage(envvar.Key, envvar.Value);
         }
+    }
+
+    public async Task<ushort> StartRemoteForwardAsync(Name forwardType, string address, ushort port, ChannelWriter<RemoteConnection> listener, CancellationToken cancellationToken)
+    {
+        address = ReplaceAnyAddress(forwardType, address);
+
+        Task<GlobalRequestReply> pendingReply;
+        if (forwardType == AlgorithmNames.ForwardTcpIp)
+        {
+            pendingReply = SendGlobalRequestAsync(_sequencePool.CreateTcpIpForwardMessage(address, port), wantReply: true, wantPayload: port == 0, runSync: true);
+        }
+        else
+        {
+            throw new ArgumentException(nameof(forwardType));
+        }
+
+        try
+        {
+            GlobalRequestReply reply = await pendingReply.ConfigureAwait(false);
+
+            if (reply.Id != MessageId.SSH_MSG_REQUEST_SUCCESS)
+            {
+                throw new SshException($"Request to start forward failed on the server with {reply.Id}.");
+            }
+
+            if (forwardType == AlgorithmNames.ForwardTcpIp && port == 0)
+            {
+                SequenceReader reader = new(reply.Payload);
+                reader.ReadMessageId();
+                port = (ushort)reader.ReadUInt32();
+            }
+
+            ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
+            lock (_gate)
+            {
+                _remoteListeners ??= new();
+                _remoteListeners[listenAddress] = listener;
+            }
+
+            return port;
+        }
+        finally
+        {
+            // We complete the request from the receive loop to update the remote listeners Dictionary.
+            // To prevent our caller from blocking that loop, this method MUST Yield before returning.
+            await Task.Yield();
+        }
+    }
+
+    public void StopRemoteForward(Name forwardType, string address, ushort port)
+    {
+        address = ReplaceAnyAddress(forwardType, address);
+
+        bool sendCancel;
+        ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
+        lock (_gate)
+        {
+            sendCancel = _remoteListeners?.Remove(listenAddress) == true;
+        }
+
+        if (sendCancel)
+        {
+            TrySendPacket(_sequencePool.CreateCancelTcpIpForwardMessage(listenAddress.Address, listenAddress.Port));
+        }
+    }
+
+    private static string ReplaceAnyAddress(Name forwardType, string address)
+    {
+        // The client API uses '*' for indicating connections are accepted on all IPv4 and all IPv6 addresses
+        // Here we map it to the protcol value (which is an empty string).
+        // https://datatracker.ietf.org/doc/html/rfc4254#section-7.1
+        if (forwardType == AlgorithmNames.ForwardTcpIp && address == Constants.AnyAddress)
+        {
+            address = "";
+        }
+        return address;
     }
 
     // For testing.

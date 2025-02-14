@@ -139,6 +139,14 @@ namespace Tmds.Ssh
         public override int GetHashCode() { }
         public override string ToString() { }
     }
+    public struct RemoteConnection : System.IDisposable
+    {
+        public bool HasStream { get; }
+        public Tmds.Ssh.RemoteEndPoint? RemoteEndPoint { get; }
+        public Tmds.Ssh.SshDataStream? Stream { get; }
+        public void Dispose() { }
+        public Tmds.Ssh.SshDataStream MoveStream() { }
+    }
     public class RemoteEndPoint { }
     public sealed class RemoteHostEndPoint : Tmds.Ssh.RemoteEndPoint
     {
@@ -153,6 +161,20 @@ namespace Tmds.Ssh
         public System.Net.IPAddress Address { get; }
         public int Port { get; }
         public override string ToString() { }
+    }
+    public sealed class RemoteIPListenEndPoint : Tmds.Ssh.RemoteEndPoint
+    {
+        public RemoteIPListenEndPoint(string address, int port) { }
+        public string Address { get; }
+        public int Port { get; }
+        public override string ToString() { }
+    }
+    public sealed class RemoteListener : System.IDisposable
+    {
+        public Tmds.Ssh.RemoteEndPoint ListenEndPoint { get; }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteConnection> AcceptAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void Dispose() { }
+        public void Stop() { }
     }
     public sealed class RemoteProcess : System.IDisposable
     {
@@ -381,6 +403,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteAsync(string command, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenTcpAsync(string address, int port, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }
