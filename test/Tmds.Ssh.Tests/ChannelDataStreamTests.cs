@@ -137,8 +137,6 @@ public class SshDataStreamTests
 
         // Stop the listener.
         listener.Dispose();
-
-        // No new connections are accepted.
         await Assert.ThrowsAsync<SshChannelException>(async () =>
         {
             using var connection = await client.OpenTcpConnectionAsync("localhost", port);
