@@ -139,6 +139,14 @@ namespace Tmds.Ssh
         public override int GetHashCode() { }
         public override string ToString() { }
     }
+    public struct RemoteConnection : System.IDisposable
+    {
+        public bool HasStream { get; }
+        public Tmds.Ssh.RemoteEndPoint? RemoteEndPoint { get; }
+        public Tmds.Ssh.SshDataStream? Stream { get; }
+        public void Dispose() { }
+        public Tmds.Ssh.SshDataStream MoveStream() { }
+    }
     public class RemoteEndPoint { }
     public sealed class RemoteHostEndPoint : Tmds.Ssh.RemoteEndPoint
     {
@@ -164,10 +172,7 @@ namespace Tmds.Ssh
     public sealed class RemoteListener : System.IDisposable
     {
         public Tmds.Ssh.RemoteEndPoint ListenEndPoint { get; }
-        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "Stream",
-                "EndPoint"})]
-        public System.Threading.Tasks.ValueTask<System.ValueTuple<Tmds.Ssh.SshDataStream?, Tmds.Ssh.RemoteEndPoint?>> AcceptAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteConnection> AcceptAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public void Dispose() { }
         public void Stop() { }
     }

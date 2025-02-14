@@ -143,16 +143,23 @@ class SocksForward : IDisposable
 }
 class RemoteListener : IDisposable
 {
-  // For ListenTcpAsync, returned type is RemoteIPListenEndPoint.
+  // For ListenTcpAsync, type is RemoteIPListenEndPoint.
   RemoteEndPoint ListenEndPoint { get; }
 
   // This method throws when the SshClient disconnects (SshConnectionClosedException), or the RemoteListener is disposed (ObjectDisposedException).
-  // Calling Stop makes the method return a `null` Stream instead.
-  //
-  // For ListenTcpAsync, the EndPoint type is RemoteIPEndPoint.
-  ValueTask<(Tmds.Ssh.SshDataStream? Stream, Tmds.Ssh.RemoteEndPoint? EndPoint)> AcceptAsync(CancellationToken cancellationToken = default);
+  // Calling Stop makes the method return a default(RemoteConnection) instead.
+  ValueTask<RemoteConnection> AcceptAsync(CancellationToken cancellationToken = default);
 
   void Stop();
+}
+public struct RemoteConnection : IDisposable
+{
+  // For ListenTcpAsync, type is RemoteIPEndPoint.
+    RemoteEndPoint? RemoteEndPoint { get; }
+
+    SshDataStream? Stream { get; }
+    bool HasStream { get; }
+    Stream MoveStream(); // Transfers ownership of the Stream to the caller.
 }
 class SftpClient : IDisposable
 {

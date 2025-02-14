@@ -1,6 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace Tmds.Ssh;
@@ -28,7 +29,7 @@ public sealed class RemoteListener : IDisposable
     public void Dispose()
         => Stop(Disposed);
 
-    public async ValueTask<(SshDataStream? Stream, RemoteEndPoint? EndPoint)> AcceptAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<RemoteConnection> AcceptAsync(CancellationToken cancellationToken = default)
     {
         while (true)
         {
@@ -57,7 +58,11 @@ public sealed class RemoteListener : IDisposable
             // TryRead may return false if we're competing with Stop.
             if (_connectionChannel.Reader.TryRead(out RemoteConnection remoteConnection))
             {
-                return (remoteConnection.Stream, remoteConnection.RemoteEndPoint);
+                Debug.Assert(remoteConnection.HasStream);
+                if (remoteConnection.HasStream)
+                {
+                    return new RemoteConnection(remoteConnection.MoveStream(), remoteConnection.RemoteEndPoint);
+                }
             }
         }
     }
@@ -81,7 +86,8 @@ public sealed class RemoteListener : IDisposable
 
             while (_connectionChannel.Reader.TryRead(out RemoteConnection connection))
             {
-                connection.Stream.Dispose();
+                Debug.Assert(connection.HasStream);
+                connection.Dispose();
             }
         }
     }

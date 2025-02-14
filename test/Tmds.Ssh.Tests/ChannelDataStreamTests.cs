@@ -90,9 +90,10 @@ public class SshDataStreamTests
 
         using var connection = await client.OpenTcpConnectionAsync("localhost", port);
 
-        (SshDataStream? stream, RemoteEndPoint? endpoint) = await listener.AcceptAsync();
-        Assert.NotNull(stream);
-        using var _ = stream;
+        using var remoteConnection = await listener.AcceptAsync();
+        Assert.True(remoteConnection.HasStream);
+        using var stream = remoteConnection.MoveStream();
+        Assert.False(remoteConnection.HasStream);
 
         // Write connection -> stream
         await connection.WriteAsync(helloWorldBytes);

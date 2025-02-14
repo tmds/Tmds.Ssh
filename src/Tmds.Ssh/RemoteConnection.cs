@@ -3,14 +3,26 @@
 
 namespace Tmds.Ssh;
 
-internal struct RemoteConnection
+public struct RemoteConnection : IDisposable
 {
-    public RemoteConnection(SshDataStream stream, RemoteEndPoint? remoteEndPoint)
+    internal RemoteConnection(SshDataStream stream, RemoteEndPoint? remoteEndPoint)
     {
         Stream = stream;
         RemoteEndPoint = remoteEndPoint;
     }
 
-    public RemoteEndPoint? RemoteEndPoint { get; init; }
-    public SshDataStream Stream { get; }
+    public bool HasStream => Stream is not null;
+
+    public SshDataStream MoveStream()
+    {
+        var stream = Stream;
+        Stream = null;
+        return stream ?? throw new InvalidOperationException("There is no stream to obtain.");
+    }
+
+    public RemoteEndPoint? RemoteEndPoint { get; }
+    public SshDataStream? Stream { get; private set; }
+
+    public void Dispose()
+        => Stream?.Dispose();
 }
