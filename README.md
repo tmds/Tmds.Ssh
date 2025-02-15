@@ -2,7 +2,7 @@
 
 # Tmds.Ssh
 
-The `Tmds.Ssh` is a modern, managed .NET SSH client implementation for .NET 6+.
+`Tmds.Ssh` is a modern, managed .NET SSH client implementation for .NET 6+.
 
 ## Getting Started
 
