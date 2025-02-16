@@ -72,6 +72,7 @@ class SshClient : IDisposable
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
   Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
+  Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
@@ -138,6 +139,12 @@ class DirectForward : IDisposable
 class SocksForward : IDisposable
 {
   EndPoint LocalEndPoint { get; }
+  CancellationToken Stopped { get; }
+  void ThrowIfStopped();
+}
+class RemoteForward : IDisposable
+{
+  RemoteEndPoint RemoteEndPoint { get; }
   CancellationToken Stopped { get; }
   void ThrowIfStopped();
 }

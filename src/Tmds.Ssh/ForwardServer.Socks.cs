@@ -4,12 +4,11 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 
 namespace Tmds.Ssh;
 
-sealed partial class ForwardServer<T> : IDisposable
+abstract partial class ForwardServer<T, TTargetStream>
 {
     private const int SocksNegotiationTimeOut = 10_000; // 10s
 
@@ -22,15 +21,7 @@ sealed partial class ForwardServer<T> : IDisposable
     private const byte ATYP_IPV6 = 4;
     private const byte Socks5_Success = 0;
 
-    internal void StartSocksForward(SshSession session, EndPoint bindEP)
-    {
-        CheckBindEndPoint(bindEP);
-
-        Start(session, bindEP, ForwardProtocol.Socks,
-            (NetworkStream clientStream, CancellationToken ct) => AcceptSocks5Async(session, clientStream, ct));
-    }
-
-    private async ValueTask<(Task<SshDataStream>, RemoteEndPoint)> AcceptSocks5Async(SshSession session, NetworkStream clientStream, CancellationToken ct)
+    protected static async ValueTask<(string host, int port)> ReadSocks5HostAndPortAsync(Stream stream, CancellationToken ct)
     {
         string remoteHost;
         int remotePort;
@@ -48,7 +39,7 @@ sealed partial class ForwardServer<T> : IDisposable
             // +----+----------+----------+
             // | 1  |    1     | 1 to 255 |
             // +----+----------+----------+
-            await clientStream.ReadExactlyAsync(buffer.AsMemory(0, 3), socksCts.Token).ConfigureAwait(false);
+            await stream.ReadExactlyAsync(buffer.AsMemory(0, 3), socksCts.Token).ConfigureAwait(false);
             byte ver = buffer[0];
             if (ver != ProtocolVersion5)
             {
@@ -57,7 +48,7 @@ sealed partial class ForwardServer<T> : IDisposable
             byte nmethods = buffer[1];
             if (nmethods > 1)
             {
-                await clientStream.ReadExactlyAsync(buffer.AsMemory(3, nmethods - 1), socksCts.Token).ConfigureAwait(false);
+                await stream.ReadExactlyAsync(buffer.AsMemory(3, nmethods - 1), socksCts.Token).ConfigureAwait(false);
             }
             ReadOnlySpan<byte> methods = buffer.AsSpan(2, nmethods);
             if (!methods.Contains(METHOD_NO_AUTH))
@@ -73,7 +64,7 @@ sealed partial class ForwardServer<T> : IDisposable
             // +----+--------+
             buffer[0] = ProtocolVersion5;
             buffer[1] = METHOD_NO_AUTH;
-            await clientStream.WriteAsync(buffer.AsMemory(0, 2), socksCts.Token);
+            await stream.WriteAsync(buffer.AsMemory(0, 2), socksCts.Token);
 
             // Connect request.
             // +----+-----+-------+------+----------+----------+
@@ -81,7 +72,7 @@ sealed partial class ForwardServer<T> : IDisposable
             // +----+-----+-------+------+----------+----------+
             // | 1  |  1  | X'00' |  1   | Variable |    2     |
             // +----+-----+-------+------+----------+----------+
-            await clientStream.ReadExactlyAsync(buffer.AsMemory(0, 5), socksCts.Token).ConfigureAwait(false);
+            await stream.ReadExactlyAsync(buffer.AsMemory(0, 5), socksCts.Token).ConfigureAwait(false);
             ver = buffer[0];
             if (ver != ProtocolVersion5)
             {
@@ -105,7 +96,7 @@ sealed partial class ForwardServer<T> : IDisposable
                 ATYP_DOMAIN_NAME => buffer[4],
                 _ => throw new SocksException($"Unexpected ATYP value: {atyp}.")
             };
-            await clientStream.ReadExactlyAsync(buffer.AsMemory(5, addressRemaining + 2), socksCts.Token).ConfigureAwait(false);
+            await stream.ReadExactlyAsync(buffer.AsMemory(5, addressRemaining + 2), socksCts.Token).ConfigureAwait(false);
             remoteHost = atyp switch
             {
                 ATYP_IPV4 or ATYP_IPV6 => new IPAddress(buffer.AsSpan(4, addressRemaining + 1)).ToString(),
@@ -125,7 +116,7 @@ sealed partial class ForwardServer<T> : IDisposable
             buffer[2] = 0;
             buffer[3] = ATYP_IPV4;
             buffer.AsSpan(4, 6).Fill(0);
-            await clientStream.WriteAsync(buffer.AsMemory(0, 10), socksCts.Token);
+            await stream.WriteAsync(buffer.AsMemory(0, 10), socksCts.Token);
         }
         catch (OperationCanceledException e) when (!ct.IsCancellationRequested)
         {
@@ -136,9 +127,7 @@ sealed partial class ForwardServer<T> : IDisposable
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        RemoteEndPoint remoteEndPoint = new RemoteHostEndPoint(remoteHost, remotePort);
-
-        return (session.OpenTcpConnectionChannelAsync(remoteHost, remotePort, ct), remoteEndPoint);
+        return (remoteHost, remotePort);
     }
 
     sealed class SocksException : Exception

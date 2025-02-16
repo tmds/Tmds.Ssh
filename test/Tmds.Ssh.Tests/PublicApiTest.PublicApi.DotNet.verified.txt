@@ -148,6 +148,13 @@ namespace Tmds.Ssh
         public Tmds.Ssh.SshDataStream MoveStream() { }
     }
     public class RemoteEndPoint { }
+    public sealed class RemoteForward : System.IDisposable
+    {
+        public Tmds.Ssh.RemoteEndPoint RemoteEndPoint { get; }
+        public System.Threading.CancellationToken Stopped { get; }
+        public void Dispose() { }
+        public void ThrowIfStopped() { }
+    }
     public sealed class RemoteHostEndPoint : Tmds.Ssh.RemoteEndPoint
     {
         public RemoteHostEndPoint(string host, int port) { }
@@ -409,6 +416,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenUnixConnectionAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.DirectForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward> StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint bindEP, System.Net.EndPoint localEP, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SocksForward> StartSocksForward(System.Net.EndPoint bindEP, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class SshClientSettings

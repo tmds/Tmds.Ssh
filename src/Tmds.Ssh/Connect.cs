@@ -3,12 +3,20 @@
 
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tmds.Ssh;
 
 static class Connect
 {
     private static ConnectCallback _defaultConnect = TcpConnectAsync;
+
+    public static async Task<Stream> ConnectTcpAsync(string host, int port, CancellationToken cancellationToken)
+    {
+        var endPoint = new ConnectEndPoint(host, port);
+        var context = new ConnectContext(endPoint, NullLoggerFactory.Instance);
+        return await _defaultConnect(context, cancellationToken).ConfigureAwait(false);
+    }
 
     public static async ValueTask<Stream> ConnectAsync(ConnectCallback? connect, Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
     {

@@ -8,15 +8,15 @@ namespace Tmds.Ssh;
 
 public sealed class DirectForward : IDisposable
 {
-    private readonly ForwardServer<DirectForward> _forwarder;
+    private readonly LocalForwardServer<DirectForward> _forwarder;
 
     internal DirectForward(ILogger<DirectForward> logger)
     {
         _forwarder = new(logger);
     }
 
-    internal void Start(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint)
-        => _forwarder.StartDirectForward(session, bindEP, remoteEndPoint);
+    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint, CancellationToken cancellationToken)
+        => _forwarder.StartDirectForwardAsync(session, bindEP, remoteEndPoint, cancellationToken);
 
     public EndPoint LocalEndPoint
         => _forwarder.LocalEndPoint;
