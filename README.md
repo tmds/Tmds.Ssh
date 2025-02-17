@@ -2,7 +2,7 @@
 
 # Tmds.Ssh
 
-The `Tmds.Ssh` is a modern, managed .NET SSH client implementation for .NET 6+.
+The `Tmds.Ssh` is a modern, managed .NET SSH client library for .NET 6+.
 
 ## Getting Started
 
@@ -67,11 +67,16 @@ class SshClient : IDisposable
 
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
+
+  Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
+
   // bindEP can be an IPEndPoint or a UnixDomainSocketEndPoint.
+  // remoteEP can be a RemoteHostEndPoint, a RemoteUnixEndPoint or a RemoteIPEndPoint.
   Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
-  Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
+  // bindEP can be a RemoteIPListenEndPoint.
+  // localEP can be a DnsEndPoint or an IPEndPoint.
   Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);

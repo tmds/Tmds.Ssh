@@ -42,13 +42,28 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
     private static void CheckBindEndPoint(RemoteEndPoint bindEP)
     {
         ArgumentNullException.ThrowIfNull(bindEP);
-        // TODO...
+        if (bindEP is not RemoteIPListenEndPoint)
+        {
+            throw new ArgumentException($"Unsupported RemoteEndPoint type: {bindEP.GetType().FullName}.");
+        }
     }
 
-    private static void CheckTargetEndPoint(EndPoint targetEP)
+    private static void CheckTargetEndPoint(EndPoint localEndPoint)
     {
-        ArgumentNullException.ThrowIfNull(targetEP);
-        // TODO...
+        ArgumentNullException.ThrowIfNull(localEndPoint);
+        if (localEndPoint is DnsEndPoint dnsEndPoint)
+        {
+            ArgumentValidation.ValidatePort(dnsEndPoint.Port, allowZero: false, nameof(localEndPoint));
+            ArgumentValidation.ValidateHost(dnsEndPoint.Host, allowEmpty: false, nameof(localEndPoint));
+        }
+        else if (localEndPoint is IPEndPoint ipEndPoint)
+        {
+            ArgumentValidation.ValidatePort(ipEndPoint.Port, allowZero: false, nameof(localEndPoint));
+        }
+        else
+        {
+            throw new ArgumentException($"Unsupported EndPoint type: {localEndPoint.GetType().FullName}.");
+        }
     }
 
     protected override async Task<(Stream?, string)> AcceptAsync()
@@ -96,7 +111,7 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
 
     protected override void Stop()
     {
-        _listener?.Dispose();
+        _listener?.Stop();
     }
 
     protected override async ValueTask ListenAsync(CancellationToken cancellationToken)

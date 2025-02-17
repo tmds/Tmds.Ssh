@@ -32,7 +32,7 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
     {
         Debug.Assert(bindEP is not null);
         CheckBindEndPoint(bindEP);
-        ArgumentNullException.ThrowIfNull(remoteEndPoint);
+        CheckTargetEndPoint(remoteEndPoint);
 
         _localEndPoint = bindEP;
         _remoteEndPoint = remoteEndPoint;
@@ -57,6 +57,15 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
         if (bindEP is not IPEndPoint and not UnixDomainSocketEndPoint)
         {
             throw new ArgumentException($"Unsupported EndPoint type: {bindEP.GetType().FullName}.");
+        }
+    }
+
+    private static void CheckTargetEndPoint(RemoteEndPoint remoteEndPoint)
+    {
+        ArgumentNullException.ThrowIfNull(remoteEndPoint);
+        if (remoteEndPoint is not RemoteHostEndPoint and not RemoteUnixEndPoint and not RemoteIPEndPoint)
+        {
+            throw new ArgumentException($"Unsupported RemoteEndPoint type: {remoteEndPoint.GetType().FullName}.");
         }
     }
 

@@ -138,23 +138,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
             await ListenAsync(cancellationToken).ConfigureAwait(false);
             _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(ConnectionClosed), this);
 
-            _ = AcceptLoop();
-        }
-        catch (Exception ex)
-        {
-            Stop(ex);
-
-            throw;
-        }
-    }
-
-    protected abstract ValueTask ListenAsync(CancellationToken cancellationToken);
-
-    private async Task AcceptLoop()
-    {
-        Debug.Assert(_listenEndPoint is not null);
-        try
-        {
+            Debug.Assert(_listenEndPoint is not null);
             if (_protocol == ForwardProtocol.Direct)
             {
                 Debug.Assert(_targetEndPoint is not null);
@@ -171,6 +155,23 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
             // Log stop when we've logged the start.
             _logStopped = true;
 
+            _ = AcceptLoop();
+        }
+        catch (Exception ex)
+        {
+            Stop(ex);
+
+            throw;
+        }
+    }
+
+    protected abstract ValueTask ListenAsync(CancellationToken cancellationToken);
+
+    private async Task AcceptLoop()
+    {
+        try
+        {
+            Debug.Assert(_listenEndPoint is not null);
             while (true)
             {
                 (Stream? acceptedStream, string address) = await AcceptAsync().ConfigureAwait(false);
