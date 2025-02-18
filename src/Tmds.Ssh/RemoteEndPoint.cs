@@ -74,7 +74,7 @@ public sealed class RemoteIPListenEndPoint : RemoteEndPoint
     public RemoteIPListenEndPoint(string address, int port)
     {
         ArgumentValidation.ValidateIPListenAddress(address);
-        ArgumentValidation.ValidatePort(port, allowZero: false);
+        ArgumentValidation.ValidatePort(port, allowZero: true);
 
         Address = address;
         Port = port;

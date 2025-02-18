@@ -7,10 +7,19 @@ static class ArgumentValidation
 {
     public static void ValidatePort(int port, bool allowZero, string argumentName = "port")
     {
+        if (!IsValidPort(port, allowZero))
+        {
+            throw new ArgumentException($"Invalid port number: '{port}'.", argumentName);
+        }
+    }
+
+    private static bool IsValidPort(int port, bool allowZero)
+    {
         if (port < 0 || port > 0xffff || (!allowZero && port == 0))
         {
-            throw new ArgumentException(argumentName);
+            return false;
         }
+        return true;
     }
 
     public static void ValidateIPListenAddress(string address, string argumentName = "address")

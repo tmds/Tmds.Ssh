@@ -13,6 +13,8 @@ sealed class SshLoggers
 
     public ILogger<SocksForward> SocksForwardLogger => Factory.CreateLogger<SocksForward>();
 
+    public ILogger<RemoteForward> RemoteForwardLogger => Factory.CreateLogger<RemoteForward>();
+
     public SshLoggers(ILoggerFactory? loggerFactory = null)
     {
         Factory = loggerFactory ??= new NullLoggerFactory();

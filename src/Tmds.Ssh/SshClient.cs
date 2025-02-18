@@ -299,7 +299,7 @@ public sealed partial class SshClient : IDisposable
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var forward = new DirectForward(_loggers.DirectForwardLogger);
-        forward.Start(session, bindEP, remoteEP);
+        await forward.StartAsync(session, bindEP, remoteEP, cancellationToken).ConfigureAwait(false);
         return forward;
     }
 
@@ -308,7 +308,16 @@ public sealed partial class SshClient : IDisposable
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var forward = new SocksForward(_loggers.SocksForwardLogger);
-        forward.Start(session, bindEP);
+        await forward.StartAsync(session, bindEP, cancellationToken).ConfigureAwait(false);
+        return forward;
+    }
+
+    public async Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var forward = new RemoteForward(_loggers.RemoteForwardLogger);
+        await forward.StartAsync(session, bindEP, localEP, cancellationToken).ConfigureAwait(false);
         return forward;
     }
 

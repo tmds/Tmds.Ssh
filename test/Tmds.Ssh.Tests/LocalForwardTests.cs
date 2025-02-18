@@ -205,7 +205,7 @@ public class LocalForwardTests
         CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
-        Assert.False(ct.IsCancellationRequested);    
+        Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
 
         directForward.Dispose();
@@ -228,13 +228,14 @@ public class LocalForwardTests
         CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
-        Assert.False(ct.IsCancellationRequested);    
+        Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
 
         client.Dispose();
 
         Assert.True(ct.IsCancellationRequested);
-        Assert.Throws<SshConnectionClosedException>(() => directForward.LocalEndPoint);
+        endPoint = directForward.LocalEndPoint;
+        Assert.NotNull(endPoint);
         Assert.True(directForward.Stopped.IsCancellationRequested);
         Assert.Throws<SshConnectionClosedException>(() => directForward.ThrowIfStopped());
 

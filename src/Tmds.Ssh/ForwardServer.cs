@@ -1,49 +1,41 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
-using System.Net;
-using System.Net.Sockets;
 using System.Diagnostics;
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Tmds.Ssh.ForwardServerLogging;
 
 namespace Tmds.Ssh;
 
 // Implements forwarding on behalf of the public class 'T".
-sealed partial class ForwardServer<T> : IDisposable
+abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTargetStream : Stream
 {
-    private enum ForwardProtocol
+    protected enum ForwardProtocol
     {
         Direct = 1,
         Socks
     }
 
     // Sentinel stop reasons.
-    private static readonly Exception ConnectionClosed = new();
-    private static readonly Exception Disposed = new();
+    protected static readonly Exception ConnectionClosed = new();
+    protected static readonly Exception Disposed = new();
 
-    private readonly ILogger<T> _logger;
-    private readonly CancellationTokenSource _cancel;
+    protected readonly ILogger<T> _logger;
+    protected readonly CancellationTokenSource _cancel;
 
-    private SshSession? _session; 
-    private Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>>? _acceptHandler;
-    private Socket? _serverSocket;
-    private ForwardProtocol _protocol;
-    private EndPoint? _localEndPoint;
-    private RemoteEndPoint? _remoteEndPoint;
-    private CancellationTokenRegistration _ctr;
-    private Exception? _stopReason;
+    protected SshSession? _session { get; private set; }
+    protected ForwardProtocol _protocol { get; private set; }
+    protected string? _listenEndPoint { get; private set; }
+    private string? _targetEndPoint;
+    protected CancellationTokenRegistration _ctr;
+    protected Exception? _stopReason;
+    private bool _logStopped;
 
-    private bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
+    public bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
 
-    public EndPoint LocalEndPoint
-    {
-        get
-        {
-            ThrowIfStopped();
-            return _localEndPoint ?? throw new InvalidOperationException("Not started.");
-        }
-    }
+    protected void UpdateListenEndPoint(string endpoint)
+        => _listenEndPoint = endpoint;
 
     public CancellationToken Stopped
     {
@@ -63,206 +55,17 @@ sealed partial class ForwardServer<T> : IDisposable
         }
         else if (ReferenceEquals(stopReason, ConnectionClosed))
         {
-            throw _session!.CreateCloseException();
+            Debug.Assert(_session is not null);
+            throw _session.CreateCloseException();
         }
         else if (stopReason is not null)
         {
-            throw new SshException($"{nameof(T)} stopped due to an unexpected error.", stopReason);
+            throw new SshException($"{typeof(T).FullName} stopped due to an unexpected error.", stopReason);
         }
     }
 
     public void Dispose()
         => Stop(Disposed);
-
-    internal ForwardServer(ILogger<T> logger)
-    {
-        _logger = logger;
-        _cancel = new();
-    }
-
-    private static void CheckBindEndPoint(EndPoint bindEP)
-    {
-        ArgumentNullException.ThrowIfNull(bindEP);
-        if (bindEP is not IPEndPoint and not UnixDomainSocketEndPoint)
-        {
-            throw new ArgumentException($"Unsupported EndPoint type: {bindEP.GetType().FullName}.");
-        }
-    }
-
-    private void Start(SshSession session, EndPoint bindEP, ForwardProtocol forwardProtocol, Func<NetworkStream, CancellationToken, ValueTask<(Task<SshDataStream>, RemoteEndPoint)>> acceptHandler, RemoteEndPoint? remoteEndPoint = null)
-    {
-        // Assign to bindEP in case we fail to bind/listen so we have an address for logging.
-        _session = session;
-        _localEndPoint = bindEP;
-        _remoteEndPoint = remoteEndPoint;
-        _acceptHandler = acceptHandler;
-        _protocol = forwardProtocol;
-
-        try
-        {
-            if (bindEP is IPEndPoint ipEndPoint)
-            {
-                _serverSocket = new Socket(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-                if (ipEndPoint.Address.Equals(IPAddress.IPv6Any))
-                {
-                    _serverSocket.DualMode = true;
-                }
-            }
-            else if (bindEP is UnixDomainSocketEndPoint unixEndPoint)
-            {
-                _serverSocket = new Socket(unixEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Unspecified);
-            }
-            else
-            {
-                // Type must be validated before calling this method.
-                throw new InvalidOperationException($"Unsupported EndPoint type: {bindEP.GetType().FullName}.");
-            }
-
-            _serverSocket.Bind(bindEP);
-            _serverSocket.Listen();
-
-            EndPoint localEndPoint = _serverSocket.LocalEndPoint!;
-            _localEndPoint = localEndPoint;
-
-            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((ForwardServer<T>)o!).Stop(ConnectionClosed), this);
-
-            _ = AcceptLoop(localEndPoint);
-        }
-        catch (Exception ex)
-        {
-            Stop(ex);
-
-            throw;
-        }
-    }
-
-    private async Task AcceptLoop(EndPoint localEndPoint)
-    {
-        try
-        {
-            if (_protocol == ForwardProtocol.Direct)
-            {
-                Debug.Assert(_remoteEndPoint is not null);
-                _logger.DirectForwardStart(localEndPoint, _remoteEndPoint!);
-            }
-            else if (_protocol == ForwardProtocol.Socks)
-            {
-                _logger.SocksForwardStart(localEndPoint);
-            }
-            else
-            {
-                throw new IndexOutOfRangeException(_protocol.ToString());
-            }
-
-            while (true)
-            {
-                Socket acceptedSocket = await _serverSocket!.AcceptAsync().ConfigureAwait(false);
-                _ = Accept(acceptedSocket, localEndPoint);
-            }
-        }
-        catch (Exception ex)
-        {
-            Stop(ex);
-        }
-    }
-
-    private async Task Accept(Socket acceptedSocket, EndPoint localEndPoint)
-    {
-        Debug.Assert(_acceptHandler is not null);
-        SshDataStream? forwardStream = null;
-        EndPoint? peerEndPoint = null;
-        RemoteEndPoint? remoteEndPoint = _remoteEndPoint;
-        try
-        {
-            peerEndPoint = acceptedSocket.RemoteEndPoint!;
-
-            _logger.AcceptConnection(localEndPoint, peerEndPoint);
-
-            if (acceptedSocket.ProtocolType == ProtocolType.Tcp)
-            {
-                acceptedSocket.NoDelay = true;
-            }
-            NetworkStream networkStream = new NetworkStream(acceptedSocket, ownsSocket: true);
-
-            Task<SshDataStream> openStream;
-            (openStream, remoteEndPoint) = await _acceptHandler(networkStream, _cancel!.Token).ConfigureAwait(false);
-            forwardStream = await openStream.ConfigureAwait(false);
-
-            _ = ForwardConnectionAsync(networkStream, forwardStream, peerEndPoint, remoteEndPoint);
-        }
-        catch (Exception ex)
-        {
-            _logger.ForwardConnectionFailed(peerEndPoint, remoteEndPoint, ex);
-
-            acceptedSocket.Dispose();
-            forwardStream?.Dispose();
-        }
-    }
-
-    private async Task ForwardConnectionAsync(NetworkStream socketStream, SshDataStream sshStream, EndPoint peerEndPoint, RemoteEndPoint remoteEndPoint)
-    {
-        Exception? exception = null;
-        try
-        {
-            _logger.ForwardConnection(peerEndPoint, remoteEndPoint);
-            Task first, second;
-            try
-            {
-                Task copy1 = CopyTillEofAsync(socketStream, sshStream, sshStream.WriteMaxPacketDataLength);
-                Task copy2 = CopyTillEofAsync(sshStream, socketStream, sshStream.ReadMaxPacketDataLength);
-
-                first = await Task.WhenAny(copy1, copy2).ConfigureAwait(false);
-                second = first == copy1 ? copy2 : copy1;
-            }
-            finally
-            {
-                // When the copy stops in one direction, stop it in the other direction too.
-                // Though TCP allows data still to be received when the writing is shutdown
-                // application protocols (usually) follow the pattern of only closing
-                // when they will no longer receive.
-                socketStream.Dispose();
-                sshStream.Dispose();
-            }
-            // The dispose will cause the second copy to stop.
-            await second.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-
-            await first.ConfigureAwait(false); // Throws if faulted.
-        }
-        catch (Exception ex)
-        {
-            exception = ex;
-        }
-        finally
-        {
-            if (exception is null)
-            {
-                _logger.ForwardConnectionClosed(peerEndPoint, remoteEndPoint);
-            }
-            else
-            {
-                _logger.ForwardConnectionAborted(peerEndPoint, remoteEndPoint, exception);
-            }
-        }
-
-        static async Task CopyTillEofAsync(Stream from, Stream to, int bufferSize)
-        {
-            await from.CopyToAsync(to, bufferSize).ConfigureAwait(false);
-            if (to is NetworkStream ns)
-            {
-                ns.Socket.Shutdown(SocketShutdown.Send);
-            }
-            else if (to is SshDataStream ds)
-            {
-                ds.WriteEof();
-            }
-        }
-    }
-
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, typeof(T));
-    }
 
     private void Stop(Exception stopReason)
     {
@@ -282,27 +85,200 @@ sealed partial class ForwardServer<T> : IDisposable
             }
         }
 
-        if (_localEndPoint is not null)
+        if (_logStopped)
         {
-            if (IsDisposed)
+            Debug.Assert(_listenEndPoint is not null);
+            if (disposing)
             {
-                _logger.ForwardStopped(_localEndPoint);
+                _logger.ForwardStopped(_listenEndPoint);
             }
             else if (ReferenceEquals(stopReason, ConnectionClosed))
             {
                 if (_logger.IsEnabled(LogLevel.Error))
                 {
-                    _logger.ForwardAborted(_localEndPoint, _session!.CreateCloseException());
+                    Debug.Assert(_session is not null);
+                    _logger.ForwardAborted(_listenEndPoint, _session.CreateCloseException());
                 }
             }
             else
             {
-                _logger.ForwardAborted(_localEndPoint, stopReason);
+                _logger.ForwardAborted(_listenEndPoint, stopReason);
             }
-            _ctr.Dispose();
-            _serverSocket?.Dispose();
         }
+
+        _ctr.Dispose();
+
+        Stop();
 
         _cancel.Cancel();
     }
+
+    protected abstract void Stop();
+
+    internal ForwardServer(ILogger<T> logger)
+    {
+        _logger = logger;
+        _cancel = new();
+    }
+
+    public void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, typeof(T));
+    }
+
+    protected async ValueTask StartAsync(SshSession session, ForwardProtocol forwardProtocol, string listenEndPoint, string? targetEndPoint, CancellationToken cancellationToken)
+    {
+        _session = session;
+        _listenEndPoint = listenEndPoint;
+        _targetEndPoint = targetEndPoint;
+        _protocol = forwardProtocol;
+
+        try
+        {
+            await ListenAsync(cancellationToken).ConfigureAwait(false);
+            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(ConnectionClosed), this);
+
+            Debug.Assert(_listenEndPoint is not null);
+            if (_protocol == ForwardProtocol.Direct)
+            {
+                Debug.Assert(_targetEndPoint is not null);
+                _logger.DirectForwardStart(_listenEndPoint, _targetEndPoint);
+            }
+            else if (_protocol == ForwardProtocol.Socks)
+            {
+                _logger.SocksForwardStart(_listenEndPoint);
+            }
+            else
+            {
+                throw new IndexOutOfRangeException(_protocol.ToString());
+            }
+            // Log stop when we've logged the start.
+            _logStopped = true;
+
+            _ = AcceptLoop();
+        }
+        catch (Exception ex)
+        {
+            Stop(ex);
+
+            throw;
+        }
+    }
+
+    protected abstract ValueTask ListenAsync(CancellationToken cancellationToken);
+
+    private async Task AcceptLoop()
+    {
+        try
+        {
+            Debug.Assert(_listenEndPoint is not null);
+            while (true)
+            {
+                (Stream? acceptedStream, string address) = await AcceptAsync().ConfigureAwait(false);
+                if (acceptedStream is null)
+                {
+                    Debug.Assert(_stopReason is not null);
+                    break;
+                }
+                _logger.AcceptConnection(_listenEndPoint, address);
+                _ = HandleAccept(acceptedStream, address);
+            }
+        }
+        catch (Exception ex)
+        {
+            Stop(ex);
+        }
+    }
+
+    private async Task HandleAccept(Stream sourceStream, string sourceAddress)
+    {
+        Task<TTargetStream> connect;
+        string address;
+        try
+        {
+            (connect, address) = await ConnectToTargetAsync(sourceStream, _cancel.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.ForwardConnectionFailed(sourceAddress, _targetEndPoint, ex);
+            sourceStream.Dispose();
+            return;
+        }
+
+        _ = ForwardConnectionAsync(sourceStream, connect, sourceAddress, address);
+    }
+
+    protected abstract Task<(Stream?, string)> AcceptAsync();
+
+    protected abstract Task<(Task<TTargetStream> Connect, string Address)> ConnectToTargetAsync(Stream clientStream, CancellationToken ct);
+
+    protected async Task ForwardConnectionAsync(Stream sourceStream, Task<TTargetStream> targetStreamConnect, string sourceAddress, string targetAddress)
+    {
+        Exception? exception = null;
+        try
+        {
+            _logger.ForwardConnection(sourceAddress, targetAddress);
+            Stream? targetStream = await targetStreamConnect.ConfigureAwait(false);
+            Task first, second;
+            try
+            {
+                Task copy1 = CopyTillEofAsync(sourceStream, targetStream);
+                Task copy2 = CopyTillEofAsync(targetStream, sourceStream);
+
+                first = await Task.WhenAny(copy1, copy2).ConfigureAwait(false);
+                second = first == copy1 ? copy2 : copy1;
+            }
+            finally
+            {
+                // When the copy stops in one direction, stop it in the other direction too.
+                // Though TCP allows data still to be received when the writing is shutdown
+                // application protocols (usually) follow the pattern of only closing
+                // when they will no longer receive.
+                sourceStream.Dispose();
+                targetStream.Dispose();
+            }
+            // The dispose will cause the second copy to stop.
+            await second.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            await first.ConfigureAwait(false); // Throws if faulted.
+        }
+        catch (Exception ex)
+        {
+            exception = ex;
+        }
+        finally
+        {
+            if (exception is null)
+            {
+                _logger.ForwardConnectionClosed(sourceAddress, targetAddress);
+            }
+            else
+            {
+                _logger.ForwardConnectionAborted(sourceAddress, targetAddress, exception);
+            }
+        }
+
+        static async Task CopyTillEofAsync(Stream from, Stream to)
+        {
+            int bufferSize;
+            if (to is SshDataStream toDataStream)
+            {
+                bufferSize = toDataStream.WriteMaxPacketDataLength;
+            }
+            else
+            {
+                bufferSize = ((SshDataStream)from).ReadMaxPacketDataLength;
+            }
+            await from.CopyToAsync(to, bufferSize).ConfigureAwait(false);
+            if (to is NetworkStream ns)
+            {
+                ns.Socket.Shutdown(SocketShutdown.Send);
+            }
+            else if (to is SshDataStream ds)
+            {
+                ds.WriteEof();
+            }
+        }
+    }
+    
 }

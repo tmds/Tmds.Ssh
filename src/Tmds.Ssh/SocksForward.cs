@@ -8,15 +8,15 @@ namespace Tmds.Ssh;
 
 public sealed class SocksForward : IDisposable
 {
-    private readonly ForwardServer<SocksForward> _forwarder;
+    private readonly LocalForwardServer<SocksForward> _forwarder;
 
     internal SocksForward(ILogger<SocksForward> logger)
     {
         _forwarder = new(logger);
     }
 
-    internal void Start(SshSession session, EndPoint bindEP)
-        => _forwarder.StartSocksForward(session, bindEP);
+    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, CancellationToken cancellationToken)
+        => _forwarder.StartSocksForwardAsync(session, bindEP, cancellationToken);
 
     public EndPoint LocalEndPoint
         => _forwarder.LocalEndPoint;
