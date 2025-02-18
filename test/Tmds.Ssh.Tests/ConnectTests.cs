@@ -72,6 +72,27 @@ public class ConnectTests
     }
 
     [Fact]
+    public async Task SshConnectinInfoHostNameIsLowercase()
+    {
+        string? sshConnectionInfoHostName = null;
+        const string localhost = "localhost";
+        using var _ = await _sshServer.CreateClientAsync(settings =>
+            {
+                settings.HostName = localhost.ToUpperInvariant();
+                settings.UserKnownHostsFilePaths = [];
+                settings.GlobalKnownHostsFilePaths = [];
+                settings.HostAuthentication =
+                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                {
+                    sshConnectionInfoHostName = connectionInfo.HostName;
+                    return ValueTask.FromResult(true);
+                };
+            }
+        );
+        Assert.Equal(localhost.ToLowerInvariant(), sshConnectionInfoHostName);
+    }
+
+    [Fact]
     public async Task UntrustedKeyVerificationThrows()
     {
         await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
