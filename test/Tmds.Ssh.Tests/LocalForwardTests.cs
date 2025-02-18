@@ -205,7 +205,7 @@ public class LocalForwardTests
         CancellationToken ct = directForward.Stopped;
         EndPoint? endPoint = directForward.LocalEndPoint;
 
-        Assert.False(ct.IsCancellationRequested);    
+        Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
 
         directForward.Dispose();
