@@ -169,7 +169,8 @@ sealed partial class SshSession
                 _settings = await SshClientSettings.LoadFromConfigAsync(userName, host, port, _sshConfigOptions, connectCts.Token).ConfigureAwait(false);
             }
 
-            ConnectionInfo.HostName = _settings.HostName;
+            // Normalize the hostname to lowercase.
+            ConnectionInfo.HostName = _settings.HostName.ToLowerInvariant();
             ConnectionInfo.Port = _settings.Port;
 
             // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
