@@ -355,6 +355,22 @@ static partial class SshClientLogger
 
     struct PacketPayload // TODO: implement ISpanFormattable
     {
+        private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;
+
+        static PacketPayload()
+        {
+            string? value = Environment.GetEnvironmentVariable("TMDS_SSH_TRACE_DATA_LENGTH");
+            if (!string.IsNullOrEmpty(value) && long.TryParse(value, out long l))
+            {
+                if (l == -1)
+                {
+                    l = int.MaxValue;
+                }
+                l = Math.Max(PrettyBytePrinter.BytesPerLine, l);
+                MaxDataLength = (int)Math.Min(int.MaxValue, l);
+            }
+        }
+
         private ReadOnlyPacket _packet;
         public PacketPayload(ReadOnlyPacket packet)
         {
@@ -363,15 +379,13 @@ static partial class SshClientLogger
 
         public override string ToString()
         {
-            const int maxDataLength = 2 * PrettyBytePrinter.BytesPerLine;
-
             ReadOnlySequence<byte> payload = _packet.Payload;
             bool trimmed = false;
             if ((_packet.MessageId == MessageId.SSH_MSG_CHANNEL_DATA ||
                 _packet.MessageId == MessageId.SSH_MSG_CHANNEL_EXTENDED_DATA
-                ) && (payload.Length > maxDataLength))
+                ) && (payload.Length > MaxDataLength))
             {
-                payload = payload.Slice(0, maxDataLength);
+                payload = payload.Slice(0, MaxDataLength);
                 trimmed = true;
             }
             return PrettyBytePrinter.ToMultiLineString(payload) +
