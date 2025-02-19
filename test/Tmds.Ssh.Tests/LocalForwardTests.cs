@@ -76,7 +76,7 @@ public class LocalForwardTests
         await AssertForwards(directForward);
     }
 
-    private async Task AssertForwards(DirectForward directForward)
+    private async Task AssertForwards(LocalForward directForward)
     {
         byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
         byte[] receiveBuffer = new byte[128];

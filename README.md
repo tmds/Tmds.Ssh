@@ -73,7 +73,7 @@ class SshClient : IDisposable
 
   // bindEP can be an IPEndPoint or a UnixDomainSocketEndPoint.
   // remoteEP can be a RemoteHostEndPoint, a RemoteUnixEndPoint or a RemoteIPEndPoint.
-  Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
+  Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
   // bindEP can be a RemoteIPListenEndPoint or a RemoteUnixEndPoint.
@@ -136,7 +136,7 @@ class RemoteUnixEndPoint(string path) : RemoteEndPoint
 { }
 class RemoteIPListenEndPoint(string address, int port) : RemoteEndPoint
 { }
-class DirectForward : IDisposable
+class LocalForward : IDisposable
 {
   EndPoint LocalEndPoint { get; }
   CancellationToken Stopped { get; }

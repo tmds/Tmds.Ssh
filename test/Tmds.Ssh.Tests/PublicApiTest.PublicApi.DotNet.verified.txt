@@ -7,13 +7,6 @@ namespace Tmds.Ssh
         public CertificateCredential(string path, Tmds.Ssh.PrivateKeyCredential privateKey) { }
     }
     public abstract class Credential { }
-    public sealed class DirectForward : System.IDisposable
-    {
-        public System.Net.EndPoint LocalEndPoint { get; }
-        public System.Threading.CancellationToken Stopped { get; }
-        public void Dispose() { }
-        public void ThrowIfStopped() { }
-    }
     public sealed class DownloadEntriesOptions
     {
         public DownloadEntriesOptions() { }
@@ -95,6 +88,13 @@ namespace Tmds.Ssh
         public string ToFullPath() { }
     }
     public delegate bool LocalFileEntryPredicate(ref Tmds.Ssh.LocalFileEntry entry);
+    public sealed class LocalForward : System.IDisposable
+    {
+        public System.Net.EndPoint LocalEndPoint { get; }
+        public System.Threading.CancellationToken Stopped { get; }
+        public void Dispose() { }
+        public void ThrowIfStopped() { }
+    }
     public sealed class NoCredential : Tmds.Ssh.Credential
     {
         public NoCredential() { }
@@ -416,7 +416,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenUnixConnectionAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.Task<Tmds.Ssh.DirectForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.LocalForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward> StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint bindEP, System.Net.EndPoint localEP, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SocksForward> StartSocksForward(System.Net.EndPoint bindEP, System.Threading.CancellationToken cancellationToken = default) { }
     }
