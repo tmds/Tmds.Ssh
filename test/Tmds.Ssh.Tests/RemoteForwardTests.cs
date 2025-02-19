@@ -52,7 +52,7 @@ public class RemoteForwardTests
         byte[] receiveBuffer = new byte[128];
         for (int i = 0; i < 2; i++)
         {
-            RemoteEndPoint endPoint = remoteForward.RemoteEndPoint;
+            RemoteEndPoint endPoint = remoteForward.ListenEndPoint;
             SshDataStream? clientStream = null;
             if (endPoint is RemoteIPListenEndPoint ipEndPoint)
             {
@@ -92,7 +92,7 @@ public class RemoteForwardTests
 
         using var remoteForward = await client.StartRemoteForwardAsync(new RemoteIPListenEndPoint("localhost", 0), new IPEndPoint(IPAddress.Loopback, 5000));
         CancellationToken ct = remoteForward.Stopped;
-        RemoteIPListenEndPoint? endPoint = remoteForward.RemoteEndPoint as RemoteIPListenEndPoint;
+        RemoteIPListenEndPoint? endPoint = remoteForward.ListenEndPoint as RemoteIPListenEndPoint;
 
         Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
@@ -100,7 +100,7 @@ public class RemoteForwardTests
         remoteForward.Dispose();
 
         Assert.True(ct.IsCancellationRequested);
-        Assert.Throws<ObjectDisposedException>(() => remoteForward.RemoteEndPoint);
+        Assert.Throws<ObjectDisposedException>(() => remoteForward.ListenEndPoint);
         Assert.Throws<ObjectDisposedException>(() => remoteForward.Stopped);
         Assert.Throws<ObjectDisposedException>(() => remoteForward.ThrowIfStopped());
 
@@ -114,7 +114,7 @@ public class RemoteForwardTests
 
         using var remoteForward = await client.StartRemoteForwardAsync(new RemoteIPListenEndPoint("localhost", 0), new IPEndPoint(IPAddress.Loopback, 5000));
         CancellationToken ct = remoteForward.Stopped;
-        RemoteIPListenEndPoint? endPoint = remoteForward.RemoteEndPoint as RemoteIPListenEndPoint;
+        RemoteIPListenEndPoint? endPoint = remoteForward.ListenEndPoint as RemoteIPListenEndPoint;
 
         Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
@@ -122,7 +122,7 @@ public class RemoteForwardTests
         client.Dispose();
 
         Assert.True(ct.IsCancellationRequested);
-        Assert.NotNull(remoteForward.RemoteEndPoint);
+        Assert.NotNull(remoteForward.ListenEndPoint);
         Assert.True(remoteForward.Stopped.IsCancellationRequested);
         Assert.Throws<SshConnectionClosedException>(() => remoteForward.ThrowIfStopped());
     }

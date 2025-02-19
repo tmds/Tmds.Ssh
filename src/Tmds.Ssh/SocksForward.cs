@@ -18,7 +18,7 @@ public sealed class SocksForward : IDisposable
     internal ValueTask StartAsync(SshSession session, EndPoint bindEP, CancellationToken cancellationToken)
         => _forwarder.StartSocksForwardAsync(session, bindEP, cancellationToken);
 
-    public EndPoint LocalEndPoint
+    public EndPoint ListenEndPoint
         => _forwarder.LocalEndPoint;
 
     public CancellationToken Stopped

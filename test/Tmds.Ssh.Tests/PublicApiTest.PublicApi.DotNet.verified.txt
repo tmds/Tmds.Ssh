@@ -90,7 +90,7 @@ namespace Tmds.Ssh
     public delegate bool LocalFileEntryPredicate(ref Tmds.Ssh.LocalFileEntry entry);
     public sealed class LocalForward : System.IDisposable
     {
-        public System.Net.EndPoint LocalEndPoint { get; }
+        public System.Net.EndPoint ListenEndPoint { get; }
         public System.Threading.CancellationToken Stopped { get; }
         public void Dispose() { }
         public void ThrowIfStopped() { }
@@ -150,7 +150,7 @@ namespace Tmds.Ssh
     public class RemoteEndPoint { }
     public sealed class RemoteForward : System.IDisposable
     {
-        public Tmds.Ssh.RemoteEndPoint RemoteEndPoint { get; }
+        public Tmds.Ssh.RemoteEndPoint ListenEndPoint { get; }
         public System.Threading.CancellationToken Stopped { get; }
         public void Dispose() { }
         public void ThrowIfStopped() { }
@@ -387,7 +387,7 @@ namespace Tmds.Ssh
     public delegate T SftpFileEntryTransform<T>(ref Tmds.Ssh.SftpFileEntry entry);
     public sealed class SocksForward : System.IDisposable
     {
-        public System.Net.EndPoint LocalEndPoint { get; }
+        public System.Net.EndPoint ListenEndPoint { get; }
         public System.Threading.CancellationToken Stopped { get; }
         public void Dispose() { }
         public void ThrowIfStopped() { }
