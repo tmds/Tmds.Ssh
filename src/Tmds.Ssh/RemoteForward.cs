@@ -18,7 +18,7 @@ public sealed class RemoteForward : IDisposable
     internal ValueTask StartAsync(SshSession session, RemoteEndPoint bindEP, EndPoint localEndPoint, CancellationToken cancellationToken)
         => _forwarder.StartDirectForwardAsync(session, bindEP, localEndPoint, cancellationToken);
 
-    public RemoteEndPoint RemoteEndPoint
+    public RemoteEndPoint ListenEndPoint
         => _forwarder.RemoteEndPoint;
 
     public CancellationToken Stopped

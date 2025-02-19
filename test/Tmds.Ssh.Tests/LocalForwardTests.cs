@@ -82,7 +82,7 @@ public class LocalForwardTests
         byte[] receiveBuffer = new byte[128];
         for (int i = 0; i < 2; i++)
         {
-            EndPoint endPoint = directForward.LocalEndPoint!;
+            EndPoint endPoint = directForward.ListenEndPoint!;
             using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, endPoint.AddressFamily == AddressFamily.InterNetwork ? ProtocolType.Tcp : ProtocolType.Unspecified);
             if (socket.ProtocolType == ProtocolType.Tcp)
             {
@@ -110,7 +110,7 @@ public class LocalForwardTests
         byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
         byte[] receiveBuffer = new byte[128];
 
-        EndPoint endPoint = socksForward.LocalEndPoint!;
+        EndPoint endPoint = socksForward.ListenEndPoint!;
         using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, endPoint.AddressFamily == AddressFamily.InterNetwork ? ProtocolType.Tcp : ProtocolType.Unspecified);
         if (socket.ProtocolType == ProtocolType.Tcp)
         {
@@ -203,7 +203,7 @@ public class LocalForwardTests
 
         using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteHostEndPoint("localhost", 5000));
         CancellationToken ct = directForward.Stopped;
-        EndPoint? endPoint = directForward.LocalEndPoint;
+        EndPoint? endPoint = directForward.ListenEndPoint;
 
         Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
@@ -211,7 +211,7 @@ public class LocalForwardTests
         directForward.Dispose();
 
         Assert.True(ct.IsCancellationRequested);
-        Assert.Throws<ObjectDisposedException>(() => directForward.LocalEndPoint);
+        Assert.Throws<ObjectDisposedException>(() => directForward.ListenEndPoint);
         Assert.Throws<ObjectDisposedException>(() => directForward.Stopped);
         Assert.Throws<ObjectDisposedException>(() => directForward.ThrowIfStopped());
 
@@ -226,7 +226,7 @@ public class LocalForwardTests
 
         using var directForward = await client.StartForwardAsync(new IPEndPoint(IPAddress.Loopback, 0), new RemoteHostEndPoint("localhost", 5000));
         CancellationToken ct = directForward.Stopped;
-        EndPoint? endPoint = directForward.LocalEndPoint;
+        EndPoint? endPoint = directForward.ListenEndPoint;
 
         Assert.False(ct.IsCancellationRequested);
         Assert.NotNull(endPoint);
@@ -234,7 +234,7 @@ public class LocalForwardTests
         client.Dispose();
 
         Assert.True(ct.IsCancellationRequested);
-        endPoint = directForward.LocalEndPoint;
+        endPoint = directForward.ListenEndPoint;
         Assert.NotNull(endPoint);
         Assert.True(directForward.Stopped.IsCancellationRequested);
         Assert.Throws<SshConnectionClosedException>(() => directForward.ThrowIfStopped());
@@ -252,6 +252,6 @@ public class LocalForwardTests
         
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, (directForward.LocalEndPoint as IPEndPoint)!.Port));
+        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, (directForward.ListenEndPoint as IPEndPoint)!.Port));
     }
 }
