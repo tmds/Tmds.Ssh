@@ -294,11 +294,11 @@ public sealed partial class SshClient : IDisposable
         return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
+    public async Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
-        var forward = new DirectForward(_loggers.DirectForwardLogger);
+        var forward = new LocalForward(_loggers.DirectForwardLogger);
         await forward.StartAsync(session, bindEP, remoteEP, cancellationToken).ConfigureAwait(false);
         return forward;
     }

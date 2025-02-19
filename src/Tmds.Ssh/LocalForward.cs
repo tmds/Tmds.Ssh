@@ -6,11 +6,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-public sealed class DirectForward : IDisposable
+public sealed class LocalForward : IDisposable
 {
-    private readonly LocalForwardServer<DirectForward> _forwarder;
+    private readonly LocalForwardServer<LocalForward> _forwarder;
 
-    internal DirectForward(ILogger<DirectForward> logger)
+    internal LocalForward(ILogger<LocalForward> logger)
     {
         _forwarder = new(logger);
     }
