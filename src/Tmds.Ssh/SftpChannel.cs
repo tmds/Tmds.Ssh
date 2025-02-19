@@ -1438,14 +1438,12 @@ sealed partial class SftpChannel : IDisposable
         SftpExtension supportedExtensions = default;
         while (!reader.Remainder.IsEmpty)
         {
-            string extensionName = reader.ReadString();
-            string extensionData = reader.ReadString();
+            ReadOnlySpan<byte> extensionName = reader.ReadStringAsSpan();
+            ReadOnlySpan<byte> extensionData = reader.ReadStringAsSpan();
 
-            switch (extensionName, extensionData)
+            if (extensionName.SequenceEqual("copy-data"u8) && extensionData.SequenceEqual("1"u8))
             {
-                case ("copy-data", "1"):
-                    supportedExtensions |= SftpExtension.CopyData;
-                    break;
+                supportedExtensions |= SftpExtension.CopyData;
             }
         }
 

@@ -40,12 +40,7 @@ partial class SftpChannel
         }
 
         public string ReadString()
-        {
-            int length = ReadInt();
-            string value = s_utf8Encoding.GetString(_remainder.Slice(0, length));
-            _remainder = _remainder.Slice(length);
-            return value;
-        }
+            => s_utf8Encoding.GetString(ReadStringAsSpan());
 
         public void SkipString()
         {
@@ -59,14 +54,16 @@ partial class SftpChannel
             _remainder = _remainder.Slice(length);
         }
 
-        public byte[] ReadStringAsByteArray()
+        public ReadOnlySpan<byte> ReadStringAsSpan()
         {
             int length = ReadInt();
-            byte[] value = new byte[length];
-            _remainder.Slice(0, length).CopyTo(value);
+            ReadOnlySpan<byte> value = _remainder.Slice(0, length);
             _remainder = _remainder.Slice(length);
             return value;
         }
+
+        public byte[] ReadStringAsByteArray()
+            => ReadStringAsSpan().ToArray();
 
         public byte ReadByte()
         {
