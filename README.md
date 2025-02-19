@@ -69,14 +69,15 @@ class SshClient : IDisposable
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
 
   Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
+  Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default);
 
   // bindEP can be an IPEndPoint or a UnixDomainSocketEndPoint.
   // remoteEP can be a RemoteHostEndPoint, a RemoteUnixEndPoint or a RemoteIPEndPoint.
   Task<DirectForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
 
-  // bindEP can be a RemoteIPListenEndPoint.
-  // localEP can be a DnsEndPoint or an IPEndPoint.
+  // bindEP can be a RemoteIPListenEndPoint or a RemoteUnixEndPoint.
+  // localEP can be a DnsEndPoint, an IPEndPoint or a UnixDomainSocketEndPoint.
   Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default);
 
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
@@ -156,6 +157,7 @@ class RemoteForward : IDisposable
 class RemoteListener : IDisposable
 {
   // For ListenTcpAsync, type is RemoteIPListenEndPoint.
+  // For ListenUnixAsync, type is UnixDomainSocketEndPoint.
   RemoteEndPoint ListenEndPoint { get; }
 
   // This method throws when the SshClient disconnects (SshConnectionClosedException), or the RemoteListener is disposed (ObjectDisposedException).
@@ -167,6 +169,7 @@ class RemoteListener : IDisposable
 struct RemoteConnection : IDisposable
 {
   // For ListenTcpAsync, type is RemoteIPEndPoint.
+  // For ListenUnixAsync, value is 'null'.
   RemoteEndPoint? RemoteEndPoint { get; }
 
   SshDataStream? Stream { get; }

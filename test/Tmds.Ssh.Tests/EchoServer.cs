@@ -9,10 +9,23 @@ sealed class EchoServer : IDisposable
 
     public EndPoint EndPoint => _serverSocket.LocalEndPoint!;
 
-    public EchoServer()
+    public EchoServer(AddressFamily addressFamily = AddressFamily.InterNetwork)
     {
-        _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
-        _serverSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        if (addressFamily == AddressFamily.InterNetwork)
+        {
+            _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
+            _serverSocket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        }
+        else if (addressFamily == AddressFamily.Unix)
+        {
+            _serverSocket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            string unixSocketPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            _serverSocket.Bind(new UnixDomainSocketEndPoint(unixSocketPath));
+        }
+        else
+        {
+            throw new IndexOutOfRangeException(addressFamily.ToString());
+        }
         _serverSocket.Listen(1);
         _ = AcceptLoop();
     }

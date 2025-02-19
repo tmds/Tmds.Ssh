@@ -599,6 +599,15 @@ sealed partial class SshSession
                 listenAddress = new ListenAddress(channelType, address, (ushort)port);
             }
         }
+        else if (channelType == AlgorithmNames.ForwardStreamLocal)
+        {
+            /*
+                string          socket path
+                string          reserved for future use
+            */
+            string path = reader.ReadUtf8String();
+            listenAddress = new ListenAddress(channelType, path, 0);
+        }
 
         if (listenAddress != default)
         {
@@ -936,41 +945,75 @@ sealed partial class SshSession
         {
             pendingReply = SendGlobalRequestAsync(_sequencePool.CreateTcpIpForwardMessage(address, port), wantReply: true, wantPayload: port == 0, runSync: true);
         }
+        else if (forwardType == AlgorithmNames.ForwardStreamLocal)
+        {
+            pendingReply = SendGlobalRequestAsync(_sequencePool.CreateStreamLocalForwardMessage(address), wantReply: true, runSync: true);
+        }
         else
         {
-            throw new ArgumentException(nameof(forwardType));
+            throw new IndexOutOfRangeException(forwardType);
         }
 
         try
         {
-            GlobalRequestReply reply = await pendingReply.ConfigureAwait(false);
+            await pendingReply.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _ = HandleReplyAsync(pendingReply, onCancel: true);
 
-            if (reply.Id != MessageId.SSH_MSG_REQUEST_SUCCESS)
-            {
-                throw new SshException($"Request to start forward failed on the server with {reply.Id}.");
-            }
+            throw;
+        }
 
-            if (forwardType == AlgorithmNames.ForwardTcpIp && port == 0)
-            {
-                SequenceReader reader = new(reply.Payload);
-                reader.ReadMessageId();
-                port = (ushort)reader.ReadUInt32();
-            }
-
-            ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
-            lock (_gate)
-            {
-                _remoteListeners ??= new();
-                _remoteListeners[listenAddress] = listener;
-            }
-
-            return port;
+        try
+        {
+            return await HandleReplyAsync(pendingReply, onCancel: false).ConfigureAwait(false);
         }
         finally
         {
             // We complete the request from the receive loop to update the remote listeners Dictionary.
             // To prevent our caller from blocking that loop, this method MUST Yield before returning.
             await Task.Yield();
+        }
+
+        async Task<ushort> HandleReplyAsync(Task<GlobalRequestReply> pendingReply, bool onCancel)
+        {
+            try
+            {
+                GlobalRequestReply reply = await pendingReply.ConfigureAwait(false);
+
+                if (reply.Id != MessageId.SSH_MSG_REQUEST_SUCCESS)
+                {
+                    throw new SshException($"Request to start forward failed on the server with {reply.Id}.");
+                }
+
+                if (forwardType == AlgorithmNames.ForwardTcpIp && port == 0)
+                {
+                    SequenceReader reader = new(reply.Payload);
+                    reader.ReadMessageId();
+                    port = (ushort)reader.ReadUInt32();
+                }
+
+                ListenAddress listenAddress = new ListenAddress(forwardType, address, port);
+                if (onCancel)
+                {
+                    SendRemoteForwardCancel(listenAddress);
+                }
+                else
+                {
+                    lock (_gate)
+                    {
+                        _remoteListeners ??= new();
+                        _remoteListeners[listenAddress] = listener;
+                    }
+                }
+
+                return port;
+            }
+            catch when (onCancel)
+            {
+                return 0;
+            }
         }
     }
 
@@ -987,7 +1030,24 @@ sealed partial class SshSession
 
         if (sendCancel)
         {
+            SendRemoteForwardCancel(listenAddress);
+        }
+    }
+
+    private void SendRemoteForwardCancel(ListenAddress listenAddress)
+    {
+        Name forwardType = listenAddress.ForwardType;
+        if (forwardType == AlgorithmNames.ForwardTcpIp)
+        {
             TrySendPacket(_sequencePool.CreateCancelTcpIpForwardMessage(listenAddress.Address, listenAddress.Port));
+        }
+        else if (forwardType == AlgorithmNames.ForwardStreamLocal)
+        {
+            TrySendPacket(_sequencePool.CreateCancelLocalStreamForwardMessage(listenAddress.Address));
+        }
+        else
+        {
+            throw new IndexOutOfRangeException(forwardType);
         }
     }
 

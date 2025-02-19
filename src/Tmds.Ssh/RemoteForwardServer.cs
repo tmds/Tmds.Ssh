@@ -4,6 +4,7 @@
 using System.Net;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using System.Net.Sockets;
 
 namespace Tmds.Ssh;
 
@@ -42,7 +43,7 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
     private static void CheckBindEndPoint(RemoteEndPoint bindEP)
     {
         ArgumentNullException.ThrowIfNull(bindEP);
-        if (bindEP is not RemoteIPListenEndPoint)
+        if (bindEP is not RemoteIPListenEndPoint and not RemoteUnixEndPoint)
         {
             throw new ArgumentException($"Unsupported RemoteEndPoint type: {bindEP.GetType().FullName}.");
         }
@@ -60,6 +61,8 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
         {
             ArgumentValidation.ValidatePort(ipEndPoint.Port, allowZero: false, nameof(localEndPoint));
         }
+        else if (localEndPoint is UnixDomainSocketEndPoint unixEndPoint)
+        { }
         else
         {
             throw new ArgumentException($"Unsupported EndPoint type: {localEndPoint.GetType().FullName}.");
@@ -101,6 +104,10 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
         {
             connect = Connect.ConnectTcpAsync(dnsEndPoint.Host, dnsEndPoint.Port, ct);
         }
+        else if (endPoint is UnixDomainSocketEndPoint unixEndPoint)
+        {
+            connect = Connect.ConnectUnixAsync(unixEndPoint, ct);
+        }
         else
         {
             throw new InvalidOperationException("Invalid endpoint");
@@ -127,6 +134,11 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
             await _listener.OpenTcpAsync(_session, ipEndPoint.Address, ipEndPoint.Port, cancellationToken).ConfigureAwait(false);
 
             updateEndPoint = ipEndPoint.Port == 0;
+        }
+        else if (bindEP is RemoteUnixEndPoint unixEndPoint)
+        {
+            _listener = new RemoteListener();
+            await _listener.OpenUnixAsync(_session, unixEndPoint.Path, cancellationToken).ConfigureAwait(false);
         }
         else
         {

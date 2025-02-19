@@ -78,18 +78,21 @@ public sealed class RemoteListener : IDisposable
         {
             _ctr.Dispose();
 
-            string? address = null;
+            string address;
             ushort port = 0;
             if (_listenEndPoint is RemoteIPListenEndPoint ipListenEndPoint)
             {
                 address = ipListenEndPoint.Address;
                 port = (ushort)ipListenEndPoint.Port;
             }
+            else if (_listenEndPoint is RemoteUnixEndPoint unixEndPoint)
+            {
+                address = unixEndPoint.Path;
+            }
             else
             {
-                Debug.Assert(false);
+                throw new IndexOutOfRangeException(_forwardType);
             }
-            Debug.Assert(address is not null);
             _session?.StopRemoteForward(_forwardType, address, port);
         }
 
@@ -115,7 +118,18 @@ public sealed class RemoteListener : IDisposable
         try
         {
             port = await _session.StartRemoteForwardAsync(forwardType, address, port, _connectionChannel.Writer, cancellationToken).ConfigureAwait(false);
-            _listenEndPoint = new RemoteIPListenEndPoint(address, port);
+            if (forwardType == AlgorithmNames.ForwardTcpIp)
+            {
+                _listenEndPoint = new RemoteIPListenEndPoint(address, port);
+            }
+            else if (forwardType == AlgorithmNames.ForwardStreamLocal)
+            {
+                _listenEndPoint = new RemoteUnixEndPoint(address);
+            }
+            else
+            {
+                throw new IndexOutOfRangeException(forwardType);
+            }
             _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((RemoteListener)o!).Stop(ConnectionClosed), this);
         }
         catch (Exception ex)
@@ -132,5 +146,12 @@ public sealed class RemoteListener : IDisposable
         ArgumentValidation.ValidatePort(port, allowZero: true);
 
         return OpenAsync(session, AlgorithmNames.ForwardTcpIp, address, (ushort)port, cancellationToken);
+    }
+
+    internal Task OpenUnixAsync(SshSession session, string path, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        return OpenAsync(session, AlgorithmNames.ForwardStreamLocal, path, 0, cancellationToken);
     }
 }

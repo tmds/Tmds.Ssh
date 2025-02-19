@@ -330,6 +330,15 @@ public sealed partial class SshClient : IDisposable
         return listener;
     }
 
+    public async Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var listener = new RemoteListener();
+        await listener.OpenUnixAsync(session, path, cancellationToken).ConfigureAwait(false);
+        return listener;
+    }
+
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 

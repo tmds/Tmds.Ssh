@@ -68,6 +68,7 @@ static class AlgorithmNames
     public static Name ClientExtensionNegotiation => Name.FromKnownNameString(KnownNameStrings.ClientExtensionNegotiation);
     // Channel types
     public static Name ForwardTcpIp => Name.FromKnownNameString(KnownNameStrings.ForwardTcpIp);
+    public static Name ForwardStreamLocal => Name.FromKnownNameString(KnownNameStrings.ForwardStreamLocal);
 
     // For GetSignatureAlgorithmsForKeyType
     internal static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];
