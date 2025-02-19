@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace Tmds.Ssh.Tests;
@@ -32,6 +33,19 @@ public class RemoteForwardTests
         await AssertForwards(client, remoteForward);
     }
 
+    [Fact]
+    public async Task ForwardsUnix()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var echoServer = new EchoServer(AddressFamily.Unix);
+
+        EndPoint localEndPoint = echoServer.EndPoint;
+
+        using var remoteForward = await client.StartRemoteForwardAsync(new RemoteUnixEndPoint($"/tmp/{Path.GetRandomFileName()}"), localEndPoint);
+        await AssertForwards(client, remoteForward);
+    }
+
     private async Task AssertForwards(SshClient client, RemoteForward remoteForward)
     {
         byte[] helloWorldBytes = Encoding.UTF8.GetBytes("hello world");
@@ -49,6 +63,10 @@ public class RemoteForwardTests
                 }
                 clientStream = await client.OpenTcpConnectionAsync(host, ipEndPoint.Port);
             }
+            else if (endPoint is RemoteUnixEndPoint unixEndPoint)
+            {
+                clientStream = await client.OpenUnixConnectionAsync(unixEndPoint.Path);
+            }
             Assert.NotNull(clientStream);
             using var _ = clientStream;
 
@@ -59,7 +77,6 @@ public class RemoteForwardTests
                 int bytesRead = await clientStream.ReadAsync(receiveBuffer);
                 Assert.Equal(helloWorldBytes.Length, bytesRead);
                 Assert.Equal(helloWorldBytes, receiveBuffer.AsSpan(0, bytesRead).ToArray());
-
             }
 
             clientStream.WriteEof();

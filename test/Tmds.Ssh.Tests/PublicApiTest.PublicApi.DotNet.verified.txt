@@ -411,6 +411,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenTcpAsync(string address, int port, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenUnixAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }

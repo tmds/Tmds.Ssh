@@ -18,6 +18,23 @@ static class Connect
         return await _defaultConnect(context, cancellationToken).ConfigureAwait(false);
     }
 
+    public static async Task<Stream> ConnectUnixAsync(UnixDomainSocketEndPoint endPoint, CancellationToken cancellationToken)
+    {
+        var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            await socket.ConnectAsync(endPoint, cancellationToken).ConfigureAwait(false);
+
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+
+            throw;
+        }
+    }
+
     public static async ValueTask<Stream> ConnectAsync(ConnectCallback? connect, Proxy? proxy, ConnectContext context, CancellationToken cancellationToken)
     {
         connect ??= _defaultConnect;

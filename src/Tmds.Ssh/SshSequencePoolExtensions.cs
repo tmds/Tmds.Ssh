@@ -285,6 +285,23 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateCancelLocalStreamForwardMessage(this SequencePool sequencePool, string path)
+    {
+        /*
+            byte            SSH2_MSG_GLOBAL_REQUEST
+            string          "cancel-streamlocal-forward@openssh.com"
+            boolean         FALSE
+            string          socket path
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_GLOBAL_REQUEST);
+        writer.WriteString("cancel-streamlocal-forward@openssh.com");
+        writer.WriteBoolean(false); // want reply
+        writer.WriteString(path);
+        return packet.Move();
+    }
+
     public static Packet CreateTcpIpForwardMessage(this SequencePool sequencePool, string address, ushort port)
     {
         /*
@@ -301,6 +318,23 @@ static class SshSequencePoolExtensions
         writer.WriteBoolean(true); // want reply
         writer.WriteString(address);
         writer.WriteUInt32(port);
+        return packet.Move();
+    }
+
+    public static Packet CreateStreamLocalForwardMessage(this SequencePool sequencePool, string path)
+    {
+        /*
+            byte            SSH2_MSG_GLOBAL_REQUEST
+            string          "streamlocal-forward@openssh.com"
+            boolean         TRUE
+            string          socket path
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_GLOBAL_REQUEST);
+        writer.WriteString("streamlocal-forward@openssh.com");
+        writer.WriteBoolean(true); // want reply
+        writer.WriteString(path);
         return packet.Move();
     }
 
