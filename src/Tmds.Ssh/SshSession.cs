@@ -529,6 +529,7 @@ sealed partial class SshSession
                 TrySendPacket(_sequencePool.CreateRequestFailureMessage());
                 break;
             case MessageId.SSH_MSG_DEBUG:
+            case MessageId.SSH_MSG_IGNORE:
                 break;
             case MessageId.SSH_MSG_DISCONNECT:
                 HandleDisconnectMessage(packet);
