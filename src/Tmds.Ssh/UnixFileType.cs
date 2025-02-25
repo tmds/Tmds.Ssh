@@ -12,6 +12,7 @@ public enum UnixFileType : short
     BlockDevice = UnixFileTypeFilter.BlockDevice << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.BlockDevice,
     Socket = UnixFileTypeFilter.Socket << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.Socket,
     Fifo = UnixFileTypeFilter.Fifo << UnixFileTypeFilterExtensions.TypeShift | UnixFileTypeByte.Fifo,
+    WeirdFile = unchecked((short)(UnixFileTypeFilter.WeirdFile << UnixFileTypeFilterExtensions.TypeShift))
 }
 
 static class UnixFileTypeExtensions

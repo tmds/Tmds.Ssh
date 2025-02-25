@@ -570,6 +570,7 @@ namespace Tmds.Ssh
         BlockDevice = 4102,
         Socket = 8204,
         Fifo = 16385,
+        WeirdFile = -32768,
     }
     [System.Flags]
     public enum UnixFileTypeFilter : byte
@@ -581,6 +582,7 @@ namespace Tmds.Ssh
         BlockDevice = 16,
         Socket = 32,
         Fifo = 64,
+        WeirdFile = 128,
     }
     public sealed class UploadEntriesOptions
     {
