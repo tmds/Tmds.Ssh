@@ -494,6 +494,7 @@ enum UnixFileType
   BlockDevice,
   Socket,
   Fifo,
+  WeirdFile
 }
 [Flags]
 enum UnixFileTypeFilter
@@ -505,6 +506,7 @@ enum UnixFileTypeFilter
   BlockDevice,
   Socket,
   Fifo,
+  WeirdFile
 }
 [Flags]
 enum UnixFilePermissions // values match System.IO.UnixFileMode.

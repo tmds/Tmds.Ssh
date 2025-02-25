@@ -13,6 +13,7 @@ public enum UnixFileTypeFilter : byte
     BlockDevice = 16,
     Socket = 32,
     Fifo = 64,
+    WeirdFile = 128
 }
 
 static class UnixFileTypeFilterExtensions

@@ -150,7 +150,7 @@ partial class SftpChannel
                 UnixFileTypeByte.BlockDevice => UnixFileType.BlockDevice,
                 UnixFileTypeByte.Socket => UnixFileType.Socket,
                 UnixFileTypeByte.Fifo => UnixFileType.Fifo,
-                _ => throw new InvalidDataException($"Invalid mode: {mode}.")
+                _ => UnixFileType.WeirdFile
             };
             return (permissions, fileType);
         }
