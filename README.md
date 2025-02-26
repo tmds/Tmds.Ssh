@@ -241,7 +241,7 @@ class SftpDirectory
     (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
     long? length = default,
     (int Uid, int Gid)? ids = default,
-    Dictionary<string, string>? extendedAttributes = default,
+    IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
     CancellationToken cancellationToken = default);
 
   IAsyncEnumerable<(string Path, FileEntryAttributes Attributes)> GetDirectoryEntriesAsync(string path, EnumerationOptions? options = null);
@@ -273,7 +273,7 @@ class SftpFile : Stream
     (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
     long? length = default,
     (int Uid, int Gid)? ids = default,
-    Dictionary<string, string>? extendedAttributes = default,
+    IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
     CancellationToken cancellationToken = default);
 
   // Read/write at an offset. This does NOT update the offset tracked by the instance.
@@ -420,7 +420,7 @@ class FileEntryAttributes
   UnixFilePermissions Permissions { get; set; }
   DateTimeOffset LastAccessTime { get; set; }
   DateTimeOffset LastWriteTime { get; set; }
-  Dictionary<string, string>? ExtendedAttributes { get; set; }
+  Dictionary<string, byte[]>? ExtendedAttributes { get; set; }
 }
 class FileOpenOptions
 {

@@ -26,6 +26,7 @@ public ref struct SftpFileEntry
     private string? _path;
 
     internal ReadOnlySpan<byte> NameBytes { get; set; }
+    internal ReadOnlySpan<byte> AttributesBytes { get; set; }
     public long Length { get; }
     public int Uid { get; }
     public int Gid { get; }
@@ -88,10 +89,22 @@ public ref struct SftpFileEntry
                 ExtendedAttributes = GetExtendedAttributes()
             };
 
-    private Dictionary<string, string>? GetExtendedAttributes()
+    private Dictionary<string, byte[]>? GetExtendedAttributes()
     {
-        // TODO
-        return null;
+        Dictionary<string, byte[]>? dict = null;
+
+        if (!AttributesBytes.IsEmpty)
+        {
+            SftpChannel.PacketReader reader = new(AttributesBytes);
+            uint count = reader.ReadUInt();
+            for (int i = 0; i < count; i++)
+            {
+                dict ??= new();
+                dict[reader.ReadString()] = reader.ReadStringAsByteArray();
+            }
+        }
+
+        return dict;
     }
 
     public string ToPath()
@@ -134,8 +147,10 @@ public ref struct SftpFileEntry
             LastAccessTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
             LastWriteTime = DateTimeOffset.FromUnixTimeSeconds(reader.ReadUInt());
 
+            AttributesBytes = default;
             if ((attrFlags & FileAttributeFlags.SSH_FILEXFER_ATTR_EXTENDED) != 0)
             {
+                AttributesBytes = reader.Remainder;
                 uint count = reader.ReadUInt();
                 for (int i = 0; i < count; i++)
                 {

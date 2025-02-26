@@ -40,7 +40,7 @@ namespace Tmds.Ssh
     public sealed class FileEntryAttributes
     {
         public FileEntryAttributes() { }
-        public System.Collections.Generic.Dictionary<string, string>? ExtendedAttributes { get; set; }
+        public System.Collections.Generic.Dictionary<string, byte[]>? ExtendedAttributes { get; set; }
         public Tmds.Ssh.UnixFileType FileType { get; set; }
         public int Gid { get; set; }
         public System.DateTimeOffset LastAccessTime { get; set; }
@@ -270,7 +270,7 @@ namespace Tmds.Ssh
                 "LastAccess",
                 "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Uid",
-                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
@@ -318,7 +318,7 @@ namespace Tmds.Ssh
                 "LastAccess",
                 "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Uid",
-                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask UploadFileAsync(System.IO.Stream source, string remoteFilePath, System.Threading.CancellationToken cancellationToken) { }
@@ -361,7 +361,7 @@ namespace Tmds.Ssh
                 "LastAccess",
                 "LastWrite"})] System.ValueTuple<System.DateTimeOffset, System.DateTimeOffset>? times = default, long? length = default, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Uid",
-                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.Dictionary<string, string>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
+                "Gid"})] System.ValueTuple<int, int>? ids = default, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default) { }
         public override void SetLength(long value) { }
         public System.Threading.Tasks.ValueTask SetLengthAsync(long length, System.Threading.CancellationToken cancellationToken = default) { }
         public override void Write(byte[] buffer, int offset, int count) { }

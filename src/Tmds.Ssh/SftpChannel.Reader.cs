@@ -86,7 +86,7 @@ partial class SftpChannel
             UnixFilePermissions permissions = 0;
             DateTimeOffset lastAccessTime = DateTimeOffset.MinValue;
             DateTimeOffset lastWriteTime = DateTimeOffset.MinValue;
-            Dictionary<string, string>? extendedAttributes = default;
+            Dictionary<string, byte[]>? extendedAttributes = default;
 
             uint flags = ReadUInt();
             if ((flags & 1) != 0)
@@ -115,7 +115,7 @@ partial class SftpChannel
                     extendedAttributes = new();
                     for (int i = 0; i < count; i++)
                     {
-                        extendedAttributes[ReadString()] = ReadString();
+                        extendedAttributes[ReadString()] = ReadStringAsByteArray();
                     }
                 }
             }

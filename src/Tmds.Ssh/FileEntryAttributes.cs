@@ -13,5 +13,5 @@ public sealed class FileEntryAttributes
     public UnixFilePermissions Permissions { get; set; }
     public DateTimeOffset LastAccessTime { get; set; } // ATime
     public DateTimeOffset LastWriteTime { get; set; } // MTime
-    public Dictionary<string, string>? ExtendedAttributes { get; set; }
+    public Dictionary<string, byte[]>? ExtendedAttributes { get; set; }
 }
