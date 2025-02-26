@@ -404,7 +404,7 @@ sealed partial class SftpChannel : IDisposable
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
         long? length = default,
         (int Uid, int Gid)? ids = default,
-        Dictionary<string, string>? extendedAttributes = default,
+        IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
         CancellationToken cancellationToken = default)
     {
         EnsureAttributesHasValue(
@@ -438,7 +438,7 @@ sealed partial class SftpChannel : IDisposable
         (int Uid, int Gid)? ids = default,
         UnixFilePermissions? permissions = default,
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
-        Dictionary<string, string>? extendedAttributes = default,
+        IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
         CancellationToken cancellationToken = default)
     {
         EnsureAttributesHasValue(
@@ -470,13 +470,13 @@ sealed partial class SftpChannel : IDisposable
         (int Uid, int Gid)? ids,
         UnixFilePermissions? permissions,
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times,
-        Dictionary<string, string>? extendedAttributes)
+        IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes)
     {
         if (!length.HasValue &&
             !ids.HasValue &&
             !permissions.HasValue &&
             !times.HasValue &&
-            (extendedAttributes is null || extendedAttributes.Count == 0))
+            (extendedAttributes is null || !extendedAttributes.Any()))
         {
             throw new ArgumentException("No value specified.");
         }

@@ -81,7 +81,7 @@ partial class SftpChannel
             UnixFilePermissions? permissions = default,
             UnixFileType? fileType = default,
             (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
-            Dictionary<string, string>? extendedAttributes = default
+            IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default
         )
         {
             bool setMode = permissions.HasValue;
@@ -102,7 +102,7 @@ partial class SftpChannel
             {
                 flags |= 8;
             }
-            if (extendedAttributes is not null && extendedAttributes.Count > 0)
+            if (extendedAttributes is not null && extendedAttributes.Any())
             {
                 flags |= 0x80000000;
             }
@@ -125,9 +125,9 @@ partial class SftpChannel
                 WriteUInt(checked((uint)times.Value.LastAccess.ToUnixTimeSeconds()));
                 WriteUInt(checked((uint)times.Value.LastWrite.ToUnixTimeSeconds()));
             }
-            if (extendedAttributes is not null && extendedAttributes.Count > 0)
+            if (extendedAttributes is not null && extendedAttributes.Any())
             {
-                WriteInt(extendedAttributes.Count);
+                WriteInt(extendedAttributes.Count());
                 foreach (var pair in extendedAttributes)
                 {
                     WriteString(pair.Key);

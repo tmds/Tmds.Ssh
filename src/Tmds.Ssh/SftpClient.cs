@@ -316,7 +316,7 @@ public sealed partial class SftpClient : IDisposable
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
         long? length = default,
         (int Uid, int Gid)? ids = default,
-        Dictionary<string, string>? extendedAttributes = default,
+        IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
         CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);

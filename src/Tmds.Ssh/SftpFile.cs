@@ -166,7 +166,7 @@ public sealed class SftpFile : Stream
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
         long? length = default,
         (int Uid, int Gid)? ids = default,
-        Dictionary<string, string>? extendedAttributes = default,
+        IEnumerable<KeyValuePair<string, Memory<byte>>>? extendedAttributes = default,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
