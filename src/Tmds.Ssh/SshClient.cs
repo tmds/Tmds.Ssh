@@ -249,15 +249,17 @@ public sealed partial class SshClient : IDisposable
     public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        var channel = await session.OpenRemoteProcessChannelAsync(typeof(RemoteProcess), command, cancellationToken).ConfigureAwait(false);
+        var channel = await session.OpenRemoteProcessChannelAsync(typeof(RemoteProcess), command, options, cancellationToken).ConfigureAwait(false);
 
         Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
+        bool hasTty = options?.AllocateTerminal ?? false;
         return new RemoteProcess(channel,
             standardInputEncoding,
             standardErrorEncoding,
-            standardOutputEncoding);
+            standardOutputEncoding,
+            hasTty);
     }
 
     public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken)
@@ -266,15 +268,17 @@ public sealed partial class SshClient : IDisposable
     public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        var channel = await session.OpenRemoteSubsystemChannelAsync(typeof(RemoteProcess), subsystem, cancellationToken).ConfigureAwait(false);
+        var channel = await session.OpenRemoteSubsystemChannelAsync(typeof(RemoteProcess), subsystem, options, cancellationToken).ConfigureAwait(false);
 
         Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
+        bool hasTty = options?.AllocateTerminal ?? false;
         return new RemoteProcess(channel,
             standardInputEncoding,
             standardErrorEncoding,
-            standardOutputEncoding);
+            standardOutputEncoding,
+            hasTty);
     }
 
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)

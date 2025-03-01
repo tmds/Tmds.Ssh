@@ -88,9 +88,16 @@ class ExecuteOptions
   Encoding StandardInputEncoding { get; set; }
   Encoding StandardErrorEncoding { get; set; }
   Encoding StandardOutputEncoding { get; set; }
+
+  bool AllocateTerminal { get; set; } = false;
+  string TerminalType { get; set; } = "xterm-256color";
+  int TerminalWidth { get; set; } = 80;
+  int TerminalHeight { get; set; } = 24;
 }
 class RemoteProcess : IDisposable
 {
+  bool HasTerminal { get; }
+
   // Read from the remote process.
   ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
   ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);

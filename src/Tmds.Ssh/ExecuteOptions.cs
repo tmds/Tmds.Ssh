@@ -14,4 +14,9 @@ public sealed class ExecuteOptions
     public Encoding StandardInputEncoding { get; set; } = DefaultEncoding;
     public Encoding StandardErrorEncoding { get; set; } = DefaultEncoding;
     public Encoding StandardOutputEncoding { get; set; } = DefaultEncoding;
+
+    public bool AllocateTerminal { get; set; } = false;
+    public int TerminalWidth { get; set; } = 80;
+    public int TerminalHeight { get; set; } = 24;
+    public string TerminalType { get; set; } = "xterm-256color";
 }

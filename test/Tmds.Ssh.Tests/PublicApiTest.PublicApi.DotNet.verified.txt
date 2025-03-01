@@ -33,9 +33,13 @@ namespace Tmds.Ssh
     public sealed class ExecuteOptions
     {
         public ExecuteOptions() { }
+        public bool AllocateTerminal { get; set; }
         public System.Text.Encoding StandardErrorEncoding { get; set; }
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
+        public int TerminalHeight { get; set; }
+        public string TerminalType { get; set; }
+        public int TerminalWidth { get; set; }
     }
     public sealed class FileEntryAttributes
     {
@@ -188,10 +192,11 @@ namespace Tmds.Ssh
         public System.Threading.CancellationToken ExecutionAborted { get; }
         public int ExitCode { get; }
         public string? ExitSignal { get; }
+        public bool HasTerminal { get; }
         public System.IO.Stream StandardInputStream { get; }
         public System.IO.StreamWriter StandardInputWriter { get; }
         public void Dispose() { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__40))]
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__43))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "line"})]
