@@ -161,9 +161,8 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows)
+    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows, string terminalModes)
     {
-        const char TTY_OP_END = '\0';
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
             uint32    recipient channel
@@ -188,7 +187,7 @@ static class SshSequencePoolExtensions
         writer.WriteUInt32(rows);
         writer.WriteUInt32(0);
         writer.WriteUInt32(0);
-        writer.WriteString($"{TTY_OP_END}");
+        writer.WriteString(terminalModes);
         return packet.Move();
     }
 

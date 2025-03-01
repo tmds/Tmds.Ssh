@@ -18,6 +18,8 @@ public sealed class ExecuteOptions
     private int _termWidth = 80;
     private int _termHeight = 24;
 
+    internal bool IsUtf8Encoding => _stdinEncoding is UTF8Encoding && _stdoutEncoding is UTF8Encoding && _stderrEncoding is UTF8Encoding;
+
     public Encoding StandardInputEncoding
     {
         get => _stdinEncoding;
