@@ -81,4 +81,9 @@ public sealed class ExecuteOptions
             _term = value;
         }
     }
+
+    public TerminalSettings TerminalSettings { get; } = new();
+
+    internal byte[] GetTerminalModeString()
+        => TerminalSettings.GetModeString(IsUtf8Encoding);
 }

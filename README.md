@@ -93,6 +93,7 @@ class ExecuteOptions
   string TerminalType { get; set; } = "xterm-256color";
   int TerminalWidth { get; set; } = 80;
   int TerminalHeight { get; set; } = 24;
+  TerminalSettings TerminalSettings { get; }
 }
 class RemoteProcess : IDisposable
 {
@@ -131,6 +132,10 @@ class SshDataStream : Stream
 {
   void WriteEof();
   CancellationToken StreamAborted { get; }
+}
+class TerminalSettings
+{
+  // ...
 }
 // Represents a Socket EndPoint on the server side.
 class RemoteEndPoint

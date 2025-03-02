@@ -856,31 +856,11 @@ sealed partial class SshSession
 
         if (options?.AllocateTerminal == true)
         {
-            channel.TrySendChannelPtyRequestMessage(options.TerminalType, options.TerminalWidth, options.TerminalHeight, GetTerminalModes(options));
+            channel.TrySendChannelPtyRequestMessage(options.TerminalType, options.TerminalWidth, options.TerminalHeight, options.GetTerminalModeString());
             await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate tty.", cancellationToken).ConfigureAwait(false);
         }
 
         SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
-    }
-
-    private static string GetTerminalModes(ExecuteOptions options)
-    {
-        // https://datatracker.ietf.org/doc/html/rfc4254#section-8
-        const char TTY_OP_END = '\0';
-
-        // https://datatracker.ietf.org/doc/html/rfc8160
-        const char IUTF8 = (char)42;
-
-        const string UInt32_One = "\0\0\0\u0001";
-
-        if (options.IsUtf8Encoding)
-        {
-            return $"{IUTF8}{UInt32_One}{TTY_OP_END}";
-        }
-        else
-        {
-            return $"{TTY_OP_END}";
-        }
     }
 
     public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)

@@ -38,6 +38,7 @@ namespace Tmds.Ssh
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
         public int TerminalHeight { get; set; }
+        public Tmds.Ssh.TerminalSettings TerminalSettings { get; }
         public string TerminalType { get; set; }
         public int TerminalWidth { get; set; }
     }
@@ -544,6 +545,46 @@ namespace Tmds.Ssh
     }
     public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
     public class SshSessionException : Tmds.Ssh.SshException { }
+    public sealed class TerminalSettings
+    {
+        public const byte DisableCharacter = 255;
+        public TerminalSettings() { }
+        public byte AdditionalEndOfLineCharacter { get; set; }
+        public byte AdditionalEndOfLineCharacter2 { get; set; }
+        public byte DelayedSuspendCharacter { get; set; }
+        public bool DisableFlushOnInterrupt { get; set; }
+        public bool Echo { get; set; }
+        public bool EchoControlCharacters { get; set; }
+        public bool EchoErase { get; set; }
+        public bool EchoEraseLine { get; set; }
+        public bool EchoNl { get; set; }
+        public bool EchoVisualEraseLine { get; set; }
+        public bool EnableInputSignals { get; set; }
+        public bool EnableOutputControlFlow { get; set; }
+        public byte EndOfFileCharacter { get; set; }
+        public byte EraseCharacter { get; set; }
+        public byte EraseToLineStartCharacter { get; set; }
+        public byte EraseWordCharacter { get; set; }
+        public bool InputEnableExtensions { get; set; }
+        public bool InputIgnoreCr { get; set; }
+        public bool InputLineByLine { get; set; }
+        public bool InputMapCrToNl { get; set; }
+        public bool InputMapNlToCr { get; set; }
+        public bool InputRestartOnAnyChar { get; set; }
+        public byte InterruptCharacter { get; set; }
+        public bool? IsUtf8 { get; set; }
+        public byte LiteralNextCharacter { get; set; }
+        public bool OutputEnableProcessing { get; set; }
+        public bool OutputMapCrToNl { get; set; }
+        public bool OutputMapNlToCrNl { get; set; }
+        public byte QuitCharacter { get; set; }
+        public byte ReprintLineCharacter { get; set; }
+        public byte StartOutputCharacter { get; set; }
+        public bool StopBackgroundProcessesOnOutput { get; set; }
+        public byte StopOutputCharacter { get; set; }
+        public byte SuspendCharacter { get; set; }
+        public byte ToggleOutputDiscardCharacter { get; set; }
+    }
     [System.Flags]
     public enum UnixFilePermissions : short
     {
