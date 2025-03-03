@@ -123,6 +123,60 @@ public class RemoteProcess
         Assert.Equal(helloWorldBytes, buffer.AsSpan(0, bytesRead).ToArray());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadChars(bool useStderr)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync($"cat{(useStderr ? " >&2" : "")}");
+
+        await process.WriteAsync("Hello world!");
+
+        char[] buffer = new char[512];
+        (bool isError, int bytesRead) = await process.ReadCharsAsync(buffer, buffer);
+        Assert.Equal(useStderr, isError);
+        Assert.Equal("Hello world!", buffer.AsSpan(0, bytesRead).ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadCharApis(bool useStderr)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync($"cat{(useStderr ? " >&2" : "")}");
+
+        await process.WriteAsync("Line1\r");
+
+        bool isError;
+        string? line;
+
+        (isError, line) = await process.ReadLineAsync();
+        Assert.Equal(useStderr, isError);
+        Assert.Equal("Line1", line);
+
+        await process.WriteAsync("\nLine2\r\nLine3");
+
+        char[] buffer = new char["Line2\r".Length];
+        // '\n' is stripped because previous API was ReadLine.
+        (isError, int bytesRead) = await process.ReadCharsAsync(buffer, buffer);
+        Assert.Equal(useStderr, isError);
+        Assert.Equal("Line2\r", buffer.AsSpan(0, bytesRead).ToString());
+
+        // '\n' is not stripped because previous API was NOT ReadLine.
+        (isError, line) = await process.ReadLineAsync();
+        Assert.Equal(useStderr, isError);
+        Assert.Equal("", line);
+
+        process.WriteEof();
+
+        // Remainder is read.
+        (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
+        Assert.Equal("Line3", useStderr ? stderr : stdout);
+        Assert.Equal("", useStderr ? stdout : stderr);
+    }
+
     [Fact]
     public async Task LargeWriteAndRead()
     {
