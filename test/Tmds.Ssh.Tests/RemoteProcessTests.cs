@@ -460,4 +460,18 @@ public class RemoteProcess
         Assert.False(isError);
         Assert.Equal(0, bytesRead);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Tty(bool allocTty)
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("test -t 0", new ExecuteOptions() { AllocateTerminal = allocTty });
+
+        await process.WaitForExitAsync();
+
+        Assert.Equal(process.HasTerminal, allocTty);
+        Assert.Equal(allocTty ? 0 : 1, process.ExitCode);
+    }
 }

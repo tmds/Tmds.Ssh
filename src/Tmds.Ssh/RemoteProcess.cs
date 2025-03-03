@@ -23,6 +23,7 @@ public sealed class RemoteProcess : IDisposable
     private readonly Encoding _standardInputEncoding;
     private readonly Encoding _standardErrorEncoding;
     private readonly Encoding _standardOutputEncoding;
+    private readonly bool _hasTty;
     private StreamWriter? _stdInWriter;
     private byte[]? _byteBuffer;
 
@@ -189,13 +190,15 @@ public sealed class RemoteProcess : IDisposable
     internal RemoteProcess(ISshChannel channel,
                             Encoding standardInputEncoding,
                             Encoding standardErrorEncoding,
-                            Encoding standardOutputEncoding
+                            Encoding standardOutputEncoding,
+                            bool hasTty
     )
     {
         _channel = channel;
         _standardInputEncoding = standardInputEncoding;
         _standardErrorEncoding = standardErrorEncoding;
         _standardOutputEncoding = standardOutputEncoding;
+        _hasTty = hasTty;
     }
 
     public int ExitCode
@@ -227,6 +230,16 @@ public sealed class RemoteProcess : IDisposable
         else if (_readMode != ReadMode.Exited)
         {
             throw new InvalidOperationException("The process has not yet exited.");
+        }
+    }
+
+    public bool HasTerminal
+    {
+        get
+        {
+            ThrowIfDisposed();
+
+            return _hasTty;
         }
     }
 

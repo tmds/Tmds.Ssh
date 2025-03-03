@@ -33,9 +33,14 @@ namespace Tmds.Ssh
     public sealed class ExecuteOptions
     {
         public ExecuteOptions() { }
+        public bool AllocateTerminal { get; set; }
         public System.Text.Encoding StandardErrorEncoding { get; set; }
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
+        public int TerminalHeight { get; set; }
+        public Tmds.Ssh.TerminalSettings TerminalSettings { get; }
+        public string TerminalType { get; set; }
+        public int TerminalWidth { get; set; }
     }
     public sealed class FileEntryAttributes
     {
@@ -188,10 +193,11 @@ namespace Tmds.Ssh
         public System.Threading.CancellationToken ExecutionAborted { get; }
         public int ExitCode { get; }
         public string? ExitSignal { get; }
+        public bool HasTerminal { get; }
         public System.IO.Stream StandardInputStream { get; }
         public System.IO.StreamWriter StandardInputWriter { get; }
         public void Dispose() { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__40))]
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__43))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "line"})]
@@ -229,8 +235,8 @@ namespace Tmds.Ssh
         public const Tmds.Ssh.UnixFilePermissions DefaultCreateDirectoryPermissions = 511;
         public const Tmds.Ssh.UnixFilePermissions DefaultCreateFilePermissions = 438;
         public SftpClient(Tmds.Ssh.SshClient client, Tmds.Ssh.SftpClientOptions? options = null) { }
-        public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(string destination, Tmds.Ssh.SshConfigSettings configSettings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public Tmds.Ssh.SftpDirectory WorkingDirectory { get; }
         public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
@@ -400,8 +406,8 @@ namespace Tmds.Ssh
     public class SshChannelException : Tmds.Ssh.SshException { }
     public sealed class SshClient : System.IDisposable
     {
-        public SshClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public SshClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public SshClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public SshClient(string destination, Tmds.Ssh.SshConfigSettings sshConfigOptions, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public System.Threading.CancellationToken Disconnected { get; }
         public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
@@ -533,12 +539,51 @@ namespace Tmds.Ssh
     public class SshOperationException : Tmds.Ssh.SshException { }
     public sealed class SshProxy : Tmds.Ssh.Proxy
     {
-        public SshProxy(string destination) { }
         public SshProxy(Tmds.Ssh.SshClientSettings settings) { }
+        public SshProxy(string destination) { }
         public SshProxy(string destination, Tmds.Ssh.SshConfigSettings configSettings) { }
     }
     public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
     public class SshSessionException : Tmds.Ssh.SshException { }
+    public sealed class TerminalSettings
+    {
+        public const byte DisableCharacter = 255;
+        public byte AdditionalEndOfLineCharacter { get; set; }
+        public byte AdditionalEndOfLineCharacter2 { get; set; }
+        public byte DelayedSuspendCharacter { get; set; }
+        public bool DisableFlushOnInterrupt { get; set; }
+        public bool Echo { get; set; }
+        public bool EchoControlCharacters { get; set; }
+        public bool EchoErase { get; set; }
+        public bool EchoEraseLine { get; set; }
+        public bool EchoEraseLineAllCharacters { get; set; }
+        public bool EchoNl { get; set; }
+        public bool EnableInputSignals { get; set; }
+        public bool EnableOutputControlFlow { get; set; }
+        public byte EndOfFileCharacter { get; set; }
+        public byte EraseCharacter { get; set; }
+        public byte EraseToLineStartCharacter { get; set; }
+        public byte EraseWordCharacter { get; set; }
+        public bool InputEnableExtensions { get; set; }
+        public bool InputIgnoreCr { get; set; }
+        public bool InputLineByLine { get; set; }
+        public bool InputMapCrToNl { get; set; }
+        public bool InputMapNlToCr { get; set; }
+        public bool InputRestartOnAnyChar { get; set; }
+        public byte InterruptCharacter { get; set; }
+        public bool? IsUtf8 { get; set; }
+        public byte LiteralNextCharacter { get; set; }
+        public bool OutputEnableProcessing { get; set; }
+        public bool OutputMapCrToNl { get; set; }
+        public bool OutputMapNlToCrNl { get; set; }
+        public byte QuitCharacter { get; set; }
+        public byte ReprintLineCharacter { get; set; }
+        public byte StartOutputCharacter { get; set; }
+        public bool StopBackgroundProcessesOnOutput { get; set; }
+        public byte StopOutputCharacter { get; set; }
+        public byte SuspendCharacter { get; set; }
+        public byte ToggleOutputDiscardCharacter { get; set; }
+    }
     [System.Flags]
     public enum UnixFilePermissions : short
     {

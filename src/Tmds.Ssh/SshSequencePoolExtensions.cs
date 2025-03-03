@@ -161,6 +161,36 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows, byte[] terminalMode)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_REQUEST
+            uint32    recipient channel
+            string    "pty-req"
+            boolean   want_reply
+            string    TERM environment variable value (e.g., vt100)
+            uint32    terminal width, characters (e.g., 80)
+            uint32    terminal height, rows (e.g., 24)
+            uint32    terminal width, pixels (e.g., 640)
+            uint32    terminal height, pixels (e.g., 480)
+            string    encoded terminal modes
+        */
+
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteString("pty-req");
+        writer.WriteBoolean(true); // want_reply
+        writer.WriteString(term);
+        writer.WriteUInt32(columns);
+        writer.WriteUInt32(rows);
+        writer.WriteUInt32(0);
+        writer.WriteUInt32(0);
+        writer.WriteString(terminalMode);
+        return packet.Move();
+    }
+
     public static Packet CreateExecCommandMessage(this SequencePool sequencePool, uint remoteChannel, string command)
     {
         /*

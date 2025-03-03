@@ -822,20 +822,12 @@ sealed partial class SshSession
         _allocatedChannels[i] = _allocatedChannels[i] & ~mask;
     }
 
-    public async Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, ExecuteOptions? options, CancellationToken cancellationToken)
     {
-        Debug.Assert(_settings is not null);
-
         SshChannel channel = CreateChannel(channelType);
         try
         {
-            // Open the session channel.
-            {
-                channel.TrySendChannelOpenSessionMessage();
-                await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
+            await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
 
             // Request command execution.
             {
@@ -852,8 +844,24 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(channelType, null, subsystem, cancellationToken).ConfigureAwait(false);
+    public async Task OpenSessionAsync(SshChannel channel, ExecuteOptions? options, CancellationToken cancellationToken)
+    {
+        Debug.Assert(_settings is not null);
+
+        // Open the session channel.
+        {
+            channel.TrySendChannelOpenSessionMessage();
+            await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options?.AllocateTerminal == true)
+        {
+            channel.TrySendChannelPtyRequestMessage(options.TerminalType, options.TerminalWidth, options.TerminalHeight, options.GetTerminalModeString());
+            await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate pseudoterminal.", cancellationToken).ConfigureAwait(false);
+        }
+
+        SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
+    }
 
     public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)
     {
@@ -892,22 +900,19 @@ sealed partial class SshSession
     }
 
     public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", cancellationToken).ConfigureAwait(false);
+        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", options: null, cancellationToken).ConfigureAwait(false);
 
-    private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, CancellationToken cancellationToken)
+    public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, ExecuteOptions? options, CancellationToken cancellationToken)
+        => await OpenSubsystemChannelAsync(channelType, null, subsystem, options, cancellationToken).ConfigureAwait(false);
+
+    private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, ExecuteOptions? options, CancellationToken cancellationToken)
     {
         Debug.Assert(_settings is not null);
 
         SshChannel channel = CreateChannel(channelType, onAbort);
         try
         {
-            // Open the session channel.
-            {
-                channel.TrySendChannelOpenSessionMessage();
-                await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            SendEnv(channel, _settings.EnvironmentVariables);
+            await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
 
             // Request subsystem execution.
             {
