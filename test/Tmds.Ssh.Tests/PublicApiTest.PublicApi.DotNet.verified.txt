@@ -548,7 +548,6 @@ namespace Tmds.Ssh
     public sealed class TerminalSettings
     {
         public const byte DisableCharacter = 255;
-        public TerminalSettings() { }
         public byte AdditionalEndOfLineCharacter { get; set; }
         public byte AdditionalEndOfLineCharacter2 { get; set; }
         public byte DelayedSuspendCharacter { get; set; }
@@ -557,8 +556,8 @@ namespace Tmds.Ssh
         public bool EchoControlCharacters { get; set; }
         public bool EchoErase { get; set; }
         public bool EchoEraseLine { get; set; }
+        public bool EchoEraseLineAllCharacters { get; set; }
         public bool EchoNl { get; set; }
-        public bool EchoVisualEraseLine { get; set; }
         public bool EnableInputSignals { get; set; }
         public bool EnableOutputControlFlow { get; set; }
         public byte EndOfFileCharacter { get; set; }

@@ -67,6 +67,9 @@ public sealed class TerminalSettings
 
     public const byte DisableCharacter = 0xff;
 
+    internal TerminalSettings()
+    { }
+
     public bool? IsUtf8 { get; set; } = null; // Follow ExecuteOptions.Encoding.
 
     // VINTR
@@ -92,22 +95,22 @@ public sealed class TerminalSettings
     // VWERASE
     public byte EraseWordCharacter { get; set; } = (byte)'W' - 0x40;
     // VLNEXT
-    public byte LiteralNextCharacter { get; set; } = (byte)'V' & 0x1f;
+    public byte LiteralNextCharacter { get; set; } = (byte)'V' - 0x40;
     // VDISCARD
-    public byte ToggleOutputDiscardCharacter { get; set; } = (byte)'O' & 0x1f;
+    public byte ToggleOutputDiscardCharacter { get; set; } = (byte)'O' - 0x40;
     // VEOL
     public byte AdditionalEndOfLineCharacter { get; set; } = DisableCharacter;
     // VEOL2
     public byte AdditionalEndOfLineCharacter2 { get; set; } = DisableCharacter;
 
-    // NOFLSH
-    public bool DisableFlushOnInterrupt { get; set; } = false;
-    // TOSTOP
-    public bool StopBackgroundProcessesOnOutput { get; set; } = false;
     // IXON
     public bool EnableOutputControlFlow { get; set; } = true;
     // ISIG
     public bool EnableInputSignals { get; set; } = true;
+    // NOFLSH
+    public bool DisableFlushOnInterrupt { get; set; } = false;
+    // TOSTOP
+    public bool StopBackgroundProcessesOnOutput { get; set; } = false;
 
     // ECHO
     public bool Echo { get; set; } = true;
@@ -116,7 +119,7 @@ public sealed class TerminalSettings
     // ECHOK
     public bool EchoEraseLine { get; set; } = true;
     // ECHOKE
-    public bool EchoVisualEraseLine { get; set; } = true;
+    public bool EchoEraseLineAllCharacters { get; set; } = true;
     // ECHOCTL
     public bool EchoControlCharacters { get; set; } = true;
     // ECHONL
@@ -225,7 +228,7 @@ public sealed class TerminalSettings
         writer.WriteByte(ECHONL); writer.WriteUInt32(EchoNl ? 1 : 0);
         writer.WriteByte(ECHOE); writer.WriteUInt32(EchoErase ? 1 : 0);
         writer.WriteByte(ECHOK); writer.WriteUInt32(EchoEraseLine ? 1 : 0);
-        writer.WriteByte(ECHOKE); writer.WriteUInt32(EchoVisualEraseLine ? 1 : 0);
+        writer.WriteByte(ECHOKE); writer.WriteUInt32(EchoEraseLineAllCharacters ? 1 : 0);
         writer.WriteByte(NOFLSH); writer.WriteUInt32(DisableFlushOnInterrupt ? 1 : 0);
         writer.WriteByte(TOSTOP); writer.WriteUInt32(StopBackgroundProcessesOnOutput ? 1 : 0);
         writer.WriteByte(IEXTEN); writer.WriteUInt32(InputEnableExtensions ? 1 : 0);

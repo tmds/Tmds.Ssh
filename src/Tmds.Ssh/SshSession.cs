@@ -857,7 +857,7 @@ sealed partial class SshSession
         if (options?.AllocateTerminal == true)
         {
             channel.TrySendChannelPtyRequestMessage(options.TerminalType, options.TerminalWidth, options.TerminalHeight, options.GetTerminalModeString());
-            await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate tty.", cancellationToken).ConfigureAwait(false);
+            await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate pseudoterminal.", cancellationToken).ConfigureAwait(false);
         }
 
         SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
