@@ -36,7 +36,6 @@ public sealed class RemoteProcess : IDisposable
                 // TODO: alloc from ArrayPool?
                 _charBuffer = new char[encoding.GetMaxCharCount(BufferSize)];
                 _decoder = encoding.GetDecoder();
-                _sbHasNoNewlines = true;
             }
         }
 
@@ -49,8 +48,10 @@ public sealed class RemoteProcess : IDisposable
             int charLength = _charLen - _charPos;
             if (charLength > 0)
             {
+                // We only add to the string builder when we're trying to complete a line.
+                Debug.Assert(_charBuffer.AsSpan(_charPos, charLength).IndexOfAny('\r', '\n') == -1);
+
                 AppendCharsToStringBuilder();
-                _sbHasNoNewlines = false;
             }
             _charPos = 0;
             _charLen = _decoder.GetChars(buffer, _charBuffer, flush: false);
@@ -75,36 +76,38 @@ public sealed class RemoteProcess : IDisposable
             _charPos = _charLen = 0;
         }
 
+        public bool TryReadChars(Memory<char> buffer, out int bytesRead)
+        {
+            bytesRead = 0;
+            if (_charBuffer == null)
+            {
+                return false;
+            }
+            int count;
+            // Check stringbuilder.
+            if (_sb is { Length: > 0 })
+            {
+                count = Math.Min(_sb.Length, buffer.Length);
+                _sb.CopyTo(sourceIndex: 0, buffer.Span, count);
+                _sb.Remove(0, count);
+                buffer = buffer.Slice(count);
+                bytesRead += count;
+            }
+            // Check chars.
+            int charBufferLength = _charLen - _charPos;
+            count = Math.Min(charBufferLength, buffer.Length);
+            _charBuffer.AsSpan(_charPos, count).CopyTo(buffer.Span);
+            _charPos += count;
+            bytesRead += count;
+            return bytesRead != 0;
+        }
+
         public bool TryReadLine(out string? line, bool final)
         {
             line = null;
             if (_charBuffer == null)
             {
                 return false;
-            }
-            // Check stringbuilder.
-            if (_sb is { Length: > 0 } && !_sbHasNoNewlines)
-            {
-                for (int i = 0; i < _sb.Length; i++)
-                {
-                    char c = _sb[i];
-                    if (c == '\r' || c == '\n')
-                    {
-                        _skipNewlineChar = c == '\r';
-                        line = _sb.ToString(0, i);
-                        if (_skipNewlineChar && (i + i) < _sb.Length)
-                        {
-                            if (_sb[i + 1] == '\n')
-                            {
-                                i++;
-                            }
-                            _skipNewlineChar = false;
-                        }
-                        _sb.Remove(0, i + 1);
-                        return true;
-                    }
-                }
-                _sbHasNoNewlines = true;
             }
             // Check chars.
             if (_charPos != _charLen)
@@ -180,7 +183,6 @@ public sealed class RemoteProcess : IDisposable
         private int _charPos;
         private int _charLen;
         private StringBuilder? _sb;
-        private bool _sbHasNoNewlines;
         private bool _skipNewlineChar;
     }
 
@@ -389,9 +391,6 @@ public sealed class RemoteProcess : IDisposable
 
     public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken cancellationToken = default)
     {
-        ReadMode readMode = stdoutStream is null && stderrStream is null ? ReadMode.Exited : ReadMode.ReadBytes;
-        CheckReadMode(readMode);
-
         await ReadToEndAsync(stdoutStream != null ? writeToStream : null, stdoutStream,
                              stderrStream != null ? writeToStream : null, stderrStream,
                              cancellationToken).ConfigureAwait(false);
@@ -416,7 +415,8 @@ public sealed class RemoteProcess : IDisposable
                                           Func<Memory<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
                                           CancellationToken cancellationToken = default)
     {
-        CheckReadMode(ReadMode.ReadBytes);
+        ReadMode readMode = handleStdout is null && handleStderr is null ? ReadMode.Exited : ReadMode.ReadBytes;
+        CheckReadMode(readMode);
 
         bool readStdout = handleStdout != null;
         bool readStderr = handleStderr != null;
@@ -461,8 +461,6 @@ public sealed class RemoteProcess : IDisposable
 
     public async IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        CheckReadMode(ReadMode.ReadChars);
-
         while (true)
         {
             (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false); ;
@@ -479,18 +477,13 @@ public sealed class RemoteProcess : IDisposable
         CheckReadMode(ReadMode.ReadChars);
 
         string? line;
-        if (readStdout && _stdoutBuffer.TryReadLine(out line, _delayedExit))
+        if (readStdout && _stdoutBuffer.TryReadLine(out line, false))
         {
             return (false, line);
         }
-        if (readStderr && _stderrBuffer.TryReadLine(out line, _delayedExit))
+        if (readStderr && _stderrBuffer.TryReadLine(out line, false))
         {
             return (true, line);
-        }
-        if (_delayedExit)
-        {
-            _readMode = ReadMode.Exited;
-            return (false, null);
         }
         while (true)
         {
@@ -511,15 +504,18 @@ public sealed class RemoteProcess : IDisposable
             }
             else if (readType == ProcessReadType.ProcessExit)
             {
-                if (readStdout && _stdoutBuffer.TryReadLine(out line, true))
+                if (!_delayedExit)
                 {
-                    _delayedExit = true;
-                    return (false, line);
-                }
-                if (readStderr && _stderrBuffer.TryReadLine(out line, true))
-                {
-                    _delayedExit = true;
-                    return (true, line);
+                    if (readStdout && _stdoutBuffer.TryReadLine(out line, true))
+                    {
+                        _delayedExit = true;
+                        return (false, line);
+                    }
+                    if (readStderr && _stderrBuffer.TryReadLine(out line, true))
+                    {
+                        _delayedExit = true;
+                        return (true, line);
+                    }
                 }
                 _readMode = ReadMode.Exited;
                 return (false, null);
@@ -527,8 +523,63 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    public async ValueTask<(bool isError, int bytesRead)> ReadCharsAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
+    {
+        if (stdoutBuffer is { Length: 0 })
+        {
+            throw new ArgumentException("Buffer length cannot be zero.", nameof(stdoutBuffer));
+        }
+        if (stderrBuffer is { Length: 0 })
+        {
+            throw new ArgumentException("Buffer length cannot be zero.", nameof(stderrBuffer));
+        }
+
+        CheckReadMode(ReadMode.ReadChars);
+
+        bool readStdout = stdoutBuffer.HasValue;
+        bool readStderr = stderrBuffer.HasValue;
+
+        int bytesRead;
+        if (readStdout && _stdoutBuffer.TryReadChars(stdoutBuffer!.Value, out bytesRead))
+        {
+            return (false, bytesRead);
+        }
+        if (readStderr && _stderrBuffer.TryReadChars(stderrBuffer!.Value, out bytesRead))
+        {
+            return (true, bytesRead);
+        }
+        while (true)
+        {
+            ProcessReadType readType = await ReadCharsAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false); ;
+            if (readType == ProcessReadType.StandardOutput)
+            {
+                if (_stdoutBuffer.TryReadChars(stdoutBuffer!.Value, out bytesRead))
+                {
+                    return (false, bytesRead);
+                }
+            }
+            else if (readType == ProcessReadType.StandardError)
+            {
+                if (_stderrBuffer.TryReadChars(stderrBuffer!.Value, out bytesRead))
+                {
+                    return (true, bytesRead);
+                }
+            }
+            else if (readType == ProcessReadType.ProcessExit)
+            {
+                _readMode = ReadMode.Exited;
+                return (false, 0);
+            }
+        }
+    }
+
     private async ValueTask<ProcessReadType> ReadCharsAsync(bool readStdout, bool readStderr, CancellationToken cancellationToken)
     {
+        if (_delayedExit)
+        {
+            return ProcessReadType.ProcessExit;
+        }
+
         if (_byteBuffer == null)
         {
             // TODO: alloc from ArrayPool?

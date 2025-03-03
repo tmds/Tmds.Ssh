@@ -99,23 +99,27 @@ class RemoteProcess : IDisposable
 {
   bool HasTerminal { get; }
 
-  // Read from the remote process.
-  ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
-  ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
-  IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  // Read from the remote process (bytes).
   ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken);
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default);
   ValueTask ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken);
+  // Read from the remote process (chars/strings). After using these APIs, APIs that read bytes may no longer be used.
+  ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
+  ValueTask<(bool isError, int bytesRead)> ReadCharsAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default);
 
-  // Write to the remote process.
+  // Write to the remote process (bytes).
   ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default);
+  Stream StandardInputStream { get; } // Disposing/Closing the Stream calls WriteEof.
+  // Write to the remote process (chars/strings).
   ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default);
   ValueTask WriteAsync(string value, CancellationToken cancellationToken = default);
   ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default);
   ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default);
-  void WriteEof();
-  Stream StandardInputStream { get; } // Disposing/Closing the Stream calls WriteEof.
   StreamWriter StandardInputWriter { get; }
+  // Write EOF.
+  void WriteEof();
 
   // Wait for the remote process to exit.
   ValueTask WaitForExitAsync(CancellationToken cancellationToken);
