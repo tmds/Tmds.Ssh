@@ -235,8 +235,8 @@ namespace Tmds.Ssh
         public const Tmds.Ssh.UnixFilePermissions DefaultCreateDirectoryPermissions = 511;
         public const Tmds.Ssh.UnixFilePermissions DefaultCreateFilePermissions = 438;
         public SftpClient(Tmds.Ssh.SshClient client, Tmds.Ssh.SftpClientOptions? options = null) { }
-        public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
+        public SftpClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public SftpClient(string destination, Tmds.Ssh.SshConfigSettings configSettings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) { }
         public Tmds.Ssh.SftpDirectory WorkingDirectory { get; }
         public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
@@ -406,8 +406,8 @@ namespace Tmds.Ssh
     public class SshChannelException : Tmds.Ssh.SshException { }
     public sealed class SshClient : System.IDisposable
     {
-        public SshClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public SshClient(Tmds.Ssh.SshClientSettings settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public SshClient(string destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public SshClient(string destination, Tmds.Ssh.SshConfigSettings sshConfigOptions, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
         public System.Threading.CancellationToken Disconnected { get; }
         public System.Threading.Tasks.Task ConnectAsync(System.Threading.CancellationToken cancellationToken = default) { }
@@ -539,8 +539,8 @@ namespace Tmds.Ssh
     public class SshOperationException : Tmds.Ssh.SshException { }
     public sealed class SshProxy : Tmds.Ssh.Proxy
     {
-        public SshProxy(string destination) { }
         public SshProxy(Tmds.Ssh.SshClientSettings settings) { }
+        public SshProxy(string destination) { }
         public SshProxy(string destination, Tmds.Ssh.SshConfigSettings configSettings) { }
     }
     public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
