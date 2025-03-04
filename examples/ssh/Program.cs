@@ -76,7 +76,7 @@ class Program
         Task[] tasks = new[]
         {
                 PrintToConsole(process),
-                ReadInputFromConsole(process, sendRaw: allocateTerminal && !Console.IsInputRedirected)
+                ReadInputFromConsole(process)
             };
         Task.WaitAny(tasks);
         PrintExceptions(tasks);
@@ -96,20 +96,29 @@ class Program
             }
         }
 
-        static async Task ReadInputFromConsole(RemoteProcess process, bool sendRaw)
+        static async Task ReadInputFromConsole(RemoteProcess process)
         {
-            using TextReader reader = CreateConsoleInReader(sendRaw);
+            using TextReader reader = CreateConsoleInReader();
 
             char[] buffer = new char[1024];
-            var cancellationToken = process.ExecutionAborted;
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                int charsRead = await reader.ReadAsync(buffer, cancellationToken);
-                await process.WriteAsync(buffer.AsMemory(0, charsRead));
+                while (true)
+                {
+                    int charsRead = await reader.ReadAsync(buffer, process.ExecutionAborted);
+                    if (charsRead == 0)
+                    {
+                        break;
+                    }
+                    await process.WriteAsync(buffer.AsMemory(0, charsRead));
+                }
+                process.WriteEof();
             }
+            catch (OperationCanceledException)
+            { }
         }
 
-        static TextReader CreateConsoleInReader(bool raw)
+        static TextReader CreateConsoleInReader()
         {
             if (!OperatingSystem.IsWindows() && !Console.IsInputRedirected)
             {
@@ -119,27 +128,20 @@ class Program
                 _ = Console.CursorTop;
             }
 
-            if (raw)
+            Stream stream;
+            if (OperatingSystem.IsWindows())
             {
-                Stream stream;
-                if (OperatingSystem.IsWindows())
-                {
-                    throw new NotImplementedException();
-                }
-                else
-                {
-                    // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
-                    const int STDIN_FILENO = 0;
-                    SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
-                    stream = new FileStream(handle, FileAccess.Read);
-                }
-
-                return new StreamReader(stream, Console.InputEncoding);
+                throw new NotImplementedException();
             }
             else
             {
-                return Console.In;
+                // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
+                const int STDIN_FILENO = 0;
+                SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
+                stream = new FileStream(handle, FileAccess.Read);
             }
+
+            return new StreamReader(stream, Console.InputEncoding);
         }
 
         static void PrintExceptions(Task[] tasks)
