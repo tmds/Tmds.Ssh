@@ -854,13 +854,28 @@ sealed partial class SshSession
             await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        string? term = null;
         if (options?.AllocateTerminal == true)
         {
-            channel.TrySendChannelPtyRequestMessage(options.TerminalType, options.TerminalWidth, options.TerminalHeight, options.GetTerminalModeString());
+            term = options.TerminalType;
+            channel.TrySendChannelPtyRequestMessage(term, options.TerminalWidth, options.TerminalHeight, options.GetTerminalModeString());
             await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate pseudoterminal.", cancellationToken).ConfigureAwait(false);
         }
 
-        SendEnv(channel, _settings.EnvironmentVariablesOrDefault);
+        // Global envvars.
+        if (_settings.EnvironmentVariablesOrDefault is not null)
+        {
+            foreach (var envvar in _settings.EnvironmentVariablesOrDefault)
+            {
+                // Don't set TERM to another value than TerminalType.
+                if (term is not null && envvar.Key == "TERM" && envvar.Value != term)
+                {
+                    continue;
+                }
+
+                channel.TrySendEnvMessage(envvar.Key, envvar.Value);
+            }
+        }
     }
 
     public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)
@@ -926,19 +941,6 @@ sealed partial class SshSession
         {
             channel.Dispose();
             throw;
-        }
-    }
-
-    private static void SendEnv(SshChannel channel, IReadOnlyDictionary<string, string>? environmentVariables)
-    {
-        if (environmentVariables is null)
-        {
-            return;
-        }
-
-        foreach (var envvar in environmentVariables)
-        {
-            channel.TrySendEnvMessage(envvar.Key, envvar.Value);
         }
     }
 
