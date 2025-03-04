@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32.SafeHandles;
@@ -17,7 +20,7 @@ class Program
         { Arity = ArgumentArity.ZeroOrOne };
         var commandArg = new Argument<string>(name: "command", () => "echo 'hello world'")
         { Arity = ArgumentArity.ZeroOrOne };
-        var terminalOption = new Option<bool>(new[] { "-t"}, "Allocate a terminal");
+        var terminalOption = new Option<bool>(new[] { "-t" }, "Allocate a terminal");
         var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
             description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
         { Arity = ArgumentArity.ZeroOrMore };
@@ -37,7 +40,7 @@ class Program
         if (OperatingSystem.IsWindows() && allocateTerminal)
         {
             Console.Error.WriteLine("Allocating a terminal is not implemented for Windows.");
-            allocateTerminal = false; 
+            allocateTerminal = false;
         }
 
         bool trace = IsEnvvarTrue("TRACE");
@@ -120,28 +123,14 @@ class Program
 
         static TextReader CreateConsoleInReader()
         {
-            if (!OperatingSystem.IsWindows() && !Console.IsInputRedirected)
-            {
-                // By default, Unix terminals are in CANON mode which means they return input line-by-line.
-                // .NET disables CANON mode when its reading APIs are used.
-                // This makes a cursor position read to disable CANON mode.
-                _ = Console.CursorTop;
-            }
-
-            Stream stream;
             if (OperatingSystem.IsWindows())
             {
-                throw new NotImplementedException();
+                return new WindowsStandardInputReader();
             }
             else
             {
-                // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
-                const int STDIN_FILENO = 0;
-                SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
-                stream = new FileStream(handle, FileAccess.Read);
+                return new UnixStandardInputReader();
             }
-
-            return new StreamReader(stream, Console.InputEncoding);
         }
 
         static void PrintExceptions(Task[] tasks)
@@ -194,5 +183,114 @@ class Program
         }
 
         return value == "1";
+    }
+}
+
+sealed partial class UnixStandardInputReader : StreamReader
+{
+    const int STDIN_FILENO = 0;
+
+    public UnixStandardInputReader()
+        : base(CreateStream(), Console.InputEncoding)
+    { }
+
+    private static Stream CreateStream()
+    {
+        // By default, Unix terminals are in CANON mode which means they return input line-by-line.
+        // .NET disables CANON mode when its reading APIs are used.
+        // This makes a cursor position read to disable CANON mode.
+        if (!Console.IsInputRedirected)
+        {
+            _ = Console.CursorTop;
+        }
+
+        // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
+        SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
+        return new FileStream(handle, FileAccess.Read);
+    }
+}
+
+sealed partial class WindowsStandardInputReader : TextReader
+{
+    private const string Kernel32 = "kernel32.dll";
+    private const int STD_INPUT_HANDLE = -10;
+    private const int BytesPerWChar = 2;
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    private static partial IntPtr GetStdHandle(int nStdHandle);
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CancelIoEx(IntPtr handle, IntPtr lpOverlapped);
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    internal static unsafe partial int ReadFile(
+        IntPtr handle,
+        void* bytes,
+        int numBytesToRead,
+        out int numBytesRead,
+        IntPtr mustBeZero);
+
+    private readonly IntPtr _handle;
+    private bool _reading;
+
+    public WindowsStandardInputReader()
+    {
+        _handle = GetStdHandle(STD_INPUT_HANDLE);
+    }
+
+    public async override ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        // Yield to avoid blocking.
+        await Task.Yield();
+
+        // This blocks but it respects the cancellation token.
+        return Read(buffer, cancellationToken);
+    }
+
+    private unsafe int Read(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        bool readSuccess;
+        int charsRead;
+
+        try
+        {
+            _reading = true;
+            // Note: this poor man's cancellation may cause characters to get lost.
+            //       we don't care about that because the application exists.
+            using var ctr = cancellationToken.UnsafeRegister(o => ((WindowsStandardInputReader)o!).CancelIO(), this);
+
+            fixed (char* ptr = buffer.Span)
+            {
+                readSuccess = (0 != ReadFile(_handle, ptr, buffer.Length * BytesPerWChar, out int bytesRead, IntPtr.Zero));
+                charsRead = bytesRead / BytesPerWChar;
+            }
+        }
+        finally
+        {
+            _reading = false;
+        }
+
+        if (readSuccess)
+        {
+            return charsRead;
+        }
+        else
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            int errorCode = Marshal.GetLastPInvokeError();
+            throw new Win32Exception(errorCode);
+        }
+    }
+
+    private void CancelIO()
+    {
+        // Loop in case we get cancelled before ReadConsole got called.
+        while (_reading)
+        {
+            CancelIoEx(_handle, IntPtr.Zero);
+            Thread.Sleep(10);
+        }
     }
 }
