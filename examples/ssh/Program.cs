@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32.SafeHandles;
 
 namespace Tmds.Ssh;
 
@@ -15,21 +17,29 @@ class Program
         { Arity = ArgumentArity.ZeroOrOne };
         var commandArg = new Argument<string>(name: "command", () => "echo 'hello world'")
         { Arity = ArgumentArity.ZeroOrOne };
+        var terminalOption = new Option<bool>(new[] { "-t"}, "Allocate a terminal");
         var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
             description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
         { Arity = ArgumentArity.ZeroOrMore };
 
         var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
+        rootCommand.AddOption(terminalOption);
         rootCommand.AddOption(sshConfigOptions);
         rootCommand.AddArgument(destinationArg);
         rootCommand.AddArgument(commandArg);
-        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, sshConfigOptions);
+        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, terminalOption, sshConfigOptions);
 
         return rootCommand.InvokeAsync(args);
     }
 
-    static async Task ExecuteAsync(string destination, string command, string[] options)
+    static async Task ExecuteAsync(string destination, string command, bool allocateTerminal, string[] options)
     {
+        if (OperatingSystem.IsWindows() && allocateTerminal)
+        {
+            Console.Error.WriteLine("Allocating a terminal is not implemented for Windows.");
+            allocateTerminal = false; 
+        }
+
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
 
@@ -47,36 +57,88 @@ class Program
 
         using SshClient client = new SshClient(destination, configSettings, loggerFactory);
 
-        using var process = await client.ExecuteAsync(command);
+        ExecuteOptions? executeOptions = null;
+        if (allocateTerminal)
+        {
+            executeOptions = new()
+            {
+                AllocateTerminal = true,
+                TerminalHeight = Console.WindowHeight,
+                TerminalWidth = Console.WindowWidth
+            };
+            if (Environment.GetEnvironmentVariable("TERM") is string term)
+            {
+                executeOptions.TerminalType = term;
+            }
+        }
+
+        using var process = await client.ExecuteAsync(command, executeOptions);
         Task[] tasks = new[]
         {
                 PrintToConsole(process),
-                ReadInputFromConsole(process)
+                ReadInputFromConsole(process, sendRaw: allocateTerminal && !Console.IsInputRedirected)
             };
         Task.WaitAny(tasks);
         PrintExceptions(tasks);
 
         static async Task PrintToConsole(RemoteProcess process)
         {
-            await foreach ((bool isError, string line) in process.ReadAllLinesAsync())
+            char[] buffer = new char[1024];
+            while (true)
             {
-                Console.WriteLine(line);
-            }
-        }
-
-        static async Task ReadInputFromConsole(RemoteProcess process)
-        {
-            // note: Console doesn't have an async ReadLine that accepts a CancellationToken...
-            await Task.Yield();
-            var cancellationToken = process.ExecutionAborted;
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                string? line = Console.ReadLine();
-                if (line == null)
+                (bool isError, int charsRead) = await process.ReadCharsAsync(buffer, buffer);
+                if (charsRead == 0)
                 {
                     break;
                 }
-                await process.WriteLineAsync(line);
+                TextWriter writer = isError ? Console.Error : Console.Out;
+                writer.Write(buffer.AsSpan(0, charsRead));
+            }
+        }
+
+        static async Task ReadInputFromConsole(RemoteProcess process, bool sendRaw)
+        {
+            using TextReader reader = CreateConsoleInReader(sendRaw);
+
+            char[] buffer = new char[1024];
+            var cancellationToken = process.ExecutionAborted;
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int charsRead = await reader.ReadAsync(buffer, cancellationToken);
+                await process.WriteAsync(buffer.AsMemory(0, charsRead));
+            }
+        }
+
+        static TextReader CreateConsoleInReader(bool raw)
+        {
+            if (!OperatingSystem.IsWindows() && !Console.IsInputRedirected)
+            {
+                // By default, Unix terminals are in CANON mode which means they return input line-by-line.
+                // .NET disables CANON mode when its reading APIs are used.
+                // This makes a cursor position read to disable CANON mode.
+                _ = Console.CursorTop;
+            }
+
+            if (raw)
+            {
+                Stream stream;
+                if (OperatingSystem.IsWindows())
+                {
+                    throw new NotImplementedException();
+                }
+                else
+                {
+                    // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
+                    const int STDIN_FILENO = 0;
+                    SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
+                    stream = new FileStream(handle, FileAccess.Read);
+                }
+
+                return new StreamReader(stream, Console.InputEncoding);
+            }
+            else
+            {
+                return Console.In;
             }
         }
 
@@ -87,7 +149,7 @@ class Program
                 Exception? innerException = task.Exception?.InnerException;
                 if (innerException is not null)
                 {
-                    System.Console.WriteLine("Exception:");
+                    Console.WriteLine("Exception:");
                     Console.WriteLine(innerException);
                 }
             }
