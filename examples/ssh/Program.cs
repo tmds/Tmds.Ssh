@@ -265,6 +265,8 @@ sealed partial class WindowsStandardInputReader : IStandardInputReader
 
     private unsafe int Read(Memory<char> buffer, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         bool readSuccess;
         int charsRead;
 
