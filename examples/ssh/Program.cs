@@ -2,13 +2,15 @@
 using System.Collections.Generic;
 using System.CommandLine;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32.SafeHandles;
 
 namespace Tmds.Ssh;
 
@@ -81,7 +83,7 @@ class Program
                 PrintToConsole(process),
                 ReadInputFromConsole(process)
             };
-        Task.WaitAny(tasks);
+        Task.WaitAll(tasks);
         PrintExceptions(tasks);
 
         static async Task PrintToConsole(RemoteProcess process)
@@ -101,7 +103,7 @@ class Program
 
         static async Task ReadInputFromConsole(RemoteProcess process)
         {
-            using TextReader reader = CreateConsoleInReader();
+            using IStandardInputReader reader = CreateConsoleInReader();
 
             char[] buffer = new char[1024];
             try
@@ -121,7 +123,7 @@ class Program
             { }
         }
 
-        static TextReader CreateConsoleInReader()
+        static IStandardInputReader CreateConsoleInReader()
         {
             if (OperatingSystem.IsWindows())
             {
@@ -186,15 +188,19 @@ class Program
     }
 }
 
-sealed partial class UnixStandardInputReader : StreamReader
+interface IStandardInputReader : IDisposable
+{
+    ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default);
+}
+
+sealed partial class UnixStandardInputReader : IStandardInputReader
 {
     const int STDIN_FILENO = 0;
+    private readonly Encoding _encoding;
+    private readonly Decoder _decoder;
+    private readonly Socket _socket;
 
     public UnixStandardInputReader()
-        : base(CreateStream(), Console.InputEncoding)
-    { }
-
-    private static Stream CreateStream()
     {
         // By default, Unix terminals are in CANON mode which means they return input line-by-line.
         // .NET disables CANON mode when its reading APIs are used.
@@ -204,13 +210,28 @@ sealed partial class UnixStandardInputReader : StreamReader
             _ = Console.CursorTop;
         }
 
+        _encoding = Console.InputEncoding;
+        _decoder = Console.InputEncoding.GetDecoder();
         // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
-        SafeFileHandle handle = new SafeFileHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
-        return new FileStream(handle, FileAccess.Read);
+        SafeSocketHandle handle = new SafeSocketHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
+        // Use a Socket since that supports cancellable async I/O on various handles (on Unix).
+        _socket = new Socket(handle);
     }
+
+    public async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        byte[] bytes = new byte[_encoding.GetMaxByteCount(buffer.Length)];
+        int bytesRead = await _socket.ReceiveAsync(bytes, cancellationToken);
+        _decoder.Convert(bytes.AsSpan(0, bytesRead), buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+        Debug.Assert(bytesRead == bytesUsed);
+        return charsUsed;
+    }
+
+    public void Dispose()
+    { }
 }
 
-sealed partial class WindowsStandardInputReader : TextReader
+sealed partial class WindowsStandardInputReader : IStandardInputReader
 {
     private const string Kernel32 = "kernel32.dll";
     private const int STD_INPUT_HANDLE = -10;
@@ -239,7 +260,7 @@ sealed partial class WindowsStandardInputReader : TextReader
         _handle = GetStdHandle(STD_INPUT_HANDLE);
     }
 
-    public async override ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+    public async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
     {
         // Yield to avoid blocking.
         await Task.Yield();
@@ -293,4 +314,7 @@ sealed partial class WindowsStandardInputReader : TextReader
             Thread.Sleep(10);
         }
     }
+
+    public void Dispose()
+    { }
 }
