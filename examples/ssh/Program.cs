@@ -39,12 +39,6 @@ class Program
 
     static async Task ExecuteAsync(string destination, string command, bool allocateTerminal, string[] options)
     {
-        if (OperatingSystem.IsWindows() && allocateTerminal)
-        {
-            Console.Error.WriteLine("Allocating a terminal is not implemented for Windows.");
-            allocateTerminal = false;
-        }
-
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
 
