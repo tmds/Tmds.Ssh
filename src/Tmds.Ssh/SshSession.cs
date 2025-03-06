@@ -22,7 +22,8 @@ sealed partial class SshSession
     private readonly string? _destination;
     private readonly SshConfigSettings? _sshConfigOptions;
     private readonly Lock _gate = new();
-    private readonly CancellationTokenSource _abortCts;    // Used to stop all operations
+    private readonly CancellationTokenSource _abortCts;   // Used to stop all operations
+    private readonly CancellationTokenSource _closedCts;  // Used to inform the user when the connection is closed.
     private SshClientSettings? _settings;
     private bool _disposed;
     private Channel<Packet>? _sendQueue;              // Multiple senders push into the queue
@@ -58,6 +59,7 @@ sealed partial class SshSession
         SshConfigSettings? configSettings, SshClient client, SshLoggers loggers)
     {
         _abortCts = new CancellationTokenSource();
+        _closedCts = new CancellationTokenSource();
 
         _settings = settings;
         _destination = destination;
@@ -69,7 +71,7 @@ sealed partial class SshSession
         _loggers = loggers;
     }
 
-    public CancellationToken ConnectionClosed
+    public CancellationToken ConnectionAborting
     {
         get
         {
@@ -77,6 +79,17 @@ sealed partial class SshSession
             ThrowIfNeverConnected();
 
             return _abortCts.Token;
+        }
+    }
+
+    public CancellationToken ConnectionClosed
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfNeverConnected();
+
+            return _closedCts.Token;
         }
     }
 
@@ -258,12 +271,20 @@ sealed partial class SshSession
 
             Abort(e, isConnecting: true);
 
-            connectTcs.SetException(e);
+            _ = _closedCts.CancelAsync();
 
+            connectTcs.SetException(e);
             return;
         }
 
-        await HandleConnectionAsync(connection, ConnectionInfo).ConfigureAwait(false);
+        try
+        {
+            await HandleConnectionAsync(connection, ConnectionInfo).ConfigureAwait(false);
+        }
+        finally
+        {
+            _ = _closedCts.CancelAsync();
+        }
     }
 
     private async Task HandleConnectionAsync(SshConnection connection, SshConnectionInfo ConnectionInfo)

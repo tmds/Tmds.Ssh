@@ -130,7 +130,7 @@ public sealed class RemoteListener : IDisposable
             {
                 throw new IndexOutOfRangeException(forwardType);
             }
-            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((RemoteListener)o!).Stop(ConnectionClosed), this);
+            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((RemoteListener)o!).Stop(ConnectionClosed), this);
         }
         catch (Exception ex)
         {
