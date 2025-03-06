@@ -110,7 +110,15 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
 
         Stop();
 
-        _cancel.Cancel();
+        if (ReferenceEquals(stopReason, ConnectionClosed))
+        {
+            // Avoid the user blocking the SshSession shutdown.
+            _ = _cancel.CancelAsync();
+        }
+        else
+        {
+            _cancel.Cancel();
+        }
     }
 
     protected abstract void Stop();
@@ -136,7 +144,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
         try
         {
             await ListenAsync(cancellationToken).ConfigureAwait(false);
-            _ctr = _session.ConnectionClosed.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(ConnectionClosed), this);
+            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(ConnectionClosed), this);
 
             Debug.Assert(_listenEndPoint is not null);
             if (_protocol == ForwardProtocol.Direct)
