@@ -276,6 +276,7 @@ public sealed class RemoteProcess : IDisposable
     public void SetTerminalSize(int width, int height)
     {
         ThrowIfNotHasTerminal();
+        ThrowIfDisposed();
 
         _channel.ChangeTerminalSize(width, height);
     }

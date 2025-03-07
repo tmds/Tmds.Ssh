@@ -198,9 +198,10 @@ sealed partial class SshChannel : ISshChannel
 
     public void ChangeTerminalSize(int width, int height)
     {
-        ThrowIfDisposed();
-        ThrowIfAborted();
-        ThrowIfEofSent();
+        // We don't throw:
+        // ThrowIfDisposed: handled by RemoteProcess.SetTerminalSize.
+        // ThrowIfAborted: may be unexpected by the library user.
+        // ThrowIfEofSent: terminal changes and input are probably handled by independent threads by the library user.
 
         TrySendWindowChange(width, height);
     }
