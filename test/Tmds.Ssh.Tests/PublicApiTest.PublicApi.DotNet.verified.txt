@@ -419,6 +419,8 @@ namespace Tmds.Ssh
         public void Dispose() { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteAsync(string command, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteAsync(string command, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteShellAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteShellAsync(Tmds.Ssh.ExecuteOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, Tmds.Ssh.ExecuteOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenTcpAsync(string address, int port, System.Threading.CancellationToken cancellationToken = default) { }

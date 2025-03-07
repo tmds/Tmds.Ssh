@@ -249,17 +249,10 @@ public sealed partial class SshClient : IDisposable
     public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
         var channel = await session.OpenRemoteProcessChannelAsync(typeof(RemoteProcess), command, options, cancellationToken).ConfigureAwait(false);
 
-        Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
-        Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
-        Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
-        bool hasTty = options?.AllocateTerminal ?? false;
-        return new RemoteProcess(channel,
-            standardInputEncoding,
-            standardErrorEncoding,
-            standardOutputEncoding,
-            hasTty);
+        return CreateRemoteProcess(channel, options);
     }
 
     public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken)
@@ -268,8 +261,26 @@ public sealed partial class SshClient : IDisposable
     public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
         var channel = await session.OpenRemoteSubsystemChannelAsync(typeof(RemoteProcess), subsystem, options, cancellationToken).ConfigureAwait(false);
 
+        return CreateRemoteProcess(channel, options);
+    }
+
+    public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken = default)
+        => ExecuteShellAsync(null, cancellationToken);
+
+    public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options, CancellationToken cancellationToken = default)
+    {
+        SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        var channel = await session.OpenRemoteShellChannelAsync(typeof(RemoteProcess), options, cancellationToken).ConfigureAwait(false);
+
+        return CreateRemoteProcess(channel, options);
+    }
+
+    private static RemoteProcess CreateRemoteProcess(ISshChannel channel, ExecuteOptions? options)
+    {
         Encoding standardInputEncoding = options?.StandardInputEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;

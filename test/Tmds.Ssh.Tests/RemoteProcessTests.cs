@@ -70,6 +70,38 @@ public class RemoteProcess
     }
 
     [Fact]
+    public async Task Shell()
+    {
+        byte[] helloWorld1Bytes = Encoding.UTF8.GetBytes("hello world 1");
+        byte[] helloWorld2Bytes = Encoding.UTF8.GetBytes("hello world 2");
+
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var process = await client.ExecuteShellAsync();
+
+        await process.WriteLineAsync("echo -n 'hello world 1'");
+
+        byte[] buffer = new byte[512];
+        (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
+        Assert.False(isError);
+        Assert.Equal(helloWorld1Bytes, buffer.AsSpan(0, bytesRead).ToArray());
+
+        await process.WriteLineAsync("echo -n 'hello world 2'");
+
+        (isError, bytesRead) = await process.ReadAsync(buffer, buffer);
+        Assert.False(isError);
+        Assert.Equal(helloWorld2Bytes, buffer.AsSpan(0, bytesRead).ToArray());
+
+        await process.WriteLineAsync("exit 1");
+
+        (isError, bytesRead) = await process.ReadAsync(buffer, buffer);
+        Assert.False(isError);
+        Assert.Equal(0, bytesRead);
+
+        Assert.Equal(1, process.ExitCode);
+    }
+
+    [Fact]
     public async Task ExitCodeThrowsInvalidOperationExceptionWhenProcessNotExited()
     {
         using var client = await _sshServer.CreateClientAsync();

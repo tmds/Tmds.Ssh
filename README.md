@@ -62,6 +62,8 @@ class SshClient : IDisposable
 
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
+  Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken = default);
+  Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options, CancellationToken cancellationToken = default);
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
