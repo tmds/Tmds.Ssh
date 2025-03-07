@@ -273,6 +273,14 @@ public sealed class RemoteProcess : IDisposable
         WriteEof(noThrow: false);
     }
 
+    public void SetTerminalSize(int width, int height)
+    {
+        ThrowIfNotHasTerminal();
+        ThrowIfDisposed();
+
+        _channel.ChangeTerminalSize(width, height);
+    }
+
     public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -649,6 +657,14 @@ public sealed class RemoteProcess : IDisposable
         if (_readMode == ReadMode.Disposed)
         {
             ThrowObjectDisposedException();
+        }
+    }
+
+    private void ThrowIfNotHasTerminal()
+    {
+        if (!HasTerminal)
+        {
+            throw new InvalidOperationException("Process was not started with a terminal.");
         }
     }
 

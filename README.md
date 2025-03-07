@@ -97,8 +97,6 @@ class ExecuteOptions
 }
 class RemoteProcess : IDisposable
 {
-  bool HasTerminal { get; }
-
   // Read from the remote process (bytes).
   ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken);
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default);
@@ -126,6 +124,10 @@ class RemoteProcess : IDisposable
 
   // CancellationToken that cancels when remote process terminates.
   CancellationToken ExecutionAborted { get; }
+
+  // Terminal operations.
+  bool HasTerminal { get; }
+  void SetTerminalSize(int width, int height);
 
   // Exit code.
   int ExitCode { get; }

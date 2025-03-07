@@ -196,6 +196,16 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
+    public void ChangeTerminalSize(int width, int height)
+    {
+        // We don't throw:
+        // ThrowIfDisposed: handled by RemoteProcess.SetTerminalSize.
+        // ThrowIfAborted: may be unexpected by the library user.
+        // ThrowIfEofSent: terminal changes and input are probably handled by independent threads by the library user.
+
+        TrySendWindowChange(width, height);
+    }
+
     private void ThrowIfEofSent()
     {
         if (_eofSent)
@@ -644,6 +654,9 @@ sealed partial class SshChannel : ISshChannel
 
     private void TrySendEofMessage()
         => TrySendPacket(_sequencePool.CreateChannelEofMessage(RemoteChannel));
+
+    private void TrySendWindowChange(int width, int height)
+        => TrySendPacket(_sequencePool.CreateWindowChangeRequestMessage(RemoteChannel, width, height));
 
     private void TrySendChannelDataMessage(ReadOnlyMemory<byte> memory)
         => TrySendPacket(_sequencePool.CreateChannelDataMessage(RemoteChannel, memory));

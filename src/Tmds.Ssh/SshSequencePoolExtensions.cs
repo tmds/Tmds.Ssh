@@ -100,6 +100,31 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateWindowChangeRequestMessage(this SequencePool sequencePool, uint remoteChannel, int columns, int rows)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_REQUEST
+            uint32    recipient channel
+            string    "window-change"
+            boolean   FALSE
+            uint32    terminal width, columns
+            uint32    terminal height, rows
+            uint32    terminal width, pixels
+            uint32    terminal height, pixels
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteString("window-change");
+        writer.WriteBoolean(false);
+        writer.WriteUInt32(columns);
+        writer.WriteUInt32(rows);
+        writer.WriteUInt32(0);
+        writer.WriteUInt32(0);
+        return packet.Move();
+    }
+
     public static Packet CreateChannelDataMessage(this SequencePool sequencePool, uint remoteChannel, ReadOnlyMemory<byte> memory)
     {
         /*
