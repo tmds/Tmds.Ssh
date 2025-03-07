@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -41,6 +43,12 @@ class Program
     {
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
+
+        if (allocateTerminal)
+        {
+            // https://github.com/tmds/Tmds.Ssh/pull/376#issuecomment-2696598706
+            throw new NotSupportedException("Allocating a terminal is not implemented for Windows.");
+        }
 
         using ILoggerFactory? loggerFactory = !log ? null :
             LoggerFactory.Create(builder =>
@@ -229,7 +237,6 @@ sealed partial class WindowsStandardInputReader : IStandardInputReader
 {
     private const string Kernel32 = "kernel32.dll";
     private const int STD_INPUT_HANDLE = -10;
-    private const int BytesPerWChar = 2;
 
     [LibraryImport(Kernel32, SetLastError = true)]
     private static partial IntPtr GetStdHandle(int nStdHandle);
@@ -241,17 +248,21 @@ sealed partial class WindowsStandardInputReader : IStandardInputReader
     [LibraryImport(Kernel32, SetLastError = true)]
     internal static unsafe partial int ReadFile(
         IntPtr handle,
-        void* bytes,
+        byte* bytes,
         int numBytesToRead,
         out int numBytesRead,
         IntPtr mustBeZero);
 
+    private readonly Encoding _encoding;
+    private readonly Decoder _decoder;
     private readonly IntPtr _handle;
     private bool _reading;
 
     public WindowsStandardInputReader()
     {
         _handle = GetStdHandle(STD_INPUT_HANDLE);
+        _encoding = Console.InputEncoding;
+        _decoder = Console.InputEncoding.GetDecoder();
     }
 
     public async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
@@ -268,29 +279,24 @@ sealed partial class WindowsStandardInputReader : IStandardInputReader
         cancellationToken.ThrowIfCancellationRequested();
 
         bool readSuccess;
-        int charsRead;
 
-        try
+        _reading = true;
+        // Note: this poor man's cancellation may cause characters to get lost.
+        //       we don't care about that because the application exists.
+        using var ctr = cancellationToken.UnsafeRegister(o => ((WindowsStandardInputReader)o!).CancelIO(), this);
+        byte[] bytes = new byte[_encoding.GetMaxByteCount(buffer.Length)];
+        int bytesRead;
+        fixed (byte* ptr = bytes)
         {
-            _reading = true;
-            // Note: this poor man's cancellation may cause characters to get lost.
-            //       we don't care about that because the application exists.
-            using var ctr = cancellationToken.UnsafeRegister(o => ((WindowsStandardInputReader)o!).CancelIO(), this);
-
-            fixed (char* ptr = buffer.Span)
-            {
-                readSuccess = (0 != ReadFile(_handle, ptr, buffer.Length * BytesPerWChar, out int bytesRead, IntPtr.Zero));
-                charsRead = bytesRead / BytesPerWChar;
-            }
+            readSuccess = (0 != ReadFile(_handle, ptr, buffer.Length, out bytesRead, IntPtr.Zero));
         }
-        finally
-        {
-            _reading = false;
-        }
+        _reading = false;
 
         if (readSuccess)
         {
-            return charsRead;
+            _decoder.Convert(bytes.AsSpan(0, bytesRead), buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+            Debug.Assert(bytesRead == bytesUsed);
+            return charsUsed;
         }
         else
         {
