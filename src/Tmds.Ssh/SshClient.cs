@@ -267,10 +267,10 @@ public sealed partial class SshClient : IDisposable
         return CreateRemoteProcess(channel, options);
     }
 
-    public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken = default)
+    public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken)
         => ExecuteShellAsync(null, cancellationToken);
 
-    public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options, CancellationToken cancellationToken = default)
+    public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
