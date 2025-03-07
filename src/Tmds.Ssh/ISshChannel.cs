@@ -18,6 +18,7 @@ interface ISshChannel
 
     ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default);
     void WriteEof(bool noThrow = false);
+    void ChangeTerminalSize(int width, int height);
 
     Exception CreateCloseException();
 }

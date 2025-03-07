@@ -44,7 +44,7 @@ class Program
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
 
-        if (allocateTerminal)
+        if (allocateTerminal && OperatingSystem.IsWindows())
         {
             // https://github.com/tmds/Tmds.Ssh/pull/376#issuecomment-2696598706
             throw new NotSupportedException("Allocating a terminal is not implemented for Windows.");
@@ -70,8 +70,8 @@ class Program
             executeOptions = new()
             {
                 AllocateTerminal = true,
+                TerminalWidth = Console.WindowWidth,
                 TerminalHeight = Console.WindowHeight,
-                TerminalWidth = Console.WindowWidth
             };
             if (Environment.GetEnvironmentVariable("TERM") is string term)
             {
@@ -80,11 +80,14 @@ class Program
         }
 
         using var process = await client.ExecuteAsync(command, executeOptions);
+
+        using IDisposable? updateWindowSize = allocateTerminal && !Console.IsOutputRedirected ? UpdateTerminalSize(process) : null;
         Task[] tasks = new[]
         {
                 PrintToConsole(process),
                 ReadInputFromConsole(process)
             };
+
         Task.WaitAll(tasks);
         PrintExceptions(tasks);
 
@@ -125,18 +128,6 @@ class Program
             { }
         }
 
-        static IStandardInputReader CreateConsoleInReader()
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return new WindowsStandardInputReader();
-            }
-            else
-            {
-                return new UnixStandardInputReader();
-            }
-        }
-
         static void PrintExceptions(Task[] tasks)
         {
             foreach (var task in tasks)
@@ -148,6 +139,37 @@ class Program
                     Console.WriteLine(innerException);
                 }
             }
+        }
+    }
+
+    static IDisposable? UpdateTerminalSize(RemoteProcess process)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+        else
+        {
+            return PosixSignalRegistration.Create(PosixSignal.SIGWINCH, ctx => {
+                try
+                {
+                    process.SetTerminalSize(Console.WindowWidth, Console.WindowHeight);
+                }
+                catch
+                { }
+            });
+        }
+    }
+
+    static IStandardInputReader CreateConsoleInReader()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new WindowsStandardInputReader();
+        }
+        else
+        {
+            return new UnixStandardInputReader();
         }
     }
 
