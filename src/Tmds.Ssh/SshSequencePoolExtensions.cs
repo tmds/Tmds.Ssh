@@ -236,6 +236,24 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateShellMessage(this SequencePool sequencePool, uint remoteChannel)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_REQUEST
+            uint32    recipient channel
+            string    "shell"
+            boolean   want reply
+            */
+
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteString("shell");
+        writer.WriteBoolean(true);
+        return packet.Move();
+    }
+
     public static Packet CreateExecSubsystemMessage(this SequencePool sequencePool, uint remoteChannel, string subsystem)
     {
         /*

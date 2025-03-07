@@ -865,6 +865,28 @@ sealed partial class SshSession
         }
     }
 
+    public async Task<ISshChannel> OpenRemoteShellChannelAsync(Type channelType, ExecuteOptions? options, CancellationToken cancellationToken)
+    {
+        SshChannel channel = CreateChannel(channelType);
+        try
+        {
+            await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
+
+            // Request command execution.
+            {
+                channel.TrySendShellRequestMessage();
+                await channel.ReceiveChannelRequestSuccessAsync("Failed to start shell.", cancellationToken).ConfigureAwait(false);
+            }
+
+            return channel;
+        }
+        catch
+        {
+            channel.Dispose();
+            throw;
+        }
+    }
+
     public async Task OpenSessionAsync(SshChannel channel, ExecuteOptions? options, CancellationToken cancellationToken)
     {
         Debug.Assert(_settings is not null);
