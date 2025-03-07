@@ -1,7 +1,16 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -15,23 +24,31 @@ class Program
         { Arity = ArgumentArity.ZeroOrOne };
         var commandArg = new Argument<string>(name: "command", () => "echo 'hello world'")
         { Arity = ArgumentArity.ZeroOrOne };
+        var terminalOption = new Option<bool>(new[] { "-t" }, "Allocate a terminal");
         var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
             description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
         { Arity = ArgumentArity.ZeroOrMore };
 
         var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
+        rootCommand.AddOption(terminalOption);
         rootCommand.AddOption(sshConfigOptions);
         rootCommand.AddArgument(destinationArg);
         rootCommand.AddArgument(commandArg);
-        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, sshConfigOptions);
+        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, terminalOption, sshConfigOptions);
 
         return rootCommand.InvokeAsync(args);
     }
 
-    static async Task ExecuteAsync(string destination, string command, string[] options)
+    static async Task ExecuteAsync(string destination, string command, bool allocateTerminal, string[] options)
     {
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
+
+        if (allocateTerminal)
+        {
+            // https://github.com/tmds/Tmds.Ssh/pull/376#issuecomment-2696598706
+            throw new NotSupportedException("Allocating a terminal is not implemented for Windows.");
+        }
 
         using ILoggerFactory? loggerFactory = !log ? null :
             LoggerFactory.Create(builder =>
@@ -47,36 +64,76 @@ class Program
 
         using SshClient client = new SshClient(destination, configSettings, loggerFactory);
 
-        using var process = await client.ExecuteAsync(command);
+        ExecuteOptions? executeOptions = null;
+        if (allocateTerminal)
+        {
+            executeOptions = new()
+            {
+                AllocateTerminal = true,
+                TerminalHeight = Console.WindowHeight,
+                TerminalWidth = Console.WindowWidth
+            };
+            if (Environment.GetEnvironmentVariable("TERM") is string term)
+            {
+                executeOptions.TerminalType = term;
+            }
+        }
+
+        using var process = await client.ExecuteAsync(command, executeOptions);
         Task[] tasks = new[]
         {
                 PrintToConsole(process),
                 ReadInputFromConsole(process)
             };
-        Task.WaitAny(tasks);
+        Task.WaitAll(tasks);
         PrintExceptions(tasks);
 
         static async Task PrintToConsole(RemoteProcess process)
         {
-            await foreach ((bool isError, string line) in process.ReadAllLinesAsync())
+            char[] buffer = new char[1024];
+            while (true)
             {
-                Console.WriteLine(line);
+                (bool isError, int charsRead) = await process.ReadCharsAsync(buffer, buffer);
+                if (charsRead == 0)
+                {
+                    break;
+                }
+                TextWriter writer = isError ? Console.Error : Console.Out;
+                writer.Write(buffer.AsSpan(0, charsRead));
             }
         }
 
         static async Task ReadInputFromConsole(RemoteProcess process)
         {
-            // note: Console doesn't have an async ReadLine that accepts a CancellationToken...
-            await Task.Yield();
-            var cancellationToken = process.ExecutionAborted;
-            while (!cancellationToken.IsCancellationRequested)
+            using IStandardInputReader reader = CreateConsoleInReader();
+
+            char[] buffer = new char[1024];
+            try
             {
-                string? line = Console.ReadLine();
-                if (line == null)
+                while (true)
                 {
-                    break;
+                    int charsRead = await reader.ReadAsync(buffer, process.ExecutionAborted);
+                    if (charsRead == 0)
+                    {
+                        break;
+                    }
+                    await process.WriteAsync(buffer.AsMemory(0, charsRead));
                 }
-                await process.WriteLineAsync(line);
+                process.WriteEof();
+            }
+            catch (OperationCanceledException)
+            { }
+        }
+
+        static IStandardInputReader CreateConsoleInReader()
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return new WindowsStandardInputReader();
+            }
+            else
+            {
+                return new UnixStandardInputReader();
             }
         }
 
@@ -87,7 +144,7 @@ class Program
                 Exception? innerException = task.Exception?.InnerException;
                 if (innerException is not null)
                 {
-                    System.Console.WriteLine("Exception:");
+                    Console.WriteLine("Exception:");
                     Console.WriteLine(innerException);
                 }
             }
@@ -131,4 +188,135 @@ class Program
 
         return value == "1";
     }
+}
+
+interface IStandardInputReader : IDisposable
+{
+    ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default);
+}
+
+sealed partial class UnixStandardInputReader : IStandardInputReader
+{
+    const int STDIN_FILENO = 0;
+    private readonly Encoding _encoding;
+    private readonly Decoder _decoder;
+    private readonly Socket _socket;
+
+    public UnixStandardInputReader()
+    {
+        // By default, Unix terminals are in CANON mode which means they return input line-by-line.
+        // .NET disables CANON mode when its reading APIs are used.
+        // This makes a cursor position read to disable CANON mode.
+        if (!Console.IsInputRedirected)
+        {
+            _ = Console.CursorTop;
+        }
+
+        _encoding = Console.InputEncoding;
+        _decoder = Console.InputEncoding.GetDecoder();
+        // Directly read stdin so that the Console does not interpret the terminal sequences and we can send them as read.
+        SafeSocketHandle handle = new SafeSocketHandle(new IntPtr(STDIN_FILENO), ownsHandle: false);
+        // Use a Socket since that supports cancellable async I/O on various handles (on Unix).
+        _socket = new Socket(handle);
+    }
+
+    public async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        byte[] bytes = new byte[_encoding.GetMaxByteCount(buffer.Length)];
+        int bytesRead = await _socket.ReceiveAsync(bytes, cancellationToken);
+        _decoder.Convert(bytes.AsSpan(0, bytesRead), buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+        Debug.Assert(bytesRead == bytesUsed);
+        return charsUsed;
+    }
+
+    public void Dispose()
+    { }
+}
+
+sealed partial class WindowsStandardInputReader : IStandardInputReader
+{
+    private const string Kernel32 = "kernel32.dll";
+    private const int STD_INPUT_HANDLE = -10;
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    private static partial IntPtr GetStdHandle(int nStdHandle);
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CancelIoEx(IntPtr handle, IntPtr lpOverlapped);
+
+    [LibraryImport(Kernel32, SetLastError = true)]
+    internal static unsafe partial int ReadFile(
+        IntPtr handle,
+        byte* bytes,
+        int numBytesToRead,
+        out int numBytesRead,
+        IntPtr mustBeZero);
+
+    private readonly Encoding _encoding;
+    private readonly Decoder _decoder;
+    private readonly IntPtr _handle;
+    private bool _reading;
+
+    public WindowsStandardInputReader()
+    {
+        _handle = GetStdHandle(STD_INPUT_HANDLE);
+        _encoding = Console.InputEncoding;
+        _decoder = Console.InputEncoding.GetDecoder();
+    }
+
+    public async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        // Yield to avoid blocking.
+        await Task.Yield();
+
+        // This blocks but it respects the cancellation token.
+        return Read(buffer, cancellationToken);
+    }
+
+    private unsafe int Read(Memory<char> buffer, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        bool readSuccess;
+
+        _reading = true;
+        // Note: this poor man's cancellation may cause characters to get lost.
+        //       we don't care about that because the application exists.
+        using var ctr = cancellationToken.UnsafeRegister(o => ((WindowsStandardInputReader)o!).CancelIO(), this);
+        byte[] bytes = new byte[_encoding.GetMaxByteCount(buffer.Length)];
+        int bytesRead;
+        fixed (byte* ptr = bytes)
+        {
+            readSuccess = (0 != ReadFile(_handle, ptr, buffer.Length, out bytesRead, IntPtr.Zero));
+        }
+        _reading = false;
+
+        if (readSuccess)
+        {
+            _decoder.Convert(bytes.AsSpan(0, bytesRead), buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+            Debug.Assert(bytesRead == bytesUsed);
+            return charsUsed;
+        }
+        else
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            int errorCode = Marshal.GetLastPInvokeError();
+            throw new Win32Exception(errorCode);
+        }
+    }
+
+    private void CancelIO()
+    {
+        // Loop in case we get cancelled before ReadConsole got called.
+        while (_reading)
+        {
+            CancelIoEx(_handle, IntPtr.Zero);
+            Thread.Sleep(10);
+        }
+    }
+
+    public void Dispose()
+    { }
 }
