@@ -93,7 +93,7 @@ class Program
             char[] buffer = new char[1024];
             while (true)
             {
-                (bool isError, int charsRead) = await process.ReadCharsAsync(buffer, buffer);
+                (bool isError, int charsRead) = await process.ReadAsync(buffer, buffer);
                 if (charsRead == 0)
                 {
                     break;

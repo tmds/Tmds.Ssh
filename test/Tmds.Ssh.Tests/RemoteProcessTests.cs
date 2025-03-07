@@ -134,7 +134,7 @@ public class RemoteProcess
         await process.WriteAsync("Hello world!");
 
         char[] buffer = new char[512];
-        (bool isError, int bytesRead) = await process.ReadCharsAsync(buffer, buffer);
+        (bool isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
         Assert.Equal(useStderr, isError);
         Assert.Equal("Hello world!", buffer.AsSpan(0, bytesRead).ToString());
     }
@@ -160,7 +160,7 @@ public class RemoteProcess
 
         char[] buffer = new char["Line2\r".Length];
         // '\n' is stripped because previous API was ReadLine.
-        (isError, int bytesRead) = await process.ReadCharsAsync(buffer, buffer);
+        (isError, int bytesRead) = await process.ReadAsync(buffer, buffer);
         Assert.Equal(useStderr, isError);
         Assert.Equal("Line2\r", buffer.AsSpan(0, bytesRead).ToString());
 
@@ -215,9 +215,7 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("exit 0");
 
-        (bool isError, int bytesRead) = await process.ReadAsync(null, null);
-        Assert.False(isError);
-        Assert.Equal(0, bytesRead);
+        await process.WaitForExitAsync();
 
         var ioException = await Assert.ThrowsAsync<IOException>(() =>
             process.StandardInputStream.WriteAsync(new byte[1]).AsTask());
@@ -236,7 +234,7 @@ public class RemoteProcess
         CancellationTokenSource cts = new();
         cts.CancelAfter(msTimeout);
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            process.ReadAsync(null, null, cts.Token).AsTask());
+            process.ReadAsync(new byte[1], null, cts.Token).AsTask());
     }
 
     [Theory]
@@ -292,9 +290,7 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync($"exit {exitCode}");
 
-        (bool isError, int bytesRead) = await process.ReadAsync(null, null);
-        Assert.False(isError);
-        Assert.Equal(0, bytesRead);
+        await process.WaitForExitAsync();
 
         Assert.Equal(exitCode, process.ExitCode);
         Assert.Null(process.ExitSignal);
@@ -322,13 +318,13 @@ public class RemoteProcess
         CancellationToken ct = new CancellationToken(true);
         // Pass canceled token.
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            process.ReadAsync(null, null, ct).AsTask());
+            process.ReadAsync(new byte[1], null, ct).AsTask());
         // Pass canceled token again.
         await Assert.ThrowsAsync<SshChannelClosedException>(() =>
-            process.ReadAsync(null, null, ct).AsTask());
+            process.ReadAsync(new byte[1], null, ct).AsTask());
         // Call without token.
         await Assert.ThrowsAsync<SshChannelClosedException>(() =>
-            process.ReadAsync(null, null).AsTask());
+            process.ReadAsync(new byte[1], null).AsTask());
     }
 
     [Theory]

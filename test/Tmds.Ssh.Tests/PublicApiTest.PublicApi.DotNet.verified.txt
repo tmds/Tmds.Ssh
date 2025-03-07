@@ -209,7 +209,7 @@ namespace Tmds.Ssh
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "bytesRead"})]
-        public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, int>> ReadCharsAsync(System.Memory<char>? stdoutBuffer, System.Memory<char>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, int>> ReadAsync(System.Memory<char>? stdoutBuffer, System.Memory<char>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "line"})]

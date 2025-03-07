@@ -341,7 +341,7 @@ public sealed class RemoteProcess : IDisposable
         => StandardInputWriter.BaseStream;
 
     public StreamWriter StandardInputWriter
-        => (_stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding) { AutoFlush = true, NewLine = "\n" });
+        => _stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding) { AutoFlush = true, NewLine = "\n" };
 
     public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
     {
@@ -523,7 +523,7 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
-    public async ValueTask<(bool isError, int bytesRead)> ReadCharsAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
+    public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
     {
         if (stdoutBuffer is { Length: 0 })
         {
