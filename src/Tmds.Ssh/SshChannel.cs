@@ -15,8 +15,8 @@ sealed partial class SshChannel : ISshChannel
 
         Closed, // Channel closed by peer
         ConnectionClosed, // Connection closed
-        Canceled, // Canceled by user
-        Aborted, // Channel closed due to an error
+        Canceled, // Abort due to user CancellationToken
+        Aborted, // Abort due to error
 
         Disposed // By user
     }
@@ -78,6 +78,7 @@ sealed partial class SshChannel : ISshChannel
     private int _sendWindow;
     private Exception? _abortReason = null;
     private bool _eofSent;
+    private bool _closeReceived;
     
 
     public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
@@ -196,14 +197,48 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    public void ChangeTerminalSize(int width, int height)
+    public bool ChangeTerminalSize(int width, int height)
     {
-        // We don't throw:
-        // ThrowIfDisposed: handled by RemoteProcess.SetTerminalSize.
-        // ThrowIfAborted: may be unexpected by the library user.
-        // ThrowIfEofSent: terminal changes and input are probably handled by independent threads by the library user.
+         bool isOpen = IsOpen();
 
-        TrySendWindowChange(width, height);
+        if (isOpen)
+        {
+            TrySendWindowChange(width, height);
+        }
+
+        return isOpen;
+    }
+
+    public bool SendSignal(string signalName)
+    {
+        bool isOpen = IsOpen();
+
+        if (isOpen)
+        {
+            TrySendSignal(signalName);
+        }
+
+        return isOpen;
+    }
+
+    private bool IsOpen()
+    {
+        // Channel closed by us.
+        ThrowIfDisposed();
+
+        // Channel closed by them.
+        if (_closeReceived)
+        {
+            return false;
+        }
+
+        // SSH connection is closed.
+        if (_client.ConnectionAborting.IsCancellationRequested)
+        {
+            throw _client.CreateCloseException();
+        }
+
+        return true;
     }
 
     private void ThrowIfEofSent()
@@ -443,6 +478,7 @@ sealed partial class SshChannel : ISshChannel
 
         if (closeReceived)
         {
+            _closeReceived = closeReceived;
             Abort(AbortState.Closed);
         }
     }
@@ -657,6 +693,9 @@ sealed partial class SshChannel : ISshChannel
 
     private void TrySendWindowChange(int width, int height)
         => TrySendPacket(_sequencePool.CreateWindowChangeRequestMessage(RemoteChannel, width, height));
+
+    private void TrySendSignal(string signalName)
+        => TrySendPacket(_sequencePool.CreateSendSignalRequestMessage(RemoteChannel, signalName));
 
     private void TrySendChannelDataMessage(ReadOnlyMemory<byte> memory)
         => TrySendPacket(_sequencePool.CreateChannelDataMessage(RemoteChannel, memory));
