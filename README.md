@@ -121,15 +121,18 @@ class RemoteProcess : IDisposable
   // Write EOF.
   void WriteEof();
 
+  // Send a signal. Returns 'false' if the remote process had already terminated.
+  bool SendSignal(string signalName);
+
   // Wait for the remote process to exit.
   ValueTask WaitForExitAsync(CancellationToken cancellationToken);
 
-  // CancellationToken that cancels when remote process terminates.
+  // CancellationToken that cancels when operations involving the remote process should stop.
   CancellationToken ExecutionAborted { get; }
 
   // Terminal operations.
   bool HasTerminal { get; }
-  void SetTerminalSize(int width, int height);
+  bool SetTerminalSize(int width, int height); // Returns 'false' if the remote process had already terminated.
 
   // Exit code.
   int ExitCode { get; }
@@ -637,6 +640,11 @@ class SshProxy : Proxy
 // Base class.
 class SshException : Exception
 { }
+static class SignalName
+{
+  const string TERM;
+  // ...
+}
 // Channel operation failed, channel is closed.
 class SshChannelException : SshException
 { }

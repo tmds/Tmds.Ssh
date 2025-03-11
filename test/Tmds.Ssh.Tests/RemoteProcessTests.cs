@@ -102,6 +102,22 @@ public class RemoteProcess
     }
 
     [Fact]
+    public async Task SendSignal()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        using var process = await client.ExecuteAsync("sleep 10");
+
+        bool signalSent = process.SendSignal(SignalName.TERM);
+        Assert.True(signalSent);
+
+        await process.WaitForExitAsync();
+
+        Assert.Equal(143, process.ExitCode);
+        Assert.Equal(SignalName.TERM, process.ExitSignal);
+    }
+
+    [Fact]
     public async Task ExitCodeThrowsInvalidOperationExceptionWhenProcessNotExited()
     {
         using var client = await _sshServer.CreateClientAsync();

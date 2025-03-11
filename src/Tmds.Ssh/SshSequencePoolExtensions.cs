@@ -125,6 +125,25 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
+    public static Packet CreateSendSignalRequestMessage(this SequencePool sequencePool, uint remoteChannel, string signalName)
+    {
+        /*
+            byte      SSH_MSG_CHANNEL_REQUEST
+            uint32    recipient channel
+            string    "signal"
+            boolean   FALSE
+            string    signal name (without the "SIG" prefix)
+        */
+        using var packet = sequencePool.RentPacket();
+        var writer = packet.GetWriter();
+        writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
+        writer.WriteUInt32(remoteChannel);
+        writer.WriteString("signal");
+        writer.WriteBoolean(false);
+        writer.WriteString(signalName);
+        return packet.Move();
+    }
+
     public static Packet CreateChannelDataMessage(this SequencePool sequencePool, uint remoteChannel, ReadOnlyMemory<byte> memory)
     {
         /*

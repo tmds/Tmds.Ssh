@@ -273,12 +273,18 @@ public sealed class RemoteProcess : IDisposable
         WriteEof(noThrow: false);
     }
 
-    public void SetTerminalSize(int width, int height)
+    public bool SetTerminalSize(int width, int height)
     {
         ThrowIfNotHasTerminal();
+
+        return _channel.ChangeTerminalSize(width, height);
+    }
+
+    public bool SendSignal(string signalName)
+    {
         ThrowIfDisposed();
 
-        _channel.ChangeTerminalSize(width, height);
+        return _channel.SendSignal(signalName);
     }
 
     public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
