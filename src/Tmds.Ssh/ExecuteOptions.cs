@@ -17,8 +17,10 @@ public sealed class ExecuteOptions
     private string _term = "xterm-256color";
     private int _termWidth = 80;
     private int _termHeight = 24;
+    private Dictionary<string, string>? _environmentVariables;
 
-    internal bool IsUtf8Encoding => _stdinEncoding is UTF8Encoding && _stdoutEncoding is UTF8Encoding && _stderrEncoding is UTF8Encoding;
+    internal Dictionary<string, string>? EnvironmentVariablesOrDefault
+        => _environmentVariables;
 
     public Encoding StandardInputEncoding
     {
@@ -84,6 +86,19 @@ public sealed class ExecuteOptions
 
     public TerminalSettings TerminalSettings { get; } = new();
 
+    public Dictionary<string, string> EnvironmentVariables
+    {
+        get => _environmentVariables ??= new();
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _environmentVariables = value;
+        }
+    }
+
     internal byte[] GetTerminalModeString()
-        => TerminalSettings.GetModeString(IsUtf8Encoding);
+    {
+        bool isUtf8Encoding = _stdinEncoding is UTF8Encoding && _stdoutEncoding is UTF8Encoding && _stderrEncoding is UTF8Encoding;
+        return TerminalSettings.GetModeString(isUtf8Encoding);
+    }
 }

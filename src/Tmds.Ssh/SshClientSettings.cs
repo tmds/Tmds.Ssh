@@ -325,7 +325,7 @@ public sealed partial class SshClientSettings
 
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
-    public Dictionary<string, string>? EnvironmentVariables
+    public Dictionary<string, string> EnvironmentVariables
     {
         get => _environmentVariables ??= new();
         set

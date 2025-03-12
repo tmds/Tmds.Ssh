@@ -572,4 +572,43 @@ public class RemoteProcess
         Assert.Equal(process.HasTerminal, allocTty);
         Assert.Equal(allocTty ? 0 : 1, process.ExitCode);
     }
+
+    [Fact]
+    public async Task EnvironmentVariable()
+    {
+        const string envvarValue = "test_value";
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync($"echo ${_sshServer.AcceptedEnvvar}", new ExecuteOptions() { EnvironmentVariables = { {_sshServer.AcceptedEnvvar, envvarValue } } });
+
+        (bool isError, string? line) = await process.ReadLineAsync();
+        Assert.Equal(envvarValue, line);
+    }
+
+    [Fact]
+    public async Task EnvironmentVariableGlobal()
+    {
+        const string envvarValue = "test_value";
+        using var client = await _sshServer.CreateClientAsync(settings => settings.EnvironmentVariables = new() { {_sshServer.AcceptedEnvvar, envvarValue } });
+
+        using var process = await client.ExecuteAsync($"echo ${_sshServer.AcceptedEnvvar}");
+
+        (bool isError, string? line) = await process.ReadLineAsync();
+        Assert.Equal(envvarValue, line);
+    }
+
+    [Fact]
+    public async Task TermIgnoredWhenAllocateTerminal()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+
+        var executeOptions = new ExecuteOptions()
+        {
+            AllocateTerminal = true,
+            EnvironmentVariables = { {"TERM", "foo" } }
+        };
+        using var process = await client.ExecuteAsync("echo $TERM", executeOptions);
+
+        (bool isError, string? line) = await process.ReadLineAsync();
+        Assert.Equal(executeOptions.TerminalType, line);
+    }
 }

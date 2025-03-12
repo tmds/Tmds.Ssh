@@ -91,6 +91,10 @@ class ExecuteOptions
   Encoding StandardErrorEncoding { get; set; }
   Encoding StandardOutputEncoding { get; set; }
 
+  // Often SSH servers don't accept environment variables (for security).
+  // When AllocateTerminal is set, 'TERM' is ignored when it does not match 'TerminalType'.
+  Dictionary<string, string> EnvironmentVariables { get; set; } = [];
+
   bool AllocateTerminal { get; set; } = false;
   string TerminalType { get; set; } = "xterm-256color";
   int TerminalWidth { get; set; } = 80;

@@ -34,6 +34,7 @@ namespace Tmds.Ssh
     {
         public ExecuteOptions() { }
         public bool AllocateTerminal { get; set; }
+        public System.Collections.Generic.Dictionary<string, string> EnvironmentVariables { get; set; }
         public System.Text.Encoding StandardErrorEncoding { get; set; }
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
@@ -458,7 +459,7 @@ namespace Tmds.Ssh
         public bool AutoReconnect { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
         public System.Collections.Generic.List<Tmds.Ssh.Credential> Credentials { get; set; }
-        public System.Collections.Generic.Dictionary<string, string>? EnvironmentVariables { get; set; }
+        public System.Collections.Generic.Dictionary<string, string> EnvironmentVariables { get; set; }
         public System.Collections.Generic.List<string> GlobalKnownHostsFilePaths { get; set; }
         public bool HashKnownHosts { get; set; }
         public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
