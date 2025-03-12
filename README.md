@@ -60,6 +60,7 @@ class SshClient : IDisposable
   // A connection must be established before calling this.
   CancellationToken Disconnected { get; }
 
+  /** Execute remote processes **/
   Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
   Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken);
@@ -67,21 +68,20 @@ class SshClient : IDisposable
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken);
   Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default);
 
+  /** Forward connections **/
   Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default);
   Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default);
-
   Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default);
   Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default);
-
   // bindEP can be an IPEndPoint or a UnixDomainSocketEndPoint.
   // remoteEP can be a RemoteHostEndPoint, a RemoteUnixEndPoint or a RemoteIPEndPoint.
   Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default);
   Task<SocksForward> StartForwardSocksAsync(EndPoint bindEP, CancellationToken cancellationToken = default);
-
   // bindEP can be a RemoteIPListenEndPoint or a RemoteUnixEndPoint.
   // localEP can be a DnsEndPoint, an IPEndPoint or a UnixDomainSocketEndPoint.
   Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default);
 
+  /** File system operations **/
   Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken);
   Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
 }
@@ -203,7 +203,7 @@ struct RemoteConnection : IDisposable
   bool HasStream { get; }
   Stream MoveStream(); // Transfers ownership of the Stream to the caller.
 }
-class SftpClient : IDisposable
+class SftpClient : ISftpDirectory, IDisposable
 {
   // Note: umask is applied on the server.
   const UnixFilePermissions DefaultCreateDirectoryPermissions; // = '-rwxrwxrwx'.
@@ -222,18 +222,14 @@ class SftpClient : IDisposable
 
   // May be used once the client is connected.
   SftpDirectory WorkingDirectory { get; }  // The working directory used for SftpClient operations.
-  SftpDirectory GetDirectory(string path); // Change into another working directory.
-
-  // SftpDirectory operations
-  // ...
 }
-class SftpDirectory
+class SftpDirectory : ISftpDirectory
+{ }
+interface ISftpDirectory // Represents a working directory.
 {
   string Path { get; }
 
-  SftpDirectory GetDirectory(string path);
-
-  // Directory operations
+  ISftpDirectory GetDirectory(string path);
 
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, CancellationToken cancellationToken = default);
   ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
