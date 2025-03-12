@@ -44,6 +44,8 @@ RUN rm /etc/ssh/sshd_config.d/40-redhat-crypto-policies.conf
 
 # Disable penalties.
 RUN echo 'PerSourcePenaltyExemptList "0.0.0.0/0,::/0"' > /etc/ssh/sshd_config.d/99-no-per-source-penalty.conf
+# Accept TEST_ENVVAR.
+RUN echo 'AcceptEnv TEST_ENVVAR' > /etc/ssh/sshd_config.d/99-accept-envvar.conf
 
 # Configure KDC and setup keytab
 COPY krb5.conf /etc/krb5.conf

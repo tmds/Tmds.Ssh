@@ -905,19 +905,35 @@ sealed partial class SshSession
             await channel.ReceiveChannelRequestSuccessAsync("Failed to allocate pseudoterminal.", cancellationToken).ConfigureAwait(false);
         }
 
-        // Global envvars.
-        if (_settings.EnvironmentVariablesOrDefault is not null)
+        await SetEnvironmentVariablesAsync(_settings.EnvironmentVariablesOrDefault).ConfigureAwait(false);
+        await SetEnvironmentVariablesAsync(options?.EnvironmentVariablesOrDefault).ConfigureAwait(false);
+
+        ValueTask SetEnvironmentVariablesAsync(Dictionary<string, string>? environmentVariables)
         {
-            foreach (var envvar in _settings.EnvironmentVariablesOrDefault)
+            if (environmentVariables is null)
             {
-                // Don't set TERM to another value than TerminalType.
-                if (term is not null && envvar.Key == "TERM" && envvar.Value != term)
+                return default;
+            }
+
+            foreach (var envvar in environmentVariables)
+            {
+                if (envvar.Value is null)
                 {
                     continue;
                 }
 
+                // Don't set TERM to another value than TerminalType.
+                if (term is not null && envvar.Key == "TERM" && envvar.Value != term)
+                {
+                    Logger.SkipEnvironmentVariable(envvar.Key);
+                    continue;
+                }
+
+                // Like 'ssh' we don't wait for a reply. This could be made an option.
+                // SSH servers are not likely to accept environment variables, so often the reply is "failure".
                 channel.TrySendEnvMessage(envvar.Key, envvar.Value);
             }
+            return default;
         }
     }
 

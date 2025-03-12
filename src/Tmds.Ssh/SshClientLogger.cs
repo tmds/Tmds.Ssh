@@ -353,6 +353,12 @@ static partial class SshClientLogger
         Message = "Failed to find key for certificate '{CertificateIdentifier}'. Identities checked: {IdentitiesCount}, SSH Agent keys checked: {SshAgentKeyCount}")]
     public static partial void CertificateFileKeyNotFound(this ILogger<SshClient> logger, string certificateIdentifier, int identitiesCount, int? sshAgentKeyCount);
 
+    [LoggerMessage(
+        EventId = 40,
+        Level = LogLevel.Information,
+        Message = "Skipping environment variable '{Name}'")]
+    public static partial void SkipEnvironmentVariable(this ILogger<SshClient> logger, string name);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;

@@ -33,6 +33,7 @@ public class SshServer : IDisposable
     public string Destination => $"{TestUser}@{ServerHost}:{ServerPort}";
     public string KnownHostAlgorithmThatUsesCertificate => AlgorithmNames.RsaSshSha2_256Cert;
     public string KnownHostAlgorithmThatDoesntUseCertificate => AlgorithmNames.RsaSshSha2_256;
+    public string AcceptedEnvvar => "TEST_ENVVAR";
 
     private string RsaKeySHA256FingerPrint => "sqggBLsad/k11YcLVgwFnq6Bs7WRYgD1u+WhBmVKMVM";
     private string Ed25519KeySHA256FingerPrint => "Y/HuDkfhwjCreznEiaX5tshGRPXZJvZ/Nj42hCsw9II";
