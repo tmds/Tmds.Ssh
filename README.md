@@ -257,7 +257,9 @@ interface ISftpDirectory // Represents a working directory.
 
   ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default);
 
-  ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
+  ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, CancellationToken cancellationToken); // No extended attributes are returned.
+  ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default); // No extended attributes are returned.
+  ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default); // 'filter' determines what extended attributes are returned.
   ValueTask SetAttributesAsync(
     string path,
     UnixFilePermissions? permissions = default,
@@ -290,7 +292,8 @@ interface ISftpDirectory // Represents a working directory.
 }
 class SftpFile : Stream
 {
-  ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default);
+  public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default); // No extended attributes are returned.
+  public async ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default); // 'filter' determines what extended attributes are returned. Set to 'null' to return all.
   ValueTask SetAttributesAsync(
     UnixFilePermissions? permissions = default,
     (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
@@ -464,6 +467,7 @@ class EnumerationOptions
   UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
   SftpFileEntryPredicate? ShouldRecurse { get; set; }
   SftpFileEntryPredicate? ShouldInclude { get; set; }
+  public string[]? ExtendedAttributes { get; set; } = []; // Extended attributes to return. Set to 'null' to return all.
 }
 class DownloadEntriesOptions
 {

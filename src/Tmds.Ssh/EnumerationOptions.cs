@@ -18,4 +18,5 @@ public sealed class EnumerationOptions
         UnixFileTypeFilter.Fifo;
     public SftpFileEntryPredicate? ShouldRecurse { get; set; }
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
+    public string[]? ExtendedAttributes { get; set; } = [];
 }

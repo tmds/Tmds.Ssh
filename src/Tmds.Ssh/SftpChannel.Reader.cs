@@ -72,11 +72,9 @@ partial class SftpChannel
             return value;
         }
 
-        public FileEntryAttributes ReadFileAttributes()
-            => ReadFileAttributes(new FileEntryAttributes());
-
-        public FileEntryAttributes ReadFileAttributes(FileEntryAttributes attributes)
+        public FileEntryAttributes ReadFileAttributes(string[]? filter)
         {
+            FileEntryAttributes attributes = new();
             // In practice, most servers will include all these values.
             // So in case it doesn't, we use sentinel value instead of forcing a user to deal with nullable properties.
             long length = -1;
@@ -107,15 +105,19 @@ partial class SftpChannel
                 lastAccessTime = DateTimeOffset.FromUnixTimeSeconds(ReadUInt());
                 lastWriteTime = DateTimeOffset.FromUnixTimeSeconds(ReadUInt());
             }
-            if ((flags & 0x80000000) != 0)
+            if ((flags & 0x80000000) != 0 && filter?.Length != 0)
             {
                 uint count = ReadUInt();
                 if (count > 0)
                 {
-                    extendedAttributes = new();
                     for (int i = 0; i < count; i++)
                     {
-                        extendedAttributes[ReadString()] = ReadStringAsByteArray();
+                        string key = ReadString();
+                        if (filter?.Contains(key) != false)
+                        {
+                            extendedAttributes ??= new();
+                            extendedAttributes[key] = ReadStringAsByteArray();
+                        }
                     }
                 }
             }

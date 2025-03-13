@@ -17,8 +17,7 @@ public ref struct SftpFileEntry
         FileAttributeFlags.SSH_FILEXFER_ATTR_ACMODTIME;
 
     private readonly string _directoryPath;
-    private readonly char[] _pathBuffer;
-    private readonly char[] _nameBuffer;
+    private readonly EnumeratorContext _context;
 
     private int _pathLength = 0;
     private int _nameLength = 0;
@@ -38,41 +37,43 @@ public ref struct SftpFileEntry
     {
         get
         {
+            char[] pathBuffer = _context.PathBuffer;
             if (_pathLength == 0)
             {
                 int length = _directoryPath.Length;
                 if (length > 0)
                 {
-                    _directoryPath.AsSpan().CopyTo(_pathBuffer);
+                    _directoryPath.AsSpan().CopyTo(pathBuffer);
 
                     // Append '/' unless _directorPath == '/'.
                     if (length != 1 || _directoryPath[0] != RemotePath.DirectorySeparatorChar)
                     {
-                        _pathBuffer[length] = RemotePath.DirectorySeparatorChar;
+                        pathBuffer[length] = RemotePath.DirectorySeparatorChar;
                         length++;
                     }
                 }
 
                 ReadOnlySpan<char> filename = FileName;
-                filename.CopyTo(_pathBuffer.AsSpan(length));
+                filename.CopyTo(pathBuffer.AsSpan(length));
                 length += filename.Length;
 
                 _pathLength = length;
             }
 
-            return _pathBuffer.AsSpan(0, _pathLength);
+            return pathBuffer.AsSpan(0, _pathLength);
         }
     }
     public ReadOnlySpan<char> FileName
     {
         get
         {
+            char[] nameBuffer = _context.NameBuffer;
             if (_nameLength == 0)
             {
-                _nameLength = Encoding.UTF8.GetChars(NameBytes, _nameBuffer);
+                _nameLength = Encoding.UTF8.GetChars(NameBytes, nameBuffer);
             }
 
-            return _nameBuffer.AsSpan(0, _nameLength);
+            return nameBuffer.AsSpan(0, _nameLength);
         }
     }
     public FileEntryAttributes ToAttributes()
@@ -93,14 +94,20 @@ public ref struct SftpFileEntry
     {
         Dictionary<string, byte[]>? dict = null;
 
-        if (!AttributesBytes.IsEmpty)
+        string[]? filter = _context.ExtendedAttributesFilter;
+
+        if (!AttributesBytes.IsEmpty && (filter?.Length != 0))
         {
             SftpChannel.PacketReader reader = new(AttributesBytes);
             uint count = reader.ReadUInt();
             for (int i = 0; i < count; i++)
             {
-                dict ??= new();
-                dict[reader.ReadString()] = reader.ReadStringAsByteArray();
+                string key = reader.ReadString();
+                if (filter?.Contains(key) != false)
+                {
+                    dict ??= new();
+                    dict[key] = reader.ReadStringAsByteArray();
+                }
             }
         }
 
@@ -110,13 +117,12 @@ public ref struct SftpFileEntry
     public string ToPath()
         => _path ??= new string(Path);
 
-    internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, char[] pathBuffer, char[] nameBuffer, out int entryLength, FileEntryAttributes? linkTargetAttributes = null)
+    internal SftpFileEntry(string directoryPath, ReadOnlySpan<byte> entry, EnumeratorContext context, out int entryLength, FileEntryAttributes? linkTargetAttributes = null)
     {
         _attributes = linkTargetAttributes;
         _path = default;
         _directoryPath = directoryPath;
-        _nameBuffer = nameBuffer;
-        _pathBuffer = pathBuffer;
+        _context = context;
 
         SftpChannel.PacketReader reader = new(entry);
         int nameLength;
