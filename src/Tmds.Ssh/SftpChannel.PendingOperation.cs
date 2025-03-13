@@ -155,7 +155,7 @@ partial class SftpChannel
                     case (PacketType.SSH_FXP_STAT, _):
                     case (PacketType.SSH_FXP_LSTAT, _):
                     case (PacketType.SSH_FXP_FSTAT, _):
-                        SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes());
+                        SetResult(error == SftpError.NoSuchFile ? null : reader.ReadFileAttributes((string[]?)Options));
                         return;
                     case (PacketType.SSH_FXP_READ, _):
                         int count;

@@ -81,10 +81,10 @@ public sealed class SftpDirectory : ISftpDirectory
         await channel.CopyFileAsync(_workingDirectory, sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+    public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        return await channel.GetAttributesAsync(_workingDirectory, path, followLinks, cancellationToken).ConfigureAwait(false);
+        return await channel.GetAttributesAsync(_workingDirectory, path, followLinks, filter, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask SetAttributesAsync(

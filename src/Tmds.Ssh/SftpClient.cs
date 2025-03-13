@@ -301,10 +301,10 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         await dir.CopyFileAsync(sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default)
+    public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        return await dir.GetAttributesAsync(path, followLinks, cancellationToken).ConfigureAwait(false);
+        return await dir.GetAttributesAsync(path, followLinks, filter, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask SetAttributesAsync(

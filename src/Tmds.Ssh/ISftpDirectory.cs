@@ -16,7 +16,7 @@ public interface ISftpDirectory
     ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
     ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default);
     ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default);
-    ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks = true, CancellationToken cancellationToken = default);
+    ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default);
     ValueTask SetAttributesAsync(
         string path,
         UnixFilePermissions? permissions = default,
@@ -74,4 +74,9 @@ public static class SftpDirectoryExtensions
     public static ValueTask DownloadFileAsync(this ISftpDirectory directory, string remoteFilePath, string localFilePath, CancellationToken cancellationToken)
         => directory.DownloadFileAsync(remoteFilePath, localFilePath, overwrite: false, cancellationToken);
 
+    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, bool followLinks = true, CancellationToken cancellationToken = default)
+        => directory.GetAttributesAsync(path, followLinks, [], cancellationToken);
+
+    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+        => directory.GetAttributesAsync(path, followLinks: true, [], cancellationToken);
 }

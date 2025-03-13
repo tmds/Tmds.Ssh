@@ -184,7 +184,7 @@ sealed partial class SftpChannel : IDisposable
     {
         // Get the source file attributes and open it in parallel.
         // We get the attribute to dermine the permissions for the destination path.
-        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(workingDirectory, sourcePath, followLinks: true, cancellationToken);
+        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(workingDirectory, sourcePath, followLinks: true, filter: [], cancellationToken);
         using SftpFile? sourceFile = await OpenFileCoreAsync(workingDirectory, sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
         if (sourceFile is null)
         {
@@ -383,12 +383,12 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask<FileEntryAttributes?> GetAttributesAsync(string workingDirectory, string path, bool followLinks = true, CancellationToken cancellationToken = default)
+    public ValueTask<FileEntryAttributes?> GetAttributesAsync(string workingDirectory, string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default)
     {
         PacketType packetType = followLinks ? PacketType.SSH_FXP_STAT : PacketType.SSH_FXP_LSTAT;
 
         int id = GetNextId();
-        PendingOperation pendingOperation = CreatePendingOperation(packetType);
+        PendingOperation pendingOperation = CreatePendingOperation(packetType, filter);
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);
@@ -559,7 +559,7 @@ sealed partial class SftpChannel : IDisposable
     {
         // This method doesn't throw if the target directory already exists.
         // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
-        ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(workingDirectory, path, followLinks: true /* allow the path to be a link to a dir */, cancellationToken);
+        ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(workingDirectory, path, followLinks: true /* allow the path to be a link to a dir */, filter: [], cancellationToken);
         ValueTask mkdir = CreateNewDirectoryAsync(workingDirectory, path, createParents, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
         try
@@ -1125,7 +1125,7 @@ sealed partial class SftpChannel : IDisposable
     {
         // Call GetAttributesAsync in parallel with OpenFileAsync.
         // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
-        ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(workingDirectory, remotePath, followLinks: true) : default;
+        ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(workingDirectory, remotePath, followLinks: true, filter: []) : default;
 
         using SftpFile? remoteFile = await OpenFileAsync(workingDirectory, remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
         if (remoteFile is null)
@@ -1484,12 +1484,12 @@ sealed partial class SftpChannel : IDisposable
 
         return ExecuteAsync<int>(packet, id, pendingOperation, cancellationToken);
     }
-    internal ValueTask<FileEntryAttributes> GetAttributesForHandleAsync(byte[] handle, CancellationToken cancellationToken = default)
+    internal ValueTask<FileEntryAttributes> GetAttributesForHandleAsync(byte[] handle, string[]? filter, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_FSTAT;
 
         int id = GetNextId();
-        PendingOperation pendingOperation = CreatePendingOperation(packetType);
+        PendingOperation pendingOperation = CreatePendingOperation(packetType, filter);
 
         Packet packet = new Packet(packetType);
         packet.WriteInt(id);

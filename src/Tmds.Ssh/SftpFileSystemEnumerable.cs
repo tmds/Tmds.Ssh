@@ -35,6 +35,18 @@ sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
         => new SftpFileSystemEnumerator<T>(_client, _channel, _path, _transform, _options, cancellationToken);
 }
 
+sealed class EnumeratorContext
+{
+    public readonly char[] PathBuffer = new char[RemotePath.MaxPathLength]; // TODO: pool alloc
+    public readonly char[] NameBuffer = new char[RemotePath.MaxNameLength]; // TODO: pool alloc
+    public readonly string[]? ExtendedAttributesFilter;
+
+    public EnumeratorContext(string[]? extendedAttributesFilter)
+    {
+        ExtendedAttributesFilter = extendedAttributesFilter;
+    }
+}
+
 sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 {
     const int DirectoryEof = -1;
@@ -44,8 +56,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly SftpClient? _client;
     private readonly SftpFileEntryTransform<T> _transform;
     private readonly CancellationToken _cancellationToken;
-    private readonly char[] _pathBuffer = new char[RemotePath.MaxPathLength]; // TODO: pool alloc
-    private readonly char[] _nameBuffer = new char[RemotePath.MaxNameLength]; // TODO: pool alloc
 
     private readonly bool _recurseSubdirectories;
     private readonly bool _followFileLinks;
@@ -53,6 +63,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly UnixFileTypeFilter _fileTypeFilter;
     private readonly SftpFileEntryPredicate? _shouldRecurse;
     private readonly SftpFileEntryPredicate? _shouldInclude;
+    private readonly EnumeratorContext _context;
 
     private Queue<string>? _pending;
     private string? _path;
@@ -87,6 +98,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _fileTypeFilter = options.FileTypeFilter;
         _shouldInclude = options.ShouldInclude;
         _shouldRecurse = options.ShouldRecurse;
+        _context = new (options.ExtendedAttributes);
     }
 
     public T Current => _current!;
@@ -223,7 +235,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     {
         Debug.Assert(_path is not null);
         int startOffset = _bufferOffset;
-        SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(startOffset), _pathBuffer, _nameBuffer, out int entryLength);
+        SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(startOffset), _context, out int entryLength);
 
         _bufferOffset += entryLength;
         _entriesRemaining--;
@@ -273,7 +285,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
         Debug.Assert(_path is not null);
-        FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(workingDirectory: "", linkPath, followLinks: true, _cancellationToken).ConfigureAwait(false);
+        FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(workingDirectory: "", linkPath, followLinks: true, _context.ExtendedAttributesFilter, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
             if ((!_followDirectoryLinks && attributes.FileType == UnixFileType.Directory) ||
@@ -286,7 +298,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
         bool SetCurrentEntry()
         {
-            SftpFileEntry entry = new SftpFileEntry(_path, linkEntry.Span, _pathBuffer, _nameBuffer, out int _, attributes);
+            SftpFileEntry entry = new SftpFileEntry(_path, linkEntry.Span, _context, out int _, attributes);
             return SetCurrent(ref entry);
         }
     }

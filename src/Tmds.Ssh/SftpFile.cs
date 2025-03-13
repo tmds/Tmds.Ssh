@@ -137,11 +137,14 @@ public sealed class SftpFile : Stream
         await _channel.WriteFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
+    public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
+        => GetAttributesAsync([], cancellationToken);
+
+    public async ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
-        return await _channel.GetAttributesForHandleAsync(Handle, cancellationToken).ConfigureAwait(false);
+        return await _channel.GetAttributesForHandleAsync(Handle, filter, cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask SetLengthAsync(long length, CancellationToken cancellationToken = default)
