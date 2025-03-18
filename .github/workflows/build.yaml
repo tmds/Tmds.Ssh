@@ -16,7 +16,6 @@ jobs:
           8.0.x
           9.0.x
           10.0.x
-        dotnet-quality: 'preview'
 
     - name: Fetch sources
       uses: actions/checkout@v2
