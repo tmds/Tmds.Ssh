@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
@@ -11,7 +11,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="PublicApiGenerator" />
-    <PackageReference Include="System.Linq.Async" />
+    <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net9.0'" />
     <PackageReference Include="Tmds.ExecFunction" />
     <PackageReference Include="Verify.Xunit" />
     <PackageReference Include="xunit" />

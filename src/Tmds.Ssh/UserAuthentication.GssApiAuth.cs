@@ -42,11 +42,15 @@ partial class UserAuthentication
                 AllowedImpersonationLevel = credential.DelegateCredential ? TokenImpersonationLevel.Delegation : TokenImpersonationLevel.Impersonation,
                 Credential = networkCredential,
                 Package = "Kerberos",
+#if NET10_0_OR_GREATER
+                RequiredProtectionLevel = ProtectionLevel.Sign,
+#else
                 // While only Sign is needed we need to set EncryptAndSign for
                 // Windows client support. Sign only will pass in SECQOP_WRAP_NO_ENCRYPT
                 // to MakeSignature which fails.
                 // https://github.com/dotnet/runtime/issues/103461
                 RequiredProtectionLevel = ProtectionLevel.EncryptAndSign,
+#endif
                 // While RFC states this should be set to "false", Win32-OpenSSH
                 // fails if it's not true. I'm unsure if openssh-portable on Linux
                 // will fail in the same way or not.
