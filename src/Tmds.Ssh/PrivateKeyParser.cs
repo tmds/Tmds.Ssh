@@ -2,6 +2,9 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using System.Buffers;
+using System.Buffers.Text;
 
 namespace Tmds.Ssh;
 
@@ -19,73 +22,32 @@ partial class PrivateKeyParser
     private static (SshKeyData PublicKey, bool IsEncrypted, PrivateKey? PrivateKey) ParseKey(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool parsePrivate)
     {
         ReadOnlySpan<char> content = rawKey.Span;
-
-        int formatStart = content.IndexOf("-----BEGIN");
-        if (formatStart == -1)
+        if (!PemEncoding.TryFind(content, out PemFields fields))
         {
-            throw new InvalidDataException($"No start marker.");
-        }
-        int formatStartEnd = content.Slice(formatStart).IndexOf('\n');
-        if (formatStartEnd == -1)
-        {
-            throw new InvalidDataException($"No start marker.");
+            throw new InvalidDataException($"No PEM-encoded data found.");
         }
 
-        // While not part of RFC 7468, PKCS#1 RSA keys have extra metadata
-        // after the begin marker and before the base64 data. We need to
-        // parse that information for decryption and so it doesn't break
-        // our validator.
-        int keyStart = formatStartEnd + 1;
-        Dictionary<string, string> metadata = new Dictionary<string, string>();
-        while (true)
-        {
-            int nextNewline = content.Slice(keyStart).IndexOf('\n');
-            if (nextNewline == -1)
-            {
-                throw new InvalidDataException($"No end marker.");
-            }
-            else if (nextNewline == keyStart)
-            {
-                keyStart++;
-                continue;
-            }
-
-            int headerColon = content.Slice(keyStart).IndexOf(':');
-            if (headerColon == -1)
-            {
-                break;
-            }
-
-            string key = rawKey[keyStart..headerColon].ToString();
-            metadata[key] = rawKey[(headerColon + 2)..nextNewline].ToString();
-
-            keyStart = nextNewline + 1;
-        }
-
-        int keyEnd = content.IndexOf("-----END");
-        if (keyEnd == -1)
-        {
-            throw new InvalidDataException($"No end marker.");
-        }
-        ReadOnlySpan<char> keyFormat = content.Slice(formatStart, formatStartEnd).Trim();
-        ReadOnlySpan<char> keyDataBase64 = content.Slice(keyStart, keyEnd - keyStart - 1);
-
-        byte[] keyData;
+        byte[] keyData = ArrayPool<byte>.Shared.Rent(fields.DecodedDataLength);
         try
         {
-            keyData = Convert.FromBase64String(keyDataBase64.ToString());
-        }
-        catch (FormatException)
-        {
-            throw new InvalidDataException($"Invalid base64 data.");
-        }
+            if (!Convert.TryFromBase64Chars(content[fields.Base64Data], keyData, out int bytesWritten)
+                || bytesWritten != fields.DecodedDataLength)
+            {
+                throw new InvalidDataException($"Invalid Base64 data.");
+            }
 
-        switch (keyFormat)
+            ReadOnlySpan<char> keyFormat = content[fields.Label];
+            switch (keyFormat)
+            {
+                case "OPENSSH PRIVATE KEY":
+                    return ParseOpenSshKey(keyData.AsMemory(0, bytesWritten), passwordPrompt, parsePrivate);
+                default:
+                    throw new NotSupportedException($"Unsupported format: '{keyFormat}'.");
+            }
+        }
+        finally
         {
-            case "-----BEGIN OPENSSH PRIVATE KEY-----":
-                return ParseOpenSshKey(keyData, passwordPrompt, parsePrivate);
-            default:
-                throw new NotSupportedException($"Unsupported format: '{keyFormat}'.");
+            ArrayPool<byte>.Shared.Return(keyData);
         }
     }
 }
