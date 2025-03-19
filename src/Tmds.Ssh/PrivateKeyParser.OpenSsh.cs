@@ -15,7 +15,7 @@ partial class PrivateKeyParser
     /// OpenSSH for private keys.
     /// </summary>
     internal static (SshKeyData PublicKey, bool isEncrypted, PrivateKey? PrivateKey) ParseOpenSshKey(
-        byte[] keyData,
+        ReadOnlyMemory<byte> keyData,
         Func<string?> passwordPrompt,
         bool parsePrivate)
     {
@@ -33,7 +33,7 @@ partial class PrivateKeyParser
             string	encrypted, padded list of private keys
         */
         ReadOnlySpan<byte> AUTH_MAGIC = "openssh-key-v1\0"u8;
-        if (!keyData.AsSpan().StartsWith(AUTH_MAGIC))
+        if (!keyData.Span.StartsWith(AUTH_MAGIC))
         {
             throw new NotSupportedException($"Unknown OpenSSH key format.");
         }
