@@ -1,5 +1,4 @@
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Tmds.Ssh.Tests;
 
@@ -1148,7 +1147,7 @@ public class SftpClientTests
     [InlineData(0, SftpExtension.None)]
     [InlineData(10, SftpExtension.None)]
     [InlineData(MultiPacketSize, SftpExtension.None)]
-    [SkippableTheory]
+    [Theory]
     public async Task CopyFile(int fileSize, SftpExtension sftpExtensions)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
@@ -1165,7 +1164,7 @@ public class SftpClientTests
     [InlineData(false, SftpExtension.CopyData)]
     [InlineData(true, SftpExtension.None)]
     [InlineData(false, SftpExtension.None)]
-    [SkippableTheory]
+    [Theory]
     public async Task CopyFileOverwrite(bool overwrite, SftpExtension sftpExtensions)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
@@ -1190,7 +1189,7 @@ public class SftpClientTests
 
     [InlineData(SftpExtension.CopyData)]
     [InlineData(SftpExtension.None)]
-    [SkippableTheory]
+    [Theory]
     public async Task CopyFileToSelfDoesntLooseData(SftpExtension sftpExtensions)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);
@@ -1204,7 +1203,7 @@ public class SftpClientTests
 
     [InlineData(SftpExtension.CopyData)]
     [InlineData(SftpExtension.None)]
-    [SkippableTheory]
+    [Theory]
     public async Task CopyFileOverwriteToLargerTruncates(SftpExtension sftpExtensions)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync(sftpExtensions);

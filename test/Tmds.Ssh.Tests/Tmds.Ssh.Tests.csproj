@@ -6,6 +6,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnableExpectoTestingPlatformIntegration>true</EnableExpectoTestingPlatformIntegration>
+    <OutputType>Exe</OutputType>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <NoWarn>xUnit1051</NoWarn> <!-- Not using cancellation token argument -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,9 +18,8 @@
     <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net9.0'" />
     <PackageReference Include="Tmds.ExecFunction" />
-    <PackageReference Include="Verify.Xunit" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="Xunit.SkippableFact" />
+    <PackageReference Include="Verify.XunitV3" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
