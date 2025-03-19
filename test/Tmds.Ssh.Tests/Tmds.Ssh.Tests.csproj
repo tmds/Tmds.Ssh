@@ -10,6 +10,8 @@
     <OutputType>Exe</OutputType>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <NoWarn>xUnit1051</NoWarn> <!-- Not using cancellation token argument -->
+    <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+    <!-- <TestingPlatformCaptureOutput>false</TestingPlatformCaptureOutput> -->
   </PropertyGroup>
 
   <ItemGroup>
