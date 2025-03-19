@@ -59,10 +59,10 @@ public class KerberosTests : IDisposable
     // [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    [SkippableTheory]
+    [Theory]
     public async Task ExplicitCredential(bool useLocalUser, bool overrideSpn)
     {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+        Assert.SkipUnless(SshServer.HasKerberos, reason: "Kerberos not available");
 
         // Default SPN is derived from the connection hostname. The test server
         // only works when localhost is part of the SPN.
@@ -109,10 +109,10 @@ public class KerberosTests : IDisposable
     // [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    [SkippableTheory]
+    [Theory]
     public async Task CachedCredentialAndDelegation(bool useLocalUser, bool requestDelegate)
     {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+        Assert.SkipUnless(SshServer.HasKerberos, reason: "Kerberos not available");
 
         var kinitStartInfo = new ProcessStartInfo()
         {
@@ -189,10 +189,10 @@ public class KerberosTests : IDisposable
         );
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task InvalidTargetUser()
     {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+        Assert.SkipUnless(SshServer.HasKerberos, reason: "Kerberos not available");
 
         await _kerberosExecutor.RunAsync(
             async (string[] args) =>
@@ -212,10 +212,10 @@ public class KerberosTests : IDisposable
         );
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task InvalidKerberosCredential()
     {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+         	Assert.SkipUnless(SshServer.HasKerberos, reason: "Kerberos not available");
 
         await _kerberosExecutor.RunAsync(
             async (string[] args) =>
@@ -235,10 +235,10 @@ public class KerberosTests : IDisposable
         );
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task NoCachedCredential()
     {
-        Skip.IfNot(SshServer.HasKerberos, reason: "Kerberos not available");
+        Assert.SkipUnless(SshServer.HasKerberos, reason: "Kerberos not available");
 
         await _kerberosExecutor.RunAsync(
             async (string[] args) =>

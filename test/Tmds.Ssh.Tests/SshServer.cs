@@ -2,9 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Xunit;
-using Xunit.Abstractions;
 using Xunit.Sdk;
-using SkipException = Xunit.SkipException;
 
 namespace Tmds.Ssh.Tests;
 
@@ -97,7 +95,7 @@ public class SshServer : IDisposable
 
     private void WriteMessage(string message)
     {
-        _messageSink.OnMessage(new DiagnosticMessage(message));
+        _messageSink.OnMessage(new Xunit.v3.DiagnosticMessage(message));
     }
 
     protected SshServer(string? sshdConfig, IMessageSink messageSink, string userPassword = "secret")
@@ -422,7 +420,7 @@ public class SshServer : IDisposable
 
         if (client.EnabledExtensions != (Tmds.Ssh.SftpExtension)enabledExtensions)
         {
-            throw new SkipException($"The test server does not support the required {((Tmds.Ssh.SftpExtension)enabledExtensions) & ~client.EnabledExtensions} extensions.");
+            throw SkipException.ForSkip($"The test server does not support the required {((Tmds.Ssh.SftpExtension)enabledExtensions) & ~client.EnabledExtensions} extensions.");
         }
 
         return client;
