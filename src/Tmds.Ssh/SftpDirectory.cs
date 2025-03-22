@@ -63,10 +63,10 @@ public sealed class SftpDirectory : ISftpDirectory
         await channel.DeleteFileAsync(_workingDirectory, path, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
+    public async ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default)
     {
         var channel = await GetChannelAsync(cancellationToken).ConfigureAwait(false);
-        await channel.DeleteDirectoryAsync(_workingDirectory, path, cancellationToken).ConfigureAwait(false);
+        await channel.DeleteDirectoryAsync(_workingDirectory, path, recursive, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)

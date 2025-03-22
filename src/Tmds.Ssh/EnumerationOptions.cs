@@ -19,4 +19,8 @@ public sealed class EnumerationOptions
     public SftpFileEntryPredicate? ShouldRecurse { get; set; }
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
     public string[]? ExtendedAttributes { get; set; } = [];
+
+    // Used to implement recursive DeleteDirectory.
+    // note: callback is not called for the root path itself.
+    internal Action<string>? DirectoryCompleted { get; set; }
 }
