@@ -175,6 +175,42 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task DeleteDirectoryDefaultIsNotRecursive()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(directoryPath);
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1");
+
+        await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.DeleteDirectoryAsync(directoryPath));
+    }
+
+    [Fact]
+    public async Task DeleteDirectoryRecursive()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(directoryPath);
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1");
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1/grandchild1");
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1/grandchild2");
+        using var file1 = await sftpClient.CreateNewFileAsync($"{directoryPath}/child1/grandchild2/file1", FileAccess.Write);
+        await file1.CloseAsync();
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child2");
+        using var file2 = await sftpClient.CreateNewFileAsync($"{directoryPath}/file2", FileAccess.Write);
+        await file2.CloseAsync();
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child2/grandchild1");
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child2/grandchild2");
+
+        await sftpClient.DeleteDirectoryAsync(directoryPath, recursive: true);
+
+        var attributes = await sftpClient.GetAttributesAsync(directoryPath);
+        Assert.Null(attributes);
+    }
+
+    [Fact]
     public async Task CreateNewDirectoryThrowsIfExists()
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();

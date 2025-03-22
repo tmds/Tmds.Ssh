@@ -151,7 +151,19 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask DeleteDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    public ValueTask DeleteDirectoryAsync(string workingDirectory, string path, bool recursive, CancellationToken cancellationToken = default)
+    {
+        if (recursive)
+        {
+            return DeleteDirectoryRecursiveAsync(workingDirectory, path, cancellationToken);
+        }
+        else
+        {
+            return DeleteDirectoryAsync(workingDirectory, path, cancellationToken);
+        }
+    }
+
+    private ValueTask DeleteDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_RMDIR;
 
@@ -163,6 +175,57 @@ sealed partial class SftpChannel : IDisposable
         packet.WritePath(workingDirectory, path);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    private async ValueTask DeleteDirectoryRecursiveAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    {
+        path = RemotePath.ResolvePath([workingDirectory, path]);
+
+        var onGoing = new Queue<ValueTask>();
+
+        var fse = GetDirectoryEntriesAsync<string>(
+            path,
+            (ref SftpFileEntry entry) => entry.ToPath(),
+            new EnumerationOptions()
+            {
+                RecurseSubdirectories = true,
+                FollowDirectoryLinks = false,
+                FollowFileLinks = false,
+                FileTypeFilter = ~UnixFileTypeFilter.Directory,
+                DirectoryCompleted = (string dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken))
+            });
+
+        try
+        {
+            await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                while (onGoing.TryPeek(out ValueTask first) && first.IsCompleted)
+                {
+                    await onGoing.Dequeue().ConfigureAwait(false);
+                }
+
+                onGoing.Enqueue(DeleteFileAsync("", item, cancellationToken));
+            }
+
+            while (onGoing.TryDequeue(out ValueTask pending))
+            {
+                await pending.ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            while (onGoing.TryDequeue(out ValueTask pending))
+            {
+                try
+                {
+                    await pending.ConfigureAwait(false);
+                }
+                catch
+                { }
+            }
+        }
+
+        await DeleteDirectoryAsync("", path, cancellationToken);
     }
 
     public ValueTask RenameAsync(string workingDirectory, string oldPath, string newPath, CancellationToken cancellationToken = default)

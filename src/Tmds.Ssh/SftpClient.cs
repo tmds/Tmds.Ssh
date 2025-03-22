@@ -283,10 +283,10 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         await dir.DeleteFileAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default)
+    public async ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.DeleteDirectoryAsync(path, cancellationToken).ConfigureAwait(false);
+        await dir.DeleteDirectoryAsync(path, recursive, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
