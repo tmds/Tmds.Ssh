@@ -357,13 +357,15 @@ public class SftpClientTests
         await sftpClient.DeleteFileAsync(path);
     }
 
-    [Fact]
-    public async Task DirectoryNotExistsDeleteDoesNotThrow()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DirectoryNotExistsDeleteDoesNotThrow(bool recurse)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
         string path = $"/tmp/{Path.GetRandomFileName()}";
 
-        await sftpClient.DeleteDirectoryAsync(path);
+        await sftpClient.DeleteDirectoryAsync(path, recurse);
     }
 
     [Fact]

@@ -181,51 +181,73 @@ sealed partial class SftpChannel : IDisposable
     {
         path = RemotePath.ResolvePath([workingDirectory, path]);
 
-        var onGoing = new Queue<ValueTask>();
-
-        var fse = GetDirectoryEntriesAsync<string>(
-            path,
-            (ref SftpFileEntry entry) => entry.ToPath(),
-            new EnumerationOptions()
-            {
-                RecurseSubdirectories = true,
-                FollowDirectoryLinks = false,
-                FollowFileLinks = false,
-                FileTypeFilter = ~UnixFileTypeFilter.Directory,
-                DirectoryCompleted = (string dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken))
-            });
-
+        // Handle the case of empty directory or and directory does not exist.
+        ValueTask deleteTask = DeleteDirectoryAsync("", path, cancellationToken);
+        ValueTask<SftpFile?> openDirTask = OpenDirectoryAsync(workingDirectory: "", path, cancellationToken);
         try
         {
-            await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
+            await deleteTask.ConfigureAwait(false);
+            // don't return yet, we need to await the openDirTask.
+        }
+        catch
+        { } // ignore any errors and proceed with 'handle'.
+
+        {
+            using SftpFile? handle = await openDirTask.ConfigureAwait(false);
+            if (handle is null)
             {
-                while (onGoing.TryPeek(out ValueTask first) && first.IsCompleted)
+                return; // directory did not exist or was removed by deleteTask.
+            }
+
+            var onGoing = new Queue<ValueTask>();
+
+            await using var enumerator = new SftpFileSystemEnumerator<string>(
+                this,
+                path,
+                (ref SftpFileEntry entry) => entry.ToPath(),
+                new EnumerationOptions()
                 {
-                    await onGoing.Dequeue().ConfigureAwait(false);
+                    RecurseSubdirectories = true,
+                    FollowDirectoryLinks = false,
+                    FollowFileLinks = false,
+                    FileTypeFilter = ~UnixFileTypeFilter.Directory,
+                    DirectoryCompleted = (string dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken))
+                },
+                cancellationToken);
+            enumerator.SetRootHandle(handle);
+
+            try
+            {
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    while (onGoing.TryPeek(out ValueTask first) && first.IsCompleted)
+                    {
+                        await onGoing.Dequeue().ConfigureAwait(false);
+                    }
+
+                    onGoing.Enqueue(DeleteFileAsync("", enumerator.Current, cancellationToken));
                 }
 
-                onGoing.Enqueue(DeleteFileAsync("", item, cancellationToken));
-            }
-
-            while (onGoing.TryDequeue(out ValueTask pending))
-            {
-                await pending.ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            while (onGoing.TryDequeue(out ValueTask pending))
-            {
-                try
+                while (onGoing.TryDequeue(out ValueTask pending))
                 {
                     await pending.ConfigureAwait(false);
                 }
-                catch
-                { }
+            }
+            finally
+            {
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    try
+                    {
+                        await pending.ConfigureAwait(false);
+                    }
+                    catch
+                    { }
+                }
             }
         }
 
-        await DeleteDirectoryAsync("", path, cancellationToken);
+        await DeleteDirectoryAsync("", path, cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask RenameAsync(string workingDirectory, string oldPath, string newPath, CancellationToken cancellationToken = default)

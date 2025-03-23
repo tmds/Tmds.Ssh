@@ -78,10 +78,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private ValueTask<byte[]> _readAhead;
     private T? _current;
 
-    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
-        this(client, channel: null, path, transform, options, cancellationToken)
-    { }
-
     internal SftpFileSystemEnumerator(SftpChannel channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
         this(client: null, channel, path, transform, options, cancellationToken)
     { }
@@ -102,6 +98,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _shouldRecurse = options.ShouldRecurse;
         _directoryCompleted = options.DirectoryCompleted;
         _context = new (options.ExtendedAttributes);
+    }
+
+    internal void SetRootHandle(SftpFile handle)
+    {
+        _fileHandle = handle;
+        _readAhead = _channel!.ReadDirAsync(_fileHandle, _cancellationToken);
     }
 
     public T Current => _current!;
