@@ -79,4 +79,8 @@ public static class SftpDirectoryExtensions
 
     public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
         => directory.GetAttributesAsync(path, followLinks: true, [], cancellationToken);
+
+    public static ValueTask DeleteDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+        => directory.DeleteDirectoryAsync(path, recursive: false, cancellationToken);
+
 }
