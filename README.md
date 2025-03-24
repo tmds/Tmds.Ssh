@@ -251,7 +251,8 @@ interface ISftpDirectory // Represents a working directory.
   ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default);
 
   // Does not throw if the path did not exist.
-  ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken = default);
+  ValueTask DeleteDirectoryAsync(string path, CancellationToken cancellationToken);
+  ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default);
 
   ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default);
 

@@ -63,10 +63,12 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly UnixFileTypeFilter _fileTypeFilter;
     private readonly SftpFileEntryPredicate? _shouldRecurse;
     private readonly SftpFileEntryPredicate? _shouldInclude;
+    private readonly EnumerationOptions.DirectoryCompletedCallback? _directoryCompleted;
     private readonly EnumeratorContext _context;
 
-    private Queue<string>? _pending;
-    private string? _path;
+    private Stack<string>? _pending; // LIFO is used to emit _directoryCompleted.
+    private string _rootPath;
+    private string _path;
     private SftpChannel? _channel;
     private SftpFile? _fileHandle;
 
@@ -75,10 +77,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private int _entriesRemaining;
     private ValueTask<byte[]> _readAhead;
     private T? _current;
-
-    public SftpFileSystemEnumerator(SftpClient client, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
-        this(client, channel: null, path, transform, options, cancellationToken)
-    { }
 
     internal SftpFileSystemEnumerator(SftpChannel channel, string path, SftpFileEntryTransform<T> transform, EnumerationOptions options, CancellationToken cancellationToken) :
         this(client: null, channel, path, transform, options, cancellationToken)
@@ -89,7 +87,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         Debug.Assert(client != null ^ channel != null);
         _client = client;
         _channel = channel;
-        _path = RemotePath.TrimEndingDirectorySeparators(path);
+        _rootPath = _path = RemotePath.TrimEndingDirectorySeparators(path);
         _transform = transform;
         _cancellationToken = cancellationToken;
         _recurseSubdirectories = options.RecurseSubdirectories;
@@ -98,7 +96,14 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         _fileTypeFilter = options.FileTypeFilter;
         _shouldInclude = options.ShouldInclude;
         _shouldRecurse = options.ShouldRecurse;
+        _directoryCompleted = options.DirectoryCompleted;
         _context = new (options.ExtendedAttributes);
+    }
+
+    internal void SetRootHandle(SftpFile handle)
+    {
+        _fileHandle = handle;
+        _readAhead = _channel!.ReadDirAsync(_fileHandle, _cancellationToken);
     }
 
     public T Current => _current!;
@@ -153,7 +158,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             _fileHandle!.Dispose();
             _fileHandle = null;
-            _path = null;
         }
 
         if (_fileHandle is null)
@@ -190,25 +194,46 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
     }
 
+    void EmitDirectoryCompleted(ReadOnlySpan<char> previousDir, ReadOnlySpan<char> path)
+    {
+        if (!path.StartsWith(previousDir))
+        {
+            int commonPrefix = path.CommonPrefixLength(previousDir);
+            while (previousDir.Length > commonPrefix)
+            {
+                _directoryCompleted!.Invoke(previousDir);
+                previousDir = previousDir.Slice(0, previousDir.LastIndexOf('/'));
+            }
+        }
+    }
+
     private async ValueTask OpenFileHandleAsync()
     {
         if (_channel is null)
         {
             Debug.Assert(_client is not null);
             _channel = await _client.GetChannelAsync(_cancellationToken);
-            Debug.Assert(_path is not null);
-            _path = RemotePath.ResolvePath([_channel.WorkingDirectory, _path]);
+            _rootPath = _path = RemotePath.ResolvePath([_channel.WorkingDirectory, _path]);
         }
 
         string? path = _path;
-        bool isRootPath = path is not null; // path passed to the constructor.
+        bool isRootPath = _entriesRemaining != DirectoryEof;
         do
         {
             if (!isRootPath)
             {
-                if (_pending?.TryDequeue(out path) != true)
+                if (_pending?.TryPop(out path) != true)
                 {
+                    if (_directoryCompleted is not null)
+                    {
+                        EmitDirectoryCompleted(_path, _rootPath);
+                    }
                     return;
+                }
+
+                if (_directoryCompleted is not null)
+                {
+                    EmitDirectoryCompleted(_path, path!);
                 }
             }
             Debug.Assert(path is not null);
@@ -233,7 +258,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private bool ReadNextEntry(bool followLink, out string? linkPath, out Memory<byte> linkEntry)
     {
-        Debug.Assert(_path is not null);
         int startOffset = _bufferOffset;
         SftpFileEntry entry = new SftpFileEntry(_path, _readDirPacket.AsSpan(startOffset), _context, out int entryLength);
 
@@ -266,7 +290,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
             (_shouldRecurse?.Invoke(ref entry) ?? true))
         {
             _pending ??= new();
-            _pending.Enqueue(entry.ToPath());
+            _pending.Push(entry.ToPath());
         }
 
         if (!_fileTypeFilter.Matches(entry.FileType))
@@ -284,7 +308,6 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
     private async Task<bool> ReadLinkTargetEntry(string linkPath, Memory<byte> linkEntry)
     {
-        Debug.Assert(_path is not null);
         FileEntryAttributes? attributes = await _channel!.GetAttributesAsync(workingDirectory: "", linkPath, followLinks: true, _context.ExtendedAttributesFilter, _cancellationToken).ConfigureAwait(false);
         if (attributes is not null)
         {
