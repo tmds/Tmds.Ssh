@@ -22,5 +22,6 @@ public sealed class EnumerationOptions
 
     // Used to implement recursive DeleteDirectory.
     // note: callback is not called for the root path itself.
-    internal Action<string>? DirectoryCompleted { get; set; }
+    internal delegate void DirectoryCompletedCallback(ReadOnlySpan<char> name);
+    internal DirectoryCompletedCallback? DirectoryCompleted { get; set; }
 }

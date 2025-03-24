@@ -137,7 +137,7 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask DeleteFileAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    public ValueTask DeleteFileAsync(string workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_REMOVE;
 
@@ -163,7 +163,7 @@ sealed partial class SftpChannel : IDisposable
         }
     }
 
-    private ValueTask DeleteDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    private ValueTask DeleteDirectoryAsync(ReadOnlySpan<char> workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_RMDIR;
 
@@ -201,17 +201,18 @@ sealed partial class SftpChannel : IDisposable
 
             var onGoing = new Queue<ValueTask>();
 
-            await using var enumerator = new SftpFileSystemEnumerator<string>(
+            await using var enumerator = new SftpFileSystemEnumerator<object?>(
                 this,
                 path,
-                (ref SftpFileEntry entry) => entry.ToPath(),
+                (ref SftpFileEntry entry) => (object?)null,
                 new EnumerationOptions()
                 {
                     RecurseSubdirectories = true,
                     FollowDirectoryLinks = false,
                     FollowFileLinks = false,
                     FileTypeFilter = ~UnixFileTypeFilter.Directory,
-                    DirectoryCompleted = (string dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken))
+                    DirectoryCompleted = (ReadOnlySpan<char> dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken)),
+                    ShouldInclude = (ref SftpFileEntry entry) => { onGoing.Enqueue(DeleteFileAsync("", entry.Path, cancellationToken)); return true; }
                 },
                 cancellationToken);
             enumerator.SetRootHandle(handle);
@@ -224,8 +225,6 @@ sealed partial class SftpChannel : IDisposable
                     {
                         await onGoing.Dequeue().ConfigureAwait(false);
                     }
-
-                    onGoing.Enqueue(DeleteFileAsync("", enumerator.Current, cancellationToken));
                 }
 
                 while (onGoing.TryDequeue(out ValueTask pending))

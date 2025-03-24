@@ -63,7 +63,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
     private readonly UnixFileTypeFilter _fileTypeFilter;
     private readonly SftpFileEntryPredicate? _shouldRecurse;
     private readonly SftpFileEntryPredicate? _shouldInclude;
-    private readonly Action<string>? _directoryCompleted;
+    private readonly EnumerationOptions.DirectoryCompletedCallback? _directoryCompleted;
     private readonly EnumeratorContext _context;
 
     private Stack<string>? _pending; // LIFO is used to emit _directoryCompleted.
@@ -194,15 +194,15 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         }
     }
 
-    void EmitDirectoryCompleted(string previousDir, string path)
+    void EmitDirectoryCompleted(ReadOnlySpan<char> previousDir, ReadOnlySpan<char> path)
     {
         if (!path.StartsWith(previousDir))
         {
-            int commonPrefix = path.AsSpan().CommonPrefixLength(previousDir);
+            int commonPrefix = path.CommonPrefixLength(previousDir);
             while (previousDir.Length > commonPrefix)
             {
                 _directoryCompleted!.Invoke(previousDir);
-                previousDir = previousDir.Substring(0, previousDir.LastIndexOf('/'));
+                previousDir = previousDir.Slice(0, previousDir.LastIndexOf('/'));
             }
         }
     }
