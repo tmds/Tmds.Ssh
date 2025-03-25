@@ -326,10 +326,6 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         return await dir.GetLinkTargetAsync(linkPath, cancellationToken).ConfigureAwait(false);
     }
 
-    [Obsolete($"Use {nameof(GetRealPathAsync)} instead.")]
-    public ValueTask<string> GetFullPathAsync(string path, CancellationToken cancellationToken = default)
-        => GetRealPathAsync(path, cancellationToken);
-
     public async ValueTask<string> GetRealPathAsync(string path, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);

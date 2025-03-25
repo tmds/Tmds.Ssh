@@ -9,9 +9,6 @@ public sealed partial class HostKey
     public PublicKey Key { get; }
     public HostCertificateInfo? CertificateInfo { get; }
 
-    [Obsolete($"Call {nameof(Key)}.{nameof(Key.SHA256FingerPrint)} instead.")]
-    public string SHA256FingerPrint => Key.SHA256FingerPrint;
-
     internal Name ReceivedKeyType { get; }
     internal PublicKeyAlgorithm PublicKey { get; }
 
