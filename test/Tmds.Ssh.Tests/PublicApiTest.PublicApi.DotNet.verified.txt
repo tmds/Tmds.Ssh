@@ -76,8 +76,6 @@ namespace Tmds.Ssh
     {
         public Tmds.Ssh.HostCertificateInfo? CertificateInfo { get; }
         public Tmds.Ssh.PublicKey Key { get; }
-        [System.Obsolete("Call Key.SHA256FingerPrint instead.")]
-        public string SHA256FingerPrint { get; }
     }
     public interface ISftpDirectory
     {
@@ -292,8 +290,6 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, System.Threading.CancellationToken cancellationToken = default) { }
         public Tmds.Ssh.SftpDirectory GetDirectory(string path) { }
         public System.Collections.Generic.IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, Tmds.Ssh.SftpFileEntryTransform<T> transform, Tmds.Ssh.EnumerationOptions? options = null) { }
-        [System.Obsolete("Use GetRealPathAsync instead.")]
-        public System.Threading.Tasks.ValueTask<string> GetFullPathAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<string> GetLinkTargetAsync(string linkPath, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<string> GetRealPathAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?> OpenFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
