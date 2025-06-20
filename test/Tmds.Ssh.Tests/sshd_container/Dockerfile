@@ -1,6 +1,6 @@
 ARG PASSWORD=secret
 
-FROM quay.io/centos/centos:stream10-development
+FROM quay.io/centos/centos:stream10
 
 ARG PASSWORD
 
