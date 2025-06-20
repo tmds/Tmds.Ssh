@@ -39,6 +39,13 @@ partial class SftpChannel
             return value;
         }
 
+        public ulong ReadUInt64()
+        {
+            ulong value = BinaryPrimitives.ReadUInt64BigEndian(_remainder);
+            _remainder = _remainder.Slice(8);
+            return value;
+        }
+
         public string ReadString()
             => s_utf8Encoding.GetString(ReadStringAsSpan());
 
