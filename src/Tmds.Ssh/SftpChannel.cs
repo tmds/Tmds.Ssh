@@ -30,7 +30,7 @@ sealed partial class SftpChannel : IDisposable
     internal SftpChannel(ISshChannel channel, SftpClientOptions options, string? workingDirectory)
     {
         _channel = channel;
-        _receivePacketSize = _channel.ReceiveMaxPacket;
+        _receiveBufferSize = _channel.ReceiveMaxPacket;
         _options = options;
         WorkingDirectory = workingDirectory ?? "";
     }
@@ -48,21 +48,33 @@ sealed partial class SftpChannel : IDisposable
     private byte[]? _packetBuffer;
     private int _nextId = 5;
     private int GetNextId() => Interlocked.Increment(ref _nextId);
-    private int _receivePacketSize;
+    private int _receiveBufferSize;
+    private int _maxReadPayload;
+    private int _maxWritePayload;
     private SftpExtension _supportedExtensions;
     public string WorkingDirectory { get; private set; }
-
-    internal int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
-        => _channel.SendMaxPacket
-            - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */
-            - 4 /* handle length */ - handle.Length - 8 /* offset */ - 4 /* data length */;
 
     internal int MaxReadPayload // SSH_FXP_DATA payload
         => _channel.ReceiveMaxPacket
             - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
 
-    internal int GetCopyBetweenSftpFilesBufferSize(byte[] destinationHandle)
-        => Math.Min(MaxReadPayload, GetMaxWritePayload(destinationHandle));
+    private int GetMaxWritePayload(long expectedLength, byte[] handle)
+        => Math.Min((int)Math.Min(expectedLength, (long)int.MaxValue), GetMaxWritePayload(handle));
+
+    private int GetMaxWritePayload(byte[] handle) // SSH_FXP_WRITE payload
+        => _maxWritePayload > 0 ? _maxWritePayload :
+            Constants.MaxDataPacketSize // note: don't use SendMaxPacket which would assume the SFTP server knows the SSH server packet size configuration.
+                - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */
+                - 4 /* handle length */ - handle.Length - 8 /* offset */ - 4 /* data length */;
+
+    private int GetMaxReadPayload() // SSH_FXP_DATA payload
+        => _maxReadPayload;
+
+    private int GetMaxReadPayload(long expectedLength) // SSH_FXP_DATA payload
+        => Math.Min((int)Math.Min(expectedLength, (long)int.MaxValue), GetMaxReadPayload());
+
+    private int GetCopyBetweenSftpFilesBufferSize(long expectedLength, byte[] destinationHandle)
+        => Math.Min(GetMaxReadPayload(expectedLength), GetMaxWritePayload(destinationHandle));
 
     internal SftpExtension EnabledExtensions => _supportedExtensions;
 
@@ -338,7 +350,7 @@ sealed partial class SftpChannel : IDisposable
         {
             Debug.Assert(length > 0);
 
-            int bufferSize = GetCopyBetweenSftpFilesBufferSize(destinationFile.Handle);
+            int bufferSize = GetCopyBetweenSftpFilesBufferSize(length, destinationFile.Handle);
 
             ValueTask previous = default;
 
@@ -901,7 +913,7 @@ sealed partial class SftpChannel : IDisposable
             long startOffset = source.Position;
             long bytesSuccesfullyWritten = 0;
             CancellationTokenSource breakLoop = new();
-            int maxWritePayload = GetMaxWritePayload(remoteFile.Handle);
+            int maxWritePayload = GetMaxWritePayload(length.Value, remoteFile.Handle);
 
             for (long offset = 0; offset < length; offset += maxWritePayload)
             {
@@ -1242,7 +1254,7 @@ sealed partial class SftpChannel : IDisposable
         ValueTask previous = default;
         CancellationTokenSource? breakLoop = length > 0 ? new() : null;
 
-        int maxPayload = MaxReadPayload;
+        int maxPayload = GetMaxReadPayload(length.Value);
         for (long offset = 0; offset < length; offset += maxPayload)
         {
             Debug.Assert(breakLoop is not null);
@@ -1348,26 +1360,84 @@ sealed partial class SftpChannel : IDisposable
             packet.WriteString(".");
             await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
         }
+        // Optimistically assume the server supports limits, so we can make the request in parallel.
+        {
+            using Packet packet = new Packet(PacketType.SSH_FXP_EXTENDED);
+            packet.WriteInt(GetNextId());
+            packet.WriteString("limits@openssh.com");
+            await _channel.WriteAsync(packet.Data, cancellationToken).ConfigureAwait(false);
+        }
         {
             ReadOnlyMemory<byte> versionPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
-            if (versionPacket.Length == 0)
-            {
-                throw new SshChannelException("Channel closed during SFTP protocol initialization.");
-            }
+            CheckNonZeroLength(versionPacket);
             HandleVersionPacket(versionPacket.Span);
         }
         if (getWorkingDirectory)
         {
             ReadOnlyMemory<byte> pathPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
-            if (pathPacket.Length == 0)
-            {
-                throw new SshChannelException("Channel closed during SFTP protocol initialization.");
-            }
+            CheckNonZeroLength(pathPacket);
             HandleWorkingDirectoryPacket(pathPacket.Span);
+        }
+        {
+            ReadOnlyMemory<byte> limitsPacket = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
+            CheckNonZeroLength(limitsPacket);
+            HandleLimitsResponse(limitsPacket.Span);
         }
 
         _ = ReadAllPacketsAsync();
         _ = SendPacketsAsync();
+
+        void CheckNonZeroLength(ReadOnlyMemory<byte> packet)
+        {
+            if (packet.Length == 0)
+            {
+                throw new SshChannelException("Channel closed during SFTP protocol initialization.");
+            }
+        }
+    }
+
+    private void HandleLimitsResponse(ReadOnlySpan<byte> limitsPacket)
+    {
+        ulong maxReadLength = 0;
+        ulong maxWriteLength = 0;
+        ulong maxPacketLength = 0;
+
+        PacketReader reader = new(limitsPacket);
+        PacketType type = reader.ReadPacketType();
+        reader.ReadInt(); // id
+        if (type == PacketType.SSH_FXP_STATUS)
+        {
+            Debug.Assert(reader.ReadUInt() == (uint)SftpError.Unsupported);
+        }
+        else if (type == PacketType.SSH_FXP_EXTENDED_REPLY)
+        {
+            maxPacketLength = reader.ReadUInt64(); // max-packet-length
+            maxReadLength = reader.ReadUInt64(); // max-read-length
+            maxWriteLength = reader.ReadUInt64(); // max-write-length
+            reader.ReadUInt64(); // max-open-handles
+        }
+        else
+        {
+            throw new SshChannelException($"Expected packet SSH_FXP_STATUS/SSH_FXP_EXTENDED_REPLY, but received {type}.");
+        }
+
+        // Put an upper bound on the max payloads to limit the size of the buffers we'll request from .NET.
+        // The value is chosen to match OpenSSH default limits.
+        // It could be made configurable via SFTPClientOptions.
+        const ulong MaxBufferSize = 256 * 1024;
+
+        // As a minimum use what is expected to fit in a default SSH packet.
+        const int MinReadPayloadSize = Constants.MaxDataPacketSize - 4 /* packet length */ - 1 /* packet type */ - 4 /* id */ - 4 /* payload length */;
+        maxReadLength = Math.Min(MaxBufferSize, Math.Max(maxReadLength, MinReadPayloadSize));
+        _maxReadPayload = (int)maxReadLength;
+
+        // When the server doesn't support limits, let the receive buffer to be up to twice the channel packet size.
+        // Limit the buffer to be less than 1024 more than what the server can send us as a read payload.
+        _receiveBufferSize = maxPacketLength > 0 ? (int)Math.Min(maxPacketLength, maxReadLength + 1024) : 2 * _channel.ReceiveMaxPacket;
+
+        // GetMaxWritePayload determines the actualy payload when this is zero.
+        maxWriteLength = Math.Min(MaxBufferSize, maxWriteLength);
+        _maxWritePayload = (int)maxWriteLength;
     }
 
     internal ValueTask<byte[]> ReadDirAsync(SftpFile file, CancellationToken cancellationToken)
@@ -1395,7 +1465,7 @@ sealed partial class SftpChannel : IDisposable
     {
         if (_packetBuffer is null)
         {
-            _packetBuffer = new byte[_receivePacketSize]; // TODO: rent from shared pool.
+            _packetBuffer = new byte[_receiveBufferSize]; // TODO: rent from shared pool.
         }
         int totalReceived = 0;
 
@@ -1420,14 +1490,14 @@ sealed partial class SftpChannel : IDisposable
 
         if (totalReceiveLength > _packetBuffer.Length)
         {
-            // OpenSSH sends packets that are larger than ReceiveMaxPacket.
-            // Increase the size to two times the ReceiveMaxPacket size.
-            if (totalReceiveLength > 2 * _channel.ReceiveMaxPacket)
+            if (totalReceiveLength > _receiveBufferSize)
             {
-                throw new InvalidDataException($"SFTP packet is {totalReceiveLength} bytes on channel with {_channel.ReceiveMaxPacket} packet size.");
+                throw new InvalidDataException($"SFTP packet is {totalReceiveLength} bytes on channel with a {_receiveBufferSize} limit.");
             }
-            _receivePacketSize = 2 * _channel.ReceiveMaxPacket;
-            _packetBuffer = new byte[_receivePacketSize];
+
+            // _receiveBufferSize changed since we've allocated the buffer.
+            // Reallocate the buffer to match the new size.
+            _packetBuffer = new byte[_receiveBufferSize];
         }
 
         // Read packet.
@@ -1551,9 +1621,9 @@ sealed partial class SftpChannel : IDisposable
     {
         PacketType packetType = PacketType.SSH_FXP_READ;
 
-        if (buffer.Length > MaxReadPayload)
+        if (buffer.Length > GetMaxReadPayload())
         {
-            buffer = buffer.Slice(0, MaxReadPayload);
+            buffer = buffer.Slice(0, GetMaxReadPayload());
         }
 
         int id = GetNextId();
@@ -1598,7 +1668,7 @@ sealed partial class SftpChannel : IDisposable
     {
         while (!buffer.IsEmpty)
         {
-            int writeLength = Math.Min(buffer.Length, GetMaxWritePayload(handle));
+            int writeLength = GetMaxWritePayload(buffer.Length, handle);
 
             await WriteFileSingleAsync(handle, offset, buffer.Slice(0, writeLength), cancellationToken).ConfigureAwait(false);
 

@@ -5,8 +5,8 @@ namespace Tmds.Ssh.Tests;
 [Collection(nameof(SshServerCollection))]
 public class SftpClientTests
 {
-    const int PacketSize = 32768; // roughly amount of bytes sent/received in a single sftp packet.
-    const int MultiPacketSize = 2 * PacketSize + 1024;
+    const int PacketSize = 32768; // roughly amount of bytes sent/received in a regular single sftp packet.
+    const int MultiPacketSize = 2 * 256 * 1024 + 1024; // Requires multiple packets on OpenSSH with default limits@openssh.com config.
 
     private readonly SshServer _sshServer;
     private readonly ITestOutputHelper _output;
