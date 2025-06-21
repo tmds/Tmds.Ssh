@@ -1,4 +1,5 @@
 using Xunit;
+using Xunit.Sdk;
 
 namespace Tmds.Ssh.Tests;
 
@@ -1345,6 +1346,35 @@ public class SftpClientTests
         {
             await Assert.ThrowsAsync<SshConnectionClosedException>(() => client.GetRealPathAsync("").AsTask());
         }
+    }
+
+    [Fact]
+    public async Task DownloadSpecialZeroLengthFile()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        var ms = new MemoryStream();
+        await sftpClient.DownloadFileAsync("/proc/self/mountinfo", ms);
+
+        Assert.NotEqual(0, ms.Length);
+    }
+
+    [Fact]
+    public async Task UploadSpecialZeroLengthFile()
+    {
+        if (!File.Exists("/proc/self/mountinfo"))
+        {
+            throw SkipException.ForSkip("The local system does not support /proc/self/mountinfo.");
+        }
+
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.UploadFileAsync("/proc/self/mountinfo", remotePath);
+
+        var attributes = await sftpClient.GetAttributesAsync(remotePath);
+        Assert.NotNull(attributes);
+        Assert.NotEqual(0, attributes.Length);
     }
 
     sealed class NonSeekableAsyncStream : Stream
