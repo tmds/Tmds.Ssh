@@ -372,6 +372,7 @@ class SshConfigSettings
   bool AutoReconnect { get; set; } = false;
 
   HostAuthentication? HostAuthentication { get; set; } // Called for Unknown when StrictHostKeyChecking is 'ask' (default)
+  PasswordPrompt? PasswordPrompt { get; set; } // Called for PasswordAuthentication
 }
 enum SshConfigOption
 {
@@ -586,6 +587,7 @@ delegate ValueTask<bool> HostAuthentication(KnownHostResult knownHostResult, Ssh
 class SshConnectionInfo
 {
   HostKey ServerKey { get; }
+  string UserName { get; }
   string HostName { get; }
   int Port { get; }
   bool IsProxy { get; }
@@ -615,10 +617,20 @@ class CertificateCredential : Credential
 {
   CertificateCredential(string path, PrivateKeyCredential privateKey);
 }
+delegate ValueTask<string?> PasswordPrompt(PasswordPromptContext context, CancellationToken cancellationToken);
+struct PasswordPromptContext
+{
+    int Attempt { get; }
+    SshConnectionInfo ConnectionInfo { get; }
+
+    // Helper method to read a password from Console without it being echo'ed.
+    static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null);
+}
 class PasswordCredential : Credential
 {
   PasswordCredential(string password);
   PasswordCredential(Func<string?> prompt);
+  PasswordCredential(PasswordPrompt passwordPrompt);
 }
 class KerberosCredential : Credential
 {

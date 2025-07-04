@@ -198,6 +198,17 @@ class Program
         }
         configSettings.Options = optionsDict;
 
+        configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
+        {
+            if (ctx.Attempt > 1)
+            {
+                Console.WriteLine("Permission denied, please try again.");
+            }
+
+            string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
+            return PasswordPromptContext.ReadPasswordFromConsole(prompt);
+        };
+
         return configSettings;
     }
 

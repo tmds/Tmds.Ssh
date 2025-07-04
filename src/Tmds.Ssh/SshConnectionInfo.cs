@@ -10,6 +10,7 @@ public sealed class SshConnectionInfo
     internal SshConnectionInfo() { }
     public HostKey ServerKey { get; internal set; } = null!;
     public string HostName { get; internal set; } = string.Empty;
+    public string UserName { get; internal set; } = string.Empty;
     public int Port { get; internal set; }
     public bool IsProxy { get; internal set; }
 

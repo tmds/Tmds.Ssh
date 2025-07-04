@@ -49,7 +49,7 @@ partial class SshClientSettings
             CompressionAlgorithmsClientToServer = compressionAlgorithms,
             CompressionAlgorithmsServerToClient = compressionAlgorithms,
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
-            Credentials = DetermineCredentials(sshConfig),
+            Credentials = DetermineCredentials(sshConfig, options),
             HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts,
             TcpKeepAlive = sshConfig.TcpKeepAlive ?? DefaultTcpKeepAlive,
             KeepAliveCountMax = sshConfig.ServerAliveCountMax ?? DefaultKeepAliveCountMax,
@@ -143,10 +143,11 @@ partial class SshClientSettings
         return envvars;
     }
 
-    private static List<Credential> DetermineCredentials(SshConfig config)
+    private static List<Credential> DetermineCredentials(SshConfig config, SshConfigSettings options)
     {
         bool addPubKeyCredentials = config.PubKeyAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
         bool addGssApiCredentials = config.GssApiAuthentication ?? false && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
+        bool assPasswordCredential = config.PasswordAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.Password);
         bool addSshAgentCredentials = config.IdentitiesOnly != true && addPubKeyCredentials;
         bool addNone = IsAcceptedAuthentication(AlgorithmNames.None);
 
@@ -209,6 +210,18 @@ partial class SshClientSettings
                         }
 
                         addPubKeyCredentials = false;
+                    }
+                }
+                else if (algorithm == AlgorithmNames.Password)
+                {
+                    if (assPasswordCredential)
+                    {
+                        if (options.PasswordPrompt is { } prompt)
+                        {
+                            credentials.Add(new PasswordCredential(prompt));
+                        }
+
+                        assPasswordCredential = false;
                     }
                 }
                 else if (algorithm == AlgorithmNames.None)

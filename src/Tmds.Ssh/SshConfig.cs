@@ -54,6 +54,7 @@ sealed class SshConfig
     public int? RequiredRSASize { get; set; }
     public Name[]? PreferredAuthentications { get; set; }
     public bool? PubKeyAuthentication { get; set; }
+    public bool? PasswordAuthentication { get; set; }
     public bool? GssApiAuthentication { get; set; }
     public bool? GssApiDelegateCredentials { get; set; }
     public string? GssApiServerIdentity { get; set; }
@@ -499,7 +500,7 @@ sealed class SshConfig
             case "remoteforward":
                 break; // throw for clearallforwardings.
             case "passwordauthentication":
-                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
+                config.PasswordAuthentication ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
             case "batchmode":
                 ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");

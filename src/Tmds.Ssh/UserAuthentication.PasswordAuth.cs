@@ -12,23 +12,33 @@ partial class UserAuthentication
     {
         public static async Task<AuthResult> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
-            string? password = passwordCredential.GetPassword();
-
-            if (password is null)
+            int attempt = 0;
+            while (true)
             {
-                return AuthResult.Skipped;
+                var ctx = new PasswordPromptContext(connectionInfo, ++attempt);
+                string? password = await passwordCredential.GetPasswordAsync(ctx, ct).ConfigureAwait(false);
+
+                if (password is null)
+                {
+                    return attempt == 1 ? AuthResult.Skipped : AuthResult.Failure;
+                }
+
+                context.StartAuth(AlgorithmNames.Password);
+
+                logger.PasswordAuth();
+
+                {
+                    using var userAuthMsg = CreatePasswordRequestMessage(context.SequencePool, context.UserName, password);
+                    await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
+                }
+
+                AuthResult result = await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
+                if (result == AuthResult.Failure)
+                {
+                    continue;
+                }
+                return result;
             }
-
-            context.StartAuth(AlgorithmNames.Password);
-
-            logger.PasswordAuth();
-
-            {
-                using var userAuthMsg = CreatePasswordRequestMessage(context.SequencePool, context.UserName, password);
-                await context.SendPacketAsync(userAuthMsg.Move(), ct).ConfigureAwait(false);
-            }
-
-            return await context.ReceiveAuthResultAsync(ct).ConfigureAwait(false);
         }
 
         private static Packet CreatePasswordRequestMessage(SequencePool sequencePool, string userName, string password)
