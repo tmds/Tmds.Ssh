@@ -8,10 +8,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableExpectoTestingPlatformIntegration>true</EnableExpectoTestingPlatformIntegration>
     <OutputType>Exe</OutputType>
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <NoWarn>xUnit1051</NoWarn> <!-- Not using cancellation token argument -->
     <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
-    <!-- <TestingPlatformCaptureOutput>false</TestingPlatformCaptureOutput> -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <TestingPlatformCaptureOutput>false</TestingPlatformCaptureOutput>
   </PropertyGroup>
 
   <ItemGroup>
