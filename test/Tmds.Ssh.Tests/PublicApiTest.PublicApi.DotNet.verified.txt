@@ -144,7 +144,15 @@ namespace Tmds.Ssh
     public sealed class PasswordCredential : Tmds.Ssh.Credential
     {
         public PasswordCredential(System.Func<string?> passwordPrompt) { }
+        public PasswordCredential(Tmds.Ssh.PasswordPrompt passwordPrompt) { }
         public PasswordCredential(string password) { }
+    }
+    public delegate System.Threading.Tasks.ValueTask<string?> PasswordPrompt(Tmds.Ssh.PasswordPromptContext context, System.Threading.CancellationToken cancellationToken);
+    public struct PasswordPromptContext
+    {
+        public int Attempt { get; }
+        public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
+        public static System.Threading.Tasks.ValueTask<string?> ReadPasswordFromConsole(string? prompt = null) { }
     }
     public class PrivateKeyCredential : Tmds.Ssh.Credential
     {
@@ -527,6 +535,7 @@ namespace Tmds.Ssh
         ProxyJump = 25,
         CASignatureAlgorithms = 26,
         CertificateFile = 27,
+        PasswordAuthentication = 28,
     }
     public readonly struct SshConfigOptionValue
     {
@@ -547,6 +556,7 @@ namespace Tmds.Ssh
         public System.TimeSpan ConnectTimeout { get; set; }
         public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
         public System.Collections.Generic.Dictionary<Tmds.Ssh.SshConfigOption, Tmds.Ssh.SshConfigOptionValue> Options { get; set; }
+        public Tmds.Ssh.PasswordPrompt? PasswordPrompt { get; set; }
         public static Tmds.Ssh.SshConfigSettings DefaultConfig { get; }
         public static System.Collections.Generic.IReadOnlyList<string> DefaultConfigFilePaths { get; }
         public static Tmds.Ssh.SshConfigSettings NoConfig { get; }
@@ -559,6 +569,7 @@ namespace Tmds.Ssh
         public bool IsProxy { get; }
         public int Port { get; }
         public Tmds.Ssh.HostKey ServerKey { get; }
+        public string UserName { get; }
     }
     public sealed class SshDataStream : System.IO.Stream
     {

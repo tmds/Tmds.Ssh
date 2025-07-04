@@ -24,6 +24,7 @@ public sealed class SshConfigSettings
     private bool _autoReconnect = false;
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
     private HostAuthentication? _hostAuthentication;
+    private PasswordPrompt? _passwordPrompt;
 
     // Avoid allocations from the public getters.
     internal IReadOnlyList<string> ConfigFilePathsOrDefault
@@ -113,6 +114,18 @@ public sealed class SshConfigSettings
         }
     }
 
+    // Prompt used for password authentication.
+    public PasswordPrompt? PasswordPrompt
+    {
+        get => _passwordPrompt;
+        set
+        {
+            ThrowIfLocked();
+
+            _passwordPrompt = value;
+        }
+    }
+
     internal void Validate()
     {
         if (_configFilePaths is not null)
@@ -121,7 +134,7 @@ public sealed class SshConfigSettings
             {
                 if (item is null)
                 {
-                    throw new ArgumentException($"{nameof(ConfigFilePaths)} contains 'null'." , $"{nameof(ConfigFilePaths)}");
+                    throw new ArgumentException($"{nameof(ConfigFilePaths)} contains 'null'.", $"{nameof(ConfigFilePaths)}");
                 }
                 if (!Path.IsPathRooted(item))
                 {
@@ -135,11 +148,11 @@ public sealed class SshConfigSettings
             {
                 if (!Enum.IsDefined(item.Key))
                 {
-                    throw new ArgumentException($"{nameof(Options)} contains unknown key '{item.Key}'." , $"{nameof(Options)}");
+                    throw new ArgumentException($"{nameof(Options)} contains unknown key '{item.Key}'.", $"{nameof(Options)}");
                 }
                 if (item.Value.IsEmpty)
                 {
-                    throw new ArgumentException($"{nameof(Options)} contains 'null' value for key '{item.Key}'." , $"{nameof(Options)}");
+                    throw new ArgumentException($"{nameof(Options)} contains 'null' value for key '{item.Key}'.", $"{nameof(Options)}");
                 }
             }
         }

@@ -164,6 +164,7 @@ sealed partial class SshSession
             }
             ConnectionInfo.HostName = host;
             ConnectionInfo.Port = port ?? 22;
+            ConnectionInfo.UserName = userName ?? "";
 
             // Cancel when:
             // * Dispose is called (_abortCts)
@@ -185,6 +186,7 @@ sealed partial class SshSession
             // Normalize the hostname to lowercase.
             ConnectionInfo.HostName = _settings.HostName.ToLowerInvariant();
             ConnectionInfo.Port = _settings.Port;
+            ConnectionInfo.UserName = _settings.UserName;
 
             // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
             TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;
