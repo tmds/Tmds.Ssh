@@ -12,14 +12,17 @@ sealed partial class UnixStandardInputReader : IStandardInputReader
     private readonly Decoder _decoder;
     private readonly Socket _socket;
 
-    public UnixStandardInputReader()
+    public UnixStandardInputReader(bool forTerminal)
     {
-        // By default, Unix terminals are in CANON mode which means they return input line-by-line.
-        // .NET disables CANON mode when its reading APIs are used.
-        // This makes a cursor position read to disable CANON mode.
         if (!Console.IsInputRedirected)
         {
-            _ = Console.CursorTop;
+            if (forTerminal)
+            {
+                // By default, Unix terminals are in CANON mode which means they return input line-by-line.
+                // .NET disables CANON mode when its reading APIs are used.
+                // This makes a cursor position read to disable CANON mode.
+                _ = Console.CursorTop;
+            }
         }
 
         _encoding = Console.InputEncoding;

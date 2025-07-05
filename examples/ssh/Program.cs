@@ -13,31 +13,36 @@ class Program
 {
     static Task<int> Main(string[] args)
     {
-        var destinationArg = new Argument<string>(name: "destination", () => "localhost")
-        { Arity = ArgumentArity.ZeroOrOne };
-        var commandArg = new Argument<string>(name: "command", () => "echo 'hello world'")
-        { Arity = ArgumentArity.ZeroOrOne };
-        var terminalOption = new Option<bool>(new[] { "-t" }, "Allocate a terminal");
+        var destinationArg = new Argument<string>(name: "destination")
+        { Arity = ArgumentArity.ExactlyOne };
+        var commandArg = new Argument<string[]>(name: "command",
+            description: "Command and arguments to execute on the remote host")
+        { Arity = ArgumentArity.ZeroOrMore };
+        var forceTtyOption = new Option<bool>(new[] { "-t" }, "Force pseudo-terminal allocation");
+        var disableTtyOption = new Option<bool>(new[] { "-T" }, "Disable pseudo-terminal allocation");
         var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
             description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
         { Arity = ArgumentArity.ZeroOrMore };
 
         var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
-        rootCommand.AddOption(terminalOption);
+        rootCommand.AddOption(forceTtyOption);
+        rootCommand.AddOption(disableTtyOption);
         rootCommand.AddOption(sshConfigOptions);
         rootCommand.AddArgument(destinationArg);
         rootCommand.AddArgument(commandArg);
-        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, terminalOption, sshConfigOptions);
+        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, forceTtyOption, disableTtyOption, sshConfigOptions);
 
         return rootCommand.InvokeAsync(args);
     }
 
-    static async Task ExecuteAsync(string destination, string command, bool allocateTerminal, string[] options)
+    static async Task ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, string[] options)
     {
         bool trace = IsEnvvarTrue("TRACE");
         bool log = trace || IsEnvvarTrue("LOG");
 
-        using IDisposable? terminalConfiguration = allocateTerminal ? ConfigureTerminal() : null;
+        bool allocateTerminal = forceTty || (!disableTty && !Console.IsInputRedirected);
+
+        using IDisposable? terminalOutputConfig = ConfigureTerminal(allocateTerminal);
 
         using ILoggerFactory? loggerFactory = !log ? null :
             LoggerFactory.Create(builder =>
@@ -68,7 +73,9 @@ class Program
             }
         }
 
-        using var process = await client.ExecuteAsync(command, executeOptions);
+        using var process =
+            command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
+                                : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
 
         using IDisposable? updateWindowSize = allocateTerminal && !Console.IsOutputRedirected ? UpdateTerminalSize(process) : null;
         Task[] tasks = new[]
@@ -97,9 +104,9 @@ class Program
 
         static async Task ReadInputFromConsole(RemoteProcess process)
         {
-            using IStandardInputReader reader = CreateConsoleInReader();
+            using IStandardInputReader reader = CreateConsoleInReader(process.HasTerminal);
 
-            char[] buffer = new char[1024];
+            char[] buffer = new char[100 * 1024];
             try
             {
                 while (true)
@@ -131,16 +138,23 @@ class Program
         }
     }
 
-    static IDisposable? ConfigureTerminal()
+    static IDisposable? ConfigureTerminal(bool forTerminal)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return WindowsTerminalConfig.Configure();
-        }
-        else
+        if (Console.IsOutputRedirected)
         {
             return null;
         }
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (forTerminal)
+            {
+                const uint EnableStdOutFlags = WindowsInterop.ENABLE_VIRTUAL_TERMINAL_PROCESSING | WindowsInterop.DISABLE_NEWLINE_AUTO_RETURN;
+                const uint DisableStdOutFlags = 0;
+                return WindowsConsoleModeConfig.Configure(WindowsInterop.STD_OUTPUT_HANDLE, EnableStdOutFlags, DisableStdOutFlags);
+            }
+        }
+        return null;
     }
 
     static IDisposable? UpdateTerminalSize(RemoteProcess process)
@@ -163,15 +177,15 @@ class Program
         }
     }
 
-    static IStandardInputReader CreateConsoleInReader()
+    static IStandardInputReader CreateConsoleInReader(bool forTerminal)
     {
         if (OperatingSystem.IsWindows())
         {
-            return new WindowsStandardInputReader();
+            return new WindowsStandardInputReader(forTerminal);
         }
         else
         {
-            return new UnixStandardInputReader();
+            return new UnixStandardInputReader(forTerminal);
         }
     }
 
