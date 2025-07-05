@@ -46,7 +46,8 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
         {
             if (_hostAuthentication is not null)
             {
-                isTrusted = await _hostAuthentication(result, connectionInfo, ct);
+                var ctx = new HostAuthenticationContext(result, connectionInfo);
+                isTrusted = await _hostAuthentication(ctx, ct);
                 if (isTrusted)
                 {
                     _logger.ServerKeyIsApproved(serverKey.Key.Type, serverKey.Key.SHA256FingerPrint);

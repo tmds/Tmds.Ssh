@@ -22,10 +22,10 @@ public class SshProxyTests
         {
             Credentials = [ new PrivateKeyCredential(_sshServer.TestUserIdentityFile) ],
             HostAuthentication =
-            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            (HostAuthenticationContext context, CancellationToken cancellationToken) =>
             {
-                Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
-                Assert.True(connectionInfo.IsProxy);
+                Assert.Equal(_sshServer.ServerHost, context.ConnectionInfo.HostName);
+                Assert.True(context.ConnectionInfo.IsProxy);
                 return ValueTask.FromResult(true);
             }
         };
@@ -41,10 +41,10 @@ public class SshProxyTests
             settings.Port = 22;
             settings.Proxy = new SshProxy(sshProxySettings);
             settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
-                    Assert.Equal("localhost", connectionInfo.HostName);
-                    Assert.False(connectionInfo.IsProxy);
+                    Assert.Equal("localhost", context.ConnectionInfo.HostName);
+                    Assert.False(context.ConnectionInfo.IsProxy);
                     return ValueTask.FromResult(true);
                 };
         });
@@ -68,16 +68,16 @@ public class SshProxyTests
 
             UserKnownHostsFilePaths = [],
             HostAuthentication =
-            (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+            (HostAuthenticationContext context, CancellationToken cancellationToken) =>
             {
-                if (connectionInfo.HostName == _sshServer.ServerHost)
+                if (context.ConnectionInfo.HostName == _sshServer.ServerHost)
                 {
-                    Assert.True(connectionInfo.IsProxy);
+                    Assert.True(context.ConnectionInfo.IsProxy);
                 }
                 else
                 {
-                    Assert.Equal("localhost", connectionInfo.HostName);
-                    Assert.False(connectionInfo.IsProxy);
+                    Assert.Equal("localhost", context.ConnectionInfo.HostName);
+                    Assert.False(context.ConnectionInfo.IsProxy);
                 }
                 return ValueTask.FromResult(true);
             }

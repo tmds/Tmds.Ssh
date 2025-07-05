@@ -42,13 +42,14 @@ public class ConnectTests
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.ServerHostKeyAlgorithms = [ new Name(hostKeyAlgorithm) ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
-                    Assert.Equal(KnownHostResult.Unknown, knownHostResult);
-                    Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
-                    Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.Key.SHA256FingerPrint);
-                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
+                    Assert.Equal(KnownHostResult.Unknown, context.KnownHostResult);
+                    Assert.Equal(_sshServer.TestUser, context.ConnectionInfo.UserName);
+                    Assert.Equal(_sshServer.ServerHost, context.ConnectionInfo.HostName);
+                    Assert.Equal(_sshServer.ServerPort, context.ConnectionInfo.Port);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == context.ConnectionInfo.ServerKey.Key.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, context.ConnectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 };
             }
@@ -63,7 +64,7 @@ public class ConnectTests
                 settings.UserKnownHostsFilePaths = [];
                 settings.GlobalKnownHostsFilePaths = [];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     return ValueTask.FromResult(true);
                 };
@@ -82,9 +83,9 @@ public class ConnectTests
                 settings.UserKnownHostsFilePaths = [];
                 settings.GlobalKnownHostsFilePaths = [];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
-                    sshConnectionInfoHostName = connectionInfo.HostName;
+                    sshConnectionInfoHostName = context.ConnectionInfo.HostName;
                     return ValueTask.FromResult(true);
                 };
             }
@@ -100,7 +101,7 @@ public class ConnectTests
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     return ValueTask.FromResult(false);
                 };
@@ -124,10 +125,10 @@ public class ConnectTests
                     settings.UserKnownHostsFilePaths = [ knownHostsFileName ];
                     settings.HashKnownHosts = hashKnownHosts;
                     settings.HostAuthentication =
-                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                    (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                     {
                         keyVerified = true;
-                        Assert.Equal(KnownHostResult.Unknown, knownHostResult);
+                        Assert.Equal(KnownHostResult.Unknown, context.KnownHostResult);
                         return ValueTask.FromResult(true);
                     };
                     settings.ServerHostKeyAlgorithms = [ AlgorithmNames.RsaSshSha2_256 ];
@@ -141,10 +142,10 @@ public class ConnectTests
             {
                 settings.UserKnownHostsFilePaths = [ knownHostsFileName ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     Assert.True(false);
-                    return ValueTask.FromResult(knownHostResult == KnownHostResult.Trusted);
+                    return ValueTask.FromResult(context.KnownHostResult == KnownHostResult.Trusted);
                 };
             });
             client.Dispose();
@@ -238,7 +239,7 @@ public class ConnectTests
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
                     Assert.True(cancellationToken.IsCancellationRequested);
@@ -258,7 +259,7 @@ public class ConnectTests
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     cts.Cancel();
                     return ValueTask.FromResult(true);
@@ -278,7 +279,7 @@ public class ConnectTests
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
                 settings.HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
                     throw exceptionThrown;
                 };
@@ -458,13 +459,13 @@ public class ConnectTests
             new SshConfigSettings()
             {
                 HostAuthentication =
-                (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {
-                    Assert.Equal(KnownHostResult.Unknown, knownHostResult);
-                    Assert.Equal(_sshServer.ServerHost, connectionInfo.HostName);
-                    Assert.Equal(_sshServer.ServerPort, connectionInfo.Port);
-                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == connectionInfo.ServerKey.Key.SHA256FingerPrint);
-                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, connectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
+                    Assert.Equal(KnownHostResult.Unknown, context.KnownHostResult);
+                    Assert.Equal(_sshServer.ServerHost, context.ConnectionInfo.HostName);
+                    Assert.Equal(_sshServer.ServerPort, context.ConnectionInfo.Port);
+                    Assert.Contains(_sshServer.ServerKeySHA256FingerPrints, key => key == context.ConnectionInfo.ServerKey.Key.SHA256FingerPrint);
+                    Assert.Equal(isCertificate ? _sshServer.CaSHA256FingerPrint : null, context.ConnectionInfo.ServerKey.CertificateInfo?.IssuerKey?.SHA256FingerPrint);
                     return ValueTask.FromResult(true);
                 },
                 ConfigFilePaths = [ configFile.Path ]

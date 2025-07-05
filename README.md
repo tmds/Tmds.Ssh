@@ -583,7 +583,12 @@ enum KnownHostResult
   Changed,
   Unknown,
 }
-delegate ValueTask<bool> HostAuthentication(KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken);
+struct HostAuthenticationContext
+{
+  public SshConnectionInfo ConnectionInfo { get; }
+  public KnownHostResult KnownHostResult { get; }
+}
+delegate ValueTask<bool> HostAuthentication(HostAuthenticationContext context, CancellationToken cancellationToken);
 class SshConnectionInfo
 {
   HostKey ServerKey { get; }
@@ -620,11 +625,11 @@ class CertificateCredential : Credential
 delegate ValueTask<string?> PasswordPrompt(PasswordPromptContext context, CancellationToken cancellationToken);
 struct PasswordPromptContext
 {
-    int Attempt { get; }
-    SshConnectionInfo ConnectionInfo { get; }
+  int Attempt { get; }
+  SshConnectionInfo ConnectionInfo { get; }
 
-    // Helper method to read a password from Console without it being echo'ed.
-    static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null);
+  // Helper method to read a password from Console without it being echo'ed.
+  static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null);
 }
 class PasswordCredential : Credential
 {
