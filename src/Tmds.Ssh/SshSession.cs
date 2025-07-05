@@ -187,6 +187,7 @@ sealed partial class SshSession
             ConnectionInfo.HostName = _settings.HostName.ToLowerInvariant();
             ConnectionInfo.Port = _settings.Port;
             ConnectionInfo.UserName = _settings.UserName;
+            ConnectionInfo.IsBatchMode = _settings.BatchMode || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
 
             // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
             TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;

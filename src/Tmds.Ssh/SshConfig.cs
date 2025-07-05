@@ -55,6 +55,7 @@ sealed class SshConfig
     public Name[]? PreferredAuthentications { get; set; }
     public bool? PubKeyAuthentication { get; set; }
     public bool? PasswordAuthentication { get; set; }
+    public bool? BatchMode { get; set; }
     public bool? GssApiAuthentication { get; set; }
     public bool? GssApiDelegateCredentials { get; set; }
     public string? GssApiServerIdentity { get; set; }
@@ -503,7 +504,7 @@ sealed class SshConfig
                 config.PasswordAuthentication ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
             case "batchmode":
-                ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");
+                config.BatchMode ??= ParseYesNoKeywordValue(keyword, ref remainder);
                 break;
             case "kbdinteractiveauthentication":
                 ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "yes");

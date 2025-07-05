@@ -200,6 +200,11 @@ class Program
 
         configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
         {
+            if (ctx.IsBatchMode)
+            {
+                return ValueTask.FromResult((string?)null);
+            }
+
             if (ctx.Attempt > 1)
             {
                 Console.WriteLine("Permission denied, please try again.");

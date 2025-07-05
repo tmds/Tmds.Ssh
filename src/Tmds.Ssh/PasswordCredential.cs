@@ -15,10 +15,6 @@ public sealed class PasswordCredential : Credential
         this((PasswordPromptContext ctx, CancellationToken ct) => ValueTask.FromResult(ctx.Attempt > 1 ? null : password))
     { }
 
-    public PasswordCredential(Func<string?> passwordPrompt) :
-        this((PasswordPromptContext ctx, CancellationToken ct) => ValueTask.FromResult(ctx.Attempt > 1 ? null : passwordPrompt()))
-    { }
-
     public PasswordCredential(PasswordPrompt passwordPrompt)
     {
         _passwordPrompt = passwordPrompt;
@@ -29,6 +25,7 @@ public struct PasswordPromptContext
 {
     public SshConnectionInfo ConnectionInfo { get; }
     public int Attempt { get; }
+    public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 
     internal PasswordPromptContext(SshConnectionInfo connectionInfo, int attempt)
     {

@@ -39,5 +39,6 @@ public enum SshConfigOption
     ProxyJump,
     CASignatureAlgorithms,
     CertificateFile,
-    PasswordAuthentication
+    PasswordAuthentication,
+    BatchMode
 }

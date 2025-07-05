@@ -68,6 +68,7 @@ namespace Tmds.Ssh
     public struct HostAuthenticationContext
     {
         public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
+        public bool IsBatchMode { get; }
         public Tmds.Ssh.KnownHostResult KnownHostResult { get; }
     }
     public sealed class HostCertificateInfo
@@ -148,7 +149,6 @@ namespace Tmds.Ssh
     }
     public sealed class PasswordCredential : Tmds.Ssh.Credential
     {
-        public PasswordCredential(System.Func<string?> passwordPrompt) { }
         public PasswordCredential(Tmds.Ssh.PasswordPrompt passwordPrompt) { }
         public PasswordCredential(string password) { }
     }
@@ -157,6 +157,7 @@ namespace Tmds.Ssh
     {
         public int Attempt { get; }
         public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
+        public bool IsBatchMode { get; }
         public static System.Threading.Tasks.ValueTask<string?> ReadPasswordFromConsole(string? prompt = null) { }
     }
     public class PrivateKeyCredential : Tmds.Ssh.Credential
@@ -490,8 +491,10 @@ namespace Tmds.Ssh
         public SshClientSettings(string destination) { }
         public bool AutoConnect { get; set; }
         public bool AutoReconnect { get; set; }
+        public bool BatchMode { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
         public System.Collections.Generic.List<Tmds.Ssh.Credential> Credentials { get; set; }
+        public bool EnableBatchModeWhenConsoleIsRedirected { get; set; }
         public System.Collections.Generic.Dictionary<string, string> EnvironmentVariables { get; set; }
         public System.Collections.Generic.List<string> GlobalKnownHostsFilePaths { get; set; }
         public bool HashKnownHosts { get; set; }
@@ -541,6 +544,7 @@ namespace Tmds.Ssh
         CASignatureAlgorithms = 26,
         CertificateFile = 27,
         PasswordAuthentication = 28,
+        BatchMode = 29,
     }
     public readonly struct SshConfigOptionValue
     {

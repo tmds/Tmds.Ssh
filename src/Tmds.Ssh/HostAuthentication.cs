@@ -13,6 +13,7 @@ public struct HostAuthenticationContext
 
     public KnownHostResult KnownHostResult { get; }
     public SshConnectionInfo ConnectionInfo { get; }
+    public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 }
 
 public delegate ValueTask<bool> HostAuthentication(HostAuthenticationContext context, CancellationToken cancellationToken);
