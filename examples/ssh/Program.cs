@@ -228,6 +228,45 @@ class Program
             return PasswordPromptContext.ReadPasswordFromConsole(prompt);
         };
 
+        configSettings.HostAuthentication = async (HostAuthenticationContext ctx, CancellationToken ct) =>
+        {
+            if (ctx.IsBatchMode)
+            {
+                return false;
+            }
+
+            if (Console.IsInputRedirected || Console.IsOutputRedirected)
+            {
+                return false;
+            }
+
+            PublicKey key = ctx.ConnectionInfo.ServerKey.Key;
+            string hostName = ctx.ConnectionInfo.HostName;
+            string keyType = key.Type.ToUpperInvariant();
+            if (keyType.StartsWith("SSH-"))
+            {
+                keyType = keyType.Substring(4);
+            }
+            string fingerprint = key.SHA256FingerPrint;
+            Console.WriteLine($"The authenticity of host '{hostName}' can't be established.");
+            Console.WriteLine($"{keyType} key fingerprint is SHA256:{fingerprint}.");
+            while (true)
+            {
+                Console.Write($"Are you sure you want to continue connecting (yes/no)? ");
+                string? response = Console.ReadLine();
+                switch (response)
+                {
+                    case "no":
+                    case null:
+                        return false;
+                    case "yes":
+                        return true;
+                    default:
+                        continue;
+                }
+            }
+        };
+
         return configSettings;
     }
 

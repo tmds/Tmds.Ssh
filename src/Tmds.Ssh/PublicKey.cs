@@ -25,7 +25,8 @@ public sealed class PublicKey : IEquatable<PublicKey>
         SshKeyData = sshKey;
     }
 
-    internal string Type => SshKeyData.Type.ToString();
+    public string Type => SshKeyData.Type.ToString();
+
     internal ReadOnlyMemory<byte> RawData => SshKeyData.RawData;
 
     public string SHA256FingerPrint
