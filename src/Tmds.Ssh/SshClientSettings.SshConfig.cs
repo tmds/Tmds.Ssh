@@ -77,16 +77,16 @@ partial class SshClientSettings
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Allow unknown and changed.
                 settings.HostAuthentication =
-                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken)
-                        => ValueTask.FromResult(knownHostResult is KnownHostResult.Unknown or KnownHostResult.Changed);
+                    (HostAuthenticationContext context, CancellationToken cancellationToken)
+                        => ValueTask.FromResult(context.KnownHostResult is KnownHostResult.Unknown or KnownHostResult.Changed);
                 break;
 
             case SshConfig.StrictHostKeyChecking.AcceptNew:
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Disallow changed. Allow unknown.
                 settings.HostAuthentication =
-                    (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken)
-                        => ValueTask.FromResult(knownHostResult == KnownHostResult.Unknown);
+                    (HostAuthenticationContext context, CancellationToken cancellationToken)
+                        => ValueTask.FromResult(context.KnownHostResult == KnownHostResult.Unknown);
                 break;
 
             case SshConfig.StrictHostKeyChecking.Ask:
@@ -95,13 +95,13 @@ partial class SshClientSettings
                 if (options.HostAuthentication is HostAuthentication authentication)
                 {
                     settings.HostAuthentication =
-                        (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
+                        (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                         {
-                            if (knownHostResult == KnownHostResult.Changed)
+                            if (context.KnownHostResult == KnownHostResult.Changed)
                             {
                                 return ValueTask.FromResult(false);
                             }
-                            return authentication(knownHostResult, connectionInfo, cancellationToken);
+                            return authentication(context, cancellationToken);
                         };
                 }
                 else

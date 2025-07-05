@@ -64,7 +64,12 @@ namespace Tmds.Ssh
         public Tmds.Ssh.OpenMode OpenMode { get; set; }
         public bool Seekable { get; set; }
     }
-    public delegate System.Threading.Tasks.ValueTask<bool> HostAuthentication(Tmds.Ssh.KnownHostResult knownHostResult, Tmds.Ssh.SshConnectionInfo connectionInfo, System.Threading.CancellationToken cancellationToken);
+    public delegate System.Threading.Tasks.ValueTask<bool> HostAuthentication(Tmds.Ssh.HostAuthenticationContext context, System.Threading.CancellationToken cancellationToken);
+    public struct HostAuthenticationContext
+    {
+        public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
+        public Tmds.Ssh.KnownHostResult KnownHostResult { get; }
+    }
     public sealed class HostCertificateInfo
     {
         public string Identifier { get; }
