@@ -184,6 +184,7 @@ namespace Tmds.Ssh
     public sealed class PublicKey : System.IEquatable<Tmds.Ssh.PublicKey>
     {
         public string SHA256FingerPrint { get; }
+        public string Type { get; }
         public bool Equals(Tmds.Ssh.PublicKey? other) { }
         public override int GetHashCode() { }
         public override string ToString() { }

@@ -577,6 +577,7 @@ class HostCertificateInfo
 }
 class PublicKey
 {
+  string Type { get; }
   string SHA256FingerPrint { get; }
   string ToString(); // format matches the known_hosts representation.
 }
