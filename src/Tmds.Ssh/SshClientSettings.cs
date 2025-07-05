@@ -325,6 +325,10 @@ public sealed partial class SshClientSettings
 
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
+    public bool BatchMode { get; set; } = false;
+
+    public bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
+
     public Dictionary<string, string> EnvironmentVariables
     {
         get => _environmentVariables ??= new();

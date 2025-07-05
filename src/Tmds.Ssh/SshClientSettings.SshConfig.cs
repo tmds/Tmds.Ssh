@@ -54,7 +54,8 @@ partial class SshClientSettings
             TcpKeepAlive = sshConfig.TcpKeepAlive ?? DefaultTcpKeepAlive,
             KeepAliveCountMax = sshConfig.ServerAliveCountMax ?? DefaultKeepAliveCountMax,
             KeepAliveInterval = sshConfig.ServerAliveInterval > 0 ? TimeSpan.FromSeconds(sshConfig.ServerAliveInterval.Value) : TimeSpan.Zero,
-            Proxy = DetermineProxy(sshConfig.ProxyJump, options)
+            Proxy = DetermineProxy(sshConfig.ProxyJump, options),
+            BatchMode = sshConfig.BatchMode ?? false
         };
         if (sshConfig.UserKnownHostsFiles is not null)
         {

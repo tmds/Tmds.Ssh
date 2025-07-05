@@ -352,6 +352,8 @@ class SshClientSettings
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
   bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
   bool HashKnownHosts { get; set; } = false;
+  public bool BatchMode { get; set; } = false;
+  public bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
 
   int MinimumRSAKeySize { get; set; } = 2048;
 
@@ -403,7 +405,9 @@ enum SshConfigOption
     IdentitiesOnly,
     ProxyJump,
     CASignatureAlgorithms,
-    CertificateFile
+    CertificateFile,
+    PasswordAuthentication,
+    BatchMode
 }
 struct SshConfigOptionValue
 {
@@ -585,8 +589,9 @@ enum KnownHostResult
 }
 struct HostAuthenticationContext
 {
-  public SshConnectionInfo ConnectionInfo { get; }
-  public KnownHostResult KnownHostResult { get; }
+  SshConnectionInfo ConnectionInfo { get; }
+  KnownHostResult KnownHostResult { get; }
+  bool IsBatchMode { get; } // In BatchMode the HostAuthentication delegate mustn't make interactive prompts.
 }
 delegate ValueTask<bool> HostAuthentication(HostAuthenticationContext context, CancellationToken cancellationToken);
 class SshConnectionInfo
@@ -627,6 +632,7 @@ struct PasswordPromptContext
 {
   int Attempt { get; }
   SshConnectionInfo ConnectionInfo { get; }
+  bool IsBatchMode { get; } // In BatchMode the PasswordPrompt delegate mustn't make interactive prompts.
 
   // Helper method to read a password from Console without it being echo'ed.
   static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null);
@@ -634,7 +640,6 @@ struct PasswordPromptContext
 class PasswordCredential : Credential
 {
   PasswordCredential(string password);
-  PasswordCredential(Func<string?> prompt);
   PasswordCredential(PasswordPrompt passwordPrompt);
 }
 class KerberosCredential : Credential
