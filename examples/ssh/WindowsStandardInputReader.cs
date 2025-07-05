@@ -9,13 +9,27 @@ using static WindowsInterop;
 
 sealed class WindowsStandardInputReader : IStandardInputReader
 {
+    private const uint TerminalEnableStdInFlags = ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT;
+    private const uint TerminalDisableStdInFlags = ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_MOUSE_INPUT | ENABLE_PROCESSED_INPUT;
+    private const uint NoTerminalEnableStdInFlags = ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
+    private const uint NoTerminalDisableStdInFlags = 0;
+
     private readonly Encoding _encoding;
     private readonly Decoder _decoder;
     private readonly IntPtr _handle;
+    private readonly WindowsConsoleModeConfig? _stdInConfig;
     private bool _reading;
+    private bool _convertLineEndings;
 
-    public WindowsStandardInputReader()
+    public WindowsStandardInputReader(bool forTerminal)
     {
+        if (!Console.IsInputRedirected)
+        {
+            _stdInConfig = forTerminal ? WindowsConsoleModeConfig.Configure(STD_INPUT_HANDLE, TerminalEnableStdInFlags, TerminalDisableStdInFlags)
+                                       : WindowsConsoleModeConfig.Configure(STD_INPUT_HANDLE, NoTerminalEnableStdInFlags, NoTerminalDisableStdInFlags);
+            _convertLineEndings = !forTerminal;
+        }
+
         _handle = GetStdHandle(STD_INPUT_HANDLE);
         _encoding = Console.InputEncoding;
         _decoder = Console.InputEncoding.GetDecoder();
@@ -50,8 +64,21 @@ sealed class WindowsStandardInputReader : IStandardInputReader
 
         if (readSuccess)
         {
-            _decoder.Convert(bytes.AsSpan(0, bytesRead), buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
-            Debug.Assert(bytesRead == bytesUsed);
+            Span<byte> bytesReadSpan = bytes.AsSpan(0, bytesRead);
+            if (_convertLineEndings)
+            {
+                if (bytesReadSpan.EndsWith("\r\n"u8))
+                {
+                    bytesReadSpan = bytesReadSpan[..^1];
+                    bytesReadSpan[^1] = (byte)'\n';
+                }
+                else if (bytesReadSpan.EndsWith("\r"u8))
+                {
+                    bytesReadSpan[^1] = (byte)'\n';
+                }
+            }
+            _decoder.Convert(bytesReadSpan, buffer.Span, flush: false, out int bytesUsed, out int charsUsed, out bool completed);
+            Debug.Assert(bytesReadSpan.Length == bytesUsed);
             return charsUsed;
         }
         else
@@ -74,5 +101,7 @@ sealed class WindowsStandardInputReader : IStandardInputReader
     }
 
     public void Dispose()
-    { }
+    {
+        _stdInConfig?.Dispose();
+    }
 }
