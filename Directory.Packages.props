@@ -19,7 +19,7 @@
     <PackageVersion Include="Tmds.ExecFunction" Version="0.8.0" />
     <!-- Example dependencies -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1 " />
     <PackageVersion Include="Azure.Identity" Version="1.12.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Keys" Version="4.6.0" />
   </ItemGroup>

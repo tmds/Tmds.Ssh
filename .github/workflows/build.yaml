@@ -29,6 +29,12 @@ jobs:
         export DEBIAN_FRONTEND=noninteractive
         sudo -E apt-get install -y krb5-user
 
+    - name: Build example applications
+      run: |
+        dotnet build examples/azure_key
+        dotnet build examples/scp
+        dotnet build examples/ssh
+
     - name: Run tests
       run: |
         export MSBUILDENSURESTDOUTFORTASKPROCESSES=1

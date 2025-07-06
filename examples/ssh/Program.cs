@@ -9,278 +9,328 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
-class Program
+var destinationArg = new Argument<string>("destination")
+{ Arity = ArgumentArity.ExactlyOne };
+var commandArg = new Argument<string[]>("command")
 {
-    static Task<int> Main(string[] args)
+    Description = "Command and arguments to execute on the remote host",
+    Arity = ArgumentArity.ZeroOrMore
+};
+var forceTtyOption = new Option<bool>("-t")
+{
+    Description = "Force pseudo-terminal allocation"
+};
+var disableTtyOption = new Option<bool>("-T")
+{
+    Description = "Disable pseudo-terminal allocation"
+};
+var informationVerbosityOption = new Option<bool>("-v")
+{
+    Description = "Log at information level"
+};
+var debugVerbosityOption = new Option<bool>("-vv")
+{
+    Description = "Log at debug level"
+};
+var traceVerbosityOption = new Option<bool>("-vvv")
+{
+    Description = "Log at trace level"
+};
+var quietModeOption = new Option<bool>("-q")
+{
+    Description = "Suppress logging"
+};
+var sshConfigOptions = new Option<string[]>("-o")
+{
+    Description = $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}",
+    Arity = ArgumentArity.ZeroOrMore
+};
+
+var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
+rootCommand.Options.Add(forceTtyOption);
+rootCommand.Options.Add(disableTtyOption);
+rootCommand.Options.Add(sshConfigOptions);
+rootCommand.Options.Add(informationVerbosityOption);
+rootCommand.Options.Add(debugVerbosityOption);
+rootCommand.Options.Add(traceVerbosityOption);
+rootCommand.Options.Add(quietModeOption);
+
+rootCommand.Arguments.Add(destinationArg);
+rootCommand.Arguments.Add(commandArg);
+
+rootCommand.SetAction(
+    parseResult =>
     {
-        var destinationArg = new Argument<string>(name: "destination")
-        { Arity = ArgumentArity.ExactlyOne };
-        var commandArg = new Argument<string[]>(name: "command",
-            description: "Command and arguments to execute on the remote host")
-        { Arity = ArgumentArity.ZeroOrMore };
-        var forceTtyOption = new Option<bool>(new[] { "-t" }, "Force pseudo-terminal allocation");
-        var disableTtyOption = new Option<bool>(new[] { "-T" }, "Disable pseudo-terminal allocation");
-        var sshConfigOptions = new Option<string[]>(new[] { "-o", "--option" },
-            description: $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}.")
-        { Arity = ArgumentArity.ZeroOrMore };
+        bool forceTty = parseResult.GetValue(forceTtyOption);
+        bool disableTty = parseResult.GetValue(disableTtyOption);
+        bool informationVerbosity = parseResult.GetValue(informationVerbosityOption);
+        bool debugVerbosity = parseResult.GetValue(debugVerbosityOption);
+        bool traceVerbosity = parseResult.GetValue(traceVerbosityOption);
+        bool quietMode = parseResult.GetValue(quietModeOption);
+        string[] options = parseResult.GetValue(sshConfigOptions)!;
+        string destination = parseResult.GetValue(destinationArg)!;
+        string[] command = parseResult.GetValue(commandArg)!;
+        return ExecuteAsync(destination, command, forceTty, disableTty, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, options);
+    });
 
-        var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
-        rootCommand.AddOption(forceTtyOption);
-        rootCommand.AddOption(disableTtyOption);
-        rootCommand.AddOption(sshConfigOptions);
-        rootCommand.AddArgument(destinationArg);
-        rootCommand.AddArgument(commandArg);
-        rootCommand.SetHandler(ExecuteAsync, destinationArg, commandArg, forceTtyOption, disableTtyOption, sshConfigOptions);
+ParseResult parseResult = rootCommand.Parse(args);
+return await parseResult.InvokeAsync();
 
-        return rootCommand.InvokeAsync(args);
+static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quietMode, string[] options)
+{
+    LogLevel logLevel;
+    if (quietMode)
+    {
+        logLevel = LogLevel.None;
+    }
+    else if (traceVerbosity)
+    {
+        logLevel = LogLevel.Trace;
+    }
+    else if (debugVerbosity)
+    {
+        logLevel = LogLevel.Debug;
+    }
+    else if (informationVerbosity)
+    {
+        logLevel = LogLevel.Information;
+    }
+    else
+    {
+        logLevel = LogLevel.Warning;
     }
 
-    static async Task ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, string[] options)
+    bool allocateTerminal = forceTty || (!disableTty && !Console.IsInputRedirected);
+
+    using IDisposable? terminalOutputConfig = ConfigureTerminal(allocateTerminal);
+
+    using ILoggerFactory? loggerFactory = logLevel == LogLevel.None ? null :
+        LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(logLevel);
+        });
+
+    SshConfigSettings configSettings = CreateSshConfigSettings(options);
+
+    using SshClient client = new SshClient(destination, configSettings, loggerFactory);
+
+    ExecuteOptions? executeOptions = null;
+    if (allocateTerminal)
     {
-        bool trace = IsEnvvarTrue("TRACE");
-        bool log = trace || IsEnvvarTrue("LOG");
-
-        bool allocateTerminal = forceTty || (!disableTty && !Console.IsInputRedirected);
-
-        using IDisposable? terminalOutputConfig = ConfigureTerminal(allocateTerminal);
-
-        using ILoggerFactory? loggerFactory = !log ? null :
-            LoggerFactory.Create(builder =>
-            {
-                builder.AddConsole();
-                if (trace)
-                {
-                    builder.SetMinimumLevel(LogLevel.Trace);
-                }
-            });
-
-        SshConfigSettings configSettings = CreateSshConfigSettings(options);
-
-        using SshClient client = new SshClient(destination, configSettings, loggerFactory);
-
-        ExecuteOptions? executeOptions = null;
-        if (allocateTerminal)
+        executeOptions = new()
         {
-            executeOptions = new()
-            {
-                AllocateTerminal = true,
-                TerminalWidth = Console.WindowWidth,
-                TerminalHeight = Console.WindowHeight,
-            };
-            if (Environment.GetEnvironmentVariable("TERM") is string term)
-            {
-                executeOptions.TerminalType = term;
-            }
+            AllocateTerminal = true,
+            TerminalWidth = Console.WindowWidth,
+            TerminalHeight = Console.WindowHeight,
+        };
+        if (Environment.GetEnvironmentVariable("TERM") is string term)
+        {
+            executeOptions.TerminalType = term;
         }
+    }
 
-        using var process =
-            command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
-                                : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
+    using var process =
+        command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
+                            : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
 
-        using IDisposable? updateWindowSize = allocateTerminal && !Console.IsOutputRedirected ? UpdateTerminalSize(process) : null;
-        Task[] tasks = new[]
-        {
+    using IDisposable? updateWindowSize = allocateTerminal && !Console.IsOutputRedirected ? UpdateTerminalSize(process) : null;
+    Task[] tasks = new[]
+    {
                 PrintToConsole(process),
                 ReadInputFromConsole(process)
             };
 
-        Task.WaitAll(tasks);
+    Task.WaitAll(tasks);
+    if (logLevel != LogLevel.None)
+    {
         PrintExceptions(tasks);
+    }
 
-        static async Task PrintToConsole(RemoteProcess process)
+    int exitCode = process.ExitCode;
+    return exitCode;
+
+    static async Task PrintToConsole(RemoteProcess process)
+    {
+        char[] buffer = new char[1024];
+        while (true)
         {
-            char[] buffer = new char[1024];
+            (bool isError, int charsRead) = await process.ReadAsync(buffer, buffer);
+            if (charsRead == 0)
+            {
+                break;
+            }
+            TextWriter writer = isError ? Console.Error : Console.Out;
+            writer.Write(buffer.AsSpan(0, charsRead));
+        }
+    }
+
+    static async Task ReadInputFromConsole(RemoteProcess process)
+    {
+        using IStandardInputReader reader = CreateConsoleInReader(process.HasTerminal);
+
+        char[] buffer = new char[100 * 1024];
+        try
+        {
             while (true)
             {
-                (bool isError, int charsRead) = await process.ReadAsync(buffer, buffer);
+                int charsRead = await reader.ReadAsync(buffer, process.ExecutionAborted);
                 if (charsRead == 0)
                 {
                     break;
                 }
-                TextWriter writer = isError ? Console.Error : Console.Out;
-                writer.Write(buffer.AsSpan(0, charsRead));
+                await process.WriteAsync(buffer.AsMemory(0, charsRead));
             }
+            process.WriteEof();
         }
+        catch (OperationCanceledException)
+        { }
+    }
 
-        static async Task ReadInputFromConsole(RemoteProcess process)
+    static void PrintExceptions(Task[] tasks)
+    {
+        foreach (var task in tasks)
         {
-            using IStandardInputReader reader = CreateConsoleInReader(process.HasTerminal);
-
-            char[] buffer = new char[100 * 1024];
-            try
+            Exception? innerException = task.Exception?.InnerException;
+            if (innerException is not null)
             {
-                while (true)
-                {
-                    int charsRead = await reader.ReadAsync(buffer, process.ExecutionAborted);
-                    if (charsRead == 0)
-                    {
-                        break;
-                    }
-                    await process.WriteAsync(buffer.AsMemory(0, charsRead));
-                }
-                process.WriteEof();
-            }
-            catch (OperationCanceledException)
-            { }
-        }
-
-        static void PrintExceptions(Task[] tasks)
-        {
-            foreach (var task in tasks)
-            {
-                Exception? innerException = task.Exception?.InnerException;
-                if (innerException is not null)
-                {
-                    Console.Error.WriteLine("Exception:");
-                    Console.Error.WriteLine(innerException);
-                }
+                Console.Error.WriteLine("Exception:");
+                Console.Error.WriteLine(innerException);
             }
         }
     }
+}
 
-    static IDisposable? ConfigureTerminal(bool forTerminal)
+static IDisposable? ConfigureTerminal(bool forTerminal)
+{
+    if (Console.IsOutputRedirected)
     {
-        if (Console.IsOutputRedirected)
-        {
-            return null;
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            if (forTerminal)
-            {
-                const uint EnableStdOutFlags = WindowsInterop.ENABLE_VIRTUAL_TERMINAL_PROCESSING | WindowsInterop.DISABLE_NEWLINE_AUTO_RETURN;
-                const uint DisableStdOutFlags = 0;
-                return WindowsConsoleModeConfig.Configure(WindowsInterop.STD_OUTPUT_HANDLE, EnableStdOutFlags, DisableStdOutFlags);
-            }
-        }
         return null;
     }
 
-    static IDisposable? UpdateTerminalSize(RemoteProcess process)
+    if (OperatingSystem.IsWindows())
     {
-        if (OperatingSystem.IsWindows())
+        if (forTerminal)
         {
-            return null;
+            const uint EnableStdOutFlags = WindowsInterop.ENABLE_VIRTUAL_TERMINAL_PROCESSING | WindowsInterop.DISABLE_NEWLINE_AUTO_RETURN;
+            const uint DisableStdOutFlags = 0;
+            return WindowsConsoleModeConfig.Configure(WindowsInterop.STD_OUTPUT_HANDLE, EnableStdOutFlags, DisableStdOutFlags);
+        }
+    }
+    return null;
+}
+
+static IDisposable? UpdateTerminalSize(RemoteProcess process)
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return null;
+    }
+    else
+    {
+        return PosixSignalRegistration.Create(PosixSignal.SIGWINCH, ctx =>
+        {
+            try
+            {
+                process.SetTerminalSize(Console.WindowWidth, Console.WindowHeight);
+            }
+            catch
+            { }
+        });
+    }
+}
+
+static IStandardInputReader CreateConsoleInReader(bool forTerminal)
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return new WindowsStandardInputReader(forTerminal);
+    }
+    else
+    {
+        return new UnixStandardInputReader(forTerminal);
+    }
+}
+
+static SshConfigSettings CreateSshConfigSettings(string[] options)
+{
+    SshConfigSettings configSettings = new SshConfigSettings();
+
+    Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
+    foreach (var option in options)
+    {
+        string[] split = option.Split('=', 2);
+        if (split.Length != 2)
+        {
+            throw new ArgumentException($"Option '{option}' is not in the <Key>=<Value> format.");
+        }
+        if (Enum.TryParse<SshConfigOption>(split[0], ignoreCase: true, out var key))
+        {
+            optionsDict[key] = split[1];
         }
         else
         {
-            return PosixSignalRegistration.Create(PosixSignal.SIGWINCH, ctx =>
-            {
-                try
-                {
-                    process.SetTerminalSize(Console.WindowWidth, Console.WindowHeight);
-                }
-                catch
-                { }
-            });
+            throw new ArgumentException($"Unsupported option: {option}.");
         }
     }
+    configSettings.Options = optionsDict;
 
-    static IStandardInputReader CreateConsoleInReader(bool forTerminal)
+    configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
     {
-        if (OperatingSystem.IsWindows())
+        if (ctx.IsBatchMode)
         {
-            return new WindowsStandardInputReader(forTerminal);
+            return ValueTask.FromResult((string?)null);
         }
-        else
-        {
-            return new UnixStandardInputReader(forTerminal);
-        }
-    }
 
-    private static SshConfigSettings CreateSshConfigSettings(string[] options)
+        if (ctx.Attempt > 1)
+        {
+            Console.WriteLine("Permission denied, please try again.");
+        }
+
+        string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
+        return PasswordPromptContext.ReadPasswordFromConsole(prompt);
+    };
+
+    configSettings.HostAuthentication = async (HostAuthenticationContext ctx, CancellationToken ct) =>
     {
-        SshConfigSettings configSettings = new SshConfigSettings();
-
-        Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
-        foreach (var option in options)
-        {
-            string[] split = option.Split('=', 2);
-            if (split.Length != 2)
-            {
-                throw new ArgumentException($"Option '{option}' is not in the <Key>=<Value> format.");
-            }
-            if (Enum.TryParse<SshConfigOption>(split[0], ignoreCase: true, out var key))
-            {
-                optionsDict[key] = split[1];
-            }
-            else
-            {
-                throw new ArgumentException($"Unsupported option: {option}.");
-            }
-        }
-        configSettings.Options = optionsDict;
-
-        configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
-        {
-            if (ctx.IsBatchMode)
-            {
-                return ValueTask.FromResult((string?)null);
-            }
-
-            if (ctx.Attempt > 1)
-            {
-                Console.WriteLine("Permission denied, please try again.");
-            }
-
-            string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
-            return PasswordPromptContext.ReadPasswordFromConsole(prompt);
-        };
-
-        configSettings.HostAuthentication = async (HostAuthenticationContext ctx, CancellationToken ct) =>
-        {
-            if (ctx.IsBatchMode)
-            {
-                return false;
-            }
-
-            if (Console.IsInputRedirected || Console.IsOutputRedirected)
-            {
-                return false;
-            }
-
-            PublicKey key = ctx.ConnectionInfo.ServerKey.Key;
-            string hostName = ctx.ConnectionInfo.HostName;
-            string keyType = key.Type.ToUpperInvariant();
-            if (keyType.StartsWith("SSH-"))
-            {
-                keyType = keyType.Substring(4);
-            }
-            string fingerprint = key.SHA256FingerPrint;
-            Console.WriteLine($"The authenticity of host '{hostName}' can't be established.");
-            Console.WriteLine($"{keyType} key fingerprint is SHA256:{fingerprint}.");
-            while (true)
-            {
-                Console.Write($"Are you sure you want to continue connecting (yes/no)? ");
-                string? response = Console.ReadLine();
-                switch (response)
-                {
-                    case "no":
-                    case null:
-                        return false;
-                    case "yes":
-                        return true;
-                    default:
-                        continue;
-                }
-            }
-        };
-
-        return configSettings;
-    }
-
-    static bool IsEnvvarTrue(string variableName)
-    {
-        string? value = Environment.GetEnvironmentVariable(variableName);
-
-        if (value is null)
+        if (ctx.IsBatchMode)
         {
             return false;
         }
 
-        return value == "1";
-    }
+        if (Console.IsInputRedirected || Console.IsOutputRedirected)
+        {
+            return false;
+        }
+
+        PublicKey key = ctx.ConnectionInfo.ServerKey.Key;
+        string hostName = ctx.ConnectionInfo.HostName;
+        string keyType = key.Type.ToUpperInvariant();
+        if (keyType.StartsWith("SSH-"))
+        {
+            keyType = keyType.Substring(4);
+        }
+        string fingerprint = key.SHA256FingerPrint;
+        Console.WriteLine($"The authenticity of host '{hostName}' can't be established.");
+        Console.WriteLine($"{keyType} key fingerprint is SHA256:{fingerprint}.");
+        while (true)
+        {
+            Console.Write($"Are you sure you want to continue connecting (yes/no)? ");
+            string? response = Console.ReadLine();
+            switch (response)
+            {
+                case "no":
+                case null:
+                    return false;
+                case "yes":
+                    return true;
+                default:
+                    continue;
+            }
+        }
+    };
+
+    return configSettings;
 }
 
 interface IStandardInputReader : IDisposable
