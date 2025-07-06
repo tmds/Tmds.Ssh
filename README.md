@@ -480,7 +480,7 @@ class DownloadEntriesOptions
   delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
   bool Overwrite { get; set; } = false;
-  bool RecurseSubdirectories { get; set; } = true;
+  bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;
   UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink;
@@ -491,7 +491,7 @@ class DownloadEntriesOptions
 class UploadEntriesOptions
 {
   bool Overwrite { get; set; } = false;
-  bool RecurseSubdirectories { get; set; } = true;
+  bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;
   LocalFileEntryPredicate? ShouldRecurse { get; set; }

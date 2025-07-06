@@ -715,7 +715,7 @@ sealed partial class SftpChannel : IDisposable
     {
         options ??= SftpClient.DefaultUploadEntriesOptions;
         bool overwrite = options.Overwrite;
-        bool recurse = options.RecurseSubdirectories;
+        bool includeSubdirectories = options.IncludeSubdirectories;
 
         localDirPath = Path.GetFullPath(localDirPath);
         int trimLocalDirectory = localDirPath.Length;
@@ -755,11 +755,11 @@ sealed partial class SftpChannel : IDisposable
                         },
                         new System.IO.EnumerationOptions()
                         {
-                            RecurseSubdirectories = recurse
+                            RecurseSubdirectories = includeSubdirectories
                         });
 
         LocalFileEntryPredicate? shouldRecurse = options.ShouldRecurse;
-        if (recurse && (!followDirectoryLinks || shouldRecurse is not null))
+        if (includeSubdirectories && (!followDirectoryLinks || shouldRecurse is not null))
         {
             fse.ShouldRecursePredicate = (ref FileSystemEntry entry) =>
             {
@@ -776,6 +776,21 @@ sealed partial class SftpChannel : IDisposable
 
                 LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
                 return shouldRecurse(ref localFileEntry);
+            };
+        }
+        if (!includeSubdirectories)
+        {
+            fse.ShouldIncludePredicate = (ref FileSystemEntry entry) =>
+            {
+                bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
+                if (!includeSubdirectories &&
+                    (entry.Attributes & FileAttributes.Directory) != 0 &&
+                    (followDirectoryLinks || !isLink))
+                {
+                    return false;
+                }
+
+                return true;
             };
         }
 
@@ -1083,10 +1098,10 @@ sealed partial class SftpChannel : IDisposable
             },
             new EnumerationOptions()
             {
-                RecurseSubdirectories = options.RecurseSubdirectories,
+                RecurseSubdirectories = options.IncludeSubdirectories,
                 FollowDirectoryLinks = options.FollowDirectoryLinks,
                 FollowFileLinks = options.FollowFileLinks,
-                FileTypeFilter = options.FileTypeFilter,
+                FileTypeFilter = options.FileTypeFilter & ~(options.IncludeSubdirectories ? 0 : UnixFileTypeFilter.Directory),
                 ShouldInclude = options.ShouldInclude,
                 ShouldRecurse = options.ShouldRecurse
             });

@@ -13,8 +13,8 @@ namespace Tmds.Ssh
         public Tmds.Ssh.UnixFileTypeFilter FileTypeFilter { get; set; }
         public bool FollowDirectoryLinks { get; set; }
         public bool FollowFileLinks { get; set; }
+        public bool IncludeSubdirectories { get; set; }
         public bool Overwrite { get; set; }
-        public bool RecurseSubdirectories { get; set; }
         public Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters ReplaceInvalidCharacters { get; set; }
         public Tmds.Ssh.SftpFileEntryPredicate? ShouldInclude { get; set; }
         public Tmds.Ssh.SftpFileEntryPredicate? ShouldRecurse { get; set; }
@@ -700,8 +700,8 @@ namespace Tmds.Ssh
         public UploadEntriesOptions() { }
         public bool FollowDirectoryLinks { get; set; }
         public bool FollowFileLinks { get; set; }
+        public bool IncludeSubdirectories { get; set; }
         public bool Overwrite { get; set; }
-        public bool RecurseSubdirectories { get; set; }
         public Tmds.Ssh.LocalFileEntryPredicate? ShouldRecurse { get; set; }
     }
 }
