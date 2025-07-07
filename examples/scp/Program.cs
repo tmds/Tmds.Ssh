@@ -1,18 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.CommandLine;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.CommandLine;
 using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
 var filesArgs = new Argument<string[]>("files")
 {
-    Description = "Source(s) to copy to the target: <source>.. <target>",
+    Description = $"Source(s) to copy to the target: <source>.. <target>.{Environment.NewLine}When there are multiple sources, the target is considered to be a directory.{Environment.NewLine}Otherwise the source is copied in the target directory if it exists, or created at the target path if it does not exist.",
     Arity = ArgumentArity.OneOrMore
+};
+var recursiveOption = new Option<bool>("-r")
+{
+    Description = "Copy directories"
 };
 var informationVerbosityOption = new Option<bool>("-v")
 {
@@ -26,10 +23,6 @@ var traceVerbosityOption = new Option<bool>("-vvv")
 {
     Description = "Log at trace level"
 };
-var quietModeOption = new Option<bool>("-q")
-{
-    Description = "Suppress logging"
-};
 var sshConfigOptions = new Option<string[]>("-o")
 {
     Description = $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}",
@@ -38,29 +31,29 @@ var sshConfigOptions = new Option<string[]>("-o")
 
 var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
 rootCommand.Options.Add(sshConfigOptions);
+rootCommand.Options.Add(recursiveOption);
 rootCommand.Options.Add(informationVerbosityOption);
 rootCommand.Options.Add(debugVerbosityOption);
 rootCommand.Options.Add(traceVerbosityOption);
-rootCommand.Options.Add(quietModeOption);
 
 rootCommand.Arguments.Add(filesArgs);
 
 rootCommand.SetAction(
-    parseResult =>
+    (ParseResult parseResult, CancellationToken ct) =>
     {
         string[] files = parseResult.GetValue(filesArgs)!;
+        bool recursive = parseResult.GetValue(recursiveOption);
         bool informationVerbosity = parseResult.GetValue(informationVerbosityOption);
         bool debugVerbosity = parseResult.GetValue(debugVerbosityOption);
         bool traceVerbosity = parseResult.GetValue(traceVerbosityOption);
-        bool quietMode = parseResult.GetValue(quietModeOption);
         string[] options = parseResult.GetValue(sshConfigOptions)!;
-        return ExecuteAsync(files, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, options);
+        return ExecuteAsync(files, recursive, informationVerbosity, debugVerbosity, traceVerbosity, options);
     });
 
 ParseResult parseResult = rootCommand.Parse(args);
 return await parseResult.InvokeAsync();
 
-static async Task<int> ExecuteAsync(string[] files, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quietMode, string[] options)
+static async Task<int> ExecuteAsync(string[] files, bool recursive, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, string[] options)
 {
     if (files.Length < 2)
     {
@@ -98,11 +91,7 @@ static async Task<int> ExecuteAsync(string[] files, bool informationVerbosity, b
     }
 
     LogLevel logLevel;
-    if (quietMode)
-    {
-        logLevel = LogLevel.None;
-    }
-    else if (traceVerbosity)
+    if (traceVerbosity)
     {
         logLevel = LogLevel.Trace;
     }
@@ -132,65 +121,107 @@ static async Task<int> ExecuteAsync(string[] files, bool informationVerbosity, b
     await client.ConnectAsync();
     using SftpClient sftpClient = await client.OpenSftpClientAsync();
 
+    if (sourceLocation.IsLocal)
+    {
+        return await UploadAsync(sftpClient, sources, sourceLocation, targetLocation, recursive);
+    }
+    else
+    {
+        return await DownloadAsync(sftpClient, sources, sourceLocation, targetLocation, recursive);
+    }
+}
+
+static async Task<int> DownloadAsync(SftpClient sftpClient, string[] sources, Location sourceLocation, Location targetLocation, bool recursive)
+{
+    bool skippedSources = false;
+    bool targetIsDir = sources.Length > 1 || Directory.Exists(targetLocation.Path);
+
     foreach (var source in sources)
     {
-        sourceLocation = Location.Parse(source);
+        string sourcePath = Location.Parse(source).Path;
 
-        if (sourceLocation.IsLocal)
+        var sourceAttributes = await sftpClient.GetAttributesAsync(sourcePath, followLinks: true);
+        if (sourceAttributes is null)
         {
-            bool sourceIsDirectory = Directory.Exists(sourceLocation.Path);
-
-            var attributes = await sftpClient.GetAttributesAsync(targetLocation.Path, followLinks: true);
-            bool targetIsExistingDirectory = attributes?.FileType == UnixFileType.Directory;
-            string targetPath = targetLocation.Path;
-            if (targetIsExistingDirectory)
-            {
-                string filename = Path.GetFileName(sourceLocation.Path.TrimEnd(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }));
-                targetPath = $"{targetPath}/{filename}";
-            }
-
-            if (sourceIsDirectory)
-            {
-                await sftpClient.UploadDirectoryEntriesAsync(sourceLocation.Path, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create });
-            }
-            else
-            {
-                await sftpClient.UploadFileAsync(sourceLocation.Path, targetPath);
-            }
+            Console.Error.WriteLine($"Source '{sourcePath}' is not found.");
+            return 1;
         }
-        else
+
+        string targetPath = targetLocation.Path;
+        if (targetIsDir)
         {
-            var attributes = await sftpClient.GetAttributesAsync(sourceLocation.Path, followLinks: true);
-            if (attributes is null)
-            {
-                Console.Error.WriteLine($"Source '{sourceLocation.Path}' is not found.");
+            string filename = Path.GetFileName(sourcePath.TrimEnd('/'));
+            targetPath = $"{targetPath}/{filename}";
+        }
+        Console.WriteLine($"{sourcePath} -> {targetPath}");
+
+        switch (sourceAttributes.FileType)
+        {
+            case UnixFileType.Directory:
+                if (!recursive)
+                {
+                    Console.Error.WriteLine($"Skipping directory '{sourcePath}' because the '-r' option is not specified.");
+                    skippedSources = true;
+                    continue;
+                }
+                await sftpClient.DownloadDirectoryEntriesAsync(sourcePath, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create, Overwrite = true });
+                break;
+            case UnixFileType.RegularFile:
+                if (targetIsDir)
+                {
+                    Directory.CreateDirectory(targetLocation.Path);
+                }
+                await sftpClient.DownloadFileAsync(sourcePath, targetPath, overwrite: true);
+                break;
+            default:
+                Console.Error.WriteLine($"Cannot copy file of type {sourceAttributes.FileType}.");
                 return 1;
-            }
-
-            bool targetIsExistingDirectory = Directory.Exists(targetLocation.Path);
-            string targetPath = targetLocation.Path;
-            if (targetIsExistingDirectory)
-            {
-                string filename = Path.GetFileName(sourceLocation.Path.TrimEnd('/'));
-                targetPath = $"{targetPath}/{filename}";
-            }
-
-            switch (attributes.FileType)
-            {
-                case UnixFileType.Directory:
-                    await sftpClient.DownloadDirectoryEntriesAsync(sourceLocation.Path, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create });
-                    break;
-                case UnixFileType.RegularFile:
-                    await sftpClient.DownloadFileAsync(sourceLocation.Path, targetPath);
-                    break;
-                default:
-                    Console.Error.WriteLine($"Cannot copy file of type {attributes.FileType}.");
-                    return 1;
-            }
         }
     }
 
-    return 0;
+    return skippedSources ? 1 : 0;
+}
+
+static async Task<int> UploadAsync(SftpClient sftpClient, string[] sources, Location sourceLocation, Location targetLocation, bool recursive)
+{
+    bool skippedSources = false;
+    bool targetIsDir = sources.Length > 1 ||
+        (await sftpClient.GetAttributesAsync(targetLocation.Path, followLinks: true))?.FileType == UnixFileType.Directory;
+
+    foreach (var source in sources)
+    {
+        string sourcePath = Location.Parse(source).Path;
+
+        string targetPath = targetLocation.Path;
+        if (targetIsDir)
+        {
+            string filename = Path.GetFileName(sourcePath.TrimEnd(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }));
+            targetPath = $"{targetPath}/{filename}";
+        }
+        Console.WriteLine($"{sourcePath} -> {targetPath}");
+
+        bool sourceIsDir = Directory.Exists(sourcePath);
+        if (sourceIsDir)
+        {
+            if (!recursive)
+            {
+                Console.Error.WriteLine($"Skipping directory '{sourcePath}' because the '-r' option is not specified.");
+                skippedSources = true;
+                continue;
+            }
+            await sftpClient.UploadDirectoryEntriesAsync(sourcePath, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create, Overwrite = true });
+        }
+        else
+        {
+            if (targetIsDir)
+            {
+                await sftpClient.CreateDirectoryAsync(targetLocation.Path);
+            }
+            await sftpClient.UploadFileAsync(sourcePath, targetPath, overwrite: true);
+        }
+    }
+
+    return skippedSources ? 1 : 0;
 }
 
 static SshConfigSettings CreateSshConfigSettings(string[] options)
@@ -232,16 +263,16 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
         return PasswordPromptContext.ReadPasswordFromConsole(prompt);
     };
 
-    configSettings.HostAuthentication = async (HostAuthenticationContext ctx, CancellationToken ct) =>
+    configSettings.HostAuthentication = (HostAuthenticationContext ctx, CancellationToken ct) =>
     {
         if (ctx.IsBatchMode)
         {
-            return false;
+            return ValueTask.FromResult(false);
         }
 
         if (Console.IsInputRedirected || Console.IsOutputRedirected)
         {
-            return false;
+            return ValueTask.FromResult(false);
         }
 
         PublicKey key = ctx.ConnectionInfo.ServerKey.Key;
@@ -262,9 +293,9 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
             {
                 case "no":
                 case null:
-                    return false;
+                    return ValueTask.FromResult(false);
                 case "yes":
-                    return true;
+                    return ValueTask.FromResult(true);
                 default:
                     continue;
             }

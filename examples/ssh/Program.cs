@@ -59,7 +59,7 @@ rootCommand.Arguments.Add(destinationArg);
 rootCommand.Arguments.Add(commandArg);
 
 rootCommand.SetAction(
-    parseResult =>
+    (ParseResult parseResult, CancellationToken ct) =>
     {
         bool forceTty = parseResult.GetValue(forceTtyOption);
         bool disableTty = parseResult.GetValue(disableTtyOption);
