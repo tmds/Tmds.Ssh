@@ -46,7 +46,7 @@ var sshConfigOptions = new Option<string[]>("-o")
     Arity = ArgumentArity.ZeroOrMore
 };
 
-var rootCommand = new RootCommand("An 'ssh'-like command implemented using Tmds.Ssh.");
+var rootCommand = new RootCommand("An 'ssh'-like CLI implemented using Tmds.Ssh.");
 rootCommand.Options.Add(forceTtyOption);
 rootCommand.Options.Add(disableTtyOption);
 rootCommand.Options.Add(sshConfigOptions);
@@ -76,14 +76,10 @@ rootCommand.SetAction(
 ParseResult parseResult = rootCommand.Parse(args);
 return await parseResult.InvokeAsync();
 
-static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quietMode, string[] options)
+static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quiet, string[] options)
 {
     LogLevel logLevel;
-    if (quietMode)
-    {
-        logLevel = LogLevel.None;
-    }
-    else if (traceVerbosity)
+    if (traceVerbosity)
     {
         logLevel = LogLevel.Trace;
     }
@@ -97,7 +93,8 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
     }
     else
     {
-        logLevel = LogLevel.Warning;
+        // Default to no logging to avoid unintended warnings/errors for default credentials.
+        logLevel = LogLevel.None;
     }
 
     bool allocateTerminal = forceTty || (!disableTty && !Console.IsInputRedirected);
@@ -142,7 +139,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
             };
 
     Task.WaitAll(tasks);
-    if (logLevel != LogLevel.None)
+    if (!quiet)
     {
         PrintExceptions(tasks);
     }
