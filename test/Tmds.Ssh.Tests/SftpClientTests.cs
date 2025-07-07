@@ -900,6 +900,29 @@ public class SftpClientTests
     }
 
     [Fact]
+    public async Task DownloadNoIncludeSubdirectories()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        await sftpClient.CreateNewDirectoryAsync($"{directoryPath}/child1/child2/", createParents: true);
+
+        var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/child1/child2/file", FileAccess.Write);
+        await file.CloseAsync();
+
+        file = await sftpClient.CreateNewFileAsync($"{directoryPath}/rootfile", FileAccess.Write);
+        await file.CloseAsync();
+
+        string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(dstDir);
+        await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir,
+            new DownloadEntriesOptions() { IncludeSubdirectories = false });
+
+        Assert.True(File.Exists($"{dstDir}/rootfile"));
+        Assert.False(Directory.Exists($"{dstDir}/child1"));
+    }
+
+    [Fact]
     public async Task DownloadFileTypeFilterCreatesParentDirs()
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
@@ -1009,6 +1032,32 @@ public class SftpClientTests
         }
 
         var dirAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/dir");
+        Assert.NotNull(dirAttributes);
+    }
+
+    [Fact]
+    public async Task UploadNoIncludeSubdirectories()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+        File.OpenWrite($"{sourceDir}/rootfile").Dispose();
+        string childDir = $"{sourceDir}/dir";
+        Directory.CreateDirectory(childDir);
+        File.OpenWrite($"{childDir}/file").Dispose();
+
+        string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(remoteDir);
+        await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
+        {
+            IncludeSubdirectories = false
+        });
+
+        var dirAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/dir");
+        Assert.Null(dirAttributes);
+
+        var fileAttributes = dirAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/rootfile");
         Assert.NotNull(dirAttributes);
     }
 

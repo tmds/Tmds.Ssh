@@ -8,7 +8,7 @@ public sealed class DownloadEntriesOptions
     public delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
     public bool Overwrite { get; set; } = false;
-    public bool RecurseSubdirectories { get; set; } = true;
+    public bool IncludeSubdirectories { get; set; } = true;
     public bool FollowFileLinks { get; set; } = true;
     public bool FollowDirectoryLinks { get; set; } = true;
     public UnixFileTypeFilter FileTypeFilter { get; set; } =
