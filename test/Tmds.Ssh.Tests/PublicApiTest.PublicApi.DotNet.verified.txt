@@ -18,6 +18,7 @@ namespace Tmds.Ssh
         public Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters ReplaceInvalidCharacters { get; set; }
         public Tmds.Ssh.SftpFileEntryPredicate? ShouldInclude { get; set; }
         public Tmds.Ssh.SftpFileEntryPredicate? ShouldRecurse { get; set; }
+        public Tmds.Ssh.TargetDirectoryCreation TargetDirectoryCreation { get; set; }
         public delegate System.ReadOnlySpan<char> ReplaceCharacters(System.ReadOnlySpan<char> invalidPath, System.ReadOnlySpan<char> invalidChars, System.Span<char> buffer);
     }
     public sealed class EnumerationOptions
@@ -611,6 +612,13 @@ namespace Tmds.Ssh
     }
     public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
     public class SshSessionException : Tmds.Ssh.SshException { }
+    public enum TargetDirectoryCreation
+    {
+        None = 0,
+        Create = 1,
+        CreateWithParents = 2,
+        CreateNew = 3,
+    }
     public sealed class TerminalSettings
     {
         public const byte DisableCharacter = 255;
@@ -703,5 +711,6 @@ namespace Tmds.Ssh
         public bool IncludeSubdirectories { get; set; }
         public bool Overwrite { get; set; }
         public Tmds.Ssh.LocalFileEntryPredicate? ShouldRecurse { get; set; }
+        public Tmds.Ssh.TargetDirectoryCreation TargetDirectoryCreation { get; set; }
     }
 }

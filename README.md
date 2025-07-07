@@ -293,8 +293,8 @@ interface ISftpDirectory // Represents a working directory.
 }
 class SftpFile : Stream
 {
-  public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default); // No extended attributes are returned.
-  public async ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default); // 'filter' determines what extended attributes are returned. Set to 'null' to return all.
+  ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default); // No extended attributes are returned.
+  ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default); // 'filter' determines what extended attributes are returned. Set to 'null' to return all.
   ValueTask SetAttributesAsync(
     UnixFilePermissions? permissions = default,
     (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
@@ -352,8 +352,8 @@ class SshClientSettings
   HostAuthentication? HostAuthentication { get; set; } // not called when known to be trusted/revoked.
   bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
   bool HashKnownHosts { get; set; } = false;
-  public bool BatchMode { get; set; } = false;
-  public bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
+  bool BatchMode { get; set; } = false;
+  bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
 
   int MinimumRSAKeySize { get; set; } = 2048;
 
@@ -473,13 +473,14 @@ class EnumerationOptions
   UnixFileTypeFilter FileTypeFilter { get; set; } = RegularFile | Directory | SymbolicLink | CharacterDevice | BlockDevice | Socket | Fifo;
   SftpFileEntryPredicate? ShouldRecurse { get; set; }
   SftpFileEntryPredicate? ShouldInclude { get; set; }
-  public string[]? ExtendedAttributes { get; set; } = []; // Extended attributes to return. Set to 'null' to return all.
+  string[]? ExtendedAttributes { get; set; } = []; // Extended attributes to return. Set to 'null' to return all.
 }
 class DownloadEntriesOptions
 {
   delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
   bool Overwrite { get; set; } = false;
+  TargetDirectoryCreation TargetDirectoryCreation { get; set; }
   bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;
@@ -488,9 +489,17 @@ class DownloadEntriesOptions
   SftpFileEntryPredicate? ShouldInclude { get; set; }
   ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
 }
+enum TargetDirectoryCreation
+{
+    None,
+    Create,
+    CreateWithParents,
+    CreateNew,
+}
 class UploadEntriesOptions
 {
   bool Overwrite { get; set; } = false;
+  TargetDirectoryCreation TargetDirectoryCreation { get; set; }
   bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;

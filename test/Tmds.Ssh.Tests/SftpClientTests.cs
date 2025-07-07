@@ -922,6 +922,130 @@ public class SftpClientTests
         Assert.False(Directory.Exists($"{dstDir}/child1"));
     }
 
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task DownloadTargetDirectoryCreationNone(bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        await sftpClient.CreateNewDirectoryAsync($"{directoryPath}");
+        var file = await sftpClient.CreateNewFileAsync($"{directoryPath}/file", FileAccess.Write);
+        await file.CloseAsync();
+
+        string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        if (dstExists)
+        {
+            Directory.CreateDirectory(dstDir);
+        }
+
+        if (dstExists)
+        {
+            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir));
+        }
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task DownloadTargetDirectoryCreationCreate(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        await sftpClient.CreateNewDirectoryAsync($"{directoryPath}");
+
+        string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        if (dstWithParents)
+        {
+            dstDir = Path.Combine(dstDir, Path.GetRandomFileName());
+        }
+        if (dstExists)
+        {
+            Directory.CreateDirectory(dstDir);
+        }
+
+        var options = new DownloadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.Create };
+        if (dstWithParents && !dstExists)
+        {
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options));
+        }
+        else
+        {
+            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options);
+        }
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task DownloadTargetDirectoryCreationCreateWithParents(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        await sftpClient.CreateNewDirectoryAsync($"{directoryPath}");
+
+        string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        if (dstWithParents)
+        {
+            dstDir = Path.Combine(dstDir, Path.GetRandomFileName());
+        }
+        if (dstExists)
+        {
+            Directory.CreateDirectory(dstDir);
+        }
+
+        var options = new DownloadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.CreateWithParents };
+        await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options);
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task DownloadTargetDirectoryCreationCreateNew(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        await sftpClient.CreateNewDirectoryAsync($"{directoryPath}");
+
+        string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        if (dstWithParents)
+        {
+            dstDir = Path.Combine(dstDir, Path.GetRandomFileName());
+        }
+        if (dstExists)
+        {
+            Directory.CreateDirectory(dstDir);
+        }
+
+        var options = new DownloadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.CreateNew };
+        if (dstExists)
+        {
+            await Assert.ThrowsAsync<IOException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options));
+        }
+        else if (dstWithParents)
+        {
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options));
+        }
+        else
+        {
+            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options);
+        }
+    }
+
     [Fact]
     public async Task DownloadFileTypeFilterCreatesParentDirs()
     {
@@ -1059,6 +1183,133 @@ public class SftpClientTests
 
         var fileAttributes = dirAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/rootfile");
         Assert.NotNull(dirAttributes);
+    }
+
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task UploadTargetDirectoryCreationNone(bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+        File.OpenWrite(Path.Combine(sourceDir, Path.GetRandomFileName())).Dispose();
+
+        string dstDir = $"/tmp/{Path.GetRandomFileName()}";
+        if (dstExists)
+        {
+            await sftpClient.CreateNewDirectoryAsync($"{dstDir}", createParents: true);
+        }
+
+        if (dstExists)
+        {
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir);
+        }
+        else
+        {
+            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir));
+            Assert.Equal(SftpError.NoSuchFile, ex.Error); // Parent not found.
+        }
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task UploadTargetDirectoryCreationCreate(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+
+        string dstDir = $"/tmp/{Path.GetRandomFileName()}";
+        if (dstWithParents)
+        {
+            dstDir = $"/{dstDir}/{Path.GetRandomFileName()}";
+        }
+        if (dstExists)
+        {
+            await sftpClient.CreateNewDirectoryAsync($"{dstDir}", createParents: true);
+        }
+
+        var options = new UploadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.Create };
+        if (dstWithParents && !dstExists)
+        {
+            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options));
+            Assert.Equal(SftpError.NoSuchFile, ex.Error); // Parent not found.
+        }
+        else
+        {
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options);
+        }
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task UploadTargetDirectoryCreationCreateWithParents(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+
+        string dstDir = $"/tmp/{Path.GetRandomFileName()}";
+        if (dstWithParents)
+        {
+            dstDir = $"/{dstDir}/{Path.GetRandomFileName()}";
+        }
+        if (dstExists)
+        {
+            await sftpClient.CreateNewDirectoryAsync($"{dstDir}", createParents: true);
+        }
+
+        var options = new UploadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.CreateWithParents };
+        await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options);
+    }
+
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [Theory]
+    public async Task UploadTargetDirectoryCreationCreateNew(bool dstWithParents, bool dstExists)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+
+        string dstDir = $"/tmp/{Path.GetRandomFileName()}";
+        if (dstWithParents)
+        {
+            dstDir = $"/{dstDir}/{Path.GetRandomFileName()}";
+        }
+        if (dstExists)
+        {
+            await sftpClient.CreateNewDirectoryAsync($"{dstDir}", createParents: true);
+        }
+
+        var options = new UploadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.CreateNew };
+        if (dstExists)
+        {
+            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options));
+            Assert.Equal(SftpError.Failure, ex.Error); // Directory already exists.
+        }
+        else if (dstWithParents)
+        {
+            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options));
+            Assert.Equal(SftpError.NoSuchFile, ex.Error); // Parent not found.
+        }
+        else
+        {
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options);
+        }
     }
 
     [Fact]
