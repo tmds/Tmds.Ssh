@@ -10,4 +10,5 @@ public sealed class UploadEntriesOptions
     public bool FollowFileLinks { get; set; } = true;
     public bool FollowDirectoryLinks { get; set; } = true;
     public LocalFileEntryPredicate? ShouldRecurse { get; set; }
+    public TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.None;
 }

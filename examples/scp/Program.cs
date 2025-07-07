@@ -138,16 +138,24 @@ static async Task<int> ExecuteAsync(string[] files, bool informationVerbosity, b
 
         if (sourceLocation.IsLocal)
         {
-            bool isDirectory = Directory.Exists(sourceLocation.Path);
+            bool sourceIsDirectory = Directory.Exists(sourceLocation.Path);
 
-            if (isDirectory)
+            var attributes = await sftpClient.GetAttributesAsync(targetLocation.Path, followLinks: true);
+            bool targetIsExistingDirectory = attributes?.FileType == UnixFileType.Directory;
+            string targetPath = targetLocation.Path;
+            if (targetIsExistingDirectory)
             {
-                await sftpClient.CreateDirectoryAsync(targetLocation.Path);
-                await sftpClient.UploadDirectoryEntriesAsync(sourceLocation.Path, targetLocation.Path);
+                string filename = Path.GetFileName(sourceLocation.Path.TrimEnd(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }));
+                targetPath = $"{targetPath}/{filename}";
+            }
+
+            if (sourceIsDirectory)
+            {
+                await sftpClient.UploadDirectoryEntriesAsync(sourceLocation.Path, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create });
             }
             else
             {
-                await sftpClient.UploadFileAsync(sourceLocation.Path, targetLocation.Path);
+                await sftpClient.UploadFileAsync(sourceLocation.Path, targetPath);
             }
         }
         else
@@ -159,19 +167,25 @@ static async Task<int> ExecuteAsync(string[] files, bool informationVerbosity, b
                 return 1;
             }
 
+            bool targetIsExistingDirectory = Directory.Exists(targetLocation.Path);
+            string targetPath = targetLocation.Path;
+            if (targetIsExistingDirectory)
+            {
+                string filename = Path.GetFileName(sourceLocation.Path.TrimEnd('/'));
+                targetPath = $"{targetPath}/{filename}";
+            }
+
             switch (attributes.FileType)
             {
                 case UnixFileType.Directory:
-                    Directory.CreateDirectory(targetLocation.Path);
-                    await sftpClient.DownloadDirectoryEntriesAsync(sourceLocation.Path, targetLocation.Path);
+                    await sftpClient.DownloadDirectoryEntriesAsync(sourceLocation.Path, targetPath, new() { TargetDirectoryCreation = TargetDirectoryCreation.Create });
                     break;
                 case UnixFileType.RegularFile:
-                    await sftpClient.DownloadFileAsync(sourceLocation.Path, targetLocation.Path);
+                    await sftpClient.DownloadFileAsync(sourceLocation.Path, targetPath);
                     break;
                 default:
                     Console.Error.WriteLine($"Cannot copy file of type {attributes.FileType}.");
                     return 1;
-
             }
         }
     }

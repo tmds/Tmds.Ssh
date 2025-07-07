@@ -310,7 +310,11 @@ sealed partial class SftpChannel : IDisposable
         // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
         // To avoid that, we'll truncate after copying the data instead.
         SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
-        using SftpFile destinationFile = (await OpenFileCoreAsync(workingDirectory, destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+        using SftpFile? destinationFile = (await OpenFileCoreAsync(workingDirectory, destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
+        if (destinationFile is null)
+        {
+            throw new SftpException(SftpError.NoSuchFile);
+        }
 
         // Get the length before we start writing so we know if we need to truncate.
         ValueTask<long> initialLengthTask = overwrite ? destinationFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
@@ -798,6 +802,16 @@ sealed partial class SftpChannel : IDisposable
         var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
         try
         {
+            if (options.TargetDirectoryCreation == TargetDirectoryCreation.CreateNew)
+            {
+                await CreateNewDirectoryAsync(workingDirectory, remoteDirPath, createParents: false, GetPermissionsForDirectory(localDirPath), cancellationToken).ConfigureAwait(false);
+            }
+            else if (options.TargetDirectoryCreation is TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents)
+            {
+                bool createParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
+                onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, remoteDirPath, createParents, GetPermissionsForDirectory(localDirPath), cancellationToken));
+            }
+
             foreach (var item in fse)
             {
                 if (onGoing.Count == MaxConcurrentOperations)
@@ -905,7 +919,11 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
     {
-        using SftpFile remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false))!;
+        using SftpFile? remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
+        if (remoteFile is null)
+        {
+            throw new SftpException(SftpError.NoSuchFile);
+        }
 
         // Pipeline the writes when the source is a sync, seekable Stream.
         // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
@@ -1049,6 +1067,27 @@ sealed partial class SftpChannel : IDisposable
             throw new NotSupportedException($"{nameof(options.FileTypeFilter)} includes unsupported file types: {unsupportedFileTypes}. {nameof(options.FileTypeFilter)} may only include {SupportedFileTypes}.");
         }
 
+        // TargetDirectoryCreation
+        bool localDirExists = Directory.Exists(localDirPath);
+        bool canCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew or TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents;
+        bool mustCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew;
+        if (!localDirExists && canCreate)
+        {
+            bool canCreateParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
+            if (!canCreateParents)
+            {
+                if (!Directory.Exists(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(localDirPath)))))
+                {
+                    throw new DirectoryNotFoundException($"Directory parent not found for {localDirPath}.");
+                }
+            }
+            Directory.CreateDirectory(localDirPath);
+        }
+        else if (localDirExists && mustCreate)
+        {
+            throw new IOException($"Target directory already exists: {localDirPath}");
+        }
+
         bool overwrite = options.Overwrite;
         DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
 
@@ -1061,10 +1100,7 @@ sealed partial class SftpChannel : IDisposable
             trimRemoteDirectory++;
         }
         localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
-        if (!Directory.Exists(localDirPath))
-        {
-            throw new DirectoryNotFoundException($"Directory not found: {localDirPath}.");
-        }
+
         // Track the last directory that is known to exist to avoid calling Directory.CreateDirectory for each item in the same directory.
         string lastDirectory = localDirPath;
 
