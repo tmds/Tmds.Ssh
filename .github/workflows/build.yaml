@@ -44,9 +44,10 @@ jobs:
     - name: Build packages
       run: |
         VERSION_SUFFIX="${{ github.run_number }}-${{ github.sha }}"
-        dotnet pack src/Tmds.Ssh --configuration Release --output src/Tmds.Ssh /p:VersionSuffix="$VERSION_SUFFIX"
+        dotnet pack src/Tmds.Ssh --configuration Release --output packages /p:VersionSuffix="$VERSION_SUFFIX"
+        dotnet pack examples/ssh --configuration Release --output packages /p:VersionSuffix="$VERSION_SUFFIX"
 
     - name: Publish packages
       run: |
-        dotnet nuget push -s https://www.myget.org/F/tmds/api/v2/package -k "${{ secrets.NUGET_APIKEY }}" src/Tmds.Ssh/*.nupkg
+        dotnet nuget push -s https://www.myget.org/F/tmds/api/v2/package -k "${{ secrets.NUGET_APIKEY }}" packages/*.nupkg
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}

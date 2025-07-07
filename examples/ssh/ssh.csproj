@@ -2,10 +2,20 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <Nullable>enable</Nullable>
     <UseAppHost>false</UseAppHost>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-ssh</ToolCommandName>
+    <PackageId>ssh</PackageId>
+    <Authors>Tom Deseyn</Authors>
+    <Copyright>Tom Deseyn</Copyright>
+    <Description>A .NET tool that provides an 'ssh'-like remote login client.</Description>
+    <PackageTags>ssh</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

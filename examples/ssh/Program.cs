@@ -46,7 +46,7 @@ var sshConfigOptions = new Option<string[]>("-o")
     Arity = ArgumentArity.ZeroOrMore
 };
 
-var rootCommand = new RootCommand("Execute a command on a remote system over SSH.");
+var rootCommand = new RootCommand("An 'ssh'-like command implemented using Tmds.Ssh.");
 rootCommand.Options.Add(forceTtyOption);
 rootCommand.Options.Add(disableTtyOption);
 rootCommand.Options.Add(sshConfigOptions);
