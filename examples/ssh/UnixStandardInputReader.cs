@@ -22,6 +22,7 @@ sealed partial class UnixStandardInputReader : IStandardInputReader
                 // .NET disables CANON mode when its reading APIs are used.
                 // This makes a cursor position read to disable CANON mode.
                 _ = Console.CursorTop;
+                Console.TreatControlCAsInput = true;
             }
         }
 
