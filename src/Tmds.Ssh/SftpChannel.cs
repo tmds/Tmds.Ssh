@@ -821,14 +821,7 @@ sealed partial class SftpChannel : IDisposable
                 switch (item.Type)
                 {
                     case UnixFileType.Directory:
-                        if (overwrite)
-                        {
-                            onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
-                        }
-                        else
-                        {
-                            onGoing.Enqueue(CreateNewDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
-                        }
+                        onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
                         break;
                     case UnixFileType.RegularFile:
                         onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
@@ -1155,10 +1148,6 @@ sealed partial class SftpChannel : IDisposable
                 {
                     case UnixFileType.Directory:
                         bool exists = Directory.Exists(item.LocalPath);
-                        if (!overwrite && exists)
-                        {
-                            throw new IOException($"Directory '{item.LocalPath}' already exists.");
-                        }
                         if (!exists)
                         {
                             CreateLocalDirectory(item.LocalPath, item.Permissions);
