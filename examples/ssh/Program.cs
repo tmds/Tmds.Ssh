@@ -285,7 +285,7 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
         }
 
         string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
-        return PasswordPromptContext.ReadPasswordFromConsole(prompt);
+        return ReadPasswordFromConsole(prompt);
     };
 
     configSettings.HostAuthentication = async (HostAuthenticationContext ctx, CancellationToken ct) =>
@@ -328,6 +328,43 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
     };
 
     return configSettings;
+}
+
+static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null)
+{
+    if (Console.IsInputRedirected || Console.IsOutputRedirected)
+    {
+        return ValueTask.FromResult((string?)null);
+    }
+
+    if (!string.IsNullOrEmpty(prompt))
+    {
+        Console.Write(prompt);
+    }
+
+    var password = string.Empty;
+    ConsoleKeyInfo key;
+    do
+    {
+        key = Console.ReadKey(intercept: true);
+        if (key.Key == ConsoleKey.Enter)
+        {
+            Console.WriteLine();
+            break;
+        }
+        else if (key.Key == ConsoleKey.Backspace)
+        {
+            if (password.Length > 0)
+            {
+                password = password[..^1];
+            }
+        }
+        else if (key.KeyChar != '\0')
+        {
+            password += key.KeyChar;
+        }
+    } while (true);
+    return ValueTask.FromResult((string?)password);
 }
 
 interface IStandardInputReader : IDisposable
