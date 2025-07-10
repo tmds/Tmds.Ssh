@@ -721,11 +721,9 @@ public class SftpClientTests
 
             // Upload
             string remoteDirPath = $"/tmp/{Path.GetRandomFileName()}";
-            await sftpClient.CreateNewDirectoryAsync(remoteDirPath);
             await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath);
 
             // Download
-            Directory.CreateDirectory(destinationPath);
             await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath);
 
             // Verify the download matches the source directory that was uploaded.
@@ -887,13 +885,11 @@ public class SftpClientTests
         File.CreateSymbolicLink(Path.Combine(sourceDir, linkName), contentOfLink);
 
         string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
-        await sftpClient.CreateNewDirectoryAsync(remoteDir);
         await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowDirectoryLinks = follow, FollowFileLinks = follow });
 
         Assert.Equal(contentOfLink, await sftpClient.GetLinkTargetAsync($"{remoteDir}/{linkName}"));
 
         string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(dstDir);
         await sftpClient.DownloadDirectoryEntriesAsync(remoteDir, dstDir);
 
         Assert.Equal(contentOfLink, new FileInfo(Path.Combine(dstDir, linkName)).LinkTarget);
@@ -914,7 +910,6 @@ public class SftpClientTests
         await file.CloseAsync();
 
         string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(dstDir);
         await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir,
             new DownloadEntriesOptions() { IncludeSubdirectories = false });
 
@@ -940,13 +935,14 @@ public class SftpClientTests
             Directory.CreateDirectory(dstDir);
         }
 
+        var options = new DownloadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.None };
         if (dstExists)
         {
-            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir);
+            await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options);
         }
         else
         {
-            await Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir));
+            await Assert.ThrowsAsync<DirectoryNotFoundException>(async () => await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir, options));
         }
     }
 
@@ -1058,7 +1054,6 @@ public class SftpClientTests
         await file.CloseAsync();
 
         string dstDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(dstDir);
         await sftpClient.DownloadDirectoryEntriesAsync(directoryPath, dstDir,
             new DownloadEntriesOptions() { FileTypeFilter = UnixFileTypeFilter.RegularFile });
 
@@ -1078,7 +1073,6 @@ public class SftpClientTests
         File.CreateSymbolicLink(Path.Combine(sourceDir, "link"), "file");
 
         string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
-        await sftpClient.CreateNewDirectoryAsync(remoteDir);
         await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowFileLinks = follow });
 
         if (follow)
@@ -1106,7 +1100,6 @@ public class SftpClientTests
         File.CreateSymbolicLink(Path.Combine(sourceDir, "link"), "dir");
 
         string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
-        await sftpClient.CreateNewDirectoryAsync(remoteDir);
         await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions() { FollowDirectoryLinks = follow });
 
         if (follow)
@@ -1135,7 +1128,6 @@ public class SftpClientTests
         File.OpenWrite($"{childDir}/file").Dispose();
 
         string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
-        await sftpClient.CreateNewDirectoryAsync(remoteDir);
         await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
         {
             ShouldRecurse = (ref LocalFileEntry entry) =>
@@ -1172,7 +1164,6 @@ public class SftpClientTests
         File.OpenWrite($"{childDir}/file").Dispose();
 
         string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
-        await sftpClient.CreateNewDirectoryAsync(remoteDir);
         await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
         {
             IncludeSubdirectories = false
@@ -1202,13 +1193,14 @@ public class SftpClientTests
             await sftpClient.CreateNewDirectoryAsync($"{dstDir}", createParents: true);
         }
 
+        var options = new UploadEntriesOptions { TargetDirectoryCreation = TargetDirectoryCreation.None };
         if (dstExists)
         {
-            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir);
+            await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options);
         }
         else
         {
-            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir));
+            var ex = await Assert.ThrowsAsync<SftpException>(async () => await sftpClient.UploadDirectoryEntriesAsync(sourceDir, dstDir, options));
             Assert.Equal(SftpError.NoSuchFile, ex.Error); // Parent not found.
         }
     }
