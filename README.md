@@ -480,7 +480,7 @@ class DownloadEntriesOptions
   delegate ReadOnlySpan<char> ReplaceCharacters(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer);
 
   bool Overwrite { get; set; } = false;
-  TargetDirectoryCreation TargetDirectoryCreation { get; set; }
+  TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.CreateWithParents;
   bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;
@@ -499,7 +499,7 @@ enum TargetDirectoryCreation
 class UploadEntriesOptions
 {
   bool Overwrite { get; set; } = false;
-  TargetDirectoryCreation TargetDirectoryCreation { get; set; }
+  TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.CreateWithParents;
   bool IncludeSubdirectories { get; set; } = true;
   bool FollowFileLinks { get; set; } = true;
   bool FollowDirectoryLinks { get; set; } = true;

@@ -18,7 +18,7 @@ public sealed class DownloadEntriesOptions
     public SftpFileEntryPredicate? ShouldRecurse { get; set; }
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
     public ReplaceCharacters ReplaceInvalidCharacters { get; set; } = ReplaceInvalidCharactersWithUnderscore;
-    public TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.None;
+    public TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.CreateWithParents;
 
     private static ReadOnlySpan<char> ReplaceInvalidCharactersWithUnderscore(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer)
     {
