@@ -13,7 +13,7 @@
     <PackageId>ssh</PackageId>
     <Authors>Tom Deseyn</Authors>
     <Copyright>Tom Deseyn</Copyright>
-    <Description>A .NET tool that provides an 'ssh'-like remote login client.</Description>
+    <Description>An 'ssh'-like .NET tool implemented using Tmds.Ssh</Description>
     <PackageTags>ssh</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
