@@ -159,7 +159,6 @@ namespace Tmds.Ssh
         public int Attempt { get; }
         public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
         public bool IsBatchMode { get; }
-        public static System.Threading.Tasks.ValueTask<string?> ReadPasswordFromConsole(string? prompt = null) { }
     }
     public class PrivateKeyCredential : Tmds.Ssh.Credential
     {

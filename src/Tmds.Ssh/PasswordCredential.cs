@@ -32,41 +32,4 @@ public struct PasswordPromptContext
         ConnectionInfo = connectionInfo;
         Attempt = attempt;
     }
-
-    public static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null)
-    {
-        if (Console.IsInputRedirected || Console.IsOutputRedirected)
-        {
-            return ValueTask.FromResult((string?)null);
-        }
-
-        if (!string.IsNullOrEmpty(prompt))
-        {
-            Console.Write(prompt);
-        }
-
-        var password = string.Empty;
-        ConsoleKeyInfo key;
-        do
-        {
-            key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine();
-                break;
-            }
-            else if (key.Key == ConsoleKey.Backspace)
-            {
-                if (password.Length > 0)
-                {
-                    password = password[..^1];
-                }
-            }
-            else if (key.KeyChar != '\0')
-            {
-                password += key.KeyChar;
-            }
-        } while (true);
-        return ValueTask.FromResult((string?)password);
-    }
 }

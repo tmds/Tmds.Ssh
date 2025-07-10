@@ -643,9 +643,6 @@ struct PasswordPromptContext
   int Attempt { get; }
   SshConnectionInfo ConnectionInfo { get; }
   bool IsBatchMode { get; } // In BatchMode the PasswordPrompt delegate mustn't make interactive prompts.
-
-  // Helper method to read a password from Console without it being echo'ed.
-  static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null);
 }
 class PasswordCredential : Credential
 {
