@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <VersionPrefix>0.17.0</VersionPrefix>
+    <VersionPrefix>0.17.1</VersionPrefix>
     <DeterministicSourcePaths Condition="'$(Configuration)' == 'Release'">true</DeterministicSourcePaths>
   </PropertyGroup>
 </Project>
