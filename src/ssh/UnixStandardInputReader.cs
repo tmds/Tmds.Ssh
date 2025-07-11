@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,30 @@ sealed partial class UnixStandardInputReader : IStandardInputReader
     private readonly Encoding _encoding;
     private readonly Decoder _decoder;
     private readonly Socket _socket;
+    private readonly IDisposable? _sigWinchHandler;
+    private Action<int, int>? _windowSizeChanged;
+
+    public event Action<int, int>? WindowSizeChanged
+    {
+        add
+        {
+            _windowSizeChanged += value;
+
+            if (_sigWinchHandler is not null)
+            {
+                value?.Invoke(Console.WindowWidth, Console.WindowHeight);
+            }
+        }
+        remove
+        {
+            _windowSizeChanged -= value;
+        }
+    }
+
+    private void EmitWindowSizeChanged(int width, int height)
+    {
+        _windowSizeChanged?.Invoke(width, height);
+    }
 
     public UnixStandardInputReader(bool forTerminal)
     {
@@ -23,6 +48,9 @@ sealed partial class UnixStandardInputReader : IStandardInputReader
                 // This makes a cursor position read to disable CANON mode.
                 _ = Console.CursorTop;
                 Console.TreatControlCAsInput = true;
+
+                // Register for window size changed.
+                _sigWinchHandler = PosixSignalRegistration.Create(PosixSignal.SIGWINCH, ctx => EmitWindowSizeChanged(Console.WindowWidth, Console.WindowHeight));
             }
         }
 
@@ -44,5 +72,7 @@ sealed partial class UnixStandardInputReader : IStandardInputReader
     }
 
     public void Dispose()
-    { }
+    {
+        _sigWinchHandler?.Dispose();
+    }
 }
