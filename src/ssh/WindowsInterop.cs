@@ -22,15 +22,15 @@ internal static partial class WindowsInterop
     public const int STD_OUTPUT_HANDLE = -11;
     public const int STD_INPUT_HANDLE = -10;
 
-    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport(Kernel32, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetConsoleMode(IntPtr handle, out uint mode);
 
-    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport(Kernel32, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetConsoleMode(IntPtr handle, uint mode);
 
-    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [LibraryImport(Kernel32, SetLastError = true)]
     public static partial IntPtr GetStdHandle(int handle);
 
     [LibraryImport(Kernel32, SetLastError = true)]
@@ -38,10 +38,52 @@ internal static partial class WindowsInterop
     public static partial bool CancelIoEx(IntPtr handle, IntPtr lpOverlapped);
 
     [LibraryImport(Kernel32, SetLastError = true)]
-    internal static unsafe partial int ReadFile(
+    public static unsafe partial int ReadFile(
         IntPtr handle,
         byte* bytes,
         int numBytesToRead,
         out int numBytesRead,
         IntPtr mustBeZero);
+
+    public const int KEY_EVENT = 0x1;
+    public const int WINDOW_BUFFER_SIZE_EVENT = 0x4;
+
+    [LibraryImport(Kernel32, EntryPoint = "ReadConsoleInputW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public unsafe static partial bool ReadConsoleInput(IntPtr hConsoleInput, INPUT_RECORD* buffer, int length, out int numberOfEventsRead);
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct INPUT_RECORD
+    {
+        [FieldOffset(0)]
+        public ushort EventType;
+        [FieldOffset(4)]
+        public KEY_EVENT_RECORD KeyEvent;
+        [FieldOffset(4)]
+        public WINDOW_BUFFER_SIZE_RECORD WindowBufferSizeEvent;
+    };
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEY_EVENT_RECORD
+    {
+        public int KeyDown;
+        public short RepeatCount;
+        public short VirtualKeyCode;
+        public short VirtualScanCode;
+        public char uChar;
+        public int ControlKeyState;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COORD
+    {
+        public short X;
+        public short Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WINDOW_BUFFER_SIZE_RECORD
+    {
+        public COORD Size;
+    }
 }

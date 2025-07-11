@@ -131,7 +131,6 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
                             : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
 
-    using IDisposable? updateWindowSize = allocateTerminal && !Console.IsOutputRedirected ? UpdateTerminalSize(process) : null;
     Task[] tasks = new[]
     {
                 PrintToConsole(process),
@@ -165,6 +164,19 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
     static async Task ReadInputFromConsole(RemoteProcess process)
     {
         using IStandardInputReader reader = CreateConsoleInReader(process.HasTerminal);
+
+        if (process.HasTerminal)
+        {
+            reader.WindowSizeChanged += (width, height) =>
+            {
+                try
+                {
+                    process.SetTerminalSize(width, height);
+                }
+                catch
+                { }
+            };
+        }
 
         char[] buffer = new char[100 * 1024];
         try
@@ -215,26 +227,6 @@ static IDisposable? ConfigureTerminal(bool forTerminal)
         }
     }
     return null;
-}
-
-static IDisposable? UpdateTerminalSize(RemoteProcess process)
-{
-    if (OperatingSystem.IsWindows())
-    {
-        return null;
-    }
-    else
-    {
-        return PosixSignalRegistration.Create(PosixSignal.SIGWINCH, ctx =>
-        {
-            try
-            {
-                process.SetTerminalSize(Console.WindowWidth, Console.WindowHeight);
-            }
-            catch
-            { }
-        });
-    }
 }
 
 static IStandardInputReader CreateConsoleInReader(bool forTerminal)
@@ -370,4 +362,5 @@ static ValueTask<string?> ReadPasswordFromConsole(string? prompt = null)
 interface IStandardInputReader : IDisposable
 {
     ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default);
+    event Action<int, int> WindowSizeChanged;
 }
