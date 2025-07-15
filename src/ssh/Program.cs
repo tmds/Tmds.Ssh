@@ -104,7 +104,8 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
     using ILoggerFactory? loggerFactory = logLevel == LogLevel.None ? null :
         LoggerFactory.Create(builder =>
         {
-            builder.AddConsole();
+            // Log to stderr.
+            builder.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.SetMinimumLevel(logLevel);
         });
 
@@ -133,9 +134,9 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
 
     Task[] tasks = new[]
     {
-                PrintToConsole(process),
-                ReadInputFromConsole(process)
-            };
+        PrintToConsole(process),
+        ReadInputFromConsole(process)
+    };
 
     Task.WaitAll(tasks);
     if (!quiet)
@@ -271,9 +272,9 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
             return ValueTask.FromResult((string?)null);
         }
 
-        if (ctx.Attempt > 1)
+        if (ctx.Attempt > 1 && !Console.IsErrorRedirected)
         {
-            Console.WriteLine("Permission denied, please try again.");
+            Console.Error.WriteLine("Permission denied, please try again.");
         }
 
         string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
