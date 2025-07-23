@@ -6,6 +6,15 @@
     <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-ssh-cp</ToolCommandName>
+    <PackageId>ssh-cp</PackageId>
+    <Authors>Tom Deseyn</Authors>
+    <Copyright>Tom Deseyn</Copyright>
+    <Description>A .NET tool to copy files between hosts using SSH/SFTP implemented with Tmds.Ssh</Description>
+    <PackageTags>ssh;sftp;scp</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

@@ -32,8 +32,8 @@ jobs:
     - name: Build example applications
       run: |
         dotnet build examples/azure_key
-        dotnet build examples/scp
         dotnet build src/ssh
+        dotnet build src/ssh-cp
 
     - name: Run tests
       run: |
@@ -46,6 +46,7 @@ jobs:
         VERSION_SUFFIX="${{ github.run_number }}-${{ github.sha }}"
         dotnet pack src/Tmds.Ssh --configuration Release --output packages /p:VersionSuffix="$VERSION_SUFFIX"
         dotnet pack src/ssh --configuration Release --output packages /p:VersionSuffix="$VERSION_SUFFIX"
+        dotnet pack src/ssh-cp --configuration Release --output packages /p:VersionSuffix="$VERSION_SUFFIX"
 
     - name: Publish packages
       run: |
