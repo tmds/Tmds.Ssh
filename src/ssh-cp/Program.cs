@@ -300,11 +300,6 @@ static async Task<int> UploadAsync(string localSourcePath, SftpClient sftpClient
         {
             await sftpClient.UploadFileAsync(localSourcePath, remoteDestinationPath, overwrite);
         }
-        catch
-        {
-            await createDir;
-            createDir = default;
-        }
         finally
         {
             try
