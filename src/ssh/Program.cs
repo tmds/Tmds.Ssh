@@ -132,9 +132,11 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
                             : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
 
+    Task<int> exitCodeTask;
+
     Task[] tasks = new[]
     {
-        PrintToConsole(process),
+        exitCodeTask = PrintToConsole(process),
         ReadInputFromConsole(process)
     };
 
@@ -144,10 +146,9 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         PrintExceptions(tasks);
     }
 
-    int exitCode = process.ExitCode;
-    return exitCode;
+    return await exitCodeTask;
 
-    static async Task PrintToConsole(RemoteProcess process)
+    static async Task<int> PrintToConsole(RemoteProcess process)
     {
         char[] buffer = new char[1024];
         while (true)
@@ -155,7 +156,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
             (bool isError, int charsRead) = await process.ReadAsync(buffer, buffer);
             if (charsRead == 0)
             {
-                break;
+                return process.ExitCode;
             }
             TextWriter writer = isError ? Console.Error : Console.Out;
             writer.Write(buffer.AsSpan(0, charsRead));
