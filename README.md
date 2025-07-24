@@ -4,7 +4,43 @@
 
 `Tmds.Ssh` is a modern, managed .NET SSH client library for .NET 6+.
 
-## Getting Started
+`ssh` and `ssh-cp` are .NET tools built using `Tmds.Ssh`. `ssh` provide an SSH client similar to OpenSSH `ssh`, and `ssh-cp` enables copying files to and from remote hosts similar to OpenSSH `scp`.
+
+The `ssh` and `ssh-cp` tools provides an easy way try out `Tmds.Ssh` against an SSH server without coding it yourself.
+
+## Running `ssh` and `ssh-cp`
+
+### .NET 10+
+
+With .NET 10, the `ssh` and `ssh-cp` can run directly using the new .NET 10 `dnx` command:
+
+```
+dnx ssh --help
+dnx ssh-cp --help
+```
+
+### .NET 8+
+
+`ssh` and `ssh-cp` can be installed as .NET tools.
+
+```
+dotnet tool update -g ssh
+dotnet tool update -g ssh-cp
+```
+
+To invoke the `ssh` tool, run:
+
+```
+dotnet ssh --help
+```
+
+To invoke the `ssh-cp` tool, run:
+
+```
+dotnet ssh-cp --help
+```
+
+## Getting Started with Tmds.Ssh
 
 Create a new Console application:
 ```sh
@@ -33,10 +69,10 @@ See [Getting Started](docs/getting-started.md) for more information.
 
 ## Examples
 
-The following are some example projects that show how Tmds.Ssh can be used:
+The following are some example projects that show how `Tmds.Ssh` can be used:
 
-- [scp](./examples/scp) - SCP client to copy/fetch files
-- [ssh](./examples/ssh) - SSH client
+- [scp](./src/scp) - SFTP client to copy/fetch files
+- [ssh](./src/ssh) - SSH client
 - [azure_key](./examples/azure_key) - SSH client with private keys stored in Azure Key Vault.
 
 ## API
