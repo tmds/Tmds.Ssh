@@ -92,6 +92,10 @@ return await parseResult.InvokeAsync();
 
 bool IsHelp(string[] args)
 {
+    if (args.Length < 2) // source and destination arg are required
+    {
+        return true;
+    }
     var helpOption = new HelpOption();
     if (args.Contains(helpOption.Name))
     {
