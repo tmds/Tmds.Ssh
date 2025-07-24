@@ -132,23 +132,26 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
                             : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
 
-    Task<int> exitCodeTask;
+    Task<int> receiveTask = ReceiveLoop(process);
+    Task sendTask = SendLoop(process);
 
-    Task[] tasks = new[]
-    {
-        exitCodeTask = PrintToConsole(process),
-        ReadInputFromConsole(process)
-    };
+    Task.WaitAll([receiveTask, sendTask]);
 
-    Task.WaitAll(tasks);
     if (!quiet)
     {
-        PrintExceptions(tasks);
+        PrintExceptions(receiveTask, sendTask);
     }
 
-    return await exitCodeTask;
+    if (receiveTask.IsFaulted)
+    {
+        return 134;
+    }
+    else
+    {
+        return await receiveTask;
+    }
 
-    static async Task<int> PrintToConsole(RemoteProcess process)
+    static async Task<int> ReceiveLoop(RemoteProcess process)
     {
         char[] buffer = new char[1024];
         while (true)
@@ -163,7 +166,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         }
     }
 
-    static async Task ReadInputFromConsole(RemoteProcess process)
+    static async Task SendLoop(RemoteProcess process)
     {
         using IStandardInputReader reader = CreateConsoleInReader(process.HasTerminal);
 
@@ -198,16 +201,17 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         { }
     }
 
-    static void PrintExceptions(Task[] tasks)
+    static void PrintExceptions(Task receiveTask, Task sendTask)
     {
-        foreach (var task in tasks)
+        if (receiveTask.IsFaulted)
         {
-            Exception? innerException = task.Exception?.InnerException;
-            if (innerException is not null)
-            {
-                Console.Error.WriteLine("Exception:");
-                Console.Error.WriteLine(innerException);
-            }
+            Console.Error.WriteLine("Receive loop failed with exception:");
+            Console.Error.WriteLine(receiveTask.Exception);
+        }
+        if (sendTask.IsFaulted)
+        {
+            Console.Error.WriteLine("Send loop failed with exception:");
+            Console.Error.WriteLine(sendTask.Exception);
         }
     }
 }
