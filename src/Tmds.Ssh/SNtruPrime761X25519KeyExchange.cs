@@ -4,9 +4,6 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Agreement;
-using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Prng;
 using Org.BouncyCastle.Pqc.Crypto.NtruPrime;
 using Org.BouncyCastle.Security;
@@ -25,24 +22,8 @@ sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
 
-        AsymmetricCipherKeyPair sntrup761KeyPair;
-        AsymmetricCipherKeyPair x25519KeyPair;
-        using (var randomGenerator = new CryptoApiRandomGenerator())
-        {
-            var sntrup761KeyPairGenerator = new SNtruPrimeKeyPairGenerator();
-            sntrup761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), _sntruPrimeParameters));
-            sntrup761KeyPair = sntrup761KeyPairGenerator.GenerateKeyPair();
-
-            var x25519KeyPairGenerator = new X25519KeyPairGenerator();
-            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
-            x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
-        }
-
         // Send ECDH_INIT.
-        byte[] q_c = ((SNtruPrimePublicKeyParameters)sntrup761KeyPair.Public).GetEncoded();
-        int sntrup761PublicKeySize = q_c.Length;
-        Array.Resize(ref q_c, sntrup761PublicKeySize + X25519PublicKeyParameters.KeySize);
-        Buffer.BlockCopy(((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded(), 0, q_c, sntrup761PublicKeySize, X25519PublicKeyParameters.KeySize);
+        byte[] q_c = GenerateHybridPublicKey(out AsymmetricCipherKeyPair sntrup761KeyPair, out ECCurve curve, out ECDiffieHellman? ecdh, out AsymmetricCipherKeyPair? x25519KeyPair);
         await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
@@ -56,7 +37,8 @@ sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
         byte[] sharedSecret;
         try
         {
-            sharedSecret = DeriveSharedSecret(sntrup761KeyPair.Private, x25519KeyPair.Private, ecdhReply.q_s);
+            byte[] rawSecretAgreement = DeriveHybridRawSecretAgreement(sntrup761KeyPair, curve, ecdh, x25519KeyPair, ecdhReply.q_s);
+            sharedSecret = DeriveSharedSecret(rawSecretAgreement);
         }
         catch (Exception ex)
         {
@@ -72,21 +54,39 @@ sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private static byte[] DeriveSharedSecret(AsymmetricKeyParameter sntrup761PrivateKey, AsymmetricKeyParameter x25519PrivateKey, byte[] q_s)
+    private byte[] GenerateHybridPublicKey(out AsymmetricCipherKeyPair sntrup761KeyPair, out ECCurve curve, out ECDiffieHellman? myECDH, out AsymmetricCipherKeyPair? x25519KeyPair)
     {
-        var sntrup761Extractor = new SNtruPrimeKemExtractor((SNtruPrimePrivateKeyParameters)sntrup761PrivateKey);
-        byte[] rawSecretAgreement = sntrup761Extractor.ExtractSecret(q_s[..sntrup761Extractor.EncapsulationLength]);
-        int sntrup761SecretLength = rawSecretAgreement.Length;
+        using (var randomGenerator = new CryptoApiRandomGenerator())
+        {
+            var sntrup761KeyPairGenerator = new SNtruPrimeKeyPairGenerator();
+            sntrup761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), _sntruPrimeParameters));
+            sntrup761KeyPair = sntrup761KeyPairGenerator.GenerateKeyPair();
+        }
 
-        var x25519Agreement = new X25519Agreement();
-        x25519Agreement.Init(x25519PrivateKey);
+        byte[] publicKey = ((SNtruPrimePublicKeyParameters)sntrup761KeyPair.Public).GetEncoded();
 
-        var x25519PublicKey = new X25519PublicKeyParameters(q_s, sntrup761Extractor.EncapsulationLength);
-        Array.Resize(ref rawSecretAgreement, sntrup761SecretLength + x25519Agreement.AgreementSize);
+        byte[] x25519PublicKey = GeneratePublicKey(out curve, out myECDH, out x25519KeyPair);
+        Array.Resize(ref publicKey, publicKey.Length + x25519PublicKey.Length);
+        Array.Copy(x25519PublicKey, 0, publicKey, publicKey.Length - x25519PublicKey.Length, x25519PublicKey.Length);
 
-        x25519Agreement.CalculateAgreement(x25519PublicKey, rawSecretAgreement, sntrup761SecretLength);
+        return publicKey;
+    }
 
-        var sharedSecret = SHA512.HashData(rawSecretAgreement);
+    private static byte[] DeriveHybridRawSecretAgreement(AsymmetricCipherKeyPair sntrup761KeyPair, ECCurve curve, ECDiffieHellman? ecdh, AsymmetricCipherKeyPair? x25519KeyPair, byte[] s_reply)
+    {
+        var sntrup761Extractor = new SNtruPrimeKemExtractor((SNtruPrimePrivateKeyParameters)sntrup761KeyPair.Private);
+        byte[] rawSecretAgreement = sntrup761Extractor.ExtractSecret(s_reply[..sntrup761Extractor.EncapsulationLength]);
+
+        byte[] x25519Agreement = DeriveRawSecretAgreement(curve, ecdh, x25519KeyPair, s_reply.AsSpan(sntrup761Extractor.EncapsulationLength));
+        Array.Resize(ref rawSecretAgreement, rawSecretAgreement.Length + x25519Agreement.Length);
+        Array.Copy(x25519Agreement, 0, rawSecretAgreement, rawSecretAgreement.Length - x25519Agreement.Length, x25519Agreement.Length);
+
+        return rawSecretAgreement;
+    }
+
+    private static byte[] DeriveSharedSecret(byte[] rawSecretAgreement)
+    {
+        byte[] sharedSecret = SHA512.HashData(rawSecretAgreement);
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret;
     }

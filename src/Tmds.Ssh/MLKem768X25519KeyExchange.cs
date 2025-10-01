@@ -5,7 +5,6 @@ using System.Buffers;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -18,7 +17,6 @@ namespace Tmds.Ssh;
 // https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-05.html
 sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
 {
-#pragma warning disable SYSLIB5006 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     private readonly MLKemAlgorithm _mlKemAlgorithm = MLKemAlgorithm.MLKem768;
     private readonly MLKemParameters _mlKemParameters = MLKemParameters.ml_kem_768;
     private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA256;
@@ -28,41 +26,8 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
 
-        MLKem? mlKem = null;
-        AsymmetricCipherKeyPair? mlkem768KeyPair = null;
-        AsymmetricCipherKeyPair x25519KeyPair;
-        using (var randomGenerator = new CryptoApiRandomGenerator())
-        {
-            if (MLKem.IsSupported)
-            {
-                mlKem = MLKem.GenerateKey(_mlKemAlgorithm);
-            }
-            else
-            {
-                var mlkem768KeyPairGenerator = new MLKemKeyPairGenerator();
-                mlkem768KeyPairGenerator.Init(new MLKemKeyGenerationParameters(new SecureRandom(randomGenerator), _mlKemParameters));
-                mlkem768KeyPair = mlkem768KeyPairGenerator.GenerateKeyPair();
-            }
-
-            var x25519KeyPairGenerator = new X25519KeyPairGenerator();
-            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
-            x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
-        }
-
         // Send HYBRID_INIT.
-        byte[] c_init;
-        if (MLKem.IsSupported)
-        {
-            c_init = mlKem!.ExportEncapsulationKey();
-        }
-        else
-        {
-            c_init = ((MLKemPublicKeyParameters)mlkem768KeyPair!.Public).GetEncoded();
-        }
-
-        Array.Resize(ref c_init, _mlKemAlgorithm.EncapsulationKeySizeInBytes + X25519PublicKeyParameters.KeySize);
-        ((X25519PublicKeyParameters)x25519KeyPair.Public).Encode(c_init, _mlKemAlgorithm.EncapsulationKeySizeInBytes);
-
+        byte[] c_init = GenerateHybridPublicKey(out MLKem? mlkem, out AsymmetricCipherKeyPair? mlkem768KeyPair, out ECCurve curve, out ECDiffieHellman? ecdh, out AsymmetricCipherKeyPair? x25519KeyPair);
         await context.SendPacketAsync(CreateHybridInitMessage(sequencePool, c_init), ct).ConfigureAwait(false);
 
         // Receive HYBRID_REPLY.
@@ -76,14 +41,8 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         byte[] sharedSecret;
         try
         {
-            if (MLKem.IsSupported)
-            {
-                sharedSecret = DeriveSharedSecret(mlKem!, x25519KeyPair.Private, hybridReply.s_reply);
-            }
-            else
-            {
-                sharedSecret = DeriveSharedSecret(mlkem768KeyPair!.Private, x25519KeyPair.Private, hybridReply.s_reply);
-            }
+            byte[] rawSecretAgreement = DeriveHybridRawSecretAgreement(mlkem, mlkem768KeyPair, curve, ecdh, x25519KeyPair, hybridReply.s_reply);
+            sharedSecret = DeriveSharedSecret(rawSecretAgreement);
         }
         catch (Exception ex)
         {
@@ -99,43 +58,60 @@ sealed class MLKem768X25519KeyExchange : Curve25519KeyExchange
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
     }
 
-    private byte[] DeriveSharedSecret(MLKem mlkem, AsymmetricKeyParameter x25519PrivateKey, byte[] s_reply)
+    private byte[] GenerateHybridPublicKey(out MLKem? mlKem, out AsymmetricCipherKeyPair? mlkem768KeyPair, out ECCurve curve, out ECDiffieHellman? ecdh, out AsymmetricCipherKeyPair? x25519KeyPair)
     {
-        var x25519Agreement = new X25519Agreement();
-        x25519Agreement.Init(x25519PrivateKey);
+        mlKem = default;
+        mlkem768KeyPair = default;
 
-        var rawSecretAgreement = new byte[_mlKemAlgorithm.SharedSecretSizeInBytes + x25519Agreement.AgreementSize];
+        byte[] publicKey;
+        if (MLKem.IsSupported)
+        {
+            mlKem = MLKem.GenerateKey(_mlKemAlgorithm);
+            publicKey = mlKem!.ExportEncapsulationKey();
+        }
+        else
+        {
+            using var randomGenerator = new CryptoApiRandomGenerator();
+            var mlkem768KeyPairGenerator = new MLKemKeyPairGenerator();
+            mlkem768KeyPairGenerator.Init(new MLKemKeyGenerationParameters(new SecureRandom(randomGenerator), _mlKemParameters));
+            mlkem768KeyPair = mlkem768KeyPairGenerator.GenerateKeyPair();
+            publicKey = ((MLKemPublicKeyParameters)mlkem768KeyPair!.Public).GetEncoded();
+        }
 
-        mlkem.Decapsulate(s_reply.AsSpan(0, _mlKemAlgorithm.CiphertextSizeInBytes), rawSecretAgreement.AsSpan(0, _mlKemAlgorithm.SharedSecretSizeInBytes));
+        byte[] x25519PublicKey = GeneratePublicKey(out curve, out ecdh, out x25519KeyPair);
+        Array.Resize(ref publicKey, _mlKemAlgorithm.EncapsulationKeySizeInBytes + x25519PublicKey.Length);
+        Array.Copy(x25519PublicKey, 0, publicKey, _mlKemAlgorithm.EncapsulationKeySizeInBytes, x25519PublicKey.Length);
 
-        var x25519PublicKey = new X25519PublicKeyParameters(s_reply, _mlKemAlgorithm.CiphertextSizeInBytes);
-        x25519Agreement.CalculateAgreement(x25519PublicKey, rawSecretAgreement, _mlKemAlgorithm.SharedSecretSizeInBytes);
+        return publicKey;
+    }
 
-        var sharedSecret = SHA256.HashData(rawSecretAgreement);
+    private byte[] DeriveHybridRawSecretAgreement(MLKem? mlkem, AsymmetricCipherKeyPair? mlkem768KeyPair, ECCurve curve, ECDiffieHellman? ecdh, AsymmetricCipherKeyPair? x25519KeyPair, byte[] s_reply)
+    {
+        var rawSecretAgreement = new byte[_mlKemAlgorithm.SharedSecretSizeInBytes];
+        if (MLKem.IsSupported)
+        {
+            mlkem!.Decapsulate(s_reply.AsSpan(0, _mlKemAlgorithm.CiphertextSizeInBytes), rawSecretAgreement.AsSpan(0, _mlKemAlgorithm.SharedSecretSizeInBytes));
+        }
+        else
+        {
+            var mlkem768Decapsulator = new MLKemDecapsulator(_mlKemParameters);
+            mlkem768Decapsulator.Init(mlkem768KeyPair!.Private);
+            mlkem768Decapsulator.Decapsulate(s_reply, 0, mlkem768Decapsulator.EncapsulationLength, rawSecretAgreement, 0, mlkem768Decapsulator.SecretLength);
+        }
+
+        byte[] x25519Agreement = DeriveRawSecretAgreement(curve, ecdh, x25519KeyPair, s_reply.AsSpan(_mlKemAlgorithm.CiphertextSizeInBytes));
+        Array.Resize(ref rawSecretAgreement, _mlKemAlgorithm.SharedSecretSizeInBytes + x25519Agreement.Length);
+        Array.Copy(x25519Agreement, 0, rawSecretAgreement, _mlKemAlgorithm.SharedSecretSizeInBytes, x25519Agreement.Length);
+
+        return rawSecretAgreement;
+    }
+
+    private static byte[] DeriveSharedSecret(byte[] rawSecretAgreement)
+    {
+        byte[] sharedSecret = SHA256.HashData(rawSecretAgreement);
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret;
     }
-
-    private byte[] DeriveSharedSecret(AsymmetricKeyParameter mlkem768PrivateKey, AsymmetricKeyParameter x25519PrivateKey, byte[] s_reply)
-    {
-        var mlkem768Decapsulator = new MLKemDecapsulator(_mlKemParameters);
-        mlkem768Decapsulator.Init(mlkem768PrivateKey);
-
-        var x25519Agreement = new X25519Agreement();
-        x25519Agreement.Init(x25519PrivateKey);
-
-        var rawSecretAgreement = new byte[mlkem768Decapsulator.SecretLength + x25519Agreement.AgreementSize];
-
-        mlkem768Decapsulator.Decapsulate(s_reply, 0, mlkem768Decapsulator.EncapsulationLength, rawSecretAgreement, 0, mlkem768Decapsulator.SecretLength);
-
-        var x25519PublicKey = new X25519PublicKeyParameters(s_reply, mlkem768Decapsulator.EncapsulationLength);
-        x25519Agreement.CalculateAgreement(x25519PublicKey, rawSecretAgreement, mlkem768Decapsulator.SecretLength);
-
-        var sharedSecret = SHA256.HashData(rawSecretAgreement);
-        rawSecretAgreement.AsSpan().Clear();
-        return sharedSecret;
-    }
-#pragma warning restore SYSLIB5006 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     private static Packet CreateHybridInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> c_init)
     {

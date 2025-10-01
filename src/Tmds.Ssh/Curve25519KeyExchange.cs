@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Buffers;
+using System.Numerics;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto.Generators;
@@ -23,16 +24,9 @@ class Curve25519KeyExchange : KeyExchange
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
 
-        AsymmetricCipherKeyPair x25519KeyPair;
-        using (var randomGenerator = new CryptoApiRandomGenerator())
-        {
-            var x25519KeyPairGenerator = new X25519KeyPairGenerator();
-            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
-            x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
-        }
+        byte[] q_c = GeneratePublicKey(out ECCurve curve, out ECDiffieHellman? ecdh, out AsymmetricCipherKeyPair? x25519KeyPair);
 
         // Send ECDH_INIT.
-        byte[] q_c = ((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded();
         await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
 
         // Receive ECDH_REPLY.
@@ -46,7 +40,8 @@ class Curve25519KeyExchange : KeyExchange
         byte[] sharedSecret;
         try
         {
-            sharedSecret = DeriveSharedSecret(x25519KeyPair.Private, new X25519PublicKeyParameters(ecdhReply.q_s));
+            var rawSecretAgreement = DeriveRawSecretAgreement(curve, ecdh, x25519KeyPair, ecdhReply.q_s);
+            sharedSecret = DeriveSharedSecret(rawSecretAgreement);
         }
         catch (Exception ex)
         {
@@ -60,6 +55,33 @@ class Curve25519KeyExchange : KeyExchange
         VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
 
         return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
+    }
+
+    protected static byte[] GeneratePublicKey(out ECCurve curve, out ECDiffieHellman? ecdh, out AsymmetricCipherKeyPair? x25519KeyPair)
+    {
+        curve = default;
+        ecdh = default;
+        x25519KeyPair = default;
+
+        if (OperatingSystem.IsWindowsVersionAtLeast(10))
+        {
+            curve = ECCurve.CreateFromFriendlyName("Curve25519");
+            ecdh = ECDiffieHellman.Create();
+            ecdh.GenerateKey(curve);
+
+            return ecdh.PublicKey.ExportParameters().Q.X!;
+        }
+        else
+        {
+            using (var randomGenerator = new CryptoApiRandomGenerator())
+            {
+                var x25519KeyPairGenerator = new X25519KeyPairGenerator();
+                x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
+                x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
+            }
+
+            return ((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded();
+        }
     }
 
     protected static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
@@ -93,14 +115,39 @@ class Curve25519KeyExchange : KeyExchange
         return hash.GetHashAndReset();
     }
 
-    private static byte[] DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
+    protected static byte[] DeriveRawSecretAgreement(ECCurve curve, ECDiffieHellman? ecdh, AsymmetricCipherKeyPair? x25519KeyPair, ReadOnlySpan<byte> peerPublicKey)
     {
-        var keyAgreement = new X25519Agreement();
-        keyAgreement.Init(privateKey);
+        byte[] rawSecretAgreement;
+        if (OperatingSystem.IsWindowsVersionAtLeast(10))
+        {
+            var parameters = new ECParameters
+            {
+                Curve = curve,
+                Q = new ECPoint
+                {
+                    X = peerPublicKey.ToArray(),
+                    Y = new byte[peerPublicKey.Length]
+                },
+            };
 
-        var rawSecretAgreement = new byte[keyAgreement.AgreementSize];
-        keyAgreement.CalculateAgreement(peerPublicKey, rawSecretAgreement);
-        var sharedSecret = rawSecretAgreement.ToBigInteger();
+            using var serverECDH = ECDiffieHellman.Create(parameters);
+            rawSecretAgreement = ecdh!.DeriveRawSecretAgreement(serverECDH.PublicKey);
+        }
+        else
+        {
+            var keyAgreement = new X25519Agreement();
+            keyAgreement.Init(x25519KeyPair!.Private);
+
+            rawSecretAgreement = new byte[keyAgreement.AgreementSize];
+            keyAgreement.CalculateAgreement(new X25519PublicKeyParameters(peerPublicKey), rawSecretAgreement);
+        }
+
+        return rawSecretAgreement;
+    }
+
+    private static byte[] DeriveSharedSecret(byte[] rawSecretAgreement)
+    {
+        BigInteger sharedSecret = rawSecretAgreement.ToBigInteger();
         rawSecretAgreement.AsSpan().Clear();
         return sharedSecret.ToMPIntByteArray();
     }
