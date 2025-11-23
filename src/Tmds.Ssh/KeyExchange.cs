@@ -4,9 +4,60 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-abstract class KeyExchange : IKeyExchangeAlgorithm
+abstract class KeyExchange<TKeyPair, TPublicKey> : IKeyExchangeAlgorithm
 {
-    public abstract Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
+    public HashAlgorithmName HashAlgorithmName { get; }
+
+    protected KeyExchange(HashAlgorithmName hashAlgorithmName)
+    {
+        HashAlgorithmName = hashAlgorithmName;
+    }
+
+    public async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    {
+        var sequencePool = context.SequencePool;
+        var connectionInfo = input.ConnectionInfo;
+
+        TKeyPair keyPair = GenerateKeyPair(context);
+        try
+        {
+            await context.SendPacketAsync(CreateInitMessage(sequencePool, keyPair), ct).ConfigureAwait(false);
+
+            // Receive reply message
+            // All current key exchange algorithms use the same reply message ID (31)
+            using Packet replyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
+            var serverReply = ParseReplyMessage(replyMsg);
+
+            await VerifyHostKeyAsync(hostKeyAuthentication, input, serverReply.publicHostKey, ct).ConfigureAwait(false);
+
+            byte[] sharedSecret;
+            try
+            {
+                sharedSecret = DeriveSharedSecret(keyPair, serverReply.serverPublicKey);
+            }
+            catch (Exception ex)
+            {
+                throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Cannot determine shared secret.", connectionInfo, ex);
+            }
+
+            byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, serverReply.publicHostKey.RawData, keyPair, serverReply.serverPublicKey, sharedSecret, HashAlgorithmName);
+
+            VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, serverReply.exchangeHashSignature, connectionInfo);
+
+            return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, HashAlgorithmName);
+        }
+        finally
+        {
+            DisposeKeyPair(keyPair);
+        }
+    }
+
+    protected abstract TKeyPair GenerateKeyPair(KeyExchangeContext context);
+    protected abstract Packet CreateInitMessage(SequencePool sequencePool, TKeyPair keyPair);
+    protected abstract (SshKeyData publicHostKey, TPublicKey serverPublicKey, ReadOnlySequence<byte> exchangeHashSignature) ParseReplyMessage(ReadOnlyPacket packet);
+    protected abstract byte[] DeriveSharedSecret(TKeyPair clientKeyPair, TPublicKey serverPublicKey);
+    protected abstract byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, TKeyPair clientKeyPair, TPublicKey serverPublicKey, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName);
+    protected abstract void DisposeKeyPair(TKeyPair keyPair);
 
     protected static async Task VerifyHostKeyAsync(IHostKeyAuthentication hostKeyAuthentication, KeyExchangeInput input, SshKeyData public_host_key, CancellationToken ct)
     {
@@ -111,14 +162,5 @@ abstract class KeyExchange : IKeyExchangeAlgorithm
             append.AsSpan().Slice(0, available).CopyTo(key.AsSpan(offset));
             offset += available;
         }
-    }
-
-    protected virtual void Dispose(bool disposing)
-    { }
-
-    public void Dispose()
-    {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
     }
 }

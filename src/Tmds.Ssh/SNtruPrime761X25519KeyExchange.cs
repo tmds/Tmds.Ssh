@@ -1,6 +1,7 @@
 ﻿// This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto;
@@ -15,62 +16,62 @@ namespace Tmds.Ssh;
 
 // Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519
 // https://www.ietf.org/archive/id/draft-ietf-sshm-ntruprime-ssh-01.html
-sealed class SNtruPrime761X25519KeyExchange : Curve25519KeyExchange
+sealed class SNtruPrime761X25519KeyExchange : KeyExchange<SNtruPrime761X25519KeyExchange.KeyPair, byte[]>
 {
-    private readonly SNtruPrimeParameters _sntruPrimeParameters = SNtruPrimeParameters.sntrup761;
-    private readonly HashAlgorithmName _hashAlgorithmName = HashAlgorithmName.SHA512;
+    public SNtruPrime761X25519KeyExchange() : base(HashAlgorithmName.SHA512)
+    { }
 
-    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    internal readonly record struct KeyPair(AsymmetricCipherKeyPair Sntrup761KeyPair, AsymmetricCipherKeyPair X25519KeyPair);
+
+    protected override KeyPair GenerateKeyPair(KeyExchangeContext context)
     {
-        var sequencePool = context.SequencePool;
-        var connectionInfo = input.ConnectionInfo;
-
-        AsymmetricCipherKeyPair sntrup761KeyPair;
-        AsymmetricCipherKeyPair x25519KeyPair;
         using (var randomGenerator = new CryptoApiRandomGenerator())
         {
             var sntrup761KeyPairGenerator = new SNtruPrimeKeyPairGenerator();
-            sntrup761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), _sntruPrimeParameters));
-            sntrup761KeyPair = sntrup761KeyPairGenerator.GenerateKeyPair();
+            sntrup761KeyPairGenerator.Init(new SNtruPrimeKeyGenerationParameters(new SecureRandom(randomGenerator), SNtruPrimeParameters.sntrup761));
+            var sntrup761KeyPair = sntrup761KeyPairGenerator.GenerateKeyPair();
 
             var x25519KeyPairGenerator = new X25519KeyPairGenerator();
             x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
-            x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
-        }
+            var x25519KeyPair = x25519KeyPairGenerator.GenerateKeyPair();
 
-        // Send ECDH_INIT.
-        byte[] q_c = ((SNtruPrimePublicKeyParameters)sntrup761KeyPair.Public).GetEncoded();
+            return new KeyPair(sntrup761KeyPair, x25519KeyPair);
+        }
+    }
+
+    protected override Packet CreateInitMessage(SequencePool sequencePool, KeyPair keyPair)
+    {
+        byte[] q_c = ((SNtruPrimePublicKeyParameters)keyPair.Sntrup761KeyPair.Public).GetEncoded();
         int sntrup761PublicKeySize = q_c.Length;
         Array.Resize(ref q_c, sntrup761PublicKeySize + X25519PublicKeyParameters.KeySize);
-        Buffer.BlockCopy(((X25519PublicKeyParameters)x25519KeyPair.Public).GetEncoded(), 0, q_c, sntrup761PublicKeySize, X25519PublicKeyParameters.KeySize);
-        await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
+        Buffer.BlockCopy(((X25519PublicKeyParameters)keyPair.X25519KeyPair.Public).GetEncoded(), 0, q_c, sntrup761PublicKeySize, X25519PublicKeyParameters.KeySize);
 
-        // Receive ECDH_REPLY.
-        using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
-
-        // Verify received key is valid.
-        await VerifyHostKeyAsync(hostKeyAuthentication, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
-
-        // Compute shared secret.
-        byte[] sharedSecret;
-        try
-        {
-            sharedSecret = DeriveSharedSecret(sntrup761KeyPair.Private, x25519KeyPair.Private, ecdhReply.q_s);
-        }
-        catch (Exception ex)
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Cannot determine shared secret.", connectionInfo, ex);
-        }
-
-        // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawData, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
-
-        // Verify the server's signature.
-        VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
-
-        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
+        return Curve25519KeyExchange.CreateEcdhInitMessage(sequencePool, q_c);
     }
+
+    protected override (SshKeyData publicHostKey, byte[] serverPublicKey, ReadOnlySequence<byte> exchangeHashSignature) ParseReplyMessage(ReadOnlyPacket packet)
+    {
+        var reply = Curve25519KeyExchange.ParseEcdhReply(packet);
+        return (reply.public_host_key, reply.q_s, reply.exchange_hash_signature);
+    }
+
+    protected override byte[] DeriveSharedSecret(KeyPair clientKeyPair, byte[] serverPublicKey)
+    {
+        return DeriveSharedSecret(clientKeyPair.Sntrup761KeyPair.Private, clientKeyPair.X25519KeyPair.Private, serverPublicKey);
+    }
+
+    protected override byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, KeyPair clientKeyPair, byte[] serverPublicKey, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    {
+        byte[] q_c = ((SNtruPrimePublicKeyParameters)clientKeyPair.Sntrup761KeyPair.Public).GetEncoded();
+        int sntrup761PublicKeySize = q_c.Length;
+        Array.Resize(ref q_c, sntrup761PublicKeySize + X25519PublicKeyParameters.KeySize);
+        Buffer.BlockCopy(((X25519PublicKeyParameters)clientKeyPair.X25519KeyPair.Public).GetEncoded(), 0, q_c, sntrup761PublicKeySize, X25519PublicKeyParameters.KeySize);
+
+        return Curve25519KeyExchange.CalculateCurve25519ExchangeHash(sequencePool, connectionInfo, clientKexInitMsg, serverKexInitMsg, public_host_key, q_c, serverPublicKey, sharedSecret, hashAlgorithmName);
+    }
+
+    protected override void DisposeKeyPair(KeyPair keyPair)
+    { }
 
     private static byte[] DeriveSharedSecret(AsymmetricKeyParameter sntrup761PrivateKey, AsymmetricKeyParameter x25519PrivateKey, byte[] q_s)
     {
