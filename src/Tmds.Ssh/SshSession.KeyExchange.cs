@@ -118,10 +118,9 @@ sealed partial class SshSession
             {
                 Logger.ExchangingKeys(keyAlgorithm);
 
-                using (var algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm))
-                {
-                    keyExchangeOutput = await algorithm.TryExchangeAsync(context, context.HostKeyAuthentication, firstPacket.Move(), keyExchangeInput, Logger, ct).ConfigureAwait(false);
-                }
+                IKeyExchangeAlgorithm algorithm = KeyExchangeAlgorithmFactory.Default.Create(keyAlgorithm);
+                keyExchangeOutput = await algorithm.TryExchangeAsync(context, context.HostKeyAuthentication, firstPacket.Move(), keyExchangeInput, Logger, ct).ConfigureAwait(false);
+
                 if (keyExchangeOutput != null)
                 {
                     Logger.KeyExchangeCompleted();

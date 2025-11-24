@@ -8,56 +8,51 @@ using System.Security.Cryptography;
 namespace Tmds.Ssh;
 
 // ECDH Key Exchange: https://tools.ietf.org/html/rfc5656#section-4
-class ECDHKeyExchange : KeyExchange
+class ECDHKeyExchange : KeyExchange<ECDiffieHellman, ECPoint>
 {
     private readonly ECCurve _ecCurve;
-    private readonly HashAlgorithmName _hashAlgorithmName;
 
-    public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName)
+    public ECDHKeyExchange(ECCurve ecCurve, HashAlgorithmName hashAlgorithmName) : base(hashAlgorithmName)
     {
         _ecCurve = ecCurve;
-        _hashAlgorithmName = hashAlgorithmName;
     }
 
-    public override async Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct)
+    protected override ECDiffieHellman GenerateKeyPair(KeyExchangeContext context)
     {
-        var sequencePool = context.SequencePool;
-        var connectionInfo = input.ConnectionInfo;
-        using ECDiffieHellman ecdh = ECDiffieHellman.Create(_ecCurve);
-
-        // Send ECDH_INIT.
-        using ECDiffieHellmanPublicKey myPublicKey = ecdh.PublicKey;
-        ECPoint q_c = myPublicKey.ExportParameters().Q;
-        await context.SendPacketAsync(CreateEcdhInitMessage(sequencePool, q_c), ct).ConfigureAwait(false);
-
-        // Receive ECDH_REPLY.
-        using Packet ecdhReplyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
-        var ecdhReply = ParseEcdhReply(ecdhReplyMsg);
-
-        // Verify received key is valid.
-        await VerifyHostKeyAsync(hostKeyAuthentication, input, ecdhReply.public_host_key, ct).ConfigureAwait(false);
-
-        // Compute shared secret.
-        byte[] sharedSecret;
-        try
-        {
-            sharedSecret = DeriveSharedSecret(ecdh, _ecCurve, ecdhReply.q_s);
-        }
-        catch (Exception ex)
-        {
-            throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, "Cannot determine shared secret.", connectionInfo, ex);
-        }
-
-        // Generate exchange hash.
-        byte[] exchangeHash = CalculateExchangeHash(sequencePool, input.ConnectionInfo, input.ClientKexInitMsg, input.ServerKexInitMsg, ecdhReply.public_host_key.RawData, q_c, ecdhReply.q_s, sharedSecret, _hashAlgorithmName);
-
-        // Verify the server's signature.
-        VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, ecdhReply.exchange_hash_signature, connectionInfo);
-
-        return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, _hashAlgorithmName);
+        return ECDiffieHellman.Create(_ecCurve);
     }
 
-    private static byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    protected override Packet CreateInitMessage(SequencePool sequencePool, ECDiffieHellman keyPair)
+    {
+        using ECDiffieHellmanPublicKey myPublicKey = keyPair.PublicKey;
+        ECPoint publicKey = myPublicKey.ExportParameters().Q;
+        return CreateEcdhInitMessage(sequencePool, publicKey);
+    }
+
+    protected override (SshKeyData publicHostKey, ECPoint serverPublicKey, ReadOnlySequence<byte> exchangeHashSignature) ParseReplyMessage(ReadOnlyPacket packet)
+    {
+        var reply = ParseEcdhReply(packet);
+        return (reply.public_host_key, reply.q_s, reply.exchange_hash_signature);
+    }
+
+    protected override byte[] DeriveSharedSecret(ECDiffieHellman clientKeyPair, ECPoint serverPublicKey)
+    {
+        return DeriveSharedSecret(clientKeyPair, _ecCurve, serverPublicKey);
+    }
+
+    protected override byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, ECDiffieHellman clientKeyPair, ECPoint serverPublicKey, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    {
+        using ECDiffieHellmanPublicKey myPublicKey = clientKeyPair.PublicKey;
+        ECPoint clientPublicKey = myPublicKey.ExportParameters().Q;
+        return CalculateEcdhExchangeHash(sequencePool, connectionInfo, clientKexInitMsg, serverKexInitMsg, public_host_key, clientPublicKey, serverPublicKey, sharedSecret, hashAlgorithmName);
+    }
+
+    protected override void DisposeKeyPair(ECDiffieHellman keyPair)
+    {
+        keyPair.Dispose();
+    }
+
+    private static byte[] CalculateEcdhExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, ECPoint q_c, ECPoint q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
         /*
             string   V_C, client's identification string (CR and LF excluded)

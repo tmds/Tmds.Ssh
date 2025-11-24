@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
-interface IKeyExchangeAlgorithm : IDisposable
+interface IKeyExchangeAlgorithm
 {
     Task<KeyExchangeOutput> TryExchangeAsync(KeyExchangeContext context, IHostKeyAuthentication hostKeyAuthentication, Packet firstPacket, KeyExchangeInput input, ILogger logger, CancellationToken ct);
 }

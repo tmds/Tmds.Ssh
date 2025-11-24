@@ -39,6 +39,9 @@ public class PublicApiTest
                 publicApi.Substring(endOfLine + 1);
         }
 
+        // only .net10.0 emits this
+        publicApi = publicApi.Replace("[assembly: System.Reflection.AssemblyMetadata(\"IsAotCompatible\", \"True\")]\n", "");
+
         // Run a snapshot test on the returned string
         var settings = new VerifySettings();
         settings.UniqueForRuntime();
