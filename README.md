@@ -143,11 +143,14 @@ class RemoteProcess : IDisposable
   ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken? cancellationToken);
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default);
   ValueTask ReadToEndAsync(Func<Memory<byte>, object, CancellationToken, ValueTask> handleStdout, object? stdoutContext, Func<Memory<byte>, object, CancellationToken, ValueTask> handleStderr, object? stderrContext, CancellationToken? cancellationToken);
-  // Read from the remote process (chars/strings). After using these APIs, APIs that read bytes may no longer be used.
+  // Read from the remote process (chars/strings). After using these APIs, APIs that read bytes or streams may no longer be used.
   ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
   ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
   IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default);
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default);
+  // Read stdout from the remote process (Stream/StreamReader). Stderr is handled by the StderrHandler. These APIs can be called once and no other read APIs can be used after that.
+  Stream ReadAsStream(StderrHandler stderrHandler);
+  StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int? bufferSize = null);
 
   // Write to the remote process (bytes).
   ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default);
@@ -178,6 +181,18 @@ class RemoteProcess : IDisposable
   int ExitCode { get; }
   // Exit signal (if terminated by a signal).
   string? ExitSignal { get; }
+}
+struct StderrHandler
+{
+  StderrHandler(Stream stream);
+  StderrHandler(StringBuilder stringBuilder);
+  StderrHandler(Func<ReadOnlyMemory<byte>, object?, CancellationToken, ValueTask> handler, object? context = null);
+  StderrHandler(Func<ReadOnlyMemory<char>, object?, CancellationToken, ValueTask> handler, bool lineByLine, object? context = null);
+
+  static StderrHandler Ignore { get; }
+
+  static implicit operator StderrHandler(Stream stream);
+  static implicit operator StderrHandler(StringBuilder stringBuilder);
 }
 class SshDataStream : Stream
 {
