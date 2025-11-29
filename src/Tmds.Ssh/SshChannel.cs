@@ -47,6 +47,7 @@ sealed partial class SshChannel : ISshChannel
     }
     public int? ExitCode { get; private set; }
     public string? ExitSignal { get; private set; }
+    public bool EofSent => _eofSent;
     public int SendMaxPacket { get; private set; }
     public int ReceiveMaxPacket => Constants.MaxDataPacketSize;
     private int MaxWindowSize => Constants.DefaultWindowSize;
