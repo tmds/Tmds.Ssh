@@ -17,7 +17,7 @@ public sealed class RemoteProcess : IDisposable
         ProcessExit = 3,
     }
 
-    private const int BufferSize = 1024;
+    internal const int BufferSize = 1024;
 
     private readonly ISshChannel _channel;
     private readonly Encoding _standardInputEncoding;
@@ -27,7 +27,7 @@ public sealed class RemoteProcess : IDisposable
     private StreamWriter? _stdInWriter;
     private byte[]? _byteBuffer;
 
-    struct CharBuffer
+    internal struct CharBuffer
     {
         public void Initialize(Encoding encoding)
         {
@@ -39,7 +39,7 @@ public sealed class RemoteProcess : IDisposable
             }
         }
 
-        public void AppendFromEncoded(Span<byte> buffer)
+        public void AppendFromEncoded(ReadOnlySpan<byte> buffer)
         {
             if (buffer.Length == 0)
             {
@@ -102,9 +102,9 @@ public sealed class RemoteProcess : IDisposable
             return bytesRead != 0;
         }
 
-        public bool TryReadLine(out string? line, bool final)
+        public bool TryReadLine(out ReadOnlyMemory<char> line, bool final)
         {
-            line = null;
+            line = default;
             if (_charBuffer == null)
             {
                 return false;
@@ -119,12 +119,11 @@ public sealed class RemoteProcess : IDisposable
                     if (_sb is { Length: > 0 })
                     {
                         _sb.Append(_charBuffer.AsSpan(_charPos, idx));
-                        line = _sb.ToString();
-                        _sb.Clear();
+                        line = GetStringBuilderMemoryAndClear(_sb);
                     }
                     else
                     {
-                        line = new string(_charBuffer.AsSpan(_charPos, idx));
+                        line = _charBuffer.AsMemory(_charPos, idx);
                     }
                     _charPos += idx + 1;
                     if (_skipNewlineChar && _charPos < _charLen)
@@ -157,24 +156,53 @@ public sealed class RemoteProcess : IDisposable
             }
         }
 
-        public string? BuildString()
+        public bool TryReadLine(out string? line, bool final)
         {
-            string? s;
+            if (TryReadLine(out ReadOnlyMemory<char> memory, final))
+            {
+                line = memory.ToString();
+                return true;
+            }
+            line = null;
+            return false;
+        }
+
+        public ReadOnlyMemory<char> BuildString()
+        {
+            ReadOnlyMemory<char> s;
             if (_sb is { Length: > 0 })
             {
                 AppendCharsToStringBuilder();
-                s = _sb.ToString();
-                _sb.Clear();
+                s = GetStringBuilderMemoryAndClear(_sb);
             }
             else if (_charBuffer == null)
             {
-                s = null;
+                s = default;
             }
             else
             {
-                s = new string(_charBuffer.AsSpan(_charPos, _charLen - _charPos));
+                s = _charBuffer.AsMemory(_charPos, _charLen - _charPos);
                 _charLen = _charPos = 0;
             }
+            return s;
+        }
+
+        private static ReadOnlyMemory<char> GetStringBuilderMemoryAndClear(StringBuilder sb)
+        {
+            var enumerator = sb.GetChunks().GetEnumerator();
+            if (enumerator.MoveNext())
+            {
+                ReadOnlyMemory<char> firstChunk = enumerator.Current;
+                if (!enumerator.MoveNext())
+                {
+                    // Single chunk - return memory directly
+                    sb.Clear();
+                    return firstChunk;
+                }
+            }
+
+            ReadOnlyMemory<char> s = sb.ToString().AsMemory();
+            sb.Clear();
             return s;
         }
 
@@ -248,11 +276,12 @@ public sealed class RemoteProcess : IDisposable
     public CancellationToken ExecutionAborted
         => _channel.ChannelAborted;
 
-    private enum ReadMode
+    internal enum ReadMode
     {
         Initial,
         ReadBytes,
         ReadChars,
+        ReadStream,
         ReadException,
         Exited,
         Disposed
@@ -261,7 +290,11 @@ public sealed class RemoteProcess : IDisposable
     private ReadMode _readMode;
     private bool _delayedExit;
 
-    private bool HasExited { get => _readMode == ReadMode.Exited; } // delays exit until it was read by the user.
+    internal bool HasExited { get => _readMode == ReadMode.Exited; } // delays exit until it was read by the user.
+
+    internal Encoding StandardErrorEncoding => _standardErrorEncoding;
+
+    internal bool EofSent => _channel.EofSent;
 
     private void WriteEof(bool noThrow)
     {
@@ -355,11 +388,40 @@ public sealed class RemoteProcess : IDisposable
         => StandardInputWriter.BaseStream;
 
     public StreamWriter StandardInputWriter
-        => _stdInWriter ??= new StreamWriter(new StdInStream(this), _standardInputEncoding) { AutoFlush = true, NewLine = "\n" };
-
-    public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
     {
-        CheckReadMode(ReadMode.ReadBytes);
+        get
+        {
+            if (_stdInWriter is null)
+            {
+                // We don't want this property to throw. FakeWritable ensures the StreamWriter doesn't throw for a non-readable stream.
+                var stream = new StdInStream(this) { FakeWritable = true };
+                var writer = new StreamWriter(stream, _standardInputEncoding) { AutoFlush = true, NewLine = "\n" };
+                stream.FakeWritable = false;
+                _stdInWriter = writer;
+            }
+            return _stdInWriter;
+        }
+    }
+
+    public Stream ReadAsStream(StderrHandler stderrHandler)
+    {
+        CheckReadMode(ReadMode.ReadStream, ensureChange : true);
+        StderrHandler.IHandlerInstance? handlerInstance = stderrHandler.CreateInstance(this);
+        return new StdOutStream(this, handlerInstance);
+    }
+
+    public StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int bufferSize = -1)
+    {
+        Stream stream = ReadAsStream(stderrHandler);
+        return new StreamReader(stream, _standardOutputEncoding, detectEncodingFromByteOrderMarks: false, bufferSize, leaveOpen: false);
+    }
+
+    public ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
+        => ReadAsync(ReadMode.ReadBytes, stdoutBuffer, stderrBuffer, cancellationToken);
+
+    internal async ValueTask<(bool isError, int bytesRead)> ReadAsync(ReadMode readMode, Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken)
+    {
+        CheckReadMode(readMode);
 
         while (true)
         {
@@ -396,8 +458,8 @@ public sealed class RemoteProcess : IDisposable
             if (readType == ProcessReadType.ProcessExit)
             {
                 _readMode = ReadMode.Exited;
-                string stdout = readStdout ? _stdoutBuffer.BuildString()! : "";
-                string stderr = readStderr ? _stderrBuffer.BuildString()! : "";
+                string stdout = readStdout ? _stdoutBuffer.BuildString().ToString() : "";
+                string stderr = readStderr ? _stderrBuffer.BuildString().ToString() : "";
                 return (stdout, stderr);
             }
         }
@@ -634,7 +696,7 @@ public sealed class RemoteProcess : IDisposable
         _channel.Dispose();
     }
 
-    private void CheckReadMode(ReadMode readMode)
+    private void CheckReadMode(ReadMode readMode, bool ensureChange = false)
     {
         if (_readMode == ReadMode.Disposed)
         {
@@ -644,18 +706,32 @@ public sealed class RemoteProcess : IDisposable
         {
             throw new InvalidOperationException("The process has exited");
         }
-        else if (_readMode == ReadMode.ReadException && readMode != ReadMode.Exited)
+        if (_readMode == ReadMode.ReadException)
         {
             throw new InvalidOperationException("Previous read operation threw an exception.");
         }
-        else if (_readMode == ReadMode.ReadChars && readMode == ReadMode.ReadBytes)
+        if (readMode == ReadMode.Exited)
         {
-            throw new InvalidOperationException("Cannot read raw bytes after reading chars.");
+            return;
         }
-        if (_readMode != ReadMode.Exited)
+
+        if (_readMode == ReadMode.ReadChars)
         {
-            _readMode = readMode;
+            if (readMode == ReadMode.ReadBytes)
+            {
+                throw new InvalidOperationException("Cannot read raw bytes after reading chars.");
+            }
+            else if (readMode == ReadMode.ReadStream)
+            {
+                throw new InvalidOperationException("Cannot read as stream after reading chars.");
+            }
         }
+        else if (_readMode == ReadMode.ReadStream && (readMode != ReadMode.ReadStream || ensureChange))
+        {
+            throw new InvalidOperationException("Stream previously returned for reading must be used.");
+        }
+
+        _readMode = readMode;
     }
 
     private void ThrowIfDisposed()
@@ -679,9 +755,162 @@ public sealed class RemoteProcess : IDisposable
         ObjectDisposedException.ThrowIf(true, this);
     }
 
+    sealed class StdOutStream : Stream
+    {
+        private readonly RemoteProcess _process;
+        private readonly StderrHandler.IHandlerInstance? _stderrHandler;
+        private readonly byte[]? _stderrBuffer;
+        private bool _disposed;
+
+        public StdOutStream(RemoteProcess process, StderrHandler.IHandlerInstance? stderrHandler)
+        {
+            _process = process;
+            _stderrHandler = stderrHandler;
+            if (_stderrHandler != null)
+            {
+                // TODO: alloc from ArrayPool?
+                _stderrBuffer = new byte[BufferSize];
+            }
+        }
+
+        public override bool CanRead
+        {
+            get
+            {
+                ThrowIfDisposed();
+                // We only use properties that are observable by the user to avoid unexpected throwing. HasExited means the user has read the exit.
+                return !_process.HasExited;
+            }
+        }
+
+        public override bool CanSeek
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return false;
+            }
+        }
+
+        public override bool CanWrite
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return false;
+            }
+        }
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush()
+        {
+            // WriteAsync always flushes
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask; // WriteAsync always flushes
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException("Synchronous read is not supported. Use ReadAsync instead.");
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+
+            // Continue to return zero when eof.
+            if (_process.HasExited)
+            {
+                return 0;
+            }
+
+            try
+            {
+                while (true)
+                {
+                    Memory<byte>? stderrBuffer = _stderrBuffer != null ? (Memory<byte>?)_stderrBuffer : default(Memory<byte>?);
+                    (bool isError, int bytesRead) = await _process.ReadAsync(ReadMode.ReadStream, buffer, stderrBuffer, cancellationToken).ConfigureAwait(false);
+
+                    if (isError)
+                    {
+                        // Handle stderr data
+                        if (_stderrHandler != null && bytesRead > 0)
+                        {
+                            await _stderrHandler.HandleBufferAsync(_stderrBuffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                        }
+                        // Continue reading to get stdout data
+                        continue;
+                    }
+                    else
+                    {
+                        // Signal end of stream to the stderr handler.
+                        if (_stderrHandler != null && bytesRead == 0)
+                        {
+                            await _stderrHandler.HandleBufferAsync(default, cancellationToken).ConfigureAwait(false);
+                        }
+                        return bytesRead;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new IOException($"Failed to read from remote process: {ex.Message}", ex);
+            }
+        }
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            return await ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _stderrHandler?.Dispose();
+                }
+                _disposed = true;
+            }
+            base.Dispose(disposing);
+        }
+
+        private void ThrowIfDisposed()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+        }
+    }
+
     sealed class StdInStream : Stream
     {
         private readonly RemoteProcess _process;
+        internal bool FakeWritable { get; set; }
 
         public StdInStream(RemoteProcess process)
         {
@@ -692,7 +921,7 @@ public sealed class RemoteProcess : IDisposable
 
         public override bool CanSeek => false;
 
-        public override bool CanWrite => true;
+        public override bool CanWrite => FakeWritable || !_process.EofSent;
 
         public override long Length => throw new NotSupportedException();
 
@@ -732,11 +961,14 @@ public sealed class RemoteProcess : IDisposable
             {
                 await _process.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
             }
-            catch (SshException ex)
+            catch (OperationCanceledException)
             {
-                throw new IOException($"Unable to transport data: {ex.Message}.", ex);
+                throw;
             }
-
+            catch (Exception ex)
+            {
+                throw new IOException($"Failed to write to remote process: {ex.Message}", ex);
+            }
         }
 
         public override void Close()

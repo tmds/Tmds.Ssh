@@ -611,4 +611,261 @@ public class RemoteProcess
         (bool isError, string? line) = await process.ReadLineAsync();
         Assert.Equal(executeOptions.TerminalType, line);
     }
+
+    [Fact]
+    public async Task ReadAsStream_WithStderrStreamHandler()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+        using var stderrStream = new MemoryStream();
+        using var stream = process.ReadAsStream(stderrStream);
+
+        // Write commands that produce both stdout and stderr
+        await process.WriteLineAsync("echo -n 'stdout1'");
+        await process.WriteLineAsync("echo -n 'stderr1' >&2");
+        await process.WriteLineAsync("echo -n 'stdout2'");
+        await process.WriteLineAsync("echo -n 'stderr2' >&2");
+        await process.WriteLineAsync("exit 0");
+
+        // Read stdout from stream
+        byte[] buffer = new byte[1024];
+        int totalRead = 0;
+        while (true)
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead));
+            if (bytesRead == 0)
+                break;
+            totalRead += bytesRead;
+        }
+
+        string stdout = Encoding.UTF8.GetString(buffer, 0, totalRead);
+        Assert.Equal("stdout1stdout2", stdout);
+
+        // Verify stderr was captured in the stream
+        string stderr = Encoding.UTF8.GetString(stderrStream.ToArray());
+        Assert.Equal("stderr1stderr2", stderr);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_WithStderrStringBuilderHandler()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+        var stderrBuilder = new StringBuilder();
+        using var stream = process.ReadAsStream(stderrBuilder);
+
+        await process.WriteLineAsync("echo -n 'stdout'");
+        await process.WriteLineAsync("echo -n 'stderr' >&2");
+        await process.WriteLineAsync("exit 0");
+
+        byte[] buffer = new byte[1024];
+        int bytesRead = await stream.ReadAsync(buffer);
+        string stdout = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+        // Wait for EOF
+        bytesRead = await stream.ReadAsync(buffer);
+        Assert.Equal(0, bytesRead);
+
+        Assert.Equal("stdout", stdout);
+        Assert.Equal("stderr", stderrBuilder.ToString());
+    }
+
+    [Fact]
+    public async Task ReadAsStream_WithStderrByteHandler()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+
+        MemoryStream stderrStream = new();
+        var handler = new StderrHandler(
+            async (ReadOnlyMemory<byte> buffer, object? context, CancellationToken ct) =>
+            {
+                var ms = (MemoryStream)context!;
+                ms.Write(buffer.Span);
+                await Task.CompletedTask;
+            },
+            context: stderrStream);
+
+        using var stream = process.ReadAsStream(handler);
+
+        await process.WriteLineAsync("echo -n 'stdout1'");
+        await process.WriteLineAsync("echo -n 'stderr' >&2");
+        await process.WriteLineAsync("echo -n 'stdout2'");
+        await process.WriteLineAsync("exit 0");
+
+        byte[] buffer = new byte[1024];
+        int totalRead = 0;
+        while (true)
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead));
+            if (bytesRead == 0)
+                break;
+            totalRead += bytesRead;
+        }
+
+        string stdout = Encoding.UTF8.GetString(buffer, 0, totalRead);
+        Assert.Equal("stdout1stdout2", stdout);
+
+        // Verify stderr was captured in the stream
+        string stderr = Encoding.UTF8.GetString(stderrStream.ToArray());
+        Assert.Equal("stderr", stderr);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_WithStderrCharHandler()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+
+        List<string> stderrChunks = new();
+        var handler = new StderrHandler(
+            async (ReadOnlyMemory<char> buffer, object? context, CancellationToken ct) =>
+            {
+                var list = (List<string>)context!;
+                list.Add(buffer.ToString());
+                await Task.CompletedTask;
+            },
+            lineByLine: false,
+            context: stderrChunks);
+
+        using var stream = process.ReadAsStream(handler);
+
+        await process.WriteLineAsync("echo -n 'stdout1'");
+        await process.WriteLineAsync("echo -n 'stderr' >&2");
+        await process.WriteLineAsync("echo -n 'stdout2'");
+        await process.WriteLineAsync("exit 0");
+
+        byte[] buffer = new byte[1024];
+        int totalRead = 0;
+        while (true)
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead));
+            if (bytesRead == 0)
+                break;
+            totalRead += bytesRead;
+        }
+
+        string stdout = Encoding.UTF8.GetString(buffer, 0, totalRead);
+        Assert.Equal("stdout1stdout2", stdout);
+
+        string stderr = string.Join("", stderrChunks);
+        Assert.Equal("stderr", stderr);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_WithCharHandlerLineByLine()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+
+        List<string> stderrLines = new();
+        var handler = new StderrHandler(
+            async (ReadOnlyMemory<char> buffer, object? context, CancellationToken ct) =>
+            {
+                var list = (List<string>)context!;
+                list.Add(buffer.ToString());
+                await Task.CompletedTask;
+            },
+            lineByLine: true,
+            context: stderrLines);
+
+        using var stream = process.ReadAsStream(handler);
+
+        await process.WriteLineAsync("echo 'stderr line 1\nstderr line 2' >&2");
+        await process.WriteLineAsync("echo -n 'stdout'");
+        await process.WriteLineAsync("exit 0");
+
+        byte[] buffer = new byte[1024];
+        int totalRead = 0;
+        while (true)
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead));
+            if (bytesRead == 0)
+                break;
+            totalRead += bytesRead;
+        }
+
+        string stdout = Encoding.UTF8.GetString(buffer, 0, totalRead);
+        Assert.Equal("stdout", stdout);
+
+        Assert.Equal(2, stderrLines.Count);
+        Assert.Equal("stderr line 1", stderrLines[0]);
+        Assert.Equal("stderr line 2", stderrLines[1]);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_DoesNotOwnProcess()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("echo 'hello'");
+        using var stream = process.ReadAsStream(StderrHandler.Ignore);
+
+        byte[] buffer = new byte[1024];
+        _ = await stream.ReadAsync(buffer);
+
+        stream.Dispose();
+
+        await process.WaitForExitAsync();
+        Assert.Equal(0, process.ExitCode);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_ExitCodeAndSignal()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("exit 42");
+        using var stream = process.ReadAsStream(StderrHandler.Ignore);
+
+        byte[] buffer = new byte[1024];
+        int bytesRead = await stream.ReadAsync(buffer);
+        Assert.Equal(0, bytesRead);
+
+        Assert.Equal(42, process.ExitCode);
+        Assert.Null(process.ExitSignal);
+    }
+
+    [Fact]
+    public async Task ReadAsStreamReader()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+        using var stderrStream = new MemoryStream();
+        using var reader = process.ReadAsStreamReader(new StderrHandler(stderrStream));
+
+        await process.WriteLineAsync("echo 'stdout line 1'");
+        await process.WriteLineAsync("echo 'stderr line 1' >&2");
+        await process.WriteLineAsync("echo 'stdout line 2'");
+        await process.WriteLineAsync("echo 'stderr line 2' >&2");
+        await process.WriteLineAsync("echo -n 'stdout line 3'");
+        await process.WriteLineAsync("exit 0");
+
+        string? line1 = await reader.ReadLineAsync();
+        Assert.Equal("stdout line 1", line1);
+
+        string? line2 = await reader.ReadLineAsync();
+        Assert.Equal("stdout line 2", line2);
+
+        string? line3 = await reader.ReadLineAsync();
+        Assert.Equal("stdout line 3", line3);
+
+        string? line4 = await reader.ReadLineAsync();
+        Assert.Null(line4);
+
+        string stderr = Encoding.UTF8.GetString(stderrStream.ToArray());
+        Assert.Equal("stderr line 1\nstderr line 2\n", stderr);
+    }
+
+    [Fact]
+    public async Task ReadAsStream_CannotBeCalledTwice()
+    {
+        using var client = await _sshServer.CreateClientAsync();
+        using var process = await client.ExecuteAsync("bash");
+
+        using var stream1 = process.ReadAsStream(StderrHandler.Ignore);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            process.ReadAsStream(StderrHandler.Ignore);
+        });
+    }
 }

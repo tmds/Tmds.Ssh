@@ -7,6 +7,7 @@ interface ISshChannel
     CancellationToken ChannelAborted { get; }
     int? ExitCode { get; }
     string? ExitSignal { get; }
+    bool EofSent { get; }
 
     void Dispose();
     void Abort(Exception exception);
