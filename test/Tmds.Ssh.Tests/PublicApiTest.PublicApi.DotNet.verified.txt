@@ -248,7 +248,7 @@ namespace Tmds.Ssh
                 "line"})]
         public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<bool, string>> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default) { }
         public System.IO.Stream ReadAsStream(Tmds.Ssh.StderrHandler stderrHandler) { }
-        public System.IO.StreamReader ReadAsStreamReader(Tmds.Ssh.StderrHandler stderrHandler, int? bufferSize = default) { }
+        public System.IO.StreamReader ReadAsStreamReader(Tmds.Ssh.StderrHandler stderrHandler, int bufferSize = -1) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "bytesRead"})]

@@ -410,10 +410,10 @@ public sealed class RemoteProcess : IDisposable
         return new StdOutStream(this, handlerInstance);
     }
 
-    public StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int? bufferSize = null)
+    public StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int bufferSize = -1)
     {
         Stream stream = ReadAsStream(stderrHandler);
-        return new StreamReader(stream, _standardOutputEncoding, detectEncodingFromByteOrderMarks: false, bufferSize ?? 4096, leaveOpen: false);
+        return new StreamReader(stream, _standardOutputEncoding, detectEncodingFromByteOrderMarks: false, bufferSize, leaveOpen: false);
     }
 
     public ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)

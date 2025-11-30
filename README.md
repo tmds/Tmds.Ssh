@@ -150,7 +150,7 @@ class RemoteProcess : IDisposable
   ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default);
   // Read stdout from the remote process (Stream/StreamReader). Stderr is handled by the StderrHandler. These APIs can be called once and no other read APIs can be used after that.
   Stream ReadAsStream(StderrHandler stderrHandler);
-  StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int? bufferSize = null);
+  StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int bufferSize = -1);
 
   // Write to the remote process (bytes).
   ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default);
