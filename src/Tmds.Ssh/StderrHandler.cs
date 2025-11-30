@@ -92,7 +92,7 @@ public readonly struct StderrHandler
             _context = context;
             var encoding = process.StandardErrorEncoding;
             _decoder = encoding.GetDecoder();
-            _charBuffer = new char[encoding.GetMaxCharCount(4096)];
+            _charBuffer = new char[encoding.GetMaxCharCount(RemoteProcess.BufferSize)];
         }
 
         public async ValueTask HandleBufferAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)

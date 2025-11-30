@@ -17,7 +17,7 @@ public sealed class RemoteProcess : IDisposable
         ProcessExit = 3,
     }
 
-    private const int BufferSize = 1024;
+    internal const int BufferSize = 1024;
 
     private readonly ISshChannel _channel;
     private readonly Encoding _standardInputEncoding;
