@@ -3,10 +3,19 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Represents a host key.
+/// </summary>
 public sealed partial class HostKey
 {
-    // Public host key used by the server.
+    /// <summary>
+    /// Gets the public key.
+    /// </summary>
     public PublicKey Key { get; }
+
+    /// <summary>
+    /// Gets the certificate information if the host key is stored in a certificate.
+    /// </summary>
     public HostCertificateInfo? CertificateInfo { get; }
 
     internal Name ReceivedKeyType { get; }

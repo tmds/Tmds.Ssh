@@ -5,6 +5,9 @@ using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// <see cref="Stream"/> for reading and writing SFTP files.
+/// </summary>
 public sealed class SftpFile : Stream
 {
     private const long LengthNotCached = long.MaxValue;
@@ -29,12 +32,16 @@ public sealed class SftpFile : Stream
         _canSeek = options.Seekable;
     }
 
+    /// <inheritdoc />
     public override bool CanRead => true;
 
+    /// <inheritdoc />
     public override bool CanSeek => _canSeek;
 
+    /// <inheritdoc />
     public override bool CanWrite => true;
 
+    /// <inheritdoc />
     public override long Length
     {
         get
@@ -47,6 +54,7 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <inheritdoc />
     public override long Position
     {
         get
@@ -65,17 +73,21 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <inheritdoc />
     public override void Flush()
     {
         ThrowIfDisposed();
     }
 
+    /// <inheritdoc />
     public override int Read(byte[] buffer, int offset, int count)
         => ReadAsync(buffer.AsMemory(offset, count)).GetAwaiter().GetResult();
 
+    /// <inheritdoc />
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
+    /// <inheritdoc />
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -97,6 +109,13 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <summary>
+    /// Reads data from the file at a specific offset without changing Position.
+    /// </summary>
+    /// <param name="buffer">Buffer to read into.</param>
+    /// <param name="offset">File offset to read from.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>Number of bytes read.</returns>
     public async ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -104,12 +123,15 @@ public sealed class SftpFile : Stream
         return await _channel.ReadFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public override void Write(byte[] buffer, int offset, int count)
         => WriteAsync(buffer.AsMemory(offset, count)).GetAwaiter().GetResult();
 
+    /// <inheritdoc />
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
+    /// <inheritdoc />
     public async override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -130,6 +152,12 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <summary>
+    /// Writes data to the file at a specific offset without changing position.
+    /// </summary>
+    /// <param name="buffer">Buffer containing data to write.</param>
+    /// <param name="offset">File offset to write at.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -137,9 +165,20 @@ public sealed class SftpFile : Stream
         await _channel.WriteFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Gets file attributes.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The <see cref="FileEntryAttributes"/>.</returns>
     public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
         => GetAttributesAsync([], cancellationToken);
 
+    /// <summary>
+    /// Gets file attributes.
+    /// </summary>
+    /// <param name="filter">Extended attributes to include.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The <see cref="FileEntryAttributes"/>.</returns>
     public async ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -147,9 +186,19 @@ public sealed class SftpFile : Stream
         return await _channel.GetAttributesForHandleAsync(Handle, filter, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Sets the file length.
+    /// </summary>
+    /// <param name="length">The new file length.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask SetLengthAsync(long length, CancellationToken cancellationToken = default)
         => SetAttributesAsync(length: length, cancellationToken: cancellationToken);
 
+    /// <summary>
+    /// Gets the file length.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The file length.</returns>
     public async ValueTask<long> GetLengthAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -164,6 +213,15 @@ public sealed class SftpFile : Stream
         return attributes.Length;
     }
 
+    /// <summary>
+    /// Sets file attributes.
+    /// </summary>
+    /// <param name="permissions"><see cref="UnixFilePermissions"/> to set.</param>
+    /// <param name="times">Access and modification times to set.</param>
+    /// <param name="length">File length to set (truncates or extends).</param>
+    /// <param name="ids">User and group IDs to set.</param>
+    /// <param name="extendedAttributes">Extended attributes to set.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask SetAttributesAsync(
         UnixFilePermissions? permissions = default,
         (DateTimeOffset LastAccess, DateTimeOffset LastWrite)? times = default,
@@ -215,6 +273,10 @@ public sealed class SftpFile : Stream
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
+    /// <summary>
+    /// Closes the file.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask CloseAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -233,6 +295,7 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -247,6 +310,7 @@ public sealed class SftpFile : Stream
         }
     }
 
+    /// <inheritdoc />
     public override long Seek(long offset, SeekOrigin origin)
     {
         ThrowIfDisposed();
@@ -270,6 +334,7 @@ public sealed class SftpFile : Stream
         return position;
     }
 
+    /// <inheritdoc />
     public override void SetLength(long value)
         => throw new NotSupportedException();
 

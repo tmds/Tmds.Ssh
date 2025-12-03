@@ -3,14 +3,25 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Handler for stderr output from remote processes.
+/// </summary>
 public readonly struct StderrHandler
 {
     private readonly Func<RemoteProcess, object, object?, IHandlerInstance> _factory;
     private readonly object _handler;
     private readonly object? _context;
 
+    /// <summary>
+    /// Ignore stderr output.
+    /// </summary>
     public static StderrHandler Ignore => default;
 
+    /// <summary>
+    /// Creates a stderr handler that writes bytes to a callback.
+    /// </summary>
+    /// <param name="handler">Handler for stderr bytes.</param>
+    /// <param name="context">Optional context passed to handler.</param>
     public StderrHandler(Func<ReadOnlyMemory<byte>, object?, CancellationToken, ValueTask> handler, object? context = null)
     {
         _factory = CreateInstanceForFuncOfByte;
@@ -18,12 +29,26 @@ public readonly struct StderrHandler
         _context = context;
     }
 
+    /// <summary>
+    /// Creates a stderr handler that writes to a <see cref="Stream"/>.
+    /// </summary>
+    /// <param name="stream"><see cref="Stream"/> to write stderr to.</param>
     public StderrHandler(Stream stream)
         : this((buffer, context, cancellationToken) => ((Stream)context!).WriteAsync(buffer, cancellationToken), stream)
     { }
 
+    /// <summary>
+    /// Implicitly converts a <see cref="Stream"/> to a <see cref="StderrHandler"/>.
+    /// </summary>
+    /// <param name="stream"><see cref="Stream"/> to write stderr to.</param>
     public static implicit operator StderrHandler(Stream stream) => new StderrHandler(stream);
 
+    /// <summary>
+    /// Creates a stderr handler that writes characters to a callback.
+    /// </summary>
+    /// <param name="handler">Handler for stderr characters.</param>
+    /// <param name="lineByLine">Whether to invoke handler line-by-line.</param>
+    /// <param name="context">Optional context passed to handler.</param>
     public StderrHandler(Func<ReadOnlyMemory<char>, object?, CancellationToken, ValueTask> handler, bool lineByLine, object? context = null)
     {
         _factory = lineByLine ? CreateInstanceForFuncOfCharLineByLine : CreateInstanceForFuncOfChar;
@@ -31,11 +56,19 @@ public readonly struct StderrHandler
         _context = context;
     }
 
+    /// <summary>
+    /// Creates a stderr handler that appends to a StringBuilder.
+    /// </summary>
+    /// <param name="stringBuilder"><see cref="System.Text.StringBuilder"/> to append stderr to.</param>
     public StderrHandler(System.Text.StringBuilder stringBuilder)
         : this(AppendCharsToStringBuilder, lineByLine: false, stringBuilder)
     {
     }
 
+    /// <summary>
+    /// Implicitly converts a <see cref="System.Text.StringBuilder"/> to a <see cref="StderrHandler"/>.
+    /// </summary>
+    /// <param name="stringBuilder"><see cref="System.Text.StringBuilder"/> to append stderr to.</param>
     public static implicit operator StderrHandler(System.Text.StringBuilder stringBuilder) => new StderrHandler(stringBuilder);
 
     private static ValueTask AppendCharsToStringBuilder(ReadOnlyMemory<char> buffer, object? context, CancellationToken _)

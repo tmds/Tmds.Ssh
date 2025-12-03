@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Represents a connection made to a remote listener.
+/// </summary>
 public struct RemoteConnection : IDisposable
 {
     internal RemoteConnection(SshDataStream stream, RemoteEndPoint? remoteEndPoint)
@@ -11,8 +14,15 @@ public struct RemoteConnection : IDisposable
         RemoteEndPoint = remoteEndPoint;
     }
 
+    /// <summary>
+    /// Gets whether a <see cref="Stream"/> is available.
+    /// </summary>
     public bool HasStream => Stream is not null;
 
+    /// <summary>
+    /// Gets the data <see cref="Stream"/> for the connection (can only be called once).
+    /// </summary>
+    /// <returns>The SSH data <see cref="Stream"/>.</returns>
     public SshDataStream MoveStream()
     {
         var stream = Stream;
@@ -20,9 +30,19 @@ public struct RemoteConnection : IDisposable
         return stream ?? throw new InvalidOperationException("There is no stream to obtain.");
     }
 
+    /// <summary>
+    /// Gets the remote endpoint of the connection.
+    /// </summary>
     public RemoteEndPoint? RemoteEndPoint { get; }
+
+    /// <summary>
+    /// Gets the data <see cref="Stream"/> (<see langword="null"/> after MoveStream is called).
+    /// </summary>
     public SshDataStream? Stream { get; private set; }
 
+    /// <summary>
+    /// Disposes the <see cref="Stream"/> when not moved.
+    /// </summary>
     public void Dispose()
         => Stream?.Dispose();
 }

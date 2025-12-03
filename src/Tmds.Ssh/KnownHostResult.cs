@@ -3,12 +3,28 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Result of host key verification against known hosts.
+/// </summary>
 public enum KnownHostResult
 {
-    Trusted, // Server is known and has not changed.
+    /// <summary>
+    /// Key is trusted for the host.
+    /// </summary>
+    Trusted,
 
-    Revoked, // Key is revoked.
+    /// <summary>
+    /// Key is revoked for the host.
+    /// </summary>
+    Revoked,
 
-    Changed, // Server key has changed.
-    Unknown, // Server is not known.
+    /// <summary>
+    /// A different key is known for the host.
+    /// </summary>
+    Changed,
+
+    /// <summary>
+    /// No key is known for the host.
+    /// </summary>
+    Unknown,
 }

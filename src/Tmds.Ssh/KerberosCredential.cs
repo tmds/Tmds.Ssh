@@ -5,6 +5,9 @@ using System.Net;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Credential for Kerberos authentication.
+/// </summary>
 public sealed class KerberosCredential : Credential
 {
     internal NetworkCredential? NetworkCredential { get; }
@@ -22,7 +25,7 @@ public sealed class KerberosCredential : Credential
     /// the SSH service itself. For example on Windows the username should be the same but on Linux the mapping can be
     /// done through a <c>.k5login</c> file in the target user's home directory.
     ///
-    /// If the credential is <c>null<c>, the Kerberos authentication will be done using a cached ticket.
+    /// If the credential is <see langword="null"/>, the Kerberos authentication will be done using a cached ticket.
     /// For Windows, this is the current thread's identity (typically logon user) will be used.
     /// For Unix/Linux, this will use the Kerberos credential cache principal, which may be managed using the
     /// <c>kinit</c> command. If there is no available cache credential, the authentication will fail.
@@ -36,7 +39,7 @@ public sealed class KerberosCredential : Credential
     /// </remarks>
     /// <param name="credential">The credentials to use for the Kerberos authentication exchange. Set to null to use a cached ticket.</param>
     /// <param name="delegateCredential">Allows the SSH server to delegate the user on remote systems.</param>
-    /// <param name="targetName">Override the service principal name (SPN), default uses <c>host/<SshClientSettings.HostName></c>.</param>
+    /// <param name="targetName">Override the service principal name (SPN), default uses <c>host/<see cref="SshClientSettings.HostName"/></c>.</param>
     public KerberosCredential(NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null)
     {
         if (!string.IsNullOrWhiteSpace(credential?.UserName))

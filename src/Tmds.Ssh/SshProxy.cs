@@ -5,6 +5,9 @@ using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Proxy through an SSH server.
+/// </summary>
 public sealed class SshProxy : Proxy
 {
     private readonly SshClientSettings? _settings;
@@ -13,6 +16,10 @@ public sealed class SshProxy : Proxy
     private readonly ConnectEndPoint _endPoint;
     private readonly Uri _uri;
 
+    /// <summary>
+    /// Creates an SSH proxy with the specified settings.
+    /// </summary>
+    /// <param name="settings"><see cref="SshClientSettings"/> for the proxy connection.</param>
     public SshProxy(SshClientSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -23,6 +30,11 @@ public sealed class SshProxy : Proxy
         _uri = new UriBuilder("ssh", settings.HostName, settings.Port).Uri;
     }
 
+    /// <summary>
+    /// Creates an SSH proxy with a destination and config settings.
+    /// </summary>
+    /// <param name="destination">SSH destination (e.g., user@host or host).</param>
+    /// <param name="configSettings"><see cref="SshConfigSettings"/> for the connection.</param>
     public SshProxy(string destination, SshConfigSettings configSettings)
         : this(destination)
     {
@@ -31,6 +43,10 @@ public sealed class SshProxy : Proxy
         _configSettings = configSettings;
     }
 
+    /// <summary>
+    /// Creates an SSH proxy with a destination.
+    /// </summary>
+    /// <param name="destination">SSH destination (e.g., user@host or host).</param>
     public SshProxy(string destination)
     {
         ArgumentException.ThrowIfNullOrEmpty(destination);

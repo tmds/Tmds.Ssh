@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// SFTP client.
+/// </summary>
 public sealed partial class SftpClient : ISftpDirectory, IDisposable
 {
     private readonly Lock _gate = new();
@@ -20,8 +23,14 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     internal static readonly DownloadEntriesOptions DefaultDownloadEntriesOptions = new();
     internal static readonly FileOpenOptions DefaultFileOpenOptions = new();
 
+    /// <summary>
+    /// Default permissions for creating directories (rwxrwxrwx).
+    /// </summary>
     public const UnixFilePermissions DefaultCreateDirectoryPermissions = OwnershipPermissions;
 
+    /// <summary>
+    /// Default permissions for creating files (rw-rw-rw-).
+    /// </summary>
     public const UnixFilePermissions DefaultCreateFilePermissions =
             UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite |
             UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite |
@@ -58,22 +67,47 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         }
     }
 
+    /// <summary>
+    /// Creates an SFTP client for the specified destination.
+    /// </summary>
+    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
+    /// <param name="options">Options for the SFTP client.</param>
     public SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory, options)
     { }
 
+    /// <summary>
+    /// Creates an SFTP client for the specified destination with SSH config settings.
+    /// </summary>
+    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="configSettings">SSH configuration settings.</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
+    /// <param name="options">Options for the SFTP client.</param>
     public SftpClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(new SshClient(destination, configSettings, loggerFactory), options, ownsClient: true)
     { }
 
+    /// <summary>
+    /// Creates an SFTP client with the specified settings.
+    /// </summary>
+    /// <param name="settings">The <see cref="SshClientSettings"/>.</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
     public SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(new SshClient(settings, loggerFactory), options, ownsClient: true)
     { }
 
+    /// <summary>
+    /// Creates an SFTP client from an existing SSH client.
+    /// </summary>
+    /// <param name="client">The <see cref="SshClient"/> to use for connections.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
     public SftpClient(SshClient client, SftpClientOptions? options = null) :
         this(client, options, ownsClient: false)
     {}
 
+    /// <inheritdoc />
     public SftpDirectory GetDirectory(string path)
         => WorkingDirectory.GetDirectory(path);
 
@@ -91,6 +125,10 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         _ownsClient = ownsClient;
     }
 
+    /// <summary>
+    /// Connect to the SFTP server.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         State state = _state;
@@ -231,6 +269,9 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         }
     }
 
+    /// <summary>
+    /// Closes the SFTP connection and releases resources.
+    /// </summary>
     public void Dispose()
     {
         lock (_gate)
@@ -251,6 +292,9 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the working directory for the SftpClient.
+    /// </summary>
     public SftpDirectory WorkingDirectory
     {
         get
@@ -259,54 +303,63 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         }
     }
 
+    /// <inheritdoc />
     public async ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.OpenOrCreateFileAsync(path, access, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask<SftpFile> CreateNewFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.CreateNewFileAsync(path, access, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.OpenFileAsync(path, access, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.DeleteFileAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.DeleteDirectoryAsync(path, recursive, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask RenameAsync(string oldPath, string newPath, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.RenameAsync(oldPath, newPath, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.CopyFileAsync(sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.GetAttributesAsync(path, followLinks, filter, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask SetAttributesAsync(
         string path,
         UnixFilePermissions? permissions = default,
@@ -320,69 +373,81 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
         await dir.SetAttributesAsync(path, permissions, times, length, ids, extendedAttributes, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask<string> GetLinkTargetAsync(string linkPath, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.GetLinkTargetAsync(linkPath, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask<string> GetRealPathAsync(string path, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         return await dir.GetRealPathAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.CreateSymbolicLinkAsync(linkPath, targetPath, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null)
         => new SftpFileSystemEnumerable<T>(this, path, transform, options ?? DefaultEnumerationOptions);
 
+    /// <inheritdoc />
     public async ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.CreateDirectoryAsync(path, createParents, permissions, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.CreateNewDirectoryAsync(path, createParents, permissions, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.UploadDirectoryEntriesAsync(localDirPath, remoteDirPath, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = default, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.UploadFileAsync(localFilePath, remoteFilePath, overwrite, createPermissions, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = DefaultCreateFilePermissions, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.UploadFileAsync(source, remoteFilePath, overwrite, createPermissions, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.DownloadDirectoryEntriesAsync(remoteDirPath, localDirPath, options, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.DownloadFileAsync(remoteFilePath, localFilePath, overwrite, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async ValueTask DownloadFileAsync(string remoteFilePath, Stream destination, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);

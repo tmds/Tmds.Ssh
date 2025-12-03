@@ -3,16 +3,28 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Options for opening files.
+/// </summary>
 public sealed class FileOpenOptions
 {
+    /// <summary>
+    /// Gets or sets the <see cref="OpenMode"/> which controls whether to append or truncate the file.
+    /// </summary>
     public OpenMode OpenMode { get; set; } = OpenMode.Default;
+
+    /// <summary>
+    /// Gets or sets <see cref="UnixFilePermissions"/> for newly created files.
+    /// </summary>
     public UnixFilePermissions CreatePermissions { get; set; } = SftpClient.DefaultCreateFilePermissions;
 
-    // This requires an additional call on open to get the length.
+    /// <summary>
+    /// Gets or sets whether to cache file length.
+    /// </summary>
     public bool CacheLength { get; set; } = false;
 
-    // Default to false since Length is not supported unless CacheLength is set.
-    // Some operations (like Stream.CopyTo) expect a Length when CanSeek is set.
-    // We always allow using Position, even when this is set to false.
+    /// <summary>
+    /// Gets or sets whether the file <see cref="Stream"/> should support seeking.
+    /// </summary>
     public bool Seekable { get; set; } = false;
 }

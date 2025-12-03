@@ -9,11 +9,24 @@ namespace Tmds.Ssh;
 // Because we're a library the default of these options differs from the default 'ssh' command:
 // - BatchMode=yes: not user interactive
 // - ClearAllForwardings=yes: don't do any forwardings automatically
+/// <summary>
+/// Settings for configuring the SshClient using the OpenSSH ssh_config model.
+/// </summary>
 public sealed class SshConfigSettings
 {
+    /// <summary>
+    /// Gets default configuration file paths.
+    /// </summary>
     public static IReadOnlyList<string> DefaultConfigFilePaths { get; } = CreateDefaultConfigFilePaths();
+
+    /// <summary>
+    /// Gets default configuration settings.
+    /// </summary>
     public static SshConfigSettings DefaultConfig { get; }= CreateDefault();
 
+    /// <summary>
+    /// Gets configuration that loads no files.
+    /// </summary>
     public static SshConfigSettings NoConfig { get; }= CreateNoConfig();
 
     private bool _locked;
@@ -32,9 +45,15 @@ public sealed class SshConfigSettings
     internal IReadOnlyDictionary<SshConfigOption, SshConfigOptionValue>? OptionsOrDefault
         => _options;
 
+    /// <summary>
+    /// Creates default config settings.
+    /// </summary>
     public SshConfigSettings()
     { }
 
+    /// <summary>
+    /// Gets or sets the config file paths.
+    /// </summary>
     public List<string> ConfigFilePaths
     {
         get => _configFilePaths ??= new(DefaultConfigFilePaths);
@@ -48,6 +67,9 @@ public sealed class SshConfigSettings
         }
     }
 
+    /// <summary>
+    /// Gets or sets config options.
+    /// </summary>
     public Dictionary<SshConfigOption, SshConfigOptionValue> Options
     {
         get => _options ??= new();
@@ -68,6 +90,9 @@ public sealed class SshConfigSettings
         return value;
     }
 
+    /// <summary>
+    /// Gets or sets whether to automatically connect when the client is used.
+    /// </summary>
     public bool AutoConnect
     {
         get => _autoConnect;
@@ -79,6 +104,9 @@ public sealed class SshConfigSettings
         }
     }
 
+    /// <summary>
+    /// Gets or sets whether to automatically reconnect when the client is used after an unexpected disconnect.
+    /// </summary>
     public bool AutoReconnect
     {
         get => _autoReconnect;
@@ -90,6 +118,9 @@ public sealed class SshConfigSettings
         }
     }
 
+    /// <summary>
+    /// Gets or sets the connection timeout.
+    /// </summary>
     public TimeSpan ConnectTimeout
     {
         get => _connectTimeout;
@@ -103,6 +134,9 @@ public sealed class SshConfigSettings
     }
 
     // Called when StrictHostKeyChecking is Ask and the key is unknown.
+    /// <summary>
+    /// Gets or sets the host authentication callback for unknown host keys.
+    /// </summary>
     public HostAuthentication? HostAuthentication
     {
         get => _hostAuthentication;
@@ -114,7 +148,9 @@ public sealed class SshConfigSettings
         }
     }
 
-    // Prompt used for password authentication.
+    /// <summary>
+    /// Gets or sets the password prompt for password authentication.
+    /// </summary>
     public PasswordPrompt? PasswordPrompt
     {
         get => _passwordPrompt;

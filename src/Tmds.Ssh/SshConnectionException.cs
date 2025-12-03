@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception thrown when the connection becomes unusable.
+/// </summary>
 public class SshConnectionException : SshException
 {
     internal SshConnectionException(string message) : base(message) { }

@@ -3,8 +3,14 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Credential for 'none' authentication method.
+/// </summary>
 public sealed class NoCredential : Credential
 {
+    /// <summary>
+    /// Creates a credential for the 'none' authentication method.
+    /// </summary>
     public NoCredential()
     { }
 }

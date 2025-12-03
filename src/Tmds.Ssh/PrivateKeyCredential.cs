@@ -5,29 +5,62 @@ using System.Security.Cryptography;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Credential for private key SSH authentication.
+/// </summary>
 public class PrivateKeyCredential : Credential
 {
     internal string Identifier { get; }
 
     private Func<CancellationToken, ValueTask<Key>> LoadKey { get; }
 
+    /// <summary>
+    /// Creates a private key credential from a file.
+    /// </summary>
+    /// <param name="path">Path to the private key file.</param>
+    /// <param name="password">Password for decrypting the key.</param>
+    /// <param name="identifier">Log identifier for the key.</param>
     public PrivateKeyCredential(string path, string? password = null, string? identifier = null) :
         this(path, () => password, queryKey: false, identifier)
     { }
 
+    /// <summary>
+    /// Creates a private key credential from a file with password prompt.
+    /// </summary>
+    /// <param name="path">Path to the private key file.</param>
+    /// <param name="passwordPrompt">Callback to prompt for password for decrypting the key.</param>
+    /// <param name="queryKey">Whether to check if the server knows the key before prompting for a decryption password.</param>
+    /// <param name="identifier">Log identifier for the key.</param>
     public PrivateKeyCredential(string path, Func<string?> passwordPrompt, bool queryKey = true, string? identifier = null) :
         this(LoadKeyFromFile(path ?? throw new ArgumentNullException(nameof(path)), passwordPrompt, queryKey), identifier ?? path)
     { }
 
+    /// <summary>
+    /// Creates a private key credential from raw key data.
+    /// </summary>
+    /// <param name="rawKey">Raw private key data.</param>
+    /// <param name="password">Password for decrypting the key.</param>
+    /// <param name="identifier">Log identifier for the key.</param>
     public PrivateKeyCredential(char[] rawKey, string? password = null, string identifier = "[raw key]") :
         this(rawKey, () => password, queryKey: false, identifier)
     { }
 
+    /// <summary>
+    /// Creates a private key credential from raw key data with password prompt.
+    /// </summary>
+    /// <param name="rawKey">Raw private key data.</param>
+    /// <param name="passwordPrompt">Callback to prompt for password for decrypting the key.</param>
+    /// <param name="queryKey">Whether to check if the server knows the key before prompting for a decryption password.</param>
+    /// <param name="identifier">Log identifier for the key.</param>
     public PrivateKeyCredential(char[] rawKey, Func<string?> passwordPrompt, bool queryKey = true, string identifier = "[raw key]") :
         this(LoadRawKey(ValidateRawKeyArgument(rawKey), passwordPrompt, queryKey), identifier)
     { }
 
-    // Allows the user to implement derived classes that represent a private key.
+    /// <summary>
+    /// Creates a private key credential with custom key loading logic.
+    /// </summary>
+    /// <param name="loadKey">Function to load the private key.</param>
+    /// <param name="identifier">Log identifier for the key.</param>
     protected PrivateKeyCredential(Func<CancellationToken, ValueTask<Key>> loadKey, string identifier)
     {
         ArgumentNullException.ThrowIfNull(identifier);
@@ -75,18 +108,29 @@ public class PrivateKeyCredential : Credential
             return ValueTask.FromResult(key);
         };
 
-    // This is a type we expose to our derive types to avoid having to expose PrivateKey and a bunch of other internals.
-    internal protected readonly struct Key : IDisposable
+    /// <summary>
+    /// Represents a private key for SSH authentication.
+    /// </summary>
+    protected internal readonly struct Key : IDisposable
     {
         internal PrivateKey? PrivateKey { get; }
 
         internal bool QueryKey { get; }
 
+        /// <summary>
+        /// Creates a key from an RSA instance.
+        /// </summary>
+        /// <param name="rsa">The <see cref="RSA"/> private key.</param>
         public Key(RSA rsa)
         {
             PrivateKey = new RsaPrivateKey(rsa, RsaPrivateKey.DeterminePublicSshKey(rsa));
         }
 
+        /// <summary>
+        /// Creates a key from raw key data with password.
+        /// </summary>
+        /// <param name="rawKey">Raw private key data.</param>
+        /// <param name="password">Password for decrypting the key.</param>
         public Key(ReadOnlyMemory<char> rawKey, string? password = null)
         {
             QueryKey = false;
@@ -94,6 +138,12 @@ public class PrivateKeyCredential : Credential
             PrivateKey = PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt: delegate { return password; });
         }
 
+        /// <summary>
+        /// Creates a key from raw key data with password prompt.
+        /// </summary>
+        /// <param name="rawKey">Raw private key data.</param>
+        /// <param name="passwordPrompt">Callback to prompt for password.</param>
+        /// <param name="queryKey">Whether to check if the server knows the key before prompting for a decryption password.</param>
         public Key(ReadOnlyMemory<char> rawKey, Func<string?> passwordPrompt, bool queryKey = true)
         {
             ArgumentNullException.ThrowIfNull(passwordPrompt);
@@ -103,6 +153,10 @@ public class PrivateKeyCredential : Credential
             PrivateKey = queryKey ? ParsedPrivateKey.Create(rawKey, passwordPrompt) : PrivateKeyParser.ParsePrivateKey(rawKey, passwordPrompt);
         }
 
+        /// <summary>
+        /// Creates a key from an ECDSA instance.
+        /// </summary>
+        /// <param name="ecdsa">The <see cref="ECDsa"/> private key.</param>
         public Key(ECDsa ecdsa)
         {
             ECParameters parameters = ecdsa.ExportParameters(includePrivateParameters: false);
@@ -139,6 +193,9 @@ public class PrivateKeyCredential : Credential
         private static bool OidEquals(Oid oidA, Oid oidB)
             => oidA.Value is not null && oidB.Value is not null && oidA.Value == oidB.Value;
 
+        /// <summary>
+        /// Disposes the private key.
+        /// </summary>
         public void Dispose()
         {
             PrivateKey?.Dispose();

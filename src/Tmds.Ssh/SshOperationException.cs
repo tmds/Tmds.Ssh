@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception thrown when an SSH operation fails. The connection and channel can still be used.
+/// </summary>
 public class SshOperationException : SshException
 {
     internal SshOperationException(string message) : base(message) { }

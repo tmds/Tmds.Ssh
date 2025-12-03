@@ -6,6 +6,9 @@ using System.Threading.Channels;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Listens for incoming connections on the remote server.
+/// </summary>
 public sealed class RemoteListener : IDisposable
 {
     // Sentinel stop reasons.
@@ -15,6 +18,9 @@ public sealed class RemoteListener : IDisposable
 
     private readonly Channel<RemoteConnection> _connectionChannel;
 
+    /// <summary>
+    /// Gets the remote endpoint being listened on.
+    /// </summary>
     public RemoteEndPoint ListenEndPoint => _listenEndPoint ?? throw new InvalidOperationException("Not started");
 
     private SshSession? _session;
@@ -23,12 +29,23 @@ public sealed class RemoteListener : IDisposable
     private CancellationTokenRegistration _ctr;
     private Exception? _stopReason;
 
+    /// <summary>
+    /// Stops accepting new connections.
+    /// </summary>
     public void Stop()
         => Stop(Stopped);
 
+    /// <summary>
+    /// Stops the listener and releases resources.
+    /// </summary>
     public void Dispose()
         => Stop(Disposed);
 
+    /// <summary>
+    /// Accepts an incoming connection.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteConnection"/> for the accepted connection, or <see langword="default"/> when stopped.</returns>
     public async ValueTask<RemoteConnection> AcceptAsync(CancellationToken cancellationToken = default)
     {
         while (true)

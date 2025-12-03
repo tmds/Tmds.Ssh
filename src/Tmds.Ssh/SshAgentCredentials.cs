@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Credential for SSH agent authentication.
+/// </summary>
 public sealed class SshAgentCredentials : Credential
 {
     internal string? Address { get; }
@@ -12,6 +15,9 @@ public sealed class SshAgentCredentials : Credential
         Address = address;
     }
 
+    /// <summary>
+    /// Creates a credential for SSH agent authentication.
+    /// </summary>
     public SshAgentCredentials() : this(null)
     { }
 }

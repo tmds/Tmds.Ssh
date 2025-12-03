@@ -3,7 +3,9 @@
 
 namespace Tmds.Ssh;
 
-// Base class for credentials.
+/// <summary>
+/// Base class for SSH credentials.
+/// </summary>
 public abstract class Credential
 {
     private protected Credential()

@@ -9,6 +9,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// SSH client.
+/// </summary>
 public sealed partial class SshClient : IDisposable
 {
     internal static readonly SftpClientOptions DefaultSftpClientOptions = new();
@@ -37,10 +40,20 @@ public sealed partial class SshClient : IDisposable
     // For testing.
     internal bool IsDisposed => _state == State.Disposed;
 
+    /// <summary>
+    /// Creates an SSH client for the specified destination.
+    /// </summary>
+    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(string destination, ILoggerFactory? loggerFactory = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory)
     { }
 
+    /// <summary>
+    /// Creates an SSH client with the specified settings.
+    /// </summary>
+    /// <param name="settings">The <see cref="SshClientSettings"/>.</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null) :
         this(settings, destination: null, configSettings: null,
              settings?.AutoConnect ?? default, settings?.AutoReconnect ?? default, settings?.ConnectTimeout ?? default,
@@ -49,6 +62,12 @@ public sealed partial class SshClient : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
     }
 
+    /// <summary>
+    /// Creates an SSH client for the specified destination with SSH config settings.
+    /// </summary>
+    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="sshConfigOptions"><see cref="SshConfigSettings"/> configuration.</param>
+    /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(string destination, SshConfigSettings sshConfigOptions, ILoggerFactory? loggerFactory = null) :
         this(settings: null, destination, sshConfigOptions,
              sshConfigOptions?.AutoConnect ?? default, sshConfigOptions?.AutoReconnect ?? default, sshConfigOptions?.ConnectTimeout ?? default,
@@ -79,6 +98,10 @@ public sealed partial class SshClient : IDisposable
         _loggers = new SshLoggers(loggerFactory);
     }
 
+    /// <summary>
+    /// Connect to the SSH server.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         State state = _state;
@@ -89,6 +112,9 @@ public sealed partial class SshClient : IDisposable
         await GetSessionAsync(cancellationToken, explicitConnect: true).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Gets a cancellation token that is canceled when the connection is closed.
+    /// </summary>
     public CancellationToken Disconnected
     {
         get
@@ -230,6 +256,9 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Closes the SSH connection and releases resources.
+    /// </summary>
     public void Dispose()
     {
         lock (_gate)
@@ -243,9 +272,22 @@ public sealed partial class SshClient : IDisposable
         _session?.Dispose();
     }
 
+    /// <summary>
+    /// Executes a command on the remote server.
+    /// </summary>
+    /// <param name="command">The command to execute.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the command.</returns>
     public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken)
         => ExecuteAsync(command, null, cancellationToken);
 
+    /// <summary>
+    /// Executes a command on the remote server with options.
+    /// </summary>
+    /// <param name="command">The command to execute.</param>
+    /// <param name="options"><see cref="ExecuteOptions"/> for command execution.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the command.</returns>
     public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -255,9 +297,22 @@ public sealed partial class SshClient : IDisposable
         return CreateRemoteProcess(channel, options);
     }
 
+    /// <summary>
+    /// Executes an SSH subsystem on the remote server.
+    /// </summary>
+    /// <param name="subsystem">The subsystem name to execute.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the subsystem.</returns>
     public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken)
         => ExecuteSubsystemAsync(subsystem, null, cancellationToken);
 
+    /// <summary>
+    /// Executes an SSH subsystem on the remote server with options.
+    /// </summary>
+    /// <param name="subsystem">The subsystem name to execute.</param>
+    /// <param name="options"><see cref="ExecuteOptions"/> for subsystem execution.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the subsystem.</returns>
     public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -267,9 +322,20 @@ public sealed partial class SshClient : IDisposable
         return CreateRemoteProcess(channel, options);
     }
 
+    /// <summary>
+    /// Executes a shell on the remote server.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the shell.</returns>
     public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken)
         => ExecuteShellAsync(null, cancellationToken);
 
+    /// <summary>
+    /// Executes a shell on the remote server with options.
+    /// </summary>
+    /// <param name="options"><see cref="ExecuteOptions"/> for shell execution.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="RemoteProcess"/> instance for the shell.</returns>
     public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options = null, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -292,6 +358,13 @@ public sealed partial class SshClient : IDisposable
             hasTty);
     }
 
+    /// <summary>
+    /// Opens a TCP connection to a remote host on the SSH server.
+    /// </summary>
+    /// <param name="host">The remote host to connect to.</param>
+    /// <param name="port">The remote port to connect to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SshDataStream"/> for the TCP connection.</returns>
     public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         ArgumentValidation.ValidateHost(host);
@@ -301,6 +374,12 @@ public sealed partial class SshClient : IDisposable
         return await session.OpenTcpConnectionChannelAsync(host, port, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Opens a Unix domain socket connection on the SSH server.
+    /// </summary>
+    /// <param name="path">The Unix socket path on the remote server.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SshDataStream"/> to the Unix socket.</returns>
     public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -309,6 +388,13 @@ public sealed partial class SshClient : IDisposable
         return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Starts local port forwarding to a remote endpoint.
+    /// </summary>
+    /// <param name="bindEP">The local endpoint to bind to.</param>
+    /// <param name="remoteEP">The <see cref="RemoteEndPoint"/> to forward to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="LocalForward"/> instance for managing the forward.</returns>
     public async Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -318,6 +404,12 @@ public sealed partial class SshClient : IDisposable
         return forward;
     }
 
+    /// <summary>
+    /// Starts a SOCKS proxy server on the local endpoint that forwards to the remote server.
+    /// </summary>
+    /// <param name="bindEP">The local endpoint to bind to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="SocksForward"/> instance for managing the proxy.</returns>
     public async Task<SocksForward> StartSocksForward(EndPoint bindEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -327,6 +419,13 @@ public sealed partial class SshClient : IDisposable
         return forward;
     }
 
+    /// <summary>
+    /// Starts remote port forwarding from a remote endpoint to a local endpoint.
+    /// </summary>
+    /// <param name="bindEP">The <see cref="RemoteEndPoint"/> to bind to.</param>
+    /// <param name="localEP">The local endpoint to forward to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteForward"/> instance for managing the forward.</returns>
     public async Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -336,6 +435,13 @@ public sealed partial class SshClient : IDisposable
         return forward;
     }
 
+    /// <summary>
+    /// Creates a TCP listener on the remote server.
+    /// </summary>
+    /// <param name="address">The address to bind to on the remote server.</param>
+    /// <param name="port">The port to bind to on the remote server.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
     public async Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -345,6 +451,12 @@ public sealed partial class SshClient : IDisposable
         return listener;
     }
 
+    /// <summary>
+    /// Creates a Unix domain socket listener on the remote server.
+    /// </summary>
+    /// <param name="path">The Unix socket path on the remote server.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
     public async Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -354,9 +466,20 @@ public sealed partial class SshClient : IDisposable
         return listener;
     }
 
+    /// <summary>
+    /// Opens an SFTP client for file transfer operations.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 
+    /// <summary>
+    /// Opens an SFTP client for file transfer operations with options.
+    /// </summary>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
     public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
     {
         SftpClient sftpClient = new SftpClient(this, options);

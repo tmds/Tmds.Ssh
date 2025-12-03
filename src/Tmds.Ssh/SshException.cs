@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Base class for SSH exceptions.
+/// </summary>
 public class SshException : System.Exception
 {
     internal SshException(string message) : base(message) { }

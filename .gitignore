@@ -363,3 +363,7 @@ FodyWeavers.xsd
 
 # Verify
 *.received.*
+
+# DocFX
+_site/
+src/docfx/api/

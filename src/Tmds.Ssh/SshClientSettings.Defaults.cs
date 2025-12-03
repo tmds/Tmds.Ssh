@@ -20,13 +20,22 @@ partial class SshClientSettings
 
     private const int DefaultPort = 22;
 
+    /// <summary>
+    /// Gets the default <see cref="Credential"/> list used for SSH authentication.
+    /// </summary>
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
 
+    /// <summary>
+    /// Gets the default user known hosts file paths.
+    /// </summary>
     public static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } =
     [
         Path.Combine(Home, ".ssh", "known_hosts")
     ];
 
+    /// <summary>
+    /// Gets the default global known hosts file paths.
+    /// </summary>
     public static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = CreateDefaultGlobalKnownHostsFilePaths();
 
     internal static TimeSpan DefaultConnectTimeout => TimeSpan.FromSeconds(15);

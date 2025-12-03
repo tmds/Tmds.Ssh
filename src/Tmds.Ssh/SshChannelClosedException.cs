@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception thrown when an operation failed because the SSH channel is already closed.
+/// </summary>
 public class SshChannelClosedException : SshChannelException
 {
     internal const string ChannelClosedByPeer = "Channel closed by peer.";
