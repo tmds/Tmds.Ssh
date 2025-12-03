@@ -3,8 +3,14 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception for SFTP errors.
+/// </summary>
 public class SftpException : IOException
 {
+    /// <summary>
+    /// Gets the SFTP error code.
+    /// </summary>
     public SftpError Error { get; private set; }
 
     internal SftpException(SftpError error) : base(GetSftpExceptionMessage(error))

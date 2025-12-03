@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception thrown when the SSH channel becomes unusable.
+/// </summary>
 public class SshChannelException : SshException
 {
     internal SshChannelException(string message) : base(message) { }

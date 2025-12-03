@@ -611,8 +611,6 @@ namespace Tmds.Ssh
         public SshProxy(string destination) { }
         public SshProxy(string destination, Tmds.Ssh.SshConfigSettings configSettings) { }
     }
-    public class SshSessionClosedException : Tmds.Ssh.SshSessionException { }
-    public class SshSessionException : Tmds.Ssh.SshException { }
     public readonly struct StderrHandler
     {
         public StderrHandler(System.IO.Stream stream) { }

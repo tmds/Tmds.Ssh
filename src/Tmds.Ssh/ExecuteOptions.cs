@@ -5,7 +5,9 @@ using System.Text;
 
 namespace Tmds.Ssh;
 
-// TODO: support envvars.
+/// <summary>
+/// Options for executing commands.
+/// </summary>
 public sealed class ExecuteOptions
 {
     internal static readonly UTF8Encoding DefaultEncoding =
@@ -22,6 +24,9 @@ public sealed class ExecuteOptions
     internal Dictionary<string, string>? EnvironmentVariablesOrDefault
         => _environmentVariables;
 
+    /// <summary>
+    /// Gets or sets the <see cref="Encoding"/> for standard input.
+    /// </summary>
     public Encoding StandardInputEncoding
     {
         get => _stdinEncoding;
@@ -32,6 +37,9 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Gets or sets the <see cref="Encoding"/> for standard error.
+    /// </summary>
     public Encoding StandardErrorEncoding
     {
         get => _stdoutEncoding;
@@ -42,6 +50,9 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Gets or sets the <see cref="Encoding"/> for standard output.
+    /// </summary>
     public Encoding StandardOutputEncoding
     {
         get => _stderrEncoding;
@@ -52,8 +63,14 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Gets or sets whether to allocate a pseudo-terminal.
+    /// </summary>
     public bool AllocateTerminal { get; set; } = false;
 
+    /// <summary>
+    /// Gets or sets the terminal width in characters.
+    /// </summary>
     public int TerminalWidth
     {
         get => _termWidth;
@@ -64,6 +81,9 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Gets or sets the terminal height in characters.
+    /// </summary>
     public int TerminalHeight
     {
         get => _termHeight;
@@ -74,6 +94,9 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Gets or sets the terminal type.
+    /// </summary>
     public string TerminalType
     {
         get => _term;
@@ -84,8 +107,14 @@ public sealed class ExecuteOptions
         }
     }
 
+    /// <summary>
+    /// Configure additional terminal settings.
+    /// </summary>
     public TerminalSettings TerminalSettings { get; } = new();
 
+    /// <summary>
+    /// Gets or sets environment variables for the remote process.
+    /// </summary>
     public Dictionary<string, string> EnvironmentVariables
     {
         get => _environmentVariables ??= new();

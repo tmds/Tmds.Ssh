@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Options for configuring SftpClient.
+/// </summary>
 public sealed partial class SftpClientOptions
 {
     // For testing.

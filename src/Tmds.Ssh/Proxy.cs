@@ -3,10 +3,18 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Base class for SSH connection proxies.
+/// </summary>
 public abstract class Proxy
 {
     internal abstract ValueTask<Stream> ConnectToProxyAndForward(ConnectCallback connect, ConnectContext context, CancellationToken ct);
 
+    /// <summary>
+    /// Chains multiple proxies.
+    /// </summary>
+    /// <param name="proxies">The <see cref="Proxy"/> instances to chain.</param>
+    /// <returns>A proxy that chains the specified proxies.</returns>
     public static Proxy? Chain(params Proxy[] proxies)
     {
         ArgumentNullException.ThrowIfNull(proxies);

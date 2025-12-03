@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Exception thrown when an operation failed because the SSH connection is already closed.
+/// </summary>
 public class SshConnectionClosedException : SshConnectionException
 {
     internal const string ConnectionClosedByPeer = "Connection closed by peer.";

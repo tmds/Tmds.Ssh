@@ -5,11 +5,29 @@ using System.Buffers;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Information about an SSH host certificate.
+/// </summary>
 public sealed class HostCertificateInfo
 {
+    /// <summary>
+    /// Gets the certificate issuer's public key.
+    /// </summary>
     public PublicKey IssuerKey { get; }
+
+    /// <summary>
+    /// Gets the certificate serial number.
+    /// </summary>
     public ulong SerialNumber { get; }
+
+    /// <summary>
+    /// Gets the certificate identifier.
+    /// </summary>
     public string Identifier { get; }
+
+    /// <summary>
+    /// Gets the certificate type.
+    /// </summary>
     public string Type => CertificateKey.Type.ToString();
 
     internal HostCertificateInfo(

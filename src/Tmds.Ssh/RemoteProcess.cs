@@ -8,6 +8,9 @@ using System.Text;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Represents a remote process executing over SSH.
+/// </summary>
 public sealed class RemoteProcess : IDisposable
 {
     enum ProcessReadType
@@ -231,6 +234,9 @@ public sealed class RemoteProcess : IDisposable
         _hasTty = hasTty;
     }
 
+    /// <summary>
+    /// Returns the exit code of the process.
+    /// </summary>
     public int ExitCode
     {
         get
@@ -241,6 +247,9 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns the signal that terminated the process when terminated by a signal.
+    /// </summary>
     public string? ExitSignal
     {
         get
@@ -263,6 +272,9 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns whether the process was started with a terminal.
+    /// </summary>
     public bool HasTerminal
     {
         get
@@ -273,6 +285,9 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets a cancellation token that is canceled when execution is aborted.
+    /// </summary>
     public CancellationToken ExecutionAborted
         => _channel.ChannelAborted;
 
@@ -301,11 +316,20 @@ public sealed class RemoteProcess : IDisposable
         _channel.WriteEof(noThrow);
     }
 
+    /// <summary>
+    /// Writes end-of-file to the process standard input.
+    /// </summary>
     public void WriteEof()
     {
         WriteEof(noThrow: false);
     }
 
+    /// <summary>
+    /// Sets the terminal window size.
+    /// </summary>
+    /// <param name="width">The terminal width in characters.</param>
+    /// <param name="height">The terminal height in characters.</param>
+    /// <returns><see langword="true"/> if the size change was sent successfully.</returns>
     public bool SetTerminalSize(int width, int height)
     {
         ThrowIfNotHasTerminal();
@@ -313,6 +337,11 @@ public sealed class RemoteProcess : IDisposable
         return _channel.ChangeTerminalSize(width, height);
     }
 
+    /// <summary>
+    /// Sends a signal to the process.
+    /// </summary>
+    /// <param name="signalName">The signal name (e.g., "TERM", "KILL").</param>
+    /// <returns><see langword="true"/> if the signal was sent successfully.</returns>
     public bool SendSignal(string signalName)
     {
         ThrowIfDisposed();
@@ -320,12 +349,22 @@ public sealed class RemoteProcess : IDisposable
         return _channel.SendSignal(signalName);
     }
 
+    /// <summary>
+    /// Writes bytes to the process standard input.
+    /// </summary>
+    /// <param name="buffer">The buffer to write.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         return _channel.WriteAsync(buffer, cancellationToken);
     }
 
+    /// <summary>
+    /// Writes characters to the process standard input.
+    /// </summary>
+    /// <param name="buffer">The buffer to write.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask WriteAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
     {
         var writer = StandardInputWriter;
@@ -352,6 +391,11 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a line of characters to the process standard input.
+    /// </summary>
+    /// <param name="buffer">The buffer to write.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask WriteLineAsync(ReadOnlyMemory<char> buffer = default, CancellationToken cancellationToken = default)
     {
         var writer = StandardInputWriter;
@@ -378,15 +422,31 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a string to the process standard input.
+    /// </summary>
+    /// <param name="value">The string to write.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask WriteAsync(string value, CancellationToken cancellationToken = default)
         => WriteAsync(value.AsMemory(), cancellationToken);
 
+    /// <summary>
+    /// Writes a line of text to the process standard input.
+    /// </summary>
+    /// <param name="value">The string to write.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask WriteLineAsync(string? value, CancellationToken cancellationToken = default)
         => WriteLineAsync(value != null ? value.AsMemory() : default, cancellationToken);
 
+    /// <summary>
+    /// Returns a Stream for writing to the process standard input.
+    /// </summary>
     public Stream StandardInputStream
         => StandardInputWriter.BaseStream;
 
+    /// <summary>
+    /// Returns a StreamWriter for writing to the process standard input.
+    /// </summary>
     public StreamWriter StandardInputWriter
     {
         get
@@ -403,6 +463,11 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads the process output as a Stream.
+    /// </summary>
+    /// <param name="stderrHandler"><see cref="StderrHandler"/> for standard error output.</param>
+    /// <returns>A <see cref="Stream"/> for reading standard output.</returns>
     public Stream ReadAsStream(StderrHandler stderrHandler)
     {
         CheckReadMode(ReadMode.ReadStream, ensureChange : true);
@@ -410,12 +475,25 @@ public sealed class RemoteProcess : IDisposable
         return new StdOutStream(this, handlerInstance);
     }
 
+    /// <summary>
+    /// Reads the process output as a <see cref="StreamReader"/>.
+    /// </summary>
+    /// <param name="stderrHandler"><see cref="StderrHandler"/> for standard error output.</param>
+    /// <param name="bufferSize">Buffer size for the <see cref="StreamReader"/>.</param>
+    /// <returns>A <see cref="StreamReader"/> for reading standard output.</returns>
     public StreamReader ReadAsStreamReader(StderrHandler stderrHandler, int bufferSize = -1)
     {
         Stream stream = ReadAsStream(stderrHandler);
         return new StreamReader(stream, _standardOutputEncoding, detectEncodingFromByteOrderMarks: false, bufferSize, leaveOpen: false);
     }
 
+    /// <summary>
+    /// Reads process output as bytes.
+    /// </summary>
+    /// <param name="stdoutBuffer">Buffer for standard output.</param>
+    /// <param name="stderrBuffer">Buffer for standard error.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple indicating if data is from stdout or stderr and the amount of bytes read.</returns>
     public ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
         => ReadAsync(ReadMode.ReadBytes, stdoutBuffer, stderrBuffer, cancellationToken);
 
@@ -443,11 +521,22 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Waits for the process to exit.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask WaitForExitAsync(CancellationToken cancellationToken = default)
     {
         return ReadToEndAsync(null, null, null, null, cancellationToken);
     }
 
+    /// <summary>
+    /// Reads all output until the process exits and returns it as strings.
+    /// </summary>
+    /// <param name="readStdout">Whether to read standard output.</param>
+    /// <param name="readStderr">Whether to read standard error.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple containing stdout and stderr as strings.</returns>
     public async ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
@@ -465,6 +554,12 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes all output to <see cref="Stream"/>s until the process exits.
+    /// </summary>
+    /// <param name="stdoutStream"><see cref="Stream"/> to write standard output to.</param>
+    /// <param name="stderrStream"><see cref="Stream"/> to write standard error to.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask ReadToEndAsync(Stream? stdoutStream, Stream? stderrStream, CancellationToken cancellationToken = default)
     {
         await ReadToEndAsync(stdoutStream != null ? writeToStream : null, stdoutStream,
@@ -487,6 +582,14 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads all output until the process exits using custom handlers.
+    /// </summary>
+    /// <param name="handleStdout">Handler for standard output data.</param>
+    /// <param name="stdoutContext">Context passed to the stdout handler.</param>
+    /// <param name="handleStderr">Handler for standard error data.</param>
+    /// <param name="stderrContext">Context passed to the stderr handler.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async ValueTask ReadToEndAsync(Func<Memory<byte>, object?, CancellationToken, ValueTask>? handleStdout, object? stdoutContext,
                                           Func<Memory<byte>, object?, CancellationToken, ValueTask>? handleStderr, object? stderrContext,
                                           CancellationToken cancellationToken = default)
@@ -535,6 +638,13 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads all lines from the process output asynchronously.
+    /// </summary>
+    /// <param name="readStdout">Whether to read standard output.</param>
+    /// <param name="readStderr">Whether to read standard error.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>An async enumerable of lines with stdout or stderr indicator.</returns>
     public async IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (true)
@@ -548,6 +658,13 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads a single line from the process output.
+    /// </summary>
+    /// <param name="readStdout">Whether to read standard output.</param>
+    /// <param name="readStderr">Whether to read standard error.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple indicating if the line is from stdout or stderr and the line text.</returns>
     public async ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
@@ -599,6 +716,13 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads process output as characters.
+    /// </summary>
+    /// <param name="stdoutBuffer">Buffer for standard output.</param>
+    /// <param name="stderrBuffer">Buffer for standard error.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple indicating if data is from stdout or stderr and the amount of characters read.</returns>
     public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
     {
         if (stdoutBuffer is { Length: 0 })
@@ -690,6 +814,9 @@ public sealed class RemoteProcess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the SSH channel that executes the process.
+    /// </summary>
     public void Dispose()
     {
         _readMode = ReadMode.Disposed;

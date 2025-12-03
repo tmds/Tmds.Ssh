@@ -5,9 +5,24 @@ using System.Text;
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Delegate for transforming an SftpFileEntry to a result.
+/// </summary>
+/// <typeparam name="T">The transformation result type.</typeparam>
+/// <param name="entry">The file entry to transform.</param>
+/// <returns>The transformed value.</returns>
 public delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
+
+/// <summary>
+/// Delegate for filtering file entries.
+/// </summary>
+/// <param name="entry">The file entry to evaluate.</param>
+/// <returns>True to include the entry, false to exclude.</returns>
 public delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
 
+/// <summary>
+/// Represents an filesystem entry during enumeration.
+/// </summary>
 public ref struct SftpFileEntry
 {
     private const FileAttributeFlags ExpectedAttributes =
@@ -26,13 +41,45 @@ public ref struct SftpFileEntry
 
     internal ReadOnlySpan<byte> NameBytes { get; set; }
     internal ReadOnlySpan<byte> AttributesBytes { get; set; }
+
+    /// <summary>
+    /// Gets the file length in bytes.
+    /// </summary>
     public long Length { get; }
+
+    /// <summary>
+    /// Gets the user ID.
+    /// </summary>
     public int Uid { get; }
+
+    /// <summary>
+    /// Gets the group ID.
+    /// </summary>
     public int Gid { get; }
+
+    /// <summary>
+    /// Gets the file type.
+    /// </summary>
     public UnixFileType FileType { get; }
+
+    /// <summary>
+    /// Gets the file permissions.
+    /// </summary>
     public UnixFilePermissions Permissions { get; }
+
+    /// <summary>
+    /// Gets the last access time.
+    /// </summary>
     public DateTimeOffset LastAccessTime { get; }
+
+    /// <summary>
+    /// Gets the last write time.
+    /// </summary>
     public DateTimeOffset LastWriteTime { get; }
+
+    /// <summary>
+    /// Gets the full path to the entry.
+    /// </summary>
     public ReadOnlySpan<char> Path
     {
         get
@@ -63,6 +110,10 @@ public ref struct SftpFileEntry
             return pathBuffer.AsSpan(0, _pathLength);
         }
     }
+
+    /// <summary>
+    /// Gets the file name without directory path.
+    /// </summary>
     public ReadOnlySpan<char> FileName
     {
         get
@@ -76,6 +127,11 @@ public ref struct SftpFileEntry
             return nameBuffer.AsSpan(0, _nameLength);
         }
     }
+
+    /// <summary>
+    /// Gets the attributes.
+    /// </summary>
+    /// <returns>The <see cref="FileEntryAttributes"/>.</returns>
     public FileEntryAttributes ToAttributes()
         => _attributes ??=
             new FileEntryAttributes()
@@ -114,6 +170,10 @@ public ref struct SftpFileEntry
         return dict;
     }
 
+    /// <summary>
+    /// Gets the full path of the entry as a string.
+    /// </summary>
+    /// <returns>The full path.</returns>
     public string ToPath()
         => _path ??= new string(Path);
 

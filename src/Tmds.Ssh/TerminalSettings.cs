@@ -3,6 +3,9 @@
 
 namespace Tmds.Ssh;
 
+/// <summary>
+/// Terminal settings for pseudo-terminal allocation.
+/// </summary>
 public sealed class TerminalSettings
 {
     // https://datatracker.ietf.org/doc/html/rfc4254#section-8
@@ -65,84 +68,187 @@ public sealed class TerminalSettings
     // https://datatracker.ietf.org/doc/html/rfc8160
     private const byte IUTF8 = 42;
 
+    /// <summary>
+    /// Constant for disabling a terminal control character.
+    /// </summary>
     public const byte DisableCharacter = 0xff;
 
     internal TerminalSettings()
     { }
 
+    /// <summary>
+    /// Gets or sets whether UTF-8 mode is enabled.
+    /// </summary>
     public bool? IsUtf8 { get; set; } = null; // Follow ExecuteOptions.Encoding.
 
-    // VINTR
+    /// <summary>
+    /// Gets or sets the interrupt character (default: Ctrl+C).
+    /// </summary>
     public byte InterruptCharacter { get; set; } = (byte)'C' - 0x40;
-    // VQUIT
+
+    /// <summary>
+    /// Gets or sets the quit character (default: Ctrl+\).
+    /// </summary>
     public byte QuitCharacter { get; set; } = (byte)'\\' - 0x40;
-    // VERASE
-    public byte EraseCharacter { get; set; } = 0x7F; // DEL
-    // VKILL
+
+    /// <summary>
+    /// Gets or sets the erase character (default: DEL).
+    /// </summary>
+    public byte EraseCharacter { get; set; } = 0x7F;
+
+    /// <summary>
+    /// Gets or sets the erase to line start character (default: Ctrl+U).
+    /// </summary>
     public byte EraseToLineStartCharacter { get; set; } = (byte)'U' - 0x40;
-    // VEOF
+
+    /// <summary>
+    /// Gets or sets the end of file character (default: Ctrl+D).
+    /// </summary>
     public byte EndOfFileCharacter { get; set; } = (byte)'D' - 0x40;
-    // VSTART
+
+    /// <summary>
+    /// Gets or sets the start output character (default: Ctrl+Q).
+    /// </summary>
     public byte StartOutputCharacter { get; set; } = (byte)'Q' - 0x40;
-    // VSTOP
+
+    /// <summary>
+    /// Gets or sets the stop output character (default: Ctrl+S).
+    /// </summary>
     public byte StopOutputCharacter { get; set; } = (byte)'S' - 0x40;
-    // VSUSP
+
+    /// <summary>
+    /// Gets or sets the suspend character (default: Ctrl+Z).
+    /// </summary>
     public byte SuspendCharacter { get; set; } = (byte)'Z' - 0x40;
-    // VDSUSP
+
+    /// <summary>
+    /// Gets or sets the delayed suspend character (default: Ctrl+Y).
+    /// </summary>
     public byte DelayedSuspendCharacter { get; set; } = (byte)'Y' - 0x40;
-    // VREPRINT
+
+    /// <summary>
+    /// Gets or sets the reprint line character (default: Ctrl+R).
+    /// </summary>
     public byte ReprintLineCharacter { get; set; } = (byte)'R' - 0x40;
-    // VWERASE
+
+    /// <summary>
+    /// Gets or sets the erase word character (default: Ctrl+W).
+    /// </summary>
     public byte EraseWordCharacter { get; set; } = (byte)'W' - 0x40;
-    // VLNEXT
+
+    /// <summary>
+    /// Gets or sets the literal next character (default: Ctrl+V).
+    /// </summary>
     public byte LiteralNextCharacter { get; set; } = (byte)'V' - 0x40;
-    // VDISCARD
+
+    /// <summary>
+    /// Gets or sets the toggle output discard character (default: Ctrl+O).
+    /// </summary>
     public byte ToggleOutputDiscardCharacter { get; set; } = (byte)'O' - 0x40;
-    // VEOL
+
+    /// <summary>
+    /// Gets or sets the additional end of line character.
+    /// </summary>
     public byte AdditionalEndOfLineCharacter { get; set; } = DisableCharacter;
-    // VEOL2
+
+    /// <summary>
+    /// Gets or sets the second additional end of line character.
+    /// </summary>
     public byte AdditionalEndOfLineCharacter2 { get; set; } = DisableCharacter;
 
-    // IXON
+    /// <summary>
+    /// Gets or sets whether output control flow is enabled.
+    /// </summary>
     public bool EnableOutputControlFlow { get; set; } = true;
-    // ISIG
+
+    /// <summary>
+    /// Gets or sets whether input signals are enabled.
+    /// </summary>
     public bool EnableInputSignals { get; set; } = true;
-    // NOFLSH
+
+    /// <summary>
+    /// Gets or sets whether to disable flush on interrupt.
+    /// </summary>
     public bool DisableFlushOnInterrupt { get; set; } = false;
-    // TOSTOP
+
+    /// <summary>
+    /// Gets or sets whether to stop background processes on output.
+    /// </summary>
     public bool StopBackgroundProcessesOnOutput { get; set; } = false;
 
-    // ECHO
+    /// <summary>
+    /// Gets or sets whether to echo input.
+    /// </summary>
     public bool Echo { get; set; } = true;
-    // ECHOE
+
+    /// <summary>
+    /// Gets or sets whether to visually erase characters using backspace.
+    /// </summary>
     public bool EchoErase { get; set; } = true;
-    // ECHOK
+
+    /// <summary>
+    /// Gets or sets whether to echo newline after kill character.
+    /// </summary>
     public bool EchoEraseLine { get; set; } = true;
-    // ECHOKE
+
+    /// <summary>
+    /// Gets or sets whether to visually erase each character when killing a line.
+    /// </summary>
     public bool EchoEraseLineAllCharacters { get; set; } = true;
-    // ECHOCTL
+
+    /// <summary>
+    /// Gets or sets whether to echo control characters in caret notation (e.g., ^C).
+    /// </summary>
     public bool EchoControlCharacters { get; set; } = true;
-    // ECHONL
+
+    /// <summary>
+    /// Gets or sets whether to echo newline even when not echoing other characters.
+    /// </summary>
     public bool EchoNl { get; set; } = false;
 
-     // ICANON
+    /// <summary>
+    /// Gets or sets whether input is processed line by line.
+    /// </summary>
     public bool InputLineByLine { get; set; } = true;
-    // IEXTEN
+
+    /// <summary>
+    /// Gets or sets whether input extensions are enabled.
+    /// </summary>
     public bool InputEnableExtensions { get; set; } = true;
-    // ICRNL
+
+    /// <summary>
+    /// Gets or sets whether to map CR to NL on input.
+    /// </summary>
     public bool InputMapCrToNl { get; set; } = true;
-    // IXANY
+
+    /// <summary>
+    /// Gets or sets whether any character restarts output.
+    /// </summary>
     public bool InputRestartOnAnyChar { get; set; } = false;
-    // INLCR
+
+    /// <summary>
+    /// Gets or sets whether to map NL to CR on input.
+    /// </summary>
     public bool InputMapNlToCr { get; set; } = false;
-    // IGNCR
+
+    /// <summary>
+    /// Gets or sets whether to ignore CR on input.
+    /// </summary>
     public bool InputIgnoreCr { get; set; } = false;
 
-    // OPOST
+    /// <summary>
+    /// Gets or sets whether output processing is enabled.
+    /// </summary>
     public bool OutputEnableProcessing { get; set; } = true;
-    // ONLCR
+
+    /// <summary>
+    /// Gets or sets whether to map NL to CR-NL on output.
+    /// </summary>
     public bool OutputMapNlToCrNl { get; set; } = true;
-    // OCRNL
+
+    /// <summary>
+    /// Gets or sets whether to map CR to NL on output.
+    /// </summary>
     public bool OutputMapCrToNl { get; set; } = false;
 
     /* These are private because considered of no/limited use for pseudo ttys over SSH . */
