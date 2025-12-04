@@ -6,7 +6,7 @@ using System.Buffers;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Information about an SSH host certificate.
+/// Information about host certificate.
 /// </summary>
 public sealed class HostCertificateInfo
 {

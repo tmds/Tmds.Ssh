@@ -4,7 +4,7 @@
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Value for an SshConfigOption
+/// Value for an SshConfigOption.
 /// </summary>
 public readonly struct SshConfigOptionValue
 {

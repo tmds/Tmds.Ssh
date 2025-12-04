@@ -31,7 +31,7 @@ public interface ISftpDirectory
     ValueTask<SftpFile> OpenOrCreateFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new file, failing if it already exists.
+    /// Creates a new file. Fails if it already exists.
     /// </summary>
     /// <param name="path">The file path.</param>
     /// <param name="access">The <see cref="FileAccess"/> mode.</param>
@@ -146,7 +146,7 @@ public interface ISftpDirectory
     IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
     /// <summary>
-    /// Creates a directory. Doesn't fail if it already exists.
+    /// Creates a directory. Does not fail if it already exists.
     /// </summary>
     /// <param name="path">The directory path.</param>
     /// <param name="createParents">Whether to create parent directories.</param>
@@ -155,7 +155,7 @@ public interface ISftpDirectory
     ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new directory, failing if it already exists.
+    /// Creates a new directory. Fails if it already exists.
     /// </summary>
     /// <param name="path">The directory path.</param>
     /// <param name="createParents">Whether to create parent directories.</param>
@@ -236,7 +236,7 @@ public static class SftpDirectoryExtensions
         => directory.OpenOrCreateFileAsync(path, access, options: null, cancellationToken);
 
     /// <summary>
-    /// Creates a new file, failing if it already exists.
+    /// Creates a new file. Fails if it already exists.
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The file path.</param>
@@ -268,7 +268,7 @@ public static class SftpDirectoryExtensions
         => directory.GetDirectoryEntriesAsync(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
 
     /// <summary>
-    /// Creates a directory. Doesn't fail if it already exists.
+    /// Creates a directory. Does not fail if it already exists.
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
@@ -277,7 +277,7 @@ public static class SftpDirectoryExtensions
         => directory.CreateDirectoryAsync(path, createParents: false, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
     /// <summary>
-    /// Creates a new directory, failing if it already exists.
+    /// Creates a new directory. Fails if it already exists.
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>

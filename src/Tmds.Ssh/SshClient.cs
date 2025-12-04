@@ -41,16 +41,16 @@ public sealed partial class SshClient : IDisposable
     internal bool IsDisposed => _state == State.Disposed;
 
     /// <summary>
-    /// Creates an SSH client for the specified destination.
+    /// Creates an <see cref="SshClient"/> for the specified destination.
     /// </summary>
-    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="destination">The destination in format [user@]host[:port].</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(string destination, ILoggerFactory? loggerFactory = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory)
     { }
 
     /// <summary>
-    /// Creates an SSH client with the specified settings.
+    /// Creates an <see cref="SshClient"/> with the specified settings.
     /// </summary>
     /// <param name="settings">The <see cref="SshClientSettings"/>.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
@@ -63,9 +63,9 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Creates an SSH client for the specified destination with SSH config settings.
+    /// Creates an <see cref="SshClient"/> for the specified destination with SSH config settings.
     /// </summary>
-    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="destination">The destination in format [user@]host[:port].</param>
     /// <param name="sshConfigOptions"><see cref="SshConfigSettings"/> configuration.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(string destination, SshConfigSettings sshConfigOptions, ILoggerFactory? loggerFactory = null) :
@@ -99,7 +99,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Connect to the SSH server.
+    /// Connect to the server.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -257,7 +257,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Closes the SSH connection and releases resources.
+    /// Closes the connection and releases resources.
     /// </summary>
     public void Dispose()
     {
@@ -273,7 +273,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Executes a command on the remote server.
+    /// Executes a command.
     /// </summary>
     /// <param name="command">The command to execute.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -282,7 +282,7 @@ public sealed partial class SshClient : IDisposable
         => ExecuteAsync(command, null, cancellationToken);
 
     /// <summary>
-    /// Executes a command on the remote server with options.
+    /// Executes a command with options.
     /// </summary>
     /// <param name="command">The command to execute.</param>
     /// <param name="options"><see cref="ExecuteOptions"/> for command execution.</param>
@@ -298,7 +298,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Executes an SSH subsystem on the remote server.
+    /// Executes a subsystem.
     /// </summary>
     /// <param name="subsystem">The subsystem name to execute.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -307,7 +307,7 @@ public sealed partial class SshClient : IDisposable
         => ExecuteSubsystemAsync(subsystem, null, cancellationToken);
 
     /// <summary>
-    /// Executes an SSH subsystem on the remote server with options.
+    /// Executes a subsystem with options.
     /// </summary>
     /// <param name="subsystem">The subsystem name to execute.</param>
     /// <param name="options"><see cref="ExecuteOptions"/> for subsystem execution.</param>
@@ -323,7 +323,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Executes a shell on the remote server.
+    /// Executes a shell.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the shell.</returns>
@@ -331,7 +331,7 @@ public sealed partial class SshClient : IDisposable
         => ExecuteShellAsync(null, cancellationToken);
 
     /// <summary>
-    /// Executes a shell on the remote server with options.
+    /// Executes a shell with options.
     /// </summary>
     /// <param name="options"><see cref="ExecuteOptions"/> for shell execution.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -359,7 +359,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Opens a TCP connection to a remote host on the SSH server.
+    /// Opens a TCP connection to a remote host.
     /// </summary>
     /// <param name="host">The remote host to connect to.</param>
     /// <param name="port">The remote port to connect to.</param>
@@ -375,7 +375,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Opens a Unix domain socket connection on the SSH server.
+    /// Opens a Unix domain socket connection.
     /// </summary>
     /// <param name="path">The Unix socket path on the remote server.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -436,7 +436,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Creates a TCP listener on the remote server.
+    /// Creates a TCP listener.
     /// </summary>
     /// <param name="address">The address to bind to on the remote server.</param>
     /// <param name="port">The port to bind to on the remote server.</param>
@@ -452,7 +452,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Creates a Unix domain socket listener on the remote server.
+    /// Creates a Unix domain socket listener.
     /// </summary>
     /// <param name="path">The Unix socket path on the remote server.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>

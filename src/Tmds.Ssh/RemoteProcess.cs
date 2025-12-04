@@ -9,7 +9,7 @@ using System.Text;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Represents a remote process executing over SSH.
+/// Represents a remote process.
 /// </summary>
 public sealed class RemoteProcess : IDisposable
 {

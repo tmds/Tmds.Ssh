@@ -39,7 +39,7 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Creates settings for the specified destination.
     /// </summary>
-    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="destination">The destination in format [user@]host[:port].</param>
     public SshClientSettings(string destination) :
         this(destination, allowEmptyHostname: false)
     { }
@@ -164,7 +164,7 @@ public sealed partial class SshClientSettings
     }
 
     /// <summary>
-    /// Gets or sets the hostname or IP address of the SSH server.
+    /// Gets or sets the hostname or IP address of the server.
     /// </summary>
     public string HostName
     {
@@ -313,7 +313,7 @@ public sealed partial class SshClientSettings
     }
 
     /// <summary>
-    /// Gets or sets the SSH server port.
+    /// Gets or sets the server port.
     /// </summary>
     public int Port
     {

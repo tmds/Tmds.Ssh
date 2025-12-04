@@ -31,7 +31,7 @@ public struct HostAuthenticationContext
 }
 
 /// <summary>
-/// Delegate for authenticating SSH host keys.
+/// Delegate for authenticating host keys.
 /// </summary>
 /// <param name="context">The host authentication context.</param>
 /// <param name="cancellationToken">Token to cancel the operation.</param>

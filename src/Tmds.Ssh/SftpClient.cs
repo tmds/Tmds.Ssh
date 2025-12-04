@@ -68,41 +68,41 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <summary>
-    /// Creates an SFTP client for the specified destination.
+    /// Creates an <see cref="SftpClient"/> for the specified destination.
     /// </summary>
-    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="destination">The destination in format [user@]host[:port].</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
-    /// <param name="options">Options for the SFTP client.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     public SftpClient(string destination, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(destination, SshConfigSettings.NoConfig, loggerFactory, options)
     { }
 
     /// <summary>
-    /// Creates an SFTP client for the specified destination with SSH config settings.
+    /// Creates an <see cref="SftpClient"/> for the specified destination with SSH config settings.
     /// </summary>
-    /// <param name="destination">The SSH destination in format [user@]host[:port].</param>
+    /// <param name="destination">The destination in format [user@]host[:port].</param>
     /// <param name="configSettings">SSH configuration settings.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
-    /// <param name="options">Options for the SFTP client.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     public SftpClient(string destination, SshConfigSettings configSettings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(new SshClient(destination, configSettings, loggerFactory), options, ownsClient: true)
     { }
 
     /// <summary>
-    /// Creates an SFTP client with the specified settings.
+    /// Creates an <see cref="SftpClient"/> with the specified settings.
     /// </summary>
     /// <param name="settings">The <see cref="SshClientSettings"/>.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
-    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     public SftpClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null, SftpClientOptions? options = null) :
         this(new SshClient(settings, loggerFactory), options, ownsClient: true)
     { }
 
     /// <summary>
-    /// Creates an SFTP client from an existing SSH client.
+    /// Creates an <see cref="SftpClient"/> from an existing <see cref="SshClient"/>.
     /// </summary>
     /// <param name="client">The <see cref="SshClient"/> to use for connections.</param>
-    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     public SftpClient(SshClient client, SftpClientOptions? options = null) :
         this(client, options, ownsClient: false)
     {}
@@ -126,7 +126,7 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <summary>
-    /// Connect to the SFTP server.
+    /// Connect to the server.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -270,7 +270,7 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <summary>
-    /// Closes the SFTP connection and releases resources.
+    /// Closes the connection and releases resources.
     /// </summary>
     public void Dispose()
     {

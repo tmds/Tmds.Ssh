@@ -21,7 +21,7 @@ partial class SshClientSettings
     private const int DefaultPort = 22;
 
     /// <summary>
-    /// Gets the default <see cref="Credential"/> list used for SSH authentication.
+    /// Gets the default <see cref="Credential"/> list used for authentication.
     /// </summary>
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
 
