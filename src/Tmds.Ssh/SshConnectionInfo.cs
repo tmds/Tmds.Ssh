@@ -6,7 +6,7 @@ using System.Net;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Information about an active SSH connection.
+/// Information about an opened SSH connection.
 /// </summary>
 public sealed class SshConnectionInfo
 {

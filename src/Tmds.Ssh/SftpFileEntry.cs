@@ -21,7 +21,7 @@ public delegate T SftpFileEntryTransform<T>(ref SftpFileEntry entry);
 public delegate bool SftpFileEntryPredicate(ref SftpFileEntry entry);
 
 /// <summary>
-/// Represents an filesystem entry during enumeration.
+/// Represents a filesystem entry during enumeration.
 /// </summary>
 public ref struct SftpFileEntry
 {

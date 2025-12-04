@@ -12,7 +12,7 @@ namespace Tmds.Ssh;
 public delegate ValueTask<string?> PasswordPrompt(PasswordPromptContext context, CancellationToken cancellationToken);
 
 /// <summary>
-/// Credential for password-based SSH authentication.
+/// Credential for password authentication.
 /// </summary>
 public sealed class PasswordCredential : Credential
 {

@@ -20,9 +20,9 @@ public struct RemoteConnection : IDisposable
     public bool HasStream => Stream is not null;
 
     /// <summary>
-    /// Gets the data <see cref="Stream"/> for the connection (can only be called once).
+    /// Gets the <see cref="Stream"/> for the connection (can only be called once).
     /// </summary>
-    /// <returns>The SSH data <see cref="Stream"/>.</returns>
+    /// <returns>The <see cref="Stream"/>.</returns>
     public SshDataStream MoveStream()
     {
         var stream = Stream;

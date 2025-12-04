@@ -33,7 +33,7 @@ public sealed class SshProxy : Proxy
     /// <summary>
     /// Creates an SSH proxy with a destination and config settings.
     /// </summary>
-    /// <param name="destination">SSH destination (e.g., user@host or host).</param>
+    /// <param name="destination">destination (e.g., user@host or host).</param>
     /// <param name="configSettings"><see cref="SshConfigSettings"/> for the connection.</param>
     public SshProxy(string destination, SshConfigSettings configSettings)
         : this(destination)
@@ -46,7 +46,7 @@ public sealed class SshProxy : Proxy
     /// <summary>
     /// Creates an SSH proxy with a destination.
     /// </summary>
-    /// <param name="destination">SSH destination (e.g., user@host or host).</param>
+    /// <param name="destination">destination (e.g., user@host or host).</param>
     public SshProxy(string destination)
     {
         ArgumentException.ThrowIfNullOrEmpty(destination);

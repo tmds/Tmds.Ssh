@@ -9,7 +9,7 @@ namespace Tmds.Ssh;
 public class SftpException : IOException
 {
     /// <summary>
-    /// Gets the SFTP error code.
+    /// Gets the error code.
     /// </summary>
     public SftpError Error { get; private set; }
 

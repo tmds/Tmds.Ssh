@@ -4,7 +4,7 @@
 namespace Tmds.Ssh;
 
 /// <summary>
-/// <see cref="Stream"/> for SSH channel data.
+/// <see cref="Stream"/> for channel data.
 /// </summary>
 public sealed class SshDataStream : Stream
 {

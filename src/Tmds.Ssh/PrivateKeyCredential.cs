@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Credential for private key SSH authentication.
+/// Credential for private key authentication.
 /// </summary>
 public class PrivateKeyCredential : Credential
 {
@@ -109,7 +109,7 @@ public class PrivateKeyCredential : Credential
         };
 
     /// <summary>
-    /// Represents a private key for SSH authentication.
+    /// Represents a private key.
     /// </summary>
     protected internal readonly struct Key : IDisposable
     {
