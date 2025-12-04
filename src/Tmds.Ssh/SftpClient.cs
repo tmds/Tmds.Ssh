@@ -7,8 +7,43 @@ using Microsoft.Extensions.Logging;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// SFTP client.
+/// Provides a client for performing filesystem operations on SSH servers using SFTP (SSH File Transfer Protocol).
 /// </summary>
+/// <remarks>
+/// <para>
+/// When the application already has an SSH connection for an <see cref="SshClient"/>, that connection can also be used for the <see cref="SftpClient"/>:
+/// <list type="bullet">
+/// <item>Call <see cref="SshClient.OpenSftpClientAsync(CancellationToken)"/> to create an <see cref="SftpClient"/> from an existing <see cref="SshClient"/>.</item>
+/// <item>Or, use the constructor that accepts an existing <see cref="SshClient"/>.</item>
+/// </list>
+/// </para>
+/// <para>
+/// For SFTP-only scenarios, the <see cref="SftpClient"/> can be created so it owns and manages the SSH connection:
+/// <list type="bullet">
+/// <item>Use the constructor that accepts a destination string that uses SSH credentials for the current user for authentication and OpenSSH <c>known_hosts</c> for host key validation.</item>
+/// <item>Use the constructor that accepts <see cref="SshClientSettings"/> to change the default settings.</item>
+/// <item>Use the constructor that accepts <see cref="SshConfigSettings"/> to use configuration from OpenSSH config files.</item>
+/// </list>
+/// </para>
+/// <para>
+/// By default, the SFTP connection is established automatically when the first operation is performed.
+/// When the <see cref="SftpClient"/> owns the SSH connection, you can explicitly call <see cref="ConnectAsync(CancellationToken)"/> to establish the connection before performing operations.
+/// </para>
+/// <para>
+/// Once the connection is established, the <see cref="SftpClient"/> methods can be used to perform various filesystem operations.
+/// </para>
+/// </remarks>
+/// <example>
+/// The following example uploads and downloads files.
+/// It uses default credentials for the current user and authenticates the server against the <c>known_hosts</c> files:
+/// <code>
+/// using Tmds.Ssh;
+///
+/// using var sftpClient = new SftpClient("user@example.com");
+/// await sftpClient.UploadFileAsync("/local/path/file.txt", "/remote/path/file.txt");
+/// await sftpClient.DownloadFileAsync("/remote/path/file.txt", "/local/path/downloaded.txt");
+/// </code>
+/// </example>
 public sealed partial class SftpClient : ISftpDirectory, IDisposable
 {
     private readonly Lock _gate = new();

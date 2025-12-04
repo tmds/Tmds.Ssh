@@ -10,8 +10,64 @@ using Microsoft.Extensions.Logging;
 namespace Tmds.Ssh;
 
 /// <summary>
-/// SSH client.
+/// Provides a client for connecting to SSH servers to execute remote commands, forward connections, and perform filesystem operations.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The <see cref="SshClient"/> can be created in different ways:
+/// <list type="bullet">
+/// <item>Use the constructor that accepts a destination string that uses SSH credentials for the current user for authentication and OpenSSH <c>known_hosts</c> for host key validation.</item>
+/// <item>Use the constructor that accepts <see cref="SshClientSettings"/> to change the default settings.</item>
+/// <item>Use the constructor that accepts <see cref="SshConfigSettings"/> to use configuration from OpenSSH config files.</item>
+/// </list>
+/// </para>
+/// <para>
+/// By default, the connection is established automatically when the first operation is performed (<see cref="SshClientSettings.AutoConnect"/> is <see langword="true"/>).
+/// You can also explicitly call <see cref="ConnectAsync(CancellationToken)"/> to establish the connection before performing operations.
+/// When <see cref="SshClientSettings.AutoReconnect"/> is enabled, the client will automatically reconnect if the connection is lost unexpectedly.
+/// </para>
+/// <para>
+/// Once the connection is established, the <see cref="SshClient"/> methods can be used to execute remote commands, forward connections, and perform filesystem operations.
+/// </para>
+/// </remarks>
+/// <example>
+/// The following example connects to an SSH server and executes a command.
+/// It uses default credentials for the current user and authenticates the server against the <c>known_hosts</c> files:
+/// <code>
+/// using Tmds.Ssh;
+///
+/// using var sshClient = new SshClient("localhost");
+/// using var process = await sshClient.ExecuteAsync("echo 'hello world!'");
+/// (bool isError, string? line) = await process.ReadLineAsync();
+/// Console.WriteLine(line);
+/// </code>
+/// The following example shows how to configure credentials and host authentication explicitly:
+/// <code>
+/// using Tmds.Ssh;
+///
+/// string destination = "user@example.com";
+/// string privatekeyFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh/id_rsa");
+/// string trustedServerFingerprint = "BkEYx77wOyUBL8UZfgoYKPLkwLJ7XMrsTwAu5sQC4C8";
+/// string password = "password";
+///
+/// var settings = new SshClientSettings(destination)
+/// {
+///     Credentials = [ new PrivateKeyCredential(privatekeyFile), new PasswordCredential(password) ],
+///     UserKnownHostsFilePaths = [ ], // ignore user known_host files.
+///     HostAuthentication =
+///     async (KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, CancellationToken cancellationToken) =&gt;
+///     {
+///         if (connectionInfo.ServerKey.Key.SHA256FingerPrint == trustedServerFingerprint)
+///         {
+///             return true;
+///         }
+///         return false;
+///     }
+/// };
+///
+/// using var sshClient = new SshClient(settings);
+/// </code>
+/// </example>
 public sealed partial class SshClient : IDisposable
 {
     internal static readonly SftpClientOptions DefaultSftpClientOptions = new();
@@ -477,7 +533,7 @@ public sealed partial class SshClient : IDisposable
     /// Opens an <see cref="SftpClient"/> for file transfer operations.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
+    /// <returns><see cref="SftpClient"/> instance for filesystem operations.</returns>
     public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
         => OpenSftpClientAsync(null, cancellationToken);
 
@@ -486,7 +542,7 @@ public sealed partial class SshClient : IDisposable
     /// </summary>
     /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
+    /// <returns><see cref="SftpClient"/> instance for filesystem operations.</returns>
     public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
     {
         SftpClient sftpClient = new SftpClient(this, options);
