@@ -51,14 +51,14 @@ public interface ISftpDirectory
     ValueTask<SftpFile?> OpenFileAsync(string path, FileAccess access, FileOpenOptions? options, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a file.
+    /// Deletes a file. This does not fail when the file does not exist.
     /// </summary>
     /// <param name="path">The file path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask DeleteFileAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a directory.
+    /// Deletes a directory. This does not fail when the directory does not exist.
     /// </summary>
     /// <param name="path">The directory path.</param>
     /// <param name="recursive">Whether to delete directories recursively.</param>
@@ -87,7 +87,7 @@ public interface ISftpDirectory
     /// </summary>
     /// <param name="path">The file or directory path.</param>
     /// <param name="followLinks">Whether to follow symbolic links.</param>
-    /// <param name="filter">Extended attributes to include.</param>
+    /// <param name="filter">Extended attributes to include. Set to <see langword="null"/> to include all.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <see cref="FileEntryAttributes"/>, or <see langword="null"/> if not found.</returns>
     ValueTask<FileEntryAttributes?> GetAttributesAsync(string path, bool followLinks, string[]? filter, CancellationToken cancellationToken = default);
@@ -146,7 +146,7 @@ public interface ISftpDirectory
     IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions? options = null);
 
     /// <summary>
-    /// Creates a directory. Does not fail if it already exists.
+    /// Creates a directory. This does not fail when the directory exists (or is a link to a directory).
     /// </summary>
     /// <param name="path">The directory path.</param>
     /// <param name="createParents">Whether to create parent directories.</param>
@@ -155,7 +155,7 @@ public interface ISftpDirectory
     ValueTask CreateDirectoryAsync(string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new directory. Fails if it already exists.
+    /// Creates a new directory. This fails when the directory already exists.
     /// </summary>
     /// <param name="path">The directory path.</param>
     /// <param name="createParents">Whether to create parent directories.</param>
@@ -268,7 +268,7 @@ public static class SftpDirectoryExtensions
         => directory.GetDirectoryEntriesAsync(path, (ref SftpFileEntry entry) => (entry.ToPath(), entry.ToAttributes()), options);
 
     /// <summary>
-    /// Creates a directory. Does not fail if it already exists.
+    /// Creates a directory. This does not fail when the directory exists (or is a link to a directory).
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
@@ -277,7 +277,7 @@ public static class SftpDirectoryExtensions
         => directory.CreateDirectoryAsync(path, createParents: false, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
     /// <summary>
-    /// Creates a new directory. Fails if it already exists.
+    /// Creates a new directory. This fails when the directory already exists.
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
@@ -338,6 +338,9 @@ public static class SftpDirectoryExtensions
     /// <summary>
     /// Gets file or directory attributes.
     /// </summary>
+    /// <remarks>
+    /// To retrieve extended attributes, use the overload that accepts a <c>filter</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The file or directory path.</param>
     /// <param name="followLinks">Whether to follow symbolic links.</param>
@@ -349,6 +352,9 @@ public static class SftpDirectoryExtensions
     /// <summary>
     /// Gets file or directory attributes.
     /// </summary>
+    /// <remarks>
+    /// To retrieve extended attributes, use the overload that accepts a <c>filter</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The file or directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -357,7 +363,7 @@ public static class SftpDirectoryExtensions
         => directory.GetAttributesAsync(path, followLinks: true, [], cancellationToken);
 
     /// <summary>
-    /// Deletes a directory.
+    /// Deletes a directory. This does not fail when the directory does not exist.
     /// </summary>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>

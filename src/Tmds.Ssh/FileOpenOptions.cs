@@ -21,10 +21,16 @@ public sealed class FileOpenOptions
     /// <summary>
     /// Gets or sets whether to cache file length.
     /// </summary>
+    /// <remarks>
+    /// Length is cached. This enables using <see cref="Stream.Length"/> and <see cref="Stream.Seek"/>.
+    /// </remarks>
     public bool CacheLength { get; set; } = false;
 
     /// <summary>
     /// Gets or sets whether the file <see cref="Stream"/> should support seeking.
     /// </summary>
+    /// <remarks>
+    /// Controls the value of <see cref="Stream.CanSeek"/>.
+    /// </remarks>
     public bool Seekable { get; set; } = false;
 }

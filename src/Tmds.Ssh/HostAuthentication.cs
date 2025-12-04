@@ -27,6 +27,9 @@ public struct HostAuthenticationContext
     /// <summary>
     /// Returns whether batch (non-interactive) mode is enabled.
     /// </summary>
+    /// <remarks>
+    /// In batch mode the <see cref="HostAuthentication"/> delegate mustn't make interactive prompts.
+    /// </remarks>
     public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 }
 

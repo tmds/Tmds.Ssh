@@ -26,11 +26,17 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     /// <summary>
     /// Default permissions for creating directories (rwxrwxrwx).
     /// </summary>
+    /// <remarks>
+    /// The server will apply a umask which filters these permissions further.
+    /// </remarks>
     public const UnixFilePermissions DefaultCreateDirectoryPermissions = OwnershipPermissions;
 
     /// <summary>
     /// Default permissions for creating files (rw-rw-rw-).
     /// </summary>
+    /// <remarks>
+    /// The server will apply a umask which filters these permissions further.
+    /// </remarks>
     public const UnixFilePermissions DefaultCreateFilePermissions =
             UnixFilePermissions.UserRead | UnixFilePermissions.UserWrite |
             UnixFilePermissions.GroupRead | UnixFilePermissions.GroupWrite |
@@ -128,6 +134,9 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     /// <summary>
     /// Connect to the server.
     /// </summary>
+    /// <remarks>
+    /// This method can only be used when the <see cref="SftpClient"/> was constructed using a constructor that accepts a destination or <see cref="SshClientSettings"/>.
+    /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -295,6 +304,9 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     /// <summary>
     /// Gets the working directory for the SftpClient.
     /// </summary>
+    /// <remarks>
+    /// This property can only be used once the client is connected.
+    /// </remarks>
     public SftpDirectory WorkingDirectory
     {
         get

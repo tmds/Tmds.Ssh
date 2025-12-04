@@ -153,6 +153,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the username.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="Environment.UserName"/>.
+    /// </remarks>
     public string UserName
     {
         get => _userName;
@@ -179,6 +182,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the credentials for authentication.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="DefaultCredentials"/>.
+    /// </remarks>
     public List<Credential> Credentials
     {
         get => _credentials ??= new List<Credential>(DefaultCredentials);
@@ -196,6 +202,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the connection timeout.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 15 seconds.
+    /// </remarks>
     public TimeSpan ConnectTimeout
     {
         get => _connectTimeout;
@@ -209,6 +218,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the maximum number of keep-alive messages before disconnecting.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 3.
+    /// </remarks>
     public int KeepAliveCountMax
     {
         get => _keepAliveCountMax;
@@ -222,6 +234,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the interval between keep-alive messages.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="TimeSpan.Zero"/>.
+    /// </remarks>
     public TimeSpan KeepAliveInterval
     {
         get => _keepAliveInterval;
@@ -315,6 +330,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the server port.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 22.
+    /// </remarks>
     public int Port
     {
         get => _port;
@@ -328,6 +346,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the paths to user known hosts files.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="DefaultUserKnownHostsFilePaths"/>.
+    /// </remarks>
     public List<string> UserKnownHostsFilePaths
     {
         get => _userKnownHostsFilePaths ??= new List<string>(DefaultUserKnownHostsFilePaths);
@@ -341,6 +362,9 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the paths to global known hosts files.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="DefaultGlobalKnownHostsFilePaths"/>.
+    /// </remarks>
     public List<string> GlobalKnownHostsFilePaths
     {
         get => _globalKnownHostsFilePaths ??= new List<string>(DefaultGlobalKnownHostsFilePaths);
@@ -354,36 +378,57 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets whether to update the known hosts file after authentication.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool UpdateKnownHostsFileAfterAuthentication { get; set; } = false;
 
     /// <summary>
     /// Gets or sets the <see cref="HostAuthentication"/> delegate.
     /// </summary>
+    /// <remarks>
+    /// This delegate is not called when the host key is known to be trusted or revoked.
+    /// </remarks>
     public HostAuthentication? HostAuthentication { get; set; }
 
     /// <summary>
     /// Gets or sets whether to automatically connect when the client is used.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="true"/>.
+    /// </remarks>
     public bool AutoConnect { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether to automatically reconnect when the client is used after an unexpected disconnect.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool AutoReconnect { get; set; } = false;
 
     /// <summary>
     /// Gets or sets whether to hash hostnames in the known hosts file.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
     /// <summary>
     /// Gets or sets whether to enable batch mode (no interactive prompts).
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool BatchMode { get; set; } = false;
 
     /// <summary>
     /// Gets or sets whether to enable batch mode when console is redirected.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="true"/>.
+    /// </remarks>
     public bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
 
     /// <summary>
@@ -402,11 +447,17 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets whether to enable TCP keep-alive.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="true"/>.
+    /// </remarks>
     public bool TcpKeepAlive { get; set; } = DefaultTcpKeepAlive;
 
     /// <summary>
     /// Gets or sets the minimum RSA key size accepted for authentication.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 2048.
+    /// </remarks>
     public int MinimumRSAKeySize { get; set; } = DefaultMinimumRSAKeySize; // TODO throw if <0.
 
     /// <summary>

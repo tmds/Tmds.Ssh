@@ -23,11 +23,19 @@ partial class SshClientSettings
     /// <summary>
     /// Gets the default <see cref="Credential"/> list used for authentication.
     /// </summary>
+    /// <remarks>
+    /// This contains private key credentials from <c>~/.ssh/id_ed25519</c>, <c>~/.ssh/id_ecdsa</c>, and <c>~/.ssh/id_rsa</c>;
+    /// certificate credentials from <c>~/.ssh/id_ed25519-cert.pub</c>, <c>~/.ssh/id_ecdsa-cert.pub</c>, and <c>~/.ssh/id_rsa-cert.pub</c>;
+    /// <see cref="SshAgentCredentials"/>, <see cref="KerberosCredential"/>, and <see cref="NoCredential"/>.
+    /// </remarks>
     public static IReadOnlyList<Credential> DefaultCredentials { get; } = CreateDefaultCredentials();
 
     /// <summary>
     /// Gets the default user known hosts file paths.
     /// </summary>
+    /// <remarks>
+    /// This contains <c>~/.ssh/known_hosts</c>.
+    /// </remarks>
     public static IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; } =
     [
         Path.Combine(Home, ".ssh", "known_hosts")
@@ -36,6 +44,10 @@ partial class SshClientSettings
     /// <summary>
     /// Gets the default global known hosts file paths.
     /// </summary>
+    /// <remarks>
+    /// On Unix this contains <c>/etc/ssh/ssh_known_hosts</c> and <c>/etc/ssh/ssh_known_hosts2</c>.
+    /// On Windows this contains <c>%ProgramData%/ssh/ssh_known_hosts</c> and <c>%ProgramData%/ssh/ssh_known_hosts2</c>.
+    /// </remarks>
     public static IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; } = CreateDefaultGlobalKnownHostsFilePaths();
 
     internal static TimeSpan DefaultConnectTimeout => TimeSpan.FromSeconds(15);

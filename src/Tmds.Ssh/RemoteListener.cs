@@ -21,6 +21,10 @@ public sealed class RemoteListener : IDisposable
     /// <summary>
     /// Gets the remote endpoint being listened on.
     /// </summary>
+    /// <remarks>
+    /// <para>For <see cref="SshClient.ListenTcpAsync"/>, the type is <see cref="RemoteIPListenEndPoint"/>.</para>
+    /// <para>For <see cref="SshClient.ListenUnixAsync"/>, the type is <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</para>
+    /// </remarks>
     public RemoteEndPoint ListenEndPoint => _listenEndPoint ?? throw new InvalidOperationException("Not started");
 
     private SshSession? _session;
@@ -44,6 +48,9 @@ public sealed class RemoteListener : IDisposable
     /// <summary>
     /// Accepts an incoming connection.
     /// </summary>
+    /// <remarks>
+    /// When <see cref="Stop"/> is called, the method returns a <see langword="default"/>(<see cref="RemoteConnection"/>).
+    /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteConnection"/> for the accepted connection, or <see langword="default"/> when stopped.</returns>
     public async ValueTask<RemoteConnection> AcceptAsync(CancellationToken cancellationToken = default)

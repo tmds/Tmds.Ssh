@@ -66,11 +66,17 @@ public sealed class ExecuteOptions
     /// <summary>
     /// Gets or sets whether to allocate a pseudo-terminal.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool AllocateTerminal { get; set; } = false;
 
     /// <summary>
     /// Gets or sets the terminal width in characters.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 80.
+    /// </remarks>
     public int TerminalWidth
     {
         get => _termWidth;
@@ -84,6 +90,9 @@ public sealed class ExecuteOptions
     /// <summary>
     /// Gets or sets the terminal height in characters.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 24.
+    /// </remarks>
     public int TerminalHeight
     {
         get => _termHeight;
@@ -97,6 +106,9 @@ public sealed class ExecuteOptions
     /// <summary>
     /// Gets or sets the terminal type.
     /// </summary>
+    /// <remarks>
+    /// Defaults to "xterm-256color".
+    /// </remarks>
     public string TerminalType
     {
         get => _term;
@@ -115,6 +127,10 @@ public sealed class ExecuteOptions
     /// <summary>
     /// Gets or sets environment variables for the remote process.
     /// </summary>
+    /// <remarks>
+    /// <para>Often SSH servers don't accept environment variables (for security).</para>
+    /// <para>When <see cref="AllocateTerminal"/> is set to <see langword="true"/>, 'TERM' is ignored when its value does not match <see cref="TerminalType"/>.</para>
+    /// </remarks>
     public Dictionary<string, string> EnvironmentVariables
     {
         get => _environmentVariables ??= new();

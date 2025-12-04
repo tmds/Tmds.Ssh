@@ -168,6 +168,9 @@ public sealed class SftpFile : Stream
     /// <summary>
     /// Gets file attributes.
     /// </summary>
+    /// <remarks>
+    /// To retrieve extended attributes, use the overload that accepts a <c>filter</c> argument.
+    /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <see cref="FileEntryAttributes"/>.</returns>
     public ValueTask<FileEntryAttributes> GetAttributesAsync(CancellationToken cancellationToken = default)
@@ -176,7 +179,7 @@ public sealed class SftpFile : Stream
     /// <summary>
     /// Gets file attributes.
     /// </summary>
-    /// <param name="filter">Extended attributes to include.</param>
+    /// <param name="filter">Extended attributes to include. Set to <see langword="null"/> to include all.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <see cref="FileEntryAttributes"/>.</returns>
     public async ValueTask<FileEntryAttributes> GetAttributesAsync(string[]? filter, CancellationToken cancellationToken = default)

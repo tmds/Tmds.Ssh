@@ -101,6 +101,9 @@ public sealed partial class SshClient : IDisposable
     /// <summary>
     /// Connect to the server.
     /// </summary>
+    /// <remarks>
+    /// Calling <see cref="ConnectAsync"/> is optional when <see cref="SshClientSettings.AutoConnect"/> is set (default).
+    /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -115,6 +118,10 @@ public sealed partial class SshClient : IDisposable
     /// <summary>
     /// Gets a cancellation token that is canceled when the connection is closed.
     /// </summary>
+    /// <remarks>
+    /// <para>A connection must be established before using this property.</para>
+    /// <para>This property can not be used when <see cref="SshClientSettings.AutoReconnect"/> is <see langword="true"/>.</para>
+    /// </remarks>
     public CancellationToken Disconnected
     {
         get
@@ -391,8 +398,8 @@ public sealed partial class SshClient : IDisposable
     /// <summary>
     /// Starts local port forwarding to a remote endpoint.
     /// </summary>
-    /// <param name="bindEP">The local endpoint to bind to.</param>
-    /// <param name="remoteEP">The <see cref="RemoteEndPoint"/> to forward to.</param>
+    /// <param name="bindEP">The local endpoint to bind to. This can be an <see cref="IPEndPoint"/> or a <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</param>
+    /// <param name="remoteEP">The <see cref="RemoteEndPoint"/> to forward to. This can be a <see cref="RemoteHostEndPoint"/>, a <see cref="RemoteUnixEndPoint"/> or a <see cref="RemoteIPEndPoint"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="LocalForward"/> instance for managing the forward.</returns>
     public async Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
@@ -422,8 +429,8 @@ public sealed partial class SshClient : IDisposable
     /// <summary>
     /// Starts remote port forwarding from a remote endpoint to a local endpoint.
     /// </summary>
-    /// <param name="bindEP">The <see cref="RemoteEndPoint"/> to bind to.</param>
-    /// <param name="localEP">The local endpoint to forward to.</param>
+    /// <param name="bindEP">The <see cref="RemoteEndPoint"/> to bind to. This can be a <see cref="RemoteIPListenEndPoint"/> or a <see cref="RemoteUnixEndPoint"/>.</param>
+    /// <param name="localEP">The local endpoint to forward to. This can be a <see cref="DnsEndPoint"/>, an <see cref="IPEndPoint"/> or a <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteForward"/> instance for managing the forward.</returns>
     public async Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default)
@@ -467,7 +474,7 @@ public sealed partial class SshClient : IDisposable
     }
 
     /// <summary>
-    /// Opens an SFTP client for file transfer operations.
+    /// Opens an <see cref="SftpClient"/> for file transfer operations.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
@@ -475,9 +482,9 @@ public sealed partial class SshClient : IDisposable
         => OpenSftpClientAsync(null, cancellationToken);
 
     /// <summary>
-    /// Opens an SFTP client for file transfer operations with options.
+    /// Opens an <see cref="SftpClient"/> for file transfer operations with options.
     /// </summary>
-    /// <param name="options"><see cref="SftpClientOptions"/> for the SFTP client.</param>
+    /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SftpClient"/> instance for file operations.</returns>
     public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
