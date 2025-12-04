@@ -93,6 +93,9 @@ public sealed class SshConfigSettings
     /// <summary>
     /// Gets or sets whether to automatically connect when the client is used.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="true"/>.
+    /// </remarks>
     public bool AutoConnect
     {
         get => _autoConnect;
@@ -107,6 +110,9 @@ public sealed class SshConfigSettings
     /// <summary>
     /// Gets or sets whether to automatically reconnect when the client is used after an unexpected disconnect.
     /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>.
+    /// </remarks>
     public bool AutoReconnect
     {
         get => _autoReconnect;
@@ -121,6 +127,9 @@ public sealed class SshConfigSettings
     /// <summary>
     /// Gets or sets the connection timeout.
     /// </summary>
+    /// <remarks>
+    /// Defaults to 15 seconds. This is overridden by the ConnectTimeout option (when set).
+    /// </remarks>
     public TimeSpan ConnectTimeout
     {
         get => _connectTimeout;
@@ -133,10 +142,12 @@ public sealed class SshConfigSettings
         }
     }
 
-    // Called when StrictHostKeyChecking is Ask and the key is unknown.
     /// <summary>
     /// Gets or sets the host authentication callback for unknown host keys.
     /// </summary>
+    /// <remarks>
+    /// The delegate is called for unknown keys when StrictHostKeyChecking is 'ask' (default).
+    /// </remarks>
     public HostAuthentication? HostAuthentication
     {
         get => _hostAuthentication;

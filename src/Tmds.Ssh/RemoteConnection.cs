@@ -20,7 +20,7 @@ public struct RemoteConnection : IDisposable
     public bool HasStream => Stream is not null;
 
     /// <summary>
-    /// Gets the <see cref="Stream"/> for the connection (can only be called once).
+    /// Transfers ownership of the <see cref="Stream"/> to the caller for handling the connection.
     /// </summary>
     /// <returns>The <see cref="Stream"/>.</returns>
     public SshDataStream MoveStream()
@@ -33,6 +33,10 @@ public struct RemoteConnection : IDisposable
     /// <summary>
     /// Gets the remote endpoint of the connection.
     /// </summary>
+    /// <remarks>
+    /// <para>For <see cref="SshClient.ListenTcpAsync"/>, the type is <see cref="RemoteIPEndPoint"/>.</para>
+    /// <para>For <see cref="SshClient.ListenUnixAsync"/>, the value is <see langword="null"/>.</para>
+    /// </remarks>
     public RemoteEndPoint? RemoteEndPoint { get; }
 
     /// <summary>

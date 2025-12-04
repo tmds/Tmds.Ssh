@@ -286,7 +286,7 @@ public sealed class RemoteProcess : IDisposable
     }
 
     /// <summary>
-    /// Gets a cancellation token that is canceled when execution is aborted.
+    /// Gets a cancellation token that is canceled when operations that depend on the remote process should stop.
     /// </summary>
     public CancellationToken ExecutionAborted
         => _channel.ChannelAborted;
@@ -329,7 +329,7 @@ public sealed class RemoteProcess : IDisposable
     /// </summary>
     /// <param name="width">The terminal width in characters.</param>
     /// <param name="height">The terminal height in characters.</param>
-    /// <returns><see langword="true"/> if the size change was sent successfully.</returns>
+    /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
     public bool SetTerminalSize(int width, int height)
     {
         ThrowIfNotHasTerminal();
@@ -341,7 +341,7 @@ public sealed class RemoteProcess : IDisposable
     /// Sends a signal to the process.
     /// </summary>
     /// <param name="signalName">The signal name (e.g., "TERM", "KILL").</param>
-    /// <returns><see langword="true"/> if the signal was sent successfully.</returns>
+    /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
     public bool SendSignal(string signalName)
     {
         ThrowIfDisposed();
@@ -439,8 +439,11 @@ public sealed class RemoteProcess : IDisposable
         => WriteLineAsync(value != null ? value.AsMemory() : default, cancellationToken);
 
     /// <summary>
-    /// Returns a Stream for writing to the process standard input.
+    /// Returns a <see cref="Stream"/> for writing to the process standard input.
     /// </summary>
+    /// <remarks>
+    /// Disposing/Closing the <see cref="Stream"/> calls <see cref="WriteEof"/>.
+    /// </remarks>
     public Stream StandardInputStream
         => StandardInputWriter.BaseStream;
 
@@ -466,6 +469,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads the process output as a Stream.
     /// </summary>
+    /// <remarks>
+    /// After using this method, no other read methods can be used.
+    /// </remarks>
     /// <param name="stderrHandler"><see cref="StderrHandler"/> for standard error output.</param>
     /// <returns>A <see cref="Stream"/> for reading standard output.</returns>
     public Stream ReadAsStream(StderrHandler stderrHandler)
@@ -478,6 +484,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads the process output as a <see cref="StreamReader"/>.
     /// </summary>
+    /// <remarks>
+    /// After using this method, no other read methods can be used.
+    /// </remarks>
     /// <param name="stderrHandler"><see cref="StderrHandler"/> for standard error output.</param>
     /// <param name="bufferSize">Buffer size for the <see cref="StreamReader"/>.</param>
     /// <returns>A <see cref="StreamReader"/> for reading standard output.</returns>
@@ -533,6 +542,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads all output until the process exits and returns it as strings.
     /// </summary>
+    /// <remarks>
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -641,6 +653,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads all lines from the process output asynchronously.
     /// </summary>
+    /// <remarks>
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -661,6 +676,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads a single line from the process output.
     /// </summary>
+    /// <remarks>
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -719,6 +737,9 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Reads process output as characters.
     /// </summary>
+    /// <remarks>
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
     /// <param name="stdoutBuffer">Buffer for standard output.</param>
     /// <param name="stderrBuffer">Buffer for standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>

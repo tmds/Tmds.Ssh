@@ -46,7 +46,7 @@ public sealed class EnumerationOptions
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
 
     /// <summary>
-    /// Gets or sets extended attributes to retrieve.
+    /// Gets or sets extended attributes to retrieve. Set to <see langword="null"/> to include all.
     /// </summary>
     public string[]? ExtendedAttributes { get; set; } = [];
 

@@ -56,6 +56,9 @@ public struct PasswordPromptContext
     /// <summary>
     /// Returns whether batch (non-interactive) mode is enabled.
     /// </summary>
+    /// <remarks>
+    /// In batch mode the <see cref="PasswordPrompt"/> delegate mustn't make interactive prompts.
+    /// </remarks>
     public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 
     internal PasswordPromptContext(SshConnectionInfo connectionInfo, int attempt)
