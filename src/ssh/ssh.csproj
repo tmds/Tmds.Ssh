@@ -16,7 +16,12 @@
     <Description>An 'ssh'-like .NET tool implemented using Tmds.Ssh</Description>
     <PackageTags>ssh</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon_128.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../icon/icon_128.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tmds.Ssh\Tmds.Ssh.csproj" />

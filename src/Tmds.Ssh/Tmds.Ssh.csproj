@@ -19,7 +19,12 @@
     <PackageTags>ssh;sftp</PackageTags>
     <Copyright>Tom Deseyn</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon_128.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../icon/icon_128.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" />

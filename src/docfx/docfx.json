@@ -39,8 +39,10 @@
     ],
     "resource": [
       {
+        "src": "../icon",
         "files": [
-          "images/**"
+          "icon.svg",
+          "icon_128.png"
         ]
       }
     ],
@@ -52,6 +54,8 @@
     "globalMetadata": {
       "_appTitle": "Tmds.Ssh API Documentation",
       "_appName": "Tmds.Ssh",
+      "_appLogoPath": "icon.svg",
+      "_appFaviconPath": "icon.svg",
       "_enableSearch": true
     }
   }
