@@ -15,7 +15,12 @@
     <Description>A .NET tool to copy files between hosts using SSH/SFTP implemented with Tmds.Ssh</Description>
     <PackageTags>ssh;sftp;scp</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon_128.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../icon/icon_128.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tmds.Ssh\Tmds.Ssh.csproj" />
