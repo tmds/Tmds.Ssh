@@ -67,6 +67,14 @@ namespace Tmds.Ssh;
 ///
 /// using var sshClient = new SshClient(settings);
 /// </code>
+/// The following example shows how to enable logging:
+/// <code>
+/// using Microsoft.Extensions.Logging;
+/// using Tmds.Ssh;
+///
+/// using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole()); // From Microsoft.Extensions.Logging.Console
+/// using var sshClient = new SshClient("localhost", loggerFactory);
+/// </code>
 /// </example>
 public sealed partial class SshClient : IDisposable
 {
