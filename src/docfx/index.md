@@ -15,11 +15,11 @@ To try out the library with an SSH server before writing any code, check out the
 - SFTP support for file operations
 
 **Flexible Authentication**
-- Public key authentication (<xref:Tmds.Ssh.PrivateKeyCredential>)
-- SSH Agent support (<xref:Tmds.Ssh.SshAgentCredentials>)
-- OpenSSH certificate authentication (<xref:Tmds.Ssh.CertificateCredential>)
-- Password authentication (<xref:Tmds.Ssh.PasswordCredential>)
-- Kerberos authentication (<xref:Tmds.Ssh.KerberosCredential>)
+- Public key authentication
+- SSH Agent support
+- OpenSSH certificate authentication
+- Password authentication
+- Kerberos authentication
 
 **OpenSSH Compatibility**
 - Supports OpenSSH private key formats and configuration files
