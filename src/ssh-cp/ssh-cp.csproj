@@ -12,7 +12,7 @@
     <PackageId>ssh-cp</PackageId>
     <Authors>Tom Deseyn</Authors>
     <Copyright>Tom Deseyn</Copyright>
-    <Description>A .NET tool to copy files between hosts using SSH/SFTP implemented with Tmds.Ssh</Description>
+    <Description>.NET tool to copy files between hosts using SSH/SFTP</Description>
     <PackageTags>ssh;sftp;scp</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageIcon>icon_128.png</PackageIcon>

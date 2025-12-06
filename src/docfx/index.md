@@ -1,4 +1,4 @@
-`Tmds.Ssh` is a modern, managed .NET SSH client library for .NET.
+`Tmds.Ssh` is a modern, open-source SSH client library for .NET.
 
 ## Getting Started
 
@@ -7,6 +7,11 @@ To start using the library in your application, see [Getting Started](getting-st
 To try out the library with an SSH server before writing any code, check out the [.NET Tools](tools.md).
 
 ## Features
+
+**Open Source**
+- MIT licensed
+- Source code available
+- Open for contributions, see below.
 
 **SSH Operations**
 - Execute remote commands
@@ -103,3 +108,10 @@ Authentications:
 
 *: Please convert your keys (using `ssh-keygen`, `PuttyGen`, ...) to a supported format rather than suggesting the library should support an additional format. If you can motivate why the library should support a additional format, open an issue to request support.
 
+## Reporting Bugs and Contributing
+
+Found a bug or want to request a feature? Please [open an issue on GitHub](https://github.com/tmds/Tmds.Ssh/issues).
+
+For security vulnerabilities, use [GitHub's private security reporting](https://github.com/tmds/Tmds.Ssh/security/advisories/new) instead.
+
+Interested in contributing? We welcome pull requests on [GitHub](https://github.com/tmds/Tmds.Ssh)! Unless you're making a trivial change, open an issue to discuss the change before making a pull request.

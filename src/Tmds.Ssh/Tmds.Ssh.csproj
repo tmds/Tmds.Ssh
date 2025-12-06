@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Description>SSH client library</Description>
+    <Description>Modern, open-source SSH client library</Description>
     <Authors>Tom Deseyn</Authors>
     <PackageTags>ssh;sftp</PackageTags>
     <Copyright>Tom Deseyn</Copyright>
