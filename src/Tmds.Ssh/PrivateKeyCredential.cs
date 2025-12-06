@@ -61,6 +61,10 @@ public class PrivateKeyCredential : Credential
     /// </summary>
     /// <param name="loadKey">Function to load the private key.</param>
     /// <param name="identifier">Log identifier for the key.</param>
+    /// <remarks>
+    /// This constructor can be used to implement custom key loading, for example to use a private key stored in an Azure Key Vault without exporting the key.
+    /// See the <see href="https://github.com/tmds/Tmds.Ssh/tree/main/examples/azure_key">azure_key example</see> for a demonstration.
+    /// </remarks>
     protected PrivateKeyCredential(Func<CancellationToken, ValueTask<Key>> loadKey, string identifier)
     {
         ArgumentNullException.ThrowIfNull(identifier);
