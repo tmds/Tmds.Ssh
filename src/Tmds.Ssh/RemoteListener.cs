@@ -49,7 +49,7 @@ public sealed class RemoteListener : IDisposable
     /// Accepts an incoming connection.
     /// </summary>
     /// <remarks>
-    /// When <see cref="Stop"/> is called, the method returns a <see langword="default"/>(<see cref="RemoteConnection"/>).
+    /// When <see cref="Stop()"/> is called, the method returns a <see langword="default"/>(<see cref="RemoteConnection"/>).
     /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteConnection"/> for the accepted connection, or <see langword="default"/> when stopped.</returns>
