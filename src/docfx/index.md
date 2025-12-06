@@ -8,11 +8,6 @@ To try out the library with an SSH server before writing any code, check out the
 
 ## Features
 
-**Modern .NET**
-- Built from the ground up with C# `async`/`await` and `Task`/`ValueTask` for efficient asynchronous operations
-- Optimized for performance with .NET primitives like `Span<T>` to minimize allocations
-- Integration with `Microsoft.Extensions.Logging`
-
 **SSH Operations**
 - Execute remote commands
 - Interactive shell support
@@ -34,6 +29,11 @@ To try out the library with an SSH server before writing any code, check out the
 - Secure cryptographic algorithms (no legacy/insecure algorithms)
 - Post-quantum key exchange support
 - Uses BCL and Bouncy Castle for cryptography—no custom crypto implementations
+
+**Modern .NET**
+- Built from the ground up with C# `async`/`await` and `Task`/`ValueTask` for efficient asynchronous operations
+- Optimized for performance with .NET primitives like `Span<T>` to minimize allocations
+- Integration with `Microsoft.Extensions.Logging`
 
 ## Supported Algorithms
 

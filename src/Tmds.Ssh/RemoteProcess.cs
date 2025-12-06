@@ -442,7 +442,7 @@ public sealed class RemoteProcess : IDisposable
     /// Returns a <see cref="Stream"/> for writing to the process standard input.
     /// </summary>
     /// <remarks>
-    /// Disposing/Closing the <see cref="Stream"/> calls <see cref="WriteEof"/>.
+    /// Disposing/Closing the <see cref="Stream"/> calls <see cref="WriteEof()"/>.
     /// </remarks>
     public Stream StandardInputStream
         => StandardInputWriter.BaseStream;

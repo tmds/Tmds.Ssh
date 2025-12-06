@@ -166,7 +166,7 @@ public sealed partial class SshClient : IDisposable
     /// Connect to the server.
     /// </summary>
     /// <remarks>
-    /// Calling <see cref="ConnectAsync"/> is optional when <see cref="SshClientSettings.AutoConnect"/> is set (default).
+    /// Calling <see cref="ConnectAsync(CancellationToken)"/> is optional when <see cref="SshClientSettings.AutoConnect"/> is set (default).
     /// </remarks>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
