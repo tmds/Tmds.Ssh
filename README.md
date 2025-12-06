@@ -8,6 +8,14 @@ Documentation: https://tmds.github.io/Tmds.Ssh
 
 Releases: https://github.com/tmds/Tmds.Ssh/releases
 
+## Reporting Bugs and Contributing
+
+Found a bug or want to request a feature? Please [open an issue on GitHub](https://github.com/tmds/Tmds.Ssh/issues).
+
+For security vulnerabilities, use [GitHub's private security reporting](https://github.com/tmds/Tmds.Ssh/security/advisories/new) instead.
+
+Interested in contributing? We welcome pull requests on [GitHub](https://github.com/tmds/Tmds.Ssh)! Unless you're making a trivial change, open an issue to discuss the change before making a pull request.
+
 ## Design
 
 * Since SSH is a network protocol, the APIs are asynchronous and implemented using C# `async` and .NET's `Task`/`ValueTask`.
