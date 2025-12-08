@@ -281,7 +281,7 @@ public class RemoteProcess
 
         CancellationTokenSource cts = new();
         cts.CancelAfter(msTimeout);
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             process.ReadAsync(new byte[1], null, cts.Token).AsTask());
     }
 
@@ -296,7 +296,7 @@ public class RemoteProcess
         {
             cts.Cancel();
         }
-        var task = Assert.ThrowsAsync<OperationCanceledException>(() =>
+        var task = Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             client.ExecuteAsync("sleep 600", cts.Token));
         if (!preNotPost)
         {
@@ -318,7 +318,7 @@ public class RemoteProcess
         {
             cts.Cancel();
         }
-        var task = Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        var task = Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
             await Task.Yield(); // make sure we reach '!preNotPost'
             await process.WriteAsync(writeBuffer, cts.Token);
@@ -365,7 +365,7 @@ public class RemoteProcess
 
         CancellationToken ct = new CancellationToken(true);
         // Pass canceled token.
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             process.ReadAsync(new byte[1], null, ct).AsTask());
         // Pass canceled token again.
         await Assert.ThrowsAsync<SshChannelClosedException>(() =>
