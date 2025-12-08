@@ -761,7 +761,7 @@ sealed partial class SshSession
         throw CreateCloseException();
     }
 
-    internal Exception CreateCloseException()
+    internal SshException CreateCloseException()
     {
         if (_abortReason == null)
         {

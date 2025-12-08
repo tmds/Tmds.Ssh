@@ -84,24 +84,16 @@ public sealed class SshDataStream : Stream
     /// <inheritdoc />
     public override async ValueTask<int> ReadAsync(System.Memory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
     {
-        try
+        while (true)
         {
-            while (true)
+            (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(buffer, default, cancellationToken, forStream: true).ConfigureAwait(false); ;
+            switch (ReadType)
             {
-                (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(buffer, default, cancellationToken).ConfigureAwait(false); ;
-                switch (ReadType)
-                {
-                    case ChannelReadType.StandardOutput:
-                        return BytesRead;
-                    case ChannelReadType.Eof:
-                        return 0;
-                }
+                case ChannelReadType.StandardOutput:
+                    return BytesRead;
+                case ChannelReadType.Eof:
+                    return 0;
             }
-        }
-        catch (SshException ex)
-        {
-            // TODO: move IOException wrapping into SshChannel.ReadAsync
-            throw new IOException($"Unable to transport data: {ex.Message}.", ex);
         }
     }
 
@@ -110,22 +102,12 @@ public sealed class SshDataStream : Stream
     /// </summary>
     public void WriteEof()
     {
-        _channel.WriteEof();
+        _channel.WriteEof(noThrow: false, forStream: true);
     }
 
     /// <inheritdoc />
-    public override async ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
-    {
-        try
-        {
-            await _channel.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-        }
-        catch (SshException ex)
-        {
-            // TODO: move IOException wrapping into SshChannel.WriteAsync
-            throw new IOException($"Unable to transport data: {ex.Message}.", ex);
-        }
-    }
+    public override ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        => _channel.WriteAsync(buffer, cancellationToken, forStream: true);
 
     /// <inheritdoc />
     public override Task FlushAsync(CancellationToken cancellationToken)

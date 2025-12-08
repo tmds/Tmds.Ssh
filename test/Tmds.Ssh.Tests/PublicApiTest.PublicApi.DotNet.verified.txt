@@ -242,7 +242,7 @@ namespace Tmds.Ssh
         public System.IO.Stream StandardInputStream { get; }
         public System.IO.StreamWriter StandardInputWriter { get; }
         public void Dispose() { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__52))]
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__53))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "line"})]
