@@ -1,4 +1,4 @@
-`Tmds.Ssh` is a modern, open-source SSH client library for .NET.
+Tmds.Ssh is a modern, open-source SSH client library for .NET.
 
 ## Getting Started
 

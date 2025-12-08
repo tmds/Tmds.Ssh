@@ -311,9 +311,9 @@ public sealed class RemoteProcess : IDisposable
 
     internal bool EofSent => _channel.EofSent;
 
-    private void WriteEof(bool noThrow)
+    private void WriteEof(bool noThrow, bool forStream = false)
     {
-        _channel.WriteEof(noThrow);
+        _channel.WriteEof(noThrow, forStream);
     }
 
     /// <summary>
@@ -355,9 +355,12 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="buffer">The buffer to write.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        => WriteAsync(buffer, cancellationToken, forStream: false);
+
+    internal ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken, bool forStream)
     {
         ThrowIfDisposed();
-        return _channel.WriteAsync(buffer, cancellationToken);
+        return _channel.WriteAsync(buffer, cancellationToken, forStream);
     }
 
     /// <summary>
@@ -510,9 +513,11 @@ public sealed class RemoteProcess : IDisposable
     {
         CheckReadMode(readMode);
 
+        bool forStream = readMode == ReadMode.ReadStream;
+
         while (true)
         {
-            (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken).ConfigureAwait(false); ;
+            (ChannelReadType ReadType, int BytesRead) = await _channel.ReadAsync(stdoutBuffer, stderrBuffer, cancellationToken, forStream).ConfigureAwait(false); ;
             switch (ReadType)
             {
                 case ChannelReadType.StandardOutput:
@@ -993,41 +998,30 @@ public sealed class RemoteProcess : IDisposable
                 return 0;
             }
 
-            try
+            while (true)
             {
-                while (true)
-                {
-                    Memory<byte>? stderrBuffer = _stderrBuffer != null ? (Memory<byte>?)_stderrBuffer : default(Memory<byte>?);
-                    (bool isError, int bytesRead) = await _process.ReadAsync(ReadMode.ReadStream, buffer, stderrBuffer, cancellationToken).ConfigureAwait(false);
+                Memory<byte>? stderrBuffer = _stderrBuffer != null ? (Memory<byte>?)_stderrBuffer : default(Memory<byte>?);
+                (bool isError, int bytesRead) = await _process.ReadAsync(ReadMode.ReadStream, buffer, stderrBuffer, cancellationToken).ConfigureAwait(false);
 
-                    if (isError)
+                if (isError)
+                {
+                    // Handle stderr data
+                    if (_stderrHandler != null && bytesRead > 0)
                     {
-                        // Handle stderr data
-                        if (_stderrHandler != null && bytesRead > 0)
-                        {
-                            await _stderrHandler.HandleBufferAsync(_stderrBuffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
-                        }
-                        // Continue reading to get stdout data
-                        continue;
+                        await _stderrHandler.HandleBufferAsync(_stderrBuffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
                     }
-                    else
-                    {
-                        // Signal end of stream to the stderr handler.
-                        if (_stderrHandler != null && bytesRead == 0)
-                        {
-                            await _stderrHandler.HandleBufferAsync(default, cancellationToken).ConfigureAwait(false);
-                        }
-                        return bytesRead;
-                    }
+                    // Continue reading to get stdout data
+                    continue;
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new IOException($"Failed to read from remote process: {ex.Message}", ex);
+                else
+                {
+                    // Signal end of stream to the stderr handler.
+                    if (_stderrHandler != null && bytesRead == 0)
+                    {
+                        await _stderrHandler.HandleBufferAsync(default, cancellationToken).ConfigureAwait(false);
+                    }
+                    return bytesRead;
+                }
             }
         }
 
@@ -1103,27 +1097,14 @@ public sealed class RemoteProcess : IDisposable
             return Task.CompletedTask; // WriteAsync always flushes.
         }
 
-        public async override ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            try
-            {
-                await _process.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new IOException($"Failed to write to remote process: {ex.Message}", ex);
-            }
-        }
+        public override ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+            => _process.WriteAsync(buffer, cancellationToken, forStream: true);
 
         public override void Close()
         {
             // The base Stream class calls Close for implementing Dispose.
             // We mustn't throw to avoid throwing on Dispose.
-            _process.WriteEof(noThrow: true);
+            _process.WriteEof(noThrow: true, forStream: true);
         }
     }
 }

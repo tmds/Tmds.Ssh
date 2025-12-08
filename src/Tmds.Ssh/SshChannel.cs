@@ -85,7 +85,8 @@ sealed partial class SshChannel : ISshChannel
     public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
         (Memory<byte>? stdoutBuffer = default,
         Memory<byte>? stderrBuffer = default,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forStream = false)
     {
         ThrowIfDisposed();
 
@@ -128,7 +129,7 @@ sealed partial class SshChannel : ISshChannel
                 }
             }
 
-            using Packet packet = await ReceivePacketAsync(cancellationToken);
+            using Packet packet = await ReceivePacketAsync(cancellationToken, forStream);
             MessageId messageId = packet.MessageId!.Value;
             switch (messageId)
             {
@@ -182,12 +183,12 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    public void WriteEof(bool noThrow)
+    public void WriteEof(bool noThrow = false, bool forStream = false)
     {
         if (!noThrow)
         {
             ThrowIfDisposed();
-            ThrowIfAborted();
+            ThrowIfAborted(forStream);
             ThrowIfEofSent();
         }
 
@@ -255,27 +256,27 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    private void ThrowIfAborted()
+    private void ThrowIfAborted(bool forStream = false)
     {
         if (_abortState >= (int)AbortState.Closed)
         {
-            ThrowCloseException();
+            ThrowCloseException(forStream);
         }
     }
 
-    private void ThrowCloseException()
+    private void ThrowCloseException(bool forStream = false)
     {
-        throw CreateCloseException();
+        throw CreateCloseException(forStream);
     }
 
-    public async ValueTask WriteAsync(ReadOnlyMemory<byte> memory, CancellationToken cancellationToken)
+    public async ValueTask WriteAsync(ReadOnlyMemory<byte> memory, CancellationToken cancellationToken = default, bool forStream = false)
     {
         ThrowIfDisposed();
         ThrowIfEofSent();
 
         while (memory.Length > 0)
         {
-            ThrowIfAborted();
+            ThrowIfAborted(forStream);
 
             int sendWindow = Volatile.Read(ref _sendWindow);
             if (sendWindow > 0)
@@ -342,7 +343,7 @@ sealed partial class SshChannel : ISshChannel
     public void Abort(Exception exception)
         => Abort(AbortState.Aborted, exception);
 
-    public Exception CreateCloseException()
+    public SshException CreateCloseException()
         => (AbortState)_abortState switch
         {
             AbortState.ConnectionClosed => _client.CreateCloseException(),
@@ -352,6 +353,17 @@ sealed partial class SshChannel : ISshChannel
             AbortState.Disposed => new SshChannelClosedException(SshChannelClosedException.ChannelClosedByDispose),
             _ => throw new IndexOutOfRangeException($"Unhandled state: {_abortState}."),
         };
+
+    private Exception CreateCloseException(bool forStream)
+    {
+        SshException exception = CreateCloseException();
+        // Stream methods should throw IOException. Wrap the exception.
+        if (forStream)
+        {
+            return new IOException($"SSH failure: {exception.Message}", exception);
+        }
+        return exception;
+    }
 
     private void Cancel()
         => Abort(AbortState.Canceled);
@@ -512,7 +524,7 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    private async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct)
+    private async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, bool forStream = false)
     {
         // Allow reading while in the Closed state so we can receive the peer CLOSE message.
         // After that message, the channel is completed, and TryRead returns false.
@@ -532,7 +544,7 @@ sealed partial class SshChannel : ISshChannel
 
         if (!hasPacket || !_receiveQueue.Reader.TryRead(out Packet packet))
         {
-            throw CreateCloseException();
+            throw CreateCloseException(forStream);
         }
 
         return packet;

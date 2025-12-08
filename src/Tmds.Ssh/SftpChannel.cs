@@ -1585,7 +1585,7 @@ sealed partial class SftpChannel : IDisposable
             {
                 try
                 {
-                    await _channel.WriteAsync(packet.Data).ConfigureAwait(false);
+                    await _channel.WriteAsync(packet.Data, cancellationToken: default).ConfigureAwait(false);
                 }
                 catch
                 {
