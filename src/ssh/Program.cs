@@ -159,7 +159,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
             (bool isError, int charsRead) = await process.ReadAsync(buffer, buffer);
             if (charsRead == 0)
             {
-                return process.ExitCode;
+                return await process.GetExitCodeAsync();
             }
             TextWriter writer = isError ? Console.Error : Console.Out;
             writer.Write(buffer.AsSpan(0, charsRead));

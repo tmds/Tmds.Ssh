@@ -36,7 +36,8 @@ public class RemoteProcess
         Assert.False(isError);
         Assert.Equal(0, bytesRead);
 
-        Assert.Equal(0, process.ExitCode);
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(0, exitCode);
     }
 
     [Fact]
@@ -66,7 +67,8 @@ public class RemoteProcess
         Assert.False(isError);
         Assert.Equal(0, bytesRead);
 
-        Assert.Equal(1, process.ExitCode);
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(1, exitCode);
     }
 
     [Fact]
@@ -98,7 +100,8 @@ public class RemoteProcess
         Assert.False(isError);
         Assert.Equal(0, bytesRead);
 
-        Assert.Equal(1, process.ExitCode);
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(1, exitCode);
     }
 
     [Fact]
@@ -111,10 +114,9 @@ public class RemoteProcess
         bool signalSent = process.SendSignal(SignalName.TERM);
         Assert.True(signalSent);
 
-        await process.WaitForExitAsync();
-
-        Assert.Equal(143, process.ExitCode);
-        Assert.Equal(SignalName.TERM, process.ExitSignal);
+        var (exitCode, exitSignal) = await process.GetExitStatusAsync();
+        Assert.Equal(143, exitCode);
+        Assert.Equal(SignalName.TERM, exitSignal);
     }
 
     [Fact]
@@ -122,7 +124,9 @@ public class RemoteProcess
     {
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("sleep 60");
+#pragma warning disable CS0618 // Type or member is obsolete
         Assert.Throws<InvalidOperationException>(() => process.ExitCode);
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 
     [Fact]
@@ -130,8 +134,11 @@ public class RemoteProcess
     {
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("sleep 1");
+#pragma warning disable CS0618 // Type or member is obsolete
         await process.WaitForExitAsync();
-        Assert.Equal(0, process.ExitCode);
+#pragma warning restore CS0618 // Type or member is obsolete
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(0, exitCode);
     }
 
     public enum WriteApi
@@ -263,7 +270,7 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("exit 0");
 
-        await process.WaitForExitAsync();
+        await process.GetExitCodeAsync();
 
         var ioException = await Assert.ThrowsAsync<IOException>(() =>
             process.StandardInputStream.WriteAsync(new byte[1]).AsTask());
@@ -338,10 +345,8 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync($"exit {exitCode}");
 
-        await process.WaitForExitAsync();
-
-        Assert.Equal(exitCode, process.ExitCode);
-        Assert.Null(process.ExitSignal);
+        int actualExitCode = await process.GetExitCodeAsync();
+        Assert.Equal(exitCode, actualExitCode);
     }
 
     [Theory]
@@ -351,10 +356,10 @@ public class RemoteProcess
     {
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync($"kill -s {signal} $$");
-        await process.WaitForExitAsync();
 
-        Assert.Equal(signal, process.ExitSignal);
-        Assert.Equal(expectedExitCode, process.ExitCode);
+        var (exitCode, exitSignal) = await process.GetExitStatusAsync();
+        Assert.Equal(signal, exitSignal);
+        Assert.Equal(expectedExitCode, exitCode);
     }
 
     [Fact]
@@ -567,10 +572,9 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("test -t 0", new ExecuteOptions() { AllocateTerminal = allocTty });
 
-        await process.WaitForExitAsync();
-
         Assert.Equal(process.HasTerminal, allocTty);
-        Assert.Equal(allocTty ? 0 : 1, process.ExitCode);
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(allocTty ? 0 : 1, exitCode);
     }
 
     [Fact]
@@ -805,8 +809,8 @@ public class RemoteProcess
 
         stream.Dispose();
 
-        await process.WaitForExitAsync();
-        Assert.Equal(0, process.ExitCode);
+        int exitCode = await process.GetExitCodeAsync();
+        Assert.Equal(0, exitCode);
     }
 
     [Fact]
@@ -820,8 +824,9 @@ public class RemoteProcess
         int bytesRead = await stream.ReadAsync(buffer);
         Assert.Equal(0, bytesRead);
 
-        Assert.Equal(42, process.ExitCode);
-        Assert.Null(process.ExitSignal);
+        var (exitCode, exitSignal) = await process.GetExitStatusAsync();
+        Assert.Equal(42, exitCode);
+        Assert.Null(exitSignal);
     }
 
     [Fact]
