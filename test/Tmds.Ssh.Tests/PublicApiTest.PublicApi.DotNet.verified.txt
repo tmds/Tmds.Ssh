@@ -236,13 +236,17 @@ namespace Tmds.Ssh
     public sealed class RemoteProcess : System.IDisposable
     {
         public System.Threading.CancellationToken ExecutionAborted { get; }
+        [System.Obsolete("Use GetExitCodeAsync instead.")]
         public int ExitCode { get; }
+        [System.Obsolete("Use GetExitStatusAsync instead.")]
         public string? ExitSignal { get; }
         public bool HasTerminal { get; }
         public System.IO.Stream StandardInputStream { get; }
         public System.IO.StreamWriter StandardInputWriter { get; }
         public void Dispose() { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__53))]
+        public System.Threading.Tasks.ValueTask<int> GetExitCodeAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteProcess.ExitStatus> GetExitStatusAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__56))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "isError",
                 "line"})]
@@ -269,6 +273,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default) { }
         public bool SendSignal(string signalName) { }
         public bool SetTerminalSize(int width, int height) { }
+        [System.Obsolete("Use GetExitCodeAsync instead.")]
         public System.Threading.Tasks.ValueTask WaitForExitAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<char> buffer, System.Threading.CancellationToken cancellationToken = default) { }
@@ -276,6 +281,12 @@ namespace Tmds.Ssh
         public void WriteEof() { }
         public System.Threading.Tasks.ValueTask WriteLineAsync(System.ReadOnlyMemory<char> buffer = default, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteLineAsync(string? value, System.Threading.CancellationToken cancellationToken = default) { }
+        public readonly struct ExitStatus
+        {
+            public int ExitCode { get; init; }
+            public string? ExitSignal { get; init; }
+            public void Deconstruct(out int exitCode, out string? exitSignal) { }
+        }
     }
     public sealed class RemoteUnixEndPoint : Tmds.Ssh.RemoteEndPoint
     {

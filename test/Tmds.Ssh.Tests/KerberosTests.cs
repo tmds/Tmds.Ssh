@@ -97,7 +97,8 @@ public class KerberosTests : IDisposable
                 {
                     using var process = await client.ExecuteAsync("whoami");
                     (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
-                    Assert.Equal(0, process.ExitCode);
+                    int exitCode = await process.GetExitCodeAsync();
+                    Assert.Equal(0, exitCode);
                     Assert.Equal(userName, stdout.Trim());
                 }
             },
@@ -164,7 +165,8 @@ public class KerberosTests : IDisposable
                 {
                     using var process = await client.ExecuteAsync("whoami");
                     (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
-                    Assert.Equal(0, process.ExitCode);
+                    int exitCode = await process.GetExitCodeAsync();
+                    Assert.Equal(0, exitCode);
                     Assert.Equal(userName, stdout.Trim());
                 }
 
@@ -172,16 +174,17 @@ public class KerberosTests : IDisposable
                     using var process = await client.ExecuteAsync("klist -f");
                     (string stdout, string stderr) = await process.ReadToEndAsStringAsync();
 
+                    int exitCode = await process.GetExitCodeAsync();
                     if (requestDelegate)
                     {
                         // Must have F (Forwardable and f (forwarded) flags
                         Assert.Matches(@"Flags:\s+(?=.*F)(?=.*f).+", stdout);
-                        Assert.Equal(0, process.ExitCode);
+                        Assert.Equal(0, exitCode);
                     }
                     else
                     {
                         Assert.Matches("No credentials cache found", stderr);
-                        Assert.Equal(1, process.ExitCode);
+                        Assert.Equal(1, exitCode);
                     }
                 }
             },

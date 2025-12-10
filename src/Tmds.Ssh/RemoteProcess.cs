@@ -11,6 +11,20 @@ namespace Tmds.Ssh;
 /// <summary>
 /// Represents a remote process.
 /// </summary>
+/// <remarks>
+/// <para>
+/// This class enables interacting with the remote process, such as reading its output streams, writing to its input stream, and retrieving the exit code.
+/// </para>
+/// <para>
+/// If you won't be writing to the input stream, call <see cref="WriteEof()"/> to prevent blocking if the remote process prompts for input.
+/// </para>
+/// <para>
+/// The class provides methods to read from standard output and standard error, and write to standard input using bytes, characters, strings, lines, or Streams.
+/// </para>
+/// <para>
+/// When the output is read, you can call the <see cref="GetExitCodeAsync"/> method to retrieve the exit code. If there was any remaining output from the remote process it will be discarded.
+/// </para>
+/// </remarks>
 public sealed class RemoteProcess : IDisposable
 {
     enum ProcessReadType
@@ -220,6 +234,33 @@ public sealed class RemoteProcess : IDisposable
     private CharBuffer _stdoutBuffer;
     private CharBuffer _stderrBuffer;
 
+    /// <summary>
+    /// Represents a process exit status.
+    /// </summary>
+    public readonly struct ExitStatus
+    {
+        /// <summary>
+        /// Gets the exit code of the process.
+        /// </summary>
+        public int ExitCode { get; init; }
+
+        /// <summary>
+        /// Gets the signal that terminated the process, or <see langword="null"/> when the process terminated with an exit code.
+        /// </summary>
+        public string? ExitSignal { get; init; }
+
+        /// <summary>
+        /// Deconstructs the exit status into its components.
+        /// </summary>
+        /// <param name="exitCode">The exit code of the process.</param>
+        /// <param name="exitSignal">The signal that terminated the process.</param>
+        public void Deconstruct(out int exitCode, out string? exitSignal)
+        {
+            exitCode = ExitCode;
+            exitSignal = ExitSignal;
+        }
+    }
+
     internal RemoteProcess(ISshChannel channel,
                             Encoding standardInputEncoding,
                             Encoding standardErrorEncoding,
@@ -237,6 +278,7 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Returns the exit code of the process.
     /// </summary>
+    [Obsolete($"Use {nameof(GetExitCodeAsync)} instead.")]
     public int ExitCode
     {
         get
@@ -250,6 +292,7 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Returns the signal that terminated the process when terminated by a signal.
     /// </summary>
+    [Obsolete($"Use {nameof(GetExitStatusAsync)} instead.")]
     public string? ExitSignal
     {
         get
@@ -539,9 +582,38 @@ public sealed class RemoteProcess : IDisposable
     /// Waits for the process to exit.
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public ValueTask WaitForExitAsync(CancellationToken cancellationToken = default)
+    [Obsolete($"Use {nameof(GetExitCodeAsync)} instead.")]
+    public async ValueTask WaitForExitAsync(CancellationToken cancellationToken = default)
     {
-        return ReadToEndAsync(null, null, null, null, cancellationToken);
+        await GetExitStatusAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Waits for the process to exit and returns the exit code and signal. If there is pending output it is discarded.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The exit status containing the exit code and exit signal (if terminated by signal).</returns>
+    public async ValueTask<ExitStatus> GetExitStatusAsync(CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            if (_readMode == ReadMode.Exited)
+            {
+                return new ExitStatus { ExitCode = _channel.ExitCode!.Value, ExitSignal = _channel.ExitSignal };
+            }
+            await ReadToEndAsync(null, null, null, null, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Waits for the process to exit and returns the exit code. Any remaining output is discarded.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The exit code of the process.</returns>
+    public async ValueTask<int> GetExitCodeAsync(CancellationToken cancellationToken = default)
+    {
+        ExitStatus status = await GetExitStatusAsync(cancellationToken).ConfigureAwait(false);
+        return status.ExitCode;
     }
 
     /// <summary>
