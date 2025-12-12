@@ -27,10 +27,12 @@ sealed class HMacAlgorithm
     }
 
     public static HMacAlgorithm Find(Name name)
-        => _algorithms[name];
-
-    private static Dictionary<Name, HMacAlgorithm> _algorithms = new()
+    {
+        if (name == AlgorithmNames.HMacSha2_256)
         {
-            { AlgorithmNames.HMacSha2_256, new HMacAlgorithm(256 / 8, (algorithm, key) => new HMac(HashAlgorithmName.SHA256, 256 / 8, 256 / 8, key)) }
-        };
+            return new HMacAlgorithm(256 / 8, (algorithm, key) => new HMac(HashAlgorithmName.SHA256, 256 / 8, 256 / 8, key));
+        }
+
+        throw new NotSupportedException($"HMac algorithm '{name}' is not supported.");
+    }
 }

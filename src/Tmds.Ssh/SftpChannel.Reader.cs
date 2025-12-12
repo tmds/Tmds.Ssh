@@ -47,7 +47,7 @@ partial class SftpChannel
         }
 
         public string ReadString()
-            => s_utf8Encoding.GetString(ReadStringAsSpan());
+            => ProtocolEncoding.UTF8.GetString(ReadStringAsSpan());
 
         public void SkipString()
         {

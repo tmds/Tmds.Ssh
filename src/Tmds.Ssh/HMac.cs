@@ -8,8 +8,6 @@ namespace Tmds.Ssh;
 
 sealed class HMac : IHMac
 {
-    public static IHMac None = new HMacNone();
-
     private readonly IncrementalHash _incrementalHash;
 
     private readonly byte[] _hash;
@@ -54,7 +52,7 @@ sealed class HMac : IHMac
         return expected.SequenceEqual(hash);
     }
 
-    sealed private class HMacNone : IHMac
+    internal sealed class HMacNone : IHMac
     {
         public int HashSize => 0;
 

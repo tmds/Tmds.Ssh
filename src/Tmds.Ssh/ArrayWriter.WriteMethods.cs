@@ -17,8 +17,6 @@ ref partial struct ArrayWriter
     // They depend only on AllocGetSpan and AppendAlloced.
     // This duplication could be avoided using C# 13 ref struct generics, but we can't use those due to targetting earlier versions.
 
-    private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-
     public void WriteByte(byte value)
     {
         var span = AllocGetSpan(1);
@@ -208,7 +206,7 @@ ref partial struct ArrayWriter
     {
         byte[]? poolBuffer = null;
 
-        int maxLength = s_utf8Encoding.GetMaxByteCount(value.Length);
+        int maxLength = ProtocolEncoding.UTF8.GetMaxByteCount(value.Length);
 
         // The compiler doesn't like it when we stackalloc into a Span
         // and pass that to Write. It wants to avoid us storing the Span in this instance.
@@ -217,7 +215,7 @@ ref partial struct ArrayWriter
             new Span<byte>(stackBuffer, maxLength) :
             (poolBuffer = ArrayPool<byte>.Shared.Rent(maxLength));
 
-        int bytesWritten = s_utf8Encoding.GetBytes(value, byteSpan);
+        int bytesWritten = ProtocolEncoding.UTF8.GetBytes(value, byteSpan);
 
         if (writeLength)
         {

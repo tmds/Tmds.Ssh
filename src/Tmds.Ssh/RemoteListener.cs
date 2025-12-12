@@ -11,11 +11,6 @@ namespace Tmds.Ssh;
 /// </summary>
 public sealed class RemoteListener : IDisposable
 {
-    // Sentinel stop reasons.
-    private static readonly Exception ConnectionClosed = new();
-    private static readonly Exception Disposed = new();
-    private static readonly Exception Stopped = new();
-
     private readonly Channel<RemoteConnection> _connectionChannel;
 
     /// <summary>
@@ -37,13 +32,13 @@ public sealed class RemoteListener : IDisposable
     /// Stops accepting new connections.
     /// </summary>
     public void Stop()
-        => Stop(Stopped);
+        => Stop(SentinelExceptions.Stopped);
 
     /// <summary>
     /// Stops the listener and releases resources.
     /// </summary>
     public void Dispose()
-        => Stop(Disposed);
+        => Stop(SentinelExceptions.Disposed);
 
     /// <summary>
     /// Accepts an incoming connection.
@@ -60,16 +55,16 @@ public sealed class RemoteListener : IDisposable
             if (!await _connectionChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 Exception? stopReason = _stopReason;
-                if (ReferenceEquals(stopReason, Stopped))
+                if (ReferenceEquals(stopReason, SentinelExceptions.Stopped))
                 {
                     // return 'null' when the user called 'Stop' to indicate no more connections should be accepted.
                     return default;
                 }
-                else if (ReferenceEquals(stopReason, Disposed))
+                else if (ReferenceEquals(stopReason, SentinelExceptions.Disposed))
                 {
                     throw new ObjectDisposedException(GetType().FullName);
                 }
-                else if (ReferenceEquals(stopReason, ConnectionClosed))
+                else if (ReferenceEquals(stopReason, SentinelExceptions.ConnectionClosed))
                 {
                     throw _session!.CreateCloseException();
                 }
@@ -154,7 +149,7 @@ public sealed class RemoteListener : IDisposable
             {
                 throw new IndexOutOfRangeException(forwardType);
             }
-            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((RemoteListener)o!).Stop(ConnectionClosed), this);
+            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((RemoteListener)o!).Stop(SentinelExceptions.ConnectionClosed), this);
         }
         catch (Exception ex)
         {

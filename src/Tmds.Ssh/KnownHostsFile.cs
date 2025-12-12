@@ -11,8 +11,6 @@ namespace Tmds.Ssh;
 
 static class KnownHostsFile
 {
-    private static readonly char[] WhitespaceSeparators = { ' ', '\t' };
-
     public static void AddKnownHost(string knownHostsFile, string host, int port, PublicKey sshKey, bool hash)
     {
         string knownHostLine = FormatLine(host, port, sshKey, hash) + '\n';
@@ -160,7 +158,7 @@ static class KnownHostsFile
             }
 
             // Each line in these files contains the following fields: markers (optional), hostnames, keytype, base64-encoded key, comment.  The fields are separated by spaces.
-            string[] lineParts = line.Split(WhitespaceSeparators, System.StringSplitOptions.RemoveEmptyEntries);
+            string[] lineParts = line.Split(new [] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
 
             bool hasMarker = lineParts.Length > 0 && lineParts[0][0] == '@';
             if ((hasMarker && lineParts.Length < 4) ||

@@ -13,11 +13,6 @@ namespace Tmds.Ssh;
 
 sealed partial class SshSession
 {
-    // Sentinal _abortReason. Note: these get logged.
-    private static readonly Exception ClosedByPeer = new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByPeer);
-    private static readonly Exception ClosedByKeepAliveTimeout = new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByKeepAliveTimeout);
-    private static readonly ObjectDisposedException DisposedException = SshClient.NewObjectDisposedException();
-
     private readonly SshClient _client;
     private readonly string? _destination;
     private readonly SshConfigSettings? _sshConfigOptions;
@@ -446,7 +441,7 @@ sealed partial class SshSession
                 using var packet = await connection.ReceivePacketAsync(abortToken, maxLength: Constants.MaxPacketLength).ConfigureAwait(false);
                 if (packet.IsEmpty)
                 {
-                    Abort(ClosedByPeer);
+                    Abort(SentinelExceptions.ClosedByPeer);
                     break;
                 }
 
@@ -505,7 +500,7 @@ sealed partial class SshSession
     {
         if (_keepAliveCount++ > _keepAliveMax)
         {
-            Abort(ClosedByKeepAliveTimeout);
+            Abort(SentinelExceptions.ClosedByKeepAliveTimeout);
         }
         else
         {
@@ -702,7 +697,7 @@ sealed partial class SshSession
         }
         if (_abortReason == null)
         {
-            Abort(DisposedException);
+            Abort(SentinelExceptions.ClientDisposedException);
         }
         if (runningConnectionTask != null)
         {
@@ -767,15 +762,15 @@ sealed partial class SshSession
         {
             ThrowHelper.ThrowInvalidOperation("Connection not closed");
         }
-        if (_abortReason == ClosedByPeer)
+        if (_abortReason == SentinelExceptions.ClosedByPeer)
         {
             return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByPeer);
         }
-        else if (_abortReason == ClosedByKeepAliveTimeout)
+        else if (_abortReason == SentinelExceptions.ClosedByKeepAliveTimeout)
         {
             return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByKeepAliveTimeout);
         }
-        else if (_abortReason == DisposedException)
+        else if (_abortReason == SentinelExceptions.ClientDisposedException)
         {
             return new SshConnectionClosedException(SshConnectionClosedException.ConnectionClosedByDispose, _abortReason);
         }

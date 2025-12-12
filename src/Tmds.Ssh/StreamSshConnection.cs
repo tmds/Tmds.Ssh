@@ -11,7 +11,6 @@ namespace Tmds.Ssh;
 sealed class StreamSshConnection : SshConnection
 {
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
-    private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly ILogger<SshClient> _logger;
     private readonly Stream _stream;
@@ -91,8 +90,8 @@ sealed class StreamSshConnection : SshConnection
         _stream = stream;
         _receiveBuffer = sequencePool.RentSequence();
         _sendBuffer = sequencePool.RentSequence();
-        _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, EncryptionCryptoTransform.None, HMac.None);
-        _encryptor = new TransformAndHMacPacketEncryptor(EncryptionCryptoTransform.None, HMac.None);
+        _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, new EncryptionCryptoTransform.EncryptionCryptoTransformNone(), new HMac.HMacNone());
+        _encryptor = new TransformAndHMacPacketEncryptor(new EncryptionCryptoTransform.EncryptionCryptoTransformNone(), new HMac.HMacNone());
     }
 
     public override async ValueTask<string> ReceiveLineAsync(int maxLength, CancellationToken ct)
@@ -137,7 +136,7 @@ sealed class StreamSshConnection : SshConnection
         {
             try
             {
-                line = s_utf8Encoding.GetString(lineSequence.ToArray());
+                line = ProtocolEncoding.UTF8.GetString(lineSequence.ToArray());
             }
             catch (DecoderFallbackException)
             {
