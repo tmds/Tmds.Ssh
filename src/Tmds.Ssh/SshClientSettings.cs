@@ -18,6 +18,16 @@ public sealed partial class SshClientSettings
     private List<string>? _userKnownHostsFilePaths;
     private List<string>? _globalKnownHostsFilePaths;
     private Dictionary<string, string>? _environmentVariables;
+    private AlgorithmList? _keyExchangeAlgorithms;
+    private AlgorithmList? _serverHostKeyAlgorithms;
+    private AlgorithmList? _publicKeyAcceptedAlgorithms;
+    private AlgorithmList? _encryptionAlgorithmsClientToServer;
+    private AlgorithmList? _encryptionAlgorithmsServerToClient;
+    private AlgorithmList? _macAlgorithmsClientToServer;
+    private AlgorithmList? _macAlgorithmsServerToClient;
+    private AlgorithmList? _compressionAlgorithmsClientToServer;
+    private AlgorithmList? _compressionAlgorithmsServerToClient;
+    private AlgorithmList? _caSignatureAlgorithms;
 
     // Avoid allocations from the public getters.
     internal IReadOnlyList<Credential> CredentialsOrDefault
@@ -28,6 +38,26 @@ public sealed partial class SshClientSettings
         => _globalKnownHostsFilePaths ?? DefaultGlobalKnownHostsFilePaths;
     internal Dictionary<string, string>? EnvironmentVariablesOrDefault
         => _environmentVariables;
+    internal List<Name> KeyExchangeAlgorithmsOrDefault
+        => _keyExchangeAlgorithms?.AsNameList(SupportedKeyExchangeAlgorithms) ?? DefaultKeyExchangeAlgorithms;
+    internal List<Name> ServerHostKeyAlgorithmsOrDefault
+        => _serverHostKeyAlgorithms?.AsNameList(SupportedServerHostKeyAlgorithms) ?? DefaultServerHostKeyAlgorithms;
+    internal List<Name>? ClientKeyAlgorithmsOrDefault
+        => _publicKeyAcceptedAlgorithms?.AsNameList(SupportedClientKeyAlgorithms) ?? DefaultClientKeyAlgorithms;
+    internal List<Name> EncryptionAlgorithmsClientToServerOrDefault
+        => _encryptionAlgorithmsClientToServer?.AsNameList(SupportedEncryptionAlgorithms) ?? DefaultEncryptionAlgorithms;
+    internal List<Name> EncryptionAlgorithmsServerToClientOrDefault
+        => _encryptionAlgorithmsServerToClient?.AsNameList(SupportedEncryptionAlgorithms) ?? DefaultEncryptionAlgorithms;
+    internal List<Name> MacAlgorithmsClientToServerOrDefault
+        => _macAlgorithmsClientToServer?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
+    internal List<Name> MacAlgorithmsServerToClientOrDefault
+        => _macAlgorithmsServerToClient?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
+    internal List<Name> CompressionAlgorithmsClientToServerOrDefault
+        => _compressionAlgorithmsClientToServer?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
+    internal List<Name> CompressionAlgorithmsServerToClientOrDefault
+        => _compressionAlgorithmsServerToClient?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
+    internal List<Name> ServerHostKeyCertificateAlgorithmsOrDefault
+        => _caSignatureAlgorithms?.AsNameList(SupportedServerHostKeyCertificateAlgorithms) ?? DefaultServerHostKeyCertificateAlgorithms;
 
     /// <summary>
     /// Creates default settings.
@@ -465,17 +495,103 @@ public sealed partial class SshClientSettings
     /// </summary>
     public Proxy? Proxy { get; set; } = null;
 
-    // Currently these settings are not exposed.
-    internal List<Name> KeyExchangeAlgorithms { get; set; } = DefaultKeyExchangeAlgorithms;
-    internal List<Name> ServerHostKeyAlgorithms { get; set; } = DefaultServerHostKeyAlgorithms;
-    internal List<Name>? PublicKeyAcceptedAlgorithms { get; set; } = null; // Do not restrict.
-    internal List<Name> EncryptionAlgorithmsClientToServer { get; set; } = DefaultEncryptionAlgorithms;
-    internal List<Name> EncryptionAlgorithmsServerToClient { get; set; } = DefaultEncryptionAlgorithms;
-    internal List<Name> MacAlgorithmsClientToServer { get; set; } = DefaultMacAlgorithms;
-    internal List<Name> MacAlgorithmsServerToClient { get; set; } = DefaultMacAlgorithms;
-    internal List<Name> CompressionAlgorithmsClientToServer { get; set; } = DefaultCompressionAlgorithms;
-    internal List<Name> CompressionAlgorithmsServerToClient { get; set; } = DefaultCompressionAlgorithms;
+    /// <summary>
+    /// Gets or sets the permitted key exchange algorithms in order of preference.
+    /// </summary>
+    public AlgorithmList KeyExchangeAlgorithms
+    {
+        get => _keyExchangeAlgorithms ??= new AlgorithmList(DefaultKeyExchangeAlgorithms);
+        set => _keyExchangeAlgorithms = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the host key signature algorithms in order of preference.
+    /// </summary>
+    public AlgorithmList ServerHostKeyAlgorithms
+    {
+        get => _serverHostKeyAlgorithms ??= new AlgorithmList(DefaultServerHostKeyAlgorithms);
+        set => _serverHostKeyAlgorithms = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the signature algorithms allowed for client key authentication.
+    /// </summary>
+    /// <remarks>
+    /// This limits how <see cref="Credentials"/> can be used for authentication based on the key signature algorithms.
+    /// When <see langword="null"/>, all supported algorithms are allowed.
+    /// </remarks>
+    public AlgorithmList? ClientKeyAlgorithms
+    {
+        get => _publicKeyAcceptedAlgorithms;
+        set => _publicKeyAcceptedAlgorithms = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted ciphers for client to server communication in order of preference.
+    /// </summary>
+    public AlgorithmList EncryptionAlgorithmsClientToServer
+    {
+        get => _encryptionAlgorithmsClientToServer ??= new AlgorithmList(DefaultEncryptionAlgorithms);
+        set => _encryptionAlgorithmsClientToServer = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted ciphers for server to client communication in order of preference.
+    /// </summary>
+    public AlgorithmList EncryptionAlgorithmsServerToClient
+    {
+        get => _encryptionAlgorithmsServerToClient ??= new AlgorithmList(DefaultEncryptionAlgorithms);
+        set => _encryptionAlgorithmsServerToClient = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted integrity algorithms for client to server communication in order of preference.
+    /// </summary>
+    public AlgorithmList MacAlgorithmsClientToServer
+    {
+        get => _macAlgorithmsClientToServer ??= new AlgorithmList(DefaultMacAlgorithms);
+        set => _macAlgorithmsClientToServer = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted integrity algorithms for server to client communication in order of preference.
+    /// </summary>
+    public AlgorithmList MacAlgorithmsServerToClient
+    {
+        get => _macAlgorithmsServerToClient ??= new AlgorithmList(DefaultMacAlgorithms);
+        set => _macAlgorithmsServerToClient = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted compression algorithms for client to server communication in order of preference.
+    /// </summary>
+    internal AlgorithmList CompressionAlgorithmsClientToServer
+    {
+        get => _compressionAlgorithmsClientToServer ??= new AlgorithmList(DefaultCompressionAlgorithms);
+        set => _compressionAlgorithmsClientToServer = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted compression algorithms for server to client communication in order of preference.
+    /// </summary>
+    internal AlgorithmList CompressionAlgorithmsServerToClient
+    {
+        get => _compressionAlgorithmsServerToClient ??= new AlgorithmList(DefaultCompressionAlgorithms);
+        set => _compressionAlgorithmsServerToClient = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the permitted algorithms allowed for signing of certificates by certificate authorities (CAs).
+    /// </summary>
+    /// <remarks>
+    /// The client will not accept host certificates signed using algorithms other than those specified.
+    /// </remarks>
+    public AlgorithmList ServerHostKeyCertificateAlgorithms
+    {
+        get => _caSignatureAlgorithms ??= new AlgorithmList(DefaultServerHostKeyCertificateAlgorithms);
+        set => _caSignatureAlgorithms = value;
+    }
+
     internal List<Name> LanguagesClientToServer { get; set; } = EmptyList;
     internal List<Name> LanguagesServerToClient { get; set; } = EmptyList;
-    internal List<Name> CASignatureAlgorithms { get; set; } = DefaultCASignatureAlgorithms;
 }

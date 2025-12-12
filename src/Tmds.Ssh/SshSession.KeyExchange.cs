@@ -276,7 +276,7 @@ sealed partial class SshSession
         TrustedHostKeys trustedKeys = GetKnownHostKeys();
 
         // Sort algorithms to prefer those we have keys for.
-        List<Name> serverHostKeyAlgorithms = new List<Name>(_settings.ServerHostKeyAlgorithms);
+        List<Name> serverHostKeyAlgorithms = new List<Name>(_settings.ServerHostKeyAlgorithmsOrDefault);
         trustedKeys.SortAlgorithms(serverHostKeyAlgorithms);
 
         // TODO: remove old keys from KnownHostsFilePaths?
@@ -287,19 +287,19 @@ sealed partial class SshSession
 
         return new KeyExchangeContext(connection, this, isInitialKex)
         {
-            KeyExchangeAlgorithms = _settings.KeyExchangeAlgorithms,
+            KeyExchangeAlgorithms = _settings.KeyExchangeAlgorithmsOrDefault,
             ServerHostKeyAlgorithms = serverHostKeyAlgorithms,
-            EncryptionAlgorithmsClientToServer = _settings.EncryptionAlgorithmsClientToServer,
-            EncryptionAlgorithmsServerToClient = _settings.EncryptionAlgorithmsServerToClient,
-            MacAlgorithmsClientToServer = _settings.MacAlgorithmsClientToServer,
-            MacAlgorithmsServerToClient = _settings.MacAlgorithmsServerToClient,
-            CompressionAlgorithmsClientToServer = _settings.CompressionAlgorithmsClientToServer,
-            CompressionAlgorithmsServerToClient = _settings.CompressionAlgorithmsServerToClient,
+            EncryptionAlgorithmsClientToServer = _settings.EncryptionAlgorithmsClientToServerOrDefault,
+            EncryptionAlgorithmsServerToClient = _settings.EncryptionAlgorithmsServerToClientOrDefault,
+            MacAlgorithmsClientToServer = _settings.MacAlgorithmsClientToServerOrDefault,
+            MacAlgorithmsServerToClient = _settings.MacAlgorithmsServerToClientOrDefault,
+            CompressionAlgorithmsClientToServer = _settings.CompressionAlgorithmsClientToServerOrDefault,
+            CompressionAlgorithmsServerToClient = _settings.CompressionAlgorithmsServerToClientOrDefault,
             LanguagesClientToServer = _settings.LanguagesClientToServer,
             LanguagesServerToClient = _settings.LanguagesServerToClient,
             HostKeyAuthentication = hostKeyAuthentication,
             MinimumRSAKeySize = _settings.MinimumRSAKeySize,
-            CASignatureAlgorithms = _settings.CASignatureAlgorithms
+            CASignatureAlgorithms = _settings.ServerHostKeyCertificateAlgorithmsOrDefault
         };
     }
 

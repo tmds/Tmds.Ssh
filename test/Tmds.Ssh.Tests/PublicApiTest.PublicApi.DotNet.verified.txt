@@ -2,6 +2,22 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
+    public sealed class AlgorithmList : System.Collections.Generic.ICollection<string>, System.Collections.Generic.IEnumerable<string>, System.Collections.Generic.IList<string>, System.Collections.IEnumerable
+    {
+        public AlgorithmList() { }
+        public int Count { get; }
+        public bool IsReadOnly { get; }
+        public string this[int index] { get; set; }
+        public void Add(string item) { }
+        public void Clear() { }
+        public bool Contains(string item) { }
+        public void CopyTo(string[] array, int arrayIndex) { }
+        public System.Collections.Generic.IEnumerator<string> GetEnumerator() { }
+        public int IndexOf(string item) { }
+        public void Insert(int index, string item) { }
+        public bool Remove(string item) { }
+        public void RemoveAt(int index) { }
+    }
     public sealed class CertificateCredential : Tmds.Ssh.Credential
     {
         public CertificateCredential(string path, Tmds.Ssh.PrivateKeyCredential privateKey) { }
@@ -506,9 +522,12 @@ namespace Tmds.Ssh
         public bool AutoConnect { get; set; }
         public bool AutoReconnect { get; set; }
         public bool BatchMode { get; set; }
+        public Tmds.Ssh.AlgorithmList? ClientKeyAlgorithms { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
         public System.Collections.Generic.List<Tmds.Ssh.Credential> Credentials { get; set; }
         public bool EnableBatchModeWhenConsoleIsRedirected { get; set; }
+        public Tmds.Ssh.AlgorithmList EncryptionAlgorithmsClientToServer { get; set; }
+        public Tmds.Ssh.AlgorithmList EncryptionAlgorithmsServerToClient { get; set; }
         public System.Collections.Generic.Dictionary<string, string> EnvironmentVariables { get; set; }
         public System.Collections.Generic.List<string> GlobalKnownHostsFilePaths { get; set; }
         public bool HashKnownHosts { get; set; }
@@ -516,9 +535,14 @@ namespace Tmds.Ssh
         public string HostName { get; set; }
         public int KeepAliveCountMax { get; set; }
         public System.TimeSpan KeepAliveInterval { get; set; }
+        public Tmds.Ssh.AlgorithmList KeyExchangeAlgorithms { get; set; }
+        public Tmds.Ssh.AlgorithmList MacAlgorithmsClientToServer { get; set; }
+        public Tmds.Ssh.AlgorithmList MacAlgorithmsServerToClient { get; set; }
         public int MinimumRSAKeySize { get; set; }
         public int Port { get; set; }
         public Tmds.Ssh.Proxy? Proxy { get; set; }
+        public Tmds.Ssh.AlgorithmList ServerHostKeyAlgorithms { get; set; }
+        public Tmds.Ssh.AlgorithmList ServerHostKeyCertificateAlgorithms { get; set; }
         public bool TcpKeepAlive { get; set; }
         public bool UpdateKnownHostsFileAfterAuthentication { get; set; }
         public System.Collections.Generic.List<string> UserKnownHostsFilePaths { get; set; }

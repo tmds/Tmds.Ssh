@@ -98,7 +98,7 @@ Message authentication code algorithms:
 Compression algorithms:
 - none
 
-Authentications:
+Authentication algorithms:
 - publickey (<xref:Tmds.Ssh.PrivateKeyCredential>)
 - publickey from SSH Agent (<xref:Tmds.Ssh.SshAgentCredentials>)
 - publickey with OpenSSH certificate (<xref:Tmds.Ssh.CertificateCredential>)

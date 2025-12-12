@@ -25,13 +25,13 @@ partial class SshClientSettings
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
         List<Name> kexAlgorithms = DetermineAlgorithms(sshConfig.KexAlgorithms, DefaultKeyExchangeAlgorithms, SupportedKeyExchangeAlgorithms);
         List<Name> macs = DetermineAlgorithms(sshConfig.Macs, DefaultMacAlgorithms, SupportedMacAlgorithms);
-        List<Name> caSignatureAlgorithms = DetermineAlgorithms(sshConfig.CASignatureAlgorithms, DefaultCASignatureAlgorithms, SupportedCASignatureAlgorithms);
+        List<Name> caSignatureAlgorithms = DetermineAlgorithms(sshConfig.CASignatureAlgorithms, DefaultServerHostKeyCertificateAlgorithms, SupportedServerHostKeyCertificateAlgorithms);
         List<Name> compressionAlgorithms = sshConfig.Compression == true ? EnableCompressionAlgorithms : DisableCompressionAlgorithms;
         List<Name>? publicKeyAcceptedAlgorithms =
             // Do not restrict if not specified.
             !sshConfig.PublicKeyAcceptedAlgorithms.HasValue ? null :
-            // When set, use SupportedPublicKeyAlgorithms as the default set and permit adding unsupported algorithms that may be usable through the SSH Agent.
-            DetermineAlgorithms(sshConfig.PublicKeyAcceptedAlgorithms, SupportedPublicKeyAlgorithms, null);
+            // When set, use SupportedClientKeyAlgorithms as the default set and permit adding unsupported algorithms that may be usable through the SSH Agent.
+            DetermineAlgorithms(sshConfig.PublicKeyAcceptedAlgorithms, SupportedClientKeyAlgorithms, null);
 
         var settings = new SshClientSettings()
         {
@@ -39,15 +39,16 @@ partial class SshClientSettings
             UserName = sshConfig.UserName ?? Environment.UserName,
             Port = sshConfig.Port ?? DefaultPort,
             ConnectTimeout = sshConfig.ConnectTimeout > 0 ? TimeSpan.FromSeconds(sshConfig.ConnectTimeout.Value) : options.ConnectTimeout,
-            KeyExchangeAlgorithms = kexAlgorithms,
-            ServerHostKeyAlgorithms = hostKeyAlgorithms,
-            PublicKeyAcceptedAlgorithms = publicKeyAcceptedAlgorithms,
-            EncryptionAlgorithmsClientToServer = ciphers,
-            EncryptionAlgorithmsServerToClient = ciphers,
-            MacAlgorithmsClientToServer = macs,
-            MacAlgorithmsServerToClient = macs,
-            CompressionAlgorithmsClientToServer = compressionAlgorithms,
-            CompressionAlgorithmsServerToClient = compressionAlgorithms,
+            KeyExchangeAlgorithms = new AlgorithmList(kexAlgorithms),
+            ServerHostKeyAlgorithms = new AlgorithmList(hostKeyAlgorithms),
+            ClientKeyAlgorithms = publicKeyAcceptedAlgorithms is not null ? new AlgorithmList(publicKeyAcceptedAlgorithms) : null,
+            EncryptionAlgorithmsClientToServer = new AlgorithmList(ciphers),
+            EncryptionAlgorithmsServerToClient = new AlgorithmList(ciphers),
+            MacAlgorithmsClientToServer = new AlgorithmList(macs),
+            MacAlgorithmsServerToClient = new AlgorithmList(macs),
+            CompressionAlgorithmsClientToServer = new AlgorithmList(compressionAlgorithms),
+            CompressionAlgorithmsServerToClient = new AlgorithmList(compressionAlgorithms),
+            ServerHostKeyCertificateAlgorithms = new AlgorithmList(caSignatureAlgorithms),
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig, options),
             HashKnownHosts = sshConfig.HashKnownHosts ?? DefaultHashKnownHosts,

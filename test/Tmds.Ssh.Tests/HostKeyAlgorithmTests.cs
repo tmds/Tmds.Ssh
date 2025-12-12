@@ -17,7 +17,7 @@ public class HostKeyAlgorithmTests
     public async Task ConnectWithHostKeyAlgorithm(string algorithm)
     {
         using var _ = await _sshServer.CreateClientAsync(
-            settings => settings.ServerHostKeyAlgorithms = [ new Name(algorithm) ]
+            settings => settings.ServerHostKeyAlgorithms = [ algorithm ]
         );
     }
 
@@ -31,10 +31,28 @@ public class HostKeyAlgorithmTests
         using var _ = await _sshServer.CreateClientAsync(
             settings =>
             {
-                settings.ServerHostKeyAlgorithms = [ new Name(algorithm) ];
+                settings.ServerHostKeyAlgorithms = [ algorithm ];
                 settings.UserKnownHostsFilePaths = [ knownHostsFile.Path ];
             }
         );
+    }
+
+    [Theory]
+    [MemberData(nameof(Algorithms))]
+    public async Task ConnectWithHostKeyAlgorithmSkipsUnknown(string algorithm)
+    {
+        using var _ = await _sshServer.CreateClientAsync(
+            settings => settings.ServerHostKeyAlgorithms = [ "dummy-algorithm", algorithm ]
+        );
+    }
+
+    [Fact]
+    public async Task ConnectWithHostKeyAlgorithmFailsWhenNoSupported()
+    {
+        await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+            _sshServer.CreateClientAsync(
+                settings => settings.ServerHostKeyAlgorithms = [ "dummy-algorithm" ]
+            ));
     }
 
     public static IEnumerable<object[]> Algorithms =>
@@ -43,5 +61,3 @@ public class HostKeyAlgorithmTests
     public static IEnumerable<object[]> CertificateAlgorithms =>
         SshClientSettings.SupportedServerHostKeyAlgorithms.Where(name => name.EndsWith(AlgorithmNames.CertSuffix)).Select(algorithm => new object[] { algorithm.ToString() });
 }
-
-//              // lines = lines.Concat([  ]);
