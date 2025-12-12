@@ -15,7 +15,7 @@ partial class UserAuthentication
     public sealed class GssApiAuth
     {
         // Kerberos - 1.2.840.113554.1.2.2 - This is DER encoding of the OID.
-        private static readonly byte[] KRB5_OID = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02];
+        private static ReadOnlySpan<byte> KRB5_OID => [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x12, 0x01, 0x02, 0x02];
 
         public static async Task<AuthResult> TryAuthenticate(KerberosCredential credential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
@@ -105,7 +105,7 @@ partial class UserAuthentication
                 }
 
                 ReadOnlySequence<byte> oidResponse = GetGssapiOidResponse(response);
-                if (KRB5_OID.AsSpan().SequenceEqual(oidResponse.IsSingleSegment ? oidResponse.FirstSpan : oidResponse.ToArray()))
+                if (KRB5_OID.SequenceEqual(oidResponse.IsSingleSegment ? oidResponse.FirstSpan : oidResponse.ToArray()))
                 {
                     return true;
                 }

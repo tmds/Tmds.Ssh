@@ -9,7 +9,6 @@ namespace Tmds.Ssh;
 
 partial class SftpChannel
 {
-    private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     // Represents an outgoing packet.
     struct Packet : IDisposable
@@ -175,7 +174,7 @@ partial class SftpChannel
         {
             byte[]? poolBuffer = null;
 
-            int maxLength = s_utf8Encoding.GetMaxByteCount(value.Length);
+            int maxLength = ProtocolEncoding.UTF8.GetMaxByteCount(value.Length);
 
             // The compiler doesn't like it when we stackalloc into a Span
             // and pass that to Write. It wants to avoid us storing the Span in this instance.
@@ -184,7 +183,7 @@ partial class SftpChannel
                 new Span<byte>(stackBuffer, maxLength) :
                 (poolBuffer = ArrayPool<byte>.Shared.Rent(maxLength));
 
-            int bytesWritten = s_utf8Encoding.GetBytes(value, byteSpan);
+            int bytesWritten = ProtocolEncoding.UTF8.GetBytes(value, byteSpan);
 
             if (writeLength)
             {

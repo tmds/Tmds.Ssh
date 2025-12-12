@@ -10,7 +10,6 @@ namespace Tmds.Ssh;
 
 sealed class EncryptionCryptoTransform : IDisposableCryptoTransform
 {
-    public static IDisposableCryptoTransform None = new EncryptionCryptoTransformNone();
     private readonly IDisposable _algorithm;
     private readonly ICryptoTransform _transform;
     private readonly byte[] _blockBuffer;
@@ -128,7 +127,7 @@ sealed class EncryptionCryptoTransform : IDisposableCryptoTransform
         _algorithm.Dispose();
     }
 
-    private class EncryptionCryptoTransformNone : IDisposableCryptoTransform
+    internal class EncryptionCryptoTransformNone : IDisposableCryptoTransform
     {
         public int BlockSize => 1;
 

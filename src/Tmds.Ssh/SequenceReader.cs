@@ -10,7 +10,6 @@ namespace Tmds.Ssh;
 
 ref struct SequenceReader
 {
-    private static readonly UTF8Encoding s_utf8Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private SequenceReader<byte> _reader;
 
@@ -191,7 +190,7 @@ ref struct SequenceReader
             _reader.Advance(length);
             try
             {
-                return s_utf8Encoding.GetString(span);
+                return ProtocolEncoding.UTF8.GetString(span);
             }
             catch (DecoderFallbackException)
             {

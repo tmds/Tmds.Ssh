@@ -17,10 +17,6 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
         Socks
     }
 
-    // Sentinel stop reasons.
-    protected static readonly Exception ConnectionClosed = new();
-    protected static readonly Exception Disposed = new();
-
     protected readonly ILogger<T> _logger;
     protected readonly CancellationTokenSource _cancel;
 
@@ -32,7 +28,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
     protected Exception? _stopReason;
     private bool _logStopped;
 
-    public bool IsDisposed => ReferenceEquals(_stopReason, Disposed);
+    public bool IsDisposed => ReferenceEquals(_stopReason, SentinelExceptions.Disposed);
 
     protected void UpdateListenEndPoint(string endpoint)
         => _listenEndPoint = endpoint;
@@ -49,11 +45,11 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
     public void ThrowIfStopped()
     {
         Exception? stopReason = _stopReason;
-        if (ReferenceEquals(stopReason, Disposed))
+        if (ReferenceEquals(stopReason, SentinelExceptions.Disposed))
         {
             throw new ObjectDisposedException(typeof(T).FullName);
         }
-        else if (ReferenceEquals(stopReason, ConnectionClosed))
+        else if (ReferenceEquals(stopReason, SentinelExceptions.ConnectionClosed))
         {
             Debug.Assert(_session is not null);
             throw _session.CreateCloseException();
@@ -65,14 +61,14 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
     }
 
     public void Dispose()
-        => Stop(Disposed);
+        => Stop(SentinelExceptions.Disposed);
 
     private void Stop(Exception stopReason)
     {
-        bool disposing = ReferenceEquals(stopReason, Disposed);
+        bool disposing = ReferenceEquals(stopReason, SentinelExceptions.Disposed);
         if (disposing)
         {
-            if (Interlocked.Exchange(ref _stopReason, Disposed) != null)
+            if (Interlocked.Exchange(ref _stopReason, SentinelExceptions.Disposed) != null)
             {
                 return;
             }
@@ -92,7 +88,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
             {
                 _logger.ForwardStopped(_listenEndPoint);
             }
-            else if (ReferenceEquals(stopReason, ConnectionClosed))
+            else if (ReferenceEquals(stopReason, SentinelExceptions.ConnectionClosed))
             {
                 if (_logger.IsEnabled(LogLevel.Error))
                 {
@@ -110,7 +106,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
 
         Stop();
 
-        if (ReferenceEquals(stopReason, ConnectionClosed))
+        if (ReferenceEquals(stopReason, SentinelExceptions.ConnectionClosed))
         {
             // Avoid the user blocking the SshSession shutdown.
             _ = _cancel.CancelAsync();
@@ -144,7 +140,7 @@ abstract partial class ForwardServer<T, TTargetStream> : IDisposable where TTarg
         try
         {
             await ListenAsync(cancellationToken).ConfigureAwait(false);
-            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(ConnectionClosed), this);
+            _ctr = _session.ConnectionAborting.UnsafeRegister(o => ((ForwardServer<T, TTargetStream>)o!).Stop(SentinelExceptions.ConnectionClosed), this);
 
             Debug.Assert(_listenEndPoint is not null);
             if (_protocol == ForwardProtocol.Direct)

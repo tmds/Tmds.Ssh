@@ -59,33 +59,38 @@ sealed class PacketEncryptionAlgorithm
     }
 
     public static PacketEncryptionAlgorithm Find(Name name)
-        => _algorithms[name];
-
-    private static Dictionary<Name, PacketEncryptionAlgorithm> _algorithms = new()
+    {
+        if (name == AlgorithmNames.Aes128Gcm)
         {
-            { AlgorithmNames.Aes128Gcm,
-                new PacketEncryptionAlgorithm(keyLength: 128 / 8, ivLength: 12,
-                    (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketEncryptor(key, iv, algorithm.TagLength),
-                    (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketDecryptor(sequencePool, key, iv, algorithm.TagLength),
-                        isAuthenticated: true,
-                        tagLength: 16) },
-            { AlgorithmNames.Aes256Gcm,
-                new PacketEncryptionAlgorithm(keyLength: 256 / 8, ivLength: 12,
-                    (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketEncryptor(key, iv, algorithm.TagLength),
-                    (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new AesGcmPacketDecryptor(sequencePool, key, iv, algorithm.TagLength),
-                        isAuthenticated: true,
-                        tagLength: 16) },
-            { AlgorithmNames.ChaCha20Poly1305,
-                new PacketEncryptionAlgorithm(keyLength: 512 / 8, ivLength: 0,
-                    (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new ChaCha20Poly1305PacketEncryptor(key),
-                    (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
-                        => new ChaCha20Poly1305PacketDecryptor(sequencePool, key),
-                        isAuthenticated: true,
-                        tagLength: ChaCha20Poly1305PacketEncryptor.TagSize) },
-        };
+            return new PacketEncryptionAlgorithm(keyLength: 128 / 8, ivLength: 12,
+                (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new AesGcmPacketEncryptor(key, iv, algorithm.TagLength),
+                (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new AesGcmPacketDecryptor(sequencePool, key, iv, algorithm.TagLength),
+                    isAuthenticated: true,
+                    tagLength: 16);
+        }
+        else if (name == AlgorithmNames.Aes256Gcm)
+        {
+            return new PacketEncryptionAlgorithm(keyLength: 256 / 8, ivLength: 12,
+                (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new AesGcmPacketEncryptor(key, iv, algorithm.TagLength),
+                (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new AesGcmPacketDecryptor(sequencePool, key, iv, algorithm.TagLength),
+                    isAuthenticated: true,
+                    tagLength: 16);
+        }
+        else if (name == AlgorithmNames.ChaCha20Poly1305)
+        {
+            return new PacketEncryptionAlgorithm(keyLength: 512 / 8, ivLength: 0,
+                (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new ChaCha20Poly1305PacketEncryptor(key),
+                (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new ChaCha20Poly1305PacketDecryptor(sequencePool, key),
+                    isAuthenticated: true,
+                    tagLength: ChaCha20Poly1305PacketEncryptor.TagSize);
+        }
+
+        throw new NotSupportedException($"Packet encryption algorithm '{name}' is not supported.");
+    }
 }

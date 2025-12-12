@@ -10,8 +10,9 @@ sealed class SshConfig
 {
     private const int MaxKeywordLength = 50; // large enough to fit keywords.
     private const string WhiteSpace = " \t";
-    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
-    private static readonly List<string> ListOfNone = [];
+    private static string Home => SshClientSettings.Home;
+    private static List<string>? _listOfNone;
+    private static List<string> ListOfNone => _listOfNone ?? Interlocked.CompareExchange(ref _listOfNone, [], null) ?? _listOfNone!;
 
     public enum StrictHostKeyChecking
     {
