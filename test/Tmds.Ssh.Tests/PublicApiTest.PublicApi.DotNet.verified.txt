@@ -2,6 +2,8 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
+    [System.Diagnostics.DebuggerDisplay("Count = {Count}")]
+    [System.Diagnostics.DebuggerTypeProxy(typeof(Tmds.Ssh.ICollectionDebugView<string>))]
     public sealed class AlgorithmList : System.Collections.Generic.ICollection<string>, System.Collections.Generic.IEnumerable<string>, System.Collections.Generic.IList<string>, System.Collections.IEnumerable
     {
         public AlgorithmList() { }

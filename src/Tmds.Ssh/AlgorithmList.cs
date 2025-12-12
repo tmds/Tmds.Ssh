@@ -2,12 +2,15 @@
 // See file LICENSE for full license details.
 
 using System.Collections;
+using System.Diagnostics;
 
 namespace Tmds.Ssh;
 
 /// <summary>
 /// Represents an ordered set of algorithm names.
 /// </summary>
+[DebuggerTypeProxy(typeof(ICollectionDebugView<string>))]
+[DebuggerDisplay("Count = {Count}")] 
 public sealed class AlgorithmList : IList<string>
 {
     private readonly List<Name> _algorithms;
