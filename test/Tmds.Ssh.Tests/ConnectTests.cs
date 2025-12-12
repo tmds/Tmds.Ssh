@@ -40,7 +40,7 @@ public class ConnectTests
         using var _ = await _sshServer.CreateClientAsync(settings =>
             {
                 settings.UserKnownHostsFilePaths = [ "/no_such_file" ];
-                settings.ServerHostKeyAlgorithms = [ new Name(hostKeyAlgorithm) ];
+                settings.ServerHostKeyAlgorithms = [ hostKeyAlgorithm ];
                 settings.HostAuthentication =
                 (HostAuthenticationContext context, CancellationToken cancellationToken) =>
                 {

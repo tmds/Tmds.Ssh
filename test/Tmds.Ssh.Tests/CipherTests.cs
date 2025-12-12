@@ -17,7 +17,7 @@ public class CipherTests
     public async Task ConnectWithDecryptionCipher(string cipher)
     {
         using var _ = await _sshServer.CreateClientAsync(
-            settings => settings.EncryptionAlgorithmsClientToServer = [ new Name(cipher) ]
+            settings => settings.EncryptionAlgorithmsClientToServer = [ cipher ]
         );
     }
 
@@ -26,7 +26,7 @@ public class CipherTests
     public async Task ConnectWithEncryptionCipher(string cipher)
     {
         using var _ = await _sshServer.CreateClientAsync(
-            settings => settings.EncryptionAlgorithmsServerToClient = [ new Name(cipher) ]
+            settings => settings.EncryptionAlgorithmsServerToClient = [ cipher ]
         );
     }
 
@@ -37,8 +37,8 @@ public class CipherTests
         using var client = await _sshServer.CreateClientAsync(
             settings =>
             {
-                settings.EncryptionAlgorithmsServerToClient = [ new Name(cipher) ];
-                settings.EncryptionAlgorithmsServerToClient = [ new Name(cipher) ];
+                settings.EncryptionAlgorithmsServerToClient = [ cipher ];
+                settings.EncryptionAlgorithmsClientToServer = [ cipher ];
             }
         );
 
@@ -64,6 +64,42 @@ public class CipherTests
 
             Assert.Equal(sendBuffer, receiveBuffer);
         }
+    }
+
+    [Theory]
+    [MemberData(nameof(Ciphers))]
+    public async Task ConnectWithDecryptionCipherSkipsUnknown(string cipher)
+    {
+        using var _ = await _sshServer.CreateClientAsync(
+            settings => settings.EncryptionAlgorithmsClientToServer = [ "dummy-algorithm", cipher ]
+        );
+    }
+
+    [Fact]
+    public async Task ConnectWithDecryptionCipherFailsWhenNoSupported()
+    {
+        await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+            _sshServer.CreateClientAsync(
+                settings => settings.EncryptionAlgorithmsClientToServer = [ "dummy-algorithm" ]
+            ));
+    }
+
+    [Theory]
+    [MemberData(nameof(Ciphers))]
+    public async Task ConnectWithEncryptionCipherSkipsUnknown(string cipher)
+    {
+        using var _ = await _sshServer.CreateClientAsync(
+            settings => settings.EncryptionAlgorithmsServerToClient = [ "dummy-algorithm", cipher ]
+        );
+    }
+
+    [Fact]
+    public async Task ConnectWithEncryptionCipherFailsWhenNoSupported()
+    {
+        await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+            _sshServer.CreateClientAsync(
+                settings => settings.EncryptionAlgorithmsServerToClient = [ "dummy-algorithm" ]
+            ));
     }
 
     public static IEnumerable<object[]> Ciphers()

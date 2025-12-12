@@ -40,7 +40,7 @@ sealed partial class SshSession
 
         UserAuthContext context = new UserAuthContext(
             connection, _settings.UserName,
-            _settings.PublicKeyAcceptedAlgorithms, SshClientSettings.SupportedPublicKeyAlgorithms,
+            _settings.ClientKeyAlgorithmsOrDefault, SshClientSettings.SupportedClientKeyAlgorithms,
             keySignatureAlgorithms,
             _settings.MinimumRSAKeySize, Logger);
 

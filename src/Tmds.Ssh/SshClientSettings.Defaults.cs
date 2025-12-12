@@ -68,10 +68,10 @@ partial class SshClientSettings
         AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256
     ];
     internal readonly static List<Name> SupportedEncryptionAlgorithms = CreatePreferredEncryptionAlgorithms();
-    internal readonly static List<Name> SupportedPublicKeyAlgorithms = [
+    internal readonly static List<Name> SupportedClientKeyAlgorithms = [
         AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert,
         AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
-    internal readonly static List<Name> SupportedCASignatureAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
+    internal readonly static List<Name> SupportedServerHostKeyCertificateAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedMacAlgorithms = [
         // The supported ciphers do not need a MAC.
         // We add a MAC here to workaround an issue with Apache MINA SSHD server disconnecting when there is no common MAC algorithm (https://github.com/apache/mina-sshd/issues/664).
@@ -80,10 +80,11 @@ partial class SshClientSettings
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];
     internal readonly static List<Name> DefaultKeyExchangeAlgorithms = SupportedKeyExchangeAlgorithms;
     internal readonly static List<Name> DefaultServerHostKeyAlgorithms = SupportedServerHostKeyAlgorithms;
+    internal readonly static List<Name>? DefaultClientKeyAlgorithms = null; // Do not restrict.
     internal readonly static List<Name> DefaultEncryptionAlgorithms = SupportedEncryptionAlgorithms;
     internal readonly static List<Name> DefaultMacAlgorithms = SupportedMacAlgorithms;
     internal readonly static List<Name> DefaultCompressionAlgorithms = SupportedCompressionAlgorithms;
-    internal readonly static List<Name> DefaultCASignatureAlgorithms = SupportedCASignatureAlgorithms;
+    internal readonly static List<Name> DefaultServerHostKeyCertificateAlgorithms = SupportedServerHostKeyCertificateAlgorithms;
     internal readonly static List<Name> DisableCompressionAlgorithms = [ AlgorithmNames.None ];
     internal readonly static List<Name> EnableCompressionAlgorithms = DisableCompressionAlgorithms; // no compression algorithms implemented.
 
