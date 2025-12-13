@@ -782,7 +782,8 @@ sealed partial class SftpChannel : IDisposable
                 return shouldRecurse(ref localFileEntry);
             };
         }
-        if (!includeSubdirectories)
+        LocalFileEntryPredicate? shouldInclude = options.ShouldInclude;
+        if (!includeSubdirectories || shouldInclude is not null)
         {
             fse.ShouldIncludePredicate = (ref FileSystemEntry entry) =>
             {
@@ -792,6 +793,12 @@ sealed partial class SftpChannel : IDisposable
                     (followDirectoryLinks || !isLink))
                 {
                     return false;
+                }
+
+                if (shouldInclude is not null)
+                {
+                    LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
+                    return shouldInclude(ref localFileEntry);
                 }
 
                 return true;
@@ -812,6 +819,10 @@ sealed partial class SftpChannel : IDisposable
                 onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, remoteDirPath, createParents, GetPermissionsForDirectory(localDirPath), cancellationToken));
             }
 
+            // Track the last directory that is known to exist to avoid calling CreateDirectoryAsync for each item in the same directory.
+            string lastRemoteDirectory = remoteDirPath;
+            bool shouldEnsureParentDirectories = shouldInclude is not null;
+
             foreach (var item in fse)
             {
                 if (onGoing.Count == MaxConcurrentOperations)
@@ -821,12 +832,21 @@ sealed partial class SftpChannel : IDisposable
                 switch (item.Type)
                 {
                     case UnixFileType.Directory:
-                        onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, createParents: false, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
+                        onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, shouldEnsureParentDirectories, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
+                        lastRemoteDirectory = item.RemotePath;
                         break;
                     case UnixFileType.RegularFile:
+                        if (shouldEnsureParentDirectories)
+                        {
+                            lastRemoteDirectory = EnsureParentRemoteDirectoryAsync(lastRemoteDirectory, item.RemotePath);
+                        }
                         onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
                         break;
                     case UnixFileType.SymbolicLink:
+                        if (shouldEnsureParentDirectories)
+                        {
+                            lastRemoteDirectory = EnsureParentRemoteDirectoryAsync(lastRemoteDirectory, item.RemotePath);
+                        }
                         FileInfo file = new FileInfo(item.LocalPath);
                         FileSystemInfo? linkTarget;
                         if (followFileLinks &&
@@ -870,6 +890,26 @@ sealed partial class SftpChannel : IDisposable
                 { }
             }
             ArrayPool<char>.Shared.Return(pathBuffer);
+        }
+
+        string EnsureParentRemoteDirectoryAsync(string lastDirectory, string itemPath)
+        {
+            int lastSeparator = itemPath.LastIndexOf(RemotePath.DirectorySeparatorChar);
+            if (lastSeparator <= 0)
+            {
+                return lastDirectory;
+            }
+            ReadOnlySpan<char> parentPath = itemPath.AsSpan(0, lastSeparator);
+            bool isSameOrParentOfCurrent =
+                lastDirectory.AsSpan().StartsWith(parentPath) &&
+                (lastDirectory.Length == parentPath.Length || lastDirectory[parentPath.Length] == RemotePath.DirectorySeparatorChar);
+            if (!isSameOrParentOfCurrent)
+            {
+                lastDirectory = new string(parentPath);
+                ValueTask createDirTask = CreateDirectoryAsync(workingDirectory, lastDirectory, createParents: true, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
+                onGoing.Enqueue(createDirTask);
+            }
+            return lastDirectory;
         }
     }
 

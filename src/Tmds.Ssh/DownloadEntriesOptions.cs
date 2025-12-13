@@ -53,6 +53,9 @@ public sealed class DownloadEntriesOptions
     /// <summary>
     /// Gets or sets <see cref="SftpFileEntryPredicate"/> to determine if an entry should be included.
     /// </summary>
+    /// <remarks>
+    /// Parent directories will be created for included entries when they don't exist yet.
+    /// </remarks>
     public SftpFileEntryPredicate? ShouldInclude { get; set; }
 
     /// <summary>

@@ -1151,6 +1151,95 @@ public class SftpClientTests
         Assert.NotNull(dirAttributes);
     }
 
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public async Task UploadShouldInclude(bool include)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+        File.OpenWrite($"{sourceDir}/file1.txt").Dispose();
+        File.OpenWrite($"{sourceDir}/file2.log").Dispose();
+
+        string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
+        {
+            ShouldInclude = (ref LocalFileEntry entry) =>
+            {
+                string path = entry.ToFullPath();
+                if (path.EndsWith(".txt"))
+                {
+                    return include;
+                }
+                return true;
+            }
+        });
+
+        var txtFileAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/file1.txt");
+        if (include)
+        {
+            Assert.NotNull(txtFileAttributes);
+        }
+        else
+        {
+            Assert.Null(txtFileAttributes);
+        }
+
+        var logFileAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/file2.log");
+        Assert.NotNull(logFileAttributes);
+    }
+
+    [Fact]
+    public async Task UploadShouldIncludeCreatesParentDirectories()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourceDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(sourceDir);
+        string level1Dir = Path.Combine(sourceDir, "level1");
+        Directory.CreateDirectory(level1Dir);
+        string level2Dir = Path.Combine(level1Dir, "level2");
+        Directory.CreateDirectory(level2Dir);
+        File.OpenWrite(Path.Combine(level2Dir, "file.txt")).Dispose();
+
+        string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.UploadDirectoryEntriesAsync(sourceDir, remoteDir, new UploadEntriesOptions()
+        {
+            TargetDirectoryCreation = TargetDirectoryCreation.CreateWithParents,
+            ShouldInclude = (ref LocalFileEntry entry) =>
+            {
+                return File.Exists(entry.ToFullPath()); // Only include files.
+            }
+        });
+
+        var fileAttributes = await sftpClient.GetAttributesAsync($"{remoteDir}/level1/level2/file.txt");
+        Assert.NotNull(fileAttributes);
+    }
+
+    [Fact]
+    public async Task DownloadShouldIncludeCreatesParentDirectories()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string remoteDir = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync($"{remoteDir}/level1/level2", createParents: true);
+        using var file = await sftpClient.CreateNewFileAsync($"{remoteDir}/level1/level2/file.txt", FileAccess.Write);
+        await file.CloseAsync();
+
+        string localDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        await sftpClient.DownloadDirectoryEntriesAsync(remoteDir, localDir, new DownloadEntriesOptions()
+        {
+            ShouldInclude = (ref SftpFileEntry entry) =>
+            {
+                return entry.FileType == UnixFileType.RegularFile; // Only include files.
+            }
+        });
+
+        Assert.True(File.Exists(Path.Combine(localDir, "level1", "level2", "file.txt")));
+    }
+
     [Fact]
     public async Task UploadNoIncludeSubdirectories()
     {
