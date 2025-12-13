@@ -34,6 +34,14 @@ public sealed class UploadEntriesOptions
     public LocalFileEntryPredicate? ShouldRecurse { get; set; }
 
     /// <summary>
+    /// Gets or sets <see cref="LocalFileEntryPredicate"/> to determine if an entry should be included.
+    /// </summary>
+    /// <remarks>
+    /// Parent directories will be created for included entries when they don't exist yet with <see cref="SftpClient.DefaultCreateDirectoryPermissions"/>.
+    /// </remarks>
+    public LocalFileEntryPredicate? ShouldInclude { get; set; }
+
+    /// <summary>
     /// Gets or sets how to handle target directory creation.
     /// </summary>
     public TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.CreateWithParents;

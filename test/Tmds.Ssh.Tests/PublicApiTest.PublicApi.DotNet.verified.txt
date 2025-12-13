@@ -756,6 +756,7 @@ namespace Tmds.Ssh
         public bool FollowFileLinks { get; set; }
         public bool IncludeSubdirectories { get; set; }
         public bool Overwrite { get; set; }
+        public Tmds.Ssh.LocalFileEntryPredicate? ShouldInclude { get; set; }
         public Tmds.Ssh.LocalFileEntryPredicate? ShouldRecurse { get; set; }
         public Tmds.Ssh.TargetDirectoryCreation TargetDirectoryCreation { get; set; }
     }
