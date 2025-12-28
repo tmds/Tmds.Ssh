@@ -1,3 +1,9 @@
+[![NuGet](https://img.shields.io/nuget/v/Tmds.Ssh.svg)](https://www.nuget.org/packages/Tmds.Ssh)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Tmds.Ssh)](https://www.nuget.org/packages/Tmds.Ssh)
+[![GitHub](https://img.shields.io/badge/GitHub-tmds%2FTmds.Ssh-blue?logo=github)](https://github.com/tmds/Tmds.Ssh)
+[![License](https://img.shields.io/github/license/tmds/Tmds.Ssh)](https://github.com/tmds/Tmds.Ssh/blob/main/LICENSE)
+![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4)
+
 Tmds.Ssh is a modern, open-source SSH client library for .NET.
 
 ## Getting Started
