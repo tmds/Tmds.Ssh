@@ -1,9 +1,7 @@
 items:
   - name: Home
     href: index.md
-  - name: Getting Started
-    href: getting-started.md
   - name: API
     href: api/Tmds.Ssh.yml
-  - name: .NET Tools
+  - name: Tools
     href: tools.md
