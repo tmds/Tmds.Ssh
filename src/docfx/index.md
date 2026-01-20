@@ -8,9 +8,30 @@ Tmds.Ssh is a modern, open-source SSH client library for .NET.
 
 ## Getting Started
 
-To start using the library in your application, see [Getting Started](getting-started.md).
+The following example shows how you can connect to an SSH server and execute a command.\
+The example assumes you have already setup user credentials and trust the server so that `ssh <destination>` works.
 
-To try out the library with an SSH server before writing any code, check out the [.NET Tools](tools.md).
+Create a file named `example.cs`:
+```cs
+#:package Tmds.Ssh@*
+using Tmds.Ssh;
+
+using var sshClient = new SshClient("localhost");
+
+using var process = await sshClient.ExecuteAsync("echo 'Hello world!'");
+(bool isError, string? line) = await process.ReadLineAsync();
+
+Console.WriteLine(line);
+```
+
+Run the application:
+```sh
+$ dotnet run example.cs
+hello world!
+```
+
+For more examples, see the documentation of <xref:Tmds.Ssh.SshClient> and <xref:Tmds.Ssh.SftpClient>.\
+To try out the library with an SSH server before writing any code, check out the [Tools](tools.md).
 
 ## Features
 
