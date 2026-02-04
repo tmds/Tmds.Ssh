@@ -132,6 +132,8 @@ public class SshServer : IDisposable
                 );
             }
             _containerId = LastWord(Run("podman", ["run", ..runArgs, ContainerImageName]));
+            var stopwatch = Stopwatch.StartNew();
+            var timeout = TimeSpan.FromSeconds(30);
             do
             {
                 string[] log = Run("podman", "logs", _containerId);
@@ -150,6 +152,13 @@ public class SshServer : IDisposable
                     log = Run("podman", "logs", _containerId);
                     throw new InvalidOperationException("Failed to start ssh server" + Environment.NewLine
                                                             + string.Join(Environment.NewLine, log));
+                }
+
+                // Check for timeout
+                if (stopwatch.Elapsed > timeout)
+                {
+                    log = Run("podman", "logs", _containerId);
+                    throw new TimeoutException($"Timed out waiting for SSH server to start after {timeout.TotalSeconds} seconds. Container logs:{Environment.NewLine}{log}");
                 }
             } while (true);
 

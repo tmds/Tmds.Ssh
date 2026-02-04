@@ -37,9 +37,7 @@ jobs:
 
     - name: Run tests
       run: |
-        export MSBUILDENSURESTDOUTFORTASKPROCESSES=1
-        export MSBUILDDISABLENODEREUSE=1
-        dotnet test --tl:off test/Tmds.Ssh.Tests
+        dotnet test --project test/Tmds.Ssh.Tests
 
     - name: Build packages
       run: |
