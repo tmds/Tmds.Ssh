@@ -120,23 +120,10 @@ public class RemoteProcess
     }
 
     [Fact]
-    public async Task ExitCodeThrowsInvalidOperationExceptionWhenProcessNotExited()
-    {
-        using var client = await _sshServer.CreateClientAsync();
-        using var process = await client.ExecuteAsync("sleep 60");
-#pragma warning disable CS0618 // Type or member is obsolete
-        Assert.Throws<InvalidOperationException>(() => process.ExitCode);
-#pragma warning restore CS0618 // Type or member is obsolete
-    }
-
-    [Fact]
     public async Task WaitForExit()
     {
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync("sleep 1");
-#pragma warning disable CS0618 // Type or member is obsolete
-        await process.WaitForExitAsync();
-#pragma warning restore CS0618 // Type or member is obsolete
         int exitCode = await process.GetExitCodeAsync();
         Assert.Equal(0, exitCode);
     }
