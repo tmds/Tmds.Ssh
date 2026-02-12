@@ -94,7 +94,7 @@ class Program
         Task.WaitAny(tasks);
         PrintExceptions(tasks);
 
-        return process.ExitCode;
+        return await process.GetExitCodeAsync();
 
         static async Task PrintToConsole(RemoteProcess process)
         {

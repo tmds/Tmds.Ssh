@@ -275,34 +275,6 @@ public sealed class RemoteProcess : IDisposable
         _hasTty = hasTty;
     }
 
-    /// <summary>
-    /// Returns the exit code of the process.
-    /// </summary>
-    [Obsolete($"Use {nameof(GetExitCodeAsync)} instead.")]
-    public int ExitCode
-    {
-        get
-        {
-            EnsureExited();
-
-            return _channel.ExitCode!.Value;
-        }
-    }
-
-    /// <summary>
-    /// Returns the signal that terminated the process when terminated by a signal.
-    /// </summary>
-    [Obsolete($"Use {nameof(GetExitStatusAsync)} instead.")]
-    public string? ExitSignal
-    {
-        get
-        {
-            EnsureExited();
-
-            return _channel.ExitSignal;
-        }
-    }
-
     private void EnsureExited()
     {
         if (_readMode == ReadMode.Disposed)
@@ -576,16 +548,6 @@ public sealed class RemoteProcess : IDisposable
                     throw new IndexOutOfRangeException($"Unexpected read type: {ReadType}.");
             }
         }
-    }
-
-    /// <summary>
-    /// Waits for the process to exit.
-    /// </summary>
-    /// <param name="cancellationToken">Token to cancel the operation.</param>
-    [Obsolete($"Use {nameof(GetExitCodeAsync)} instead.")]
-    public async ValueTask WaitForExitAsync(CancellationToken cancellationToken = default)
-    {
-        await GetExitStatusAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
