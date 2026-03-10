@@ -117,7 +117,7 @@ ref partial struct SequenceWriter
             WriteUInt32(length);
 
             var span = AllocGetSpan(length);
-            if (span.Length <= length)
+            if (span.Length >= length)
             {
                 value.TryWriteBytes(span, out int bytesWritten, isUnsigned: false, isBigEndian: true);
                 Debug.Assert(bytesWritten == length);
@@ -174,7 +174,7 @@ ref partial struct SequenceWriter
     {
         Span<byte> span = AllocGetSpan(count);
 
-        if (span.Length <= count)
+        if (span.Length >= count)
         {
             span = span.Slice(0, count);
             RandomBytes.Fill(span);
@@ -182,8 +182,6 @@ ref partial struct SequenceWriter
         }
         else
         {
-            // MAYDO: maybe stackalloc for small counts
-
             byte[] buffer = ArrayPool<byte>.Shared.Rent(count);
 
             span = buffer.AsSpan().Slice(0, count);
