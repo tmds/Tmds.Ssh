@@ -78,7 +78,7 @@ public sealed class PublicKey : IEquatable<PublicKey>
             return false;
         }
 
-        return SshKeyData.Equals(other.RawData);
+        return SshKeyData.Equals(other.SshKeyData);
     }
 
     /// <summary>
