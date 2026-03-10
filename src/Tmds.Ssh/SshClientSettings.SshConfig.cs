@@ -147,9 +147,9 @@ partial class SshClientSettings
 
     private static List<Credential> DetermineCredentials(SshConfig config, SshConfigSettings options)
     {
-        bool addPubKeyCredentials = config.PubKeyAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
-        bool addGssApiCredentials = config.GssApiAuthentication ?? false && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
-        bool assPasswordCredential = config.PasswordAuthentication ?? true && IsAcceptedAuthentication(AlgorithmNames.Password);
+        bool addPubKeyCredentials = (config.PubKeyAuthentication ?? true) && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
+        bool addGssApiCredentials = (config.GssApiAuthentication ?? false) && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
+        bool addPasswordCredential = (config.PasswordAuthentication ?? true) && IsAcceptedAuthentication(AlgorithmNames.Password);
         bool addSshAgentCredentials = config.IdentitiesOnly != true && addPubKeyCredentials;
         bool addNone = IsAcceptedAuthentication(AlgorithmNames.None);
 
@@ -216,14 +216,14 @@ partial class SshClientSettings
                 }
                 else if (algorithm == AlgorithmNames.Password)
                 {
-                    if (assPasswordCredential)
+                    if (addPasswordCredential)
                     {
                         if (options.PasswordPrompt is { } prompt)
                         {
                             credentials.Add(new PasswordCredential(prompt));
                         }
 
-                        assPasswordCredential = false;
+                        addPasswordCredential = false;
                     }
                 }
                 else if (algorithm == AlgorithmNames.None)
