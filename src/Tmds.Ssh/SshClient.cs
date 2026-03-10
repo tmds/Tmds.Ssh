@@ -119,12 +119,10 @@ public sealed partial class SshClient : IDisposable
     /// <param name="settings">The <see cref="SshClientSettings"/>.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
     public SshClient(SshClientSettings settings, ILoggerFactory? loggerFactory = null) :
-        this(settings, destination: null, configSettings: null,
-             settings?.AutoConnect ?? default, settings?.AutoReconnect ?? default, settings?.ConnectTimeout ?? default,
+        this(settings ?? throw new ArgumentNullException(nameof(settings)), destination: null, configSettings: null,
+             settings.AutoConnect, settings.AutoReconnect, settings.ConnectTimeout,
              loggerFactory)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-    }
+    { }
 
     /// <summary>
     /// Creates an <see cref="SshClient"/> for the specified destination with SSH config settings.
@@ -190,12 +188,12 @@ public sealed partial class SshClient : IDisposable
     {
         get
         {
-            SshSession session = GetConnectedSesion();
+            SshSession session = GetConnectedSession();
             return session.ConnectionClosed;
         }
     }
 
-    private SshSession GetConnectedSesion([CallerMemberNameAttribute]string? callerMethod = null)
+    private SshSession GetConnectedSession([CallerMemberNameAttribute]string? callerMethod = null)
     {
         if (_autoReconnect)
         {
