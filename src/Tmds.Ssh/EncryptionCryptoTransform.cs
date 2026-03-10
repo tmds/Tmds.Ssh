@@ -124,6 +124,7 @@ sealed class EncryptionCryptoTransform : IDisposableCryptoTransform
 
     public void Dispose()
     {
+        _transform.Dispose();
         _algorithm.Dispose();
     }
 
