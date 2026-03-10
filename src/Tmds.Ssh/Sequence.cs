@@ -61,7 +61,7 @@ sealed partial class Sequence : IDisposable
     {
         // Quick check if there is sufficient space.
         int bytesAvailable = _endSegment?.BytesUnused ?? 0;
-        if (bytesAvailable <= minimumLength)
+        if (bytesAvailable < minimumLength)
         {
             AllocGetMemory(minimumLength);
         }
@@ -126,7 +126,7 @@ sealed partial class Sequence : IDisposable
     {
         // Quick check if there is sufficient space.
         int bytesAvailable = _endSegment?.BytesUnused ?? 0;
-        if (bytesAvailable <= minimumLength)
+        if (bytesAvailable < minimumLength)
         {
             AllocGetMemory(minimumLength);
         }
