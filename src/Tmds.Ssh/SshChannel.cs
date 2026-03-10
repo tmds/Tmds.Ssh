@@ -408,7 +408,7 @@ sealed partial class SshChannel : ISshChannel
     {
         if (buffer != null)
         {
-            int length = length = (int)Math.Min(buffer.Value.Length, sequence!.Length);
+            int length = (int)Math.Min(buffer.Value.Length, sequence!.Length);
             sequence.AsReadOnlySequence().Slice(0, length).CopyTo(buffer.Value.Span);
             sequence.Remove(length);
             if (sequence.IsEmpty)
