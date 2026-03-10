@@ -10,13 +10,13 @@ sealed class KeyExchangeOutput
         byte[] initialIVS2C, byte[] encryptionKeyS2C, byte[] integrityKeyS2C,
         byte[] initialIVC2S, byte[] encryptionKeyC2S, byte[] integrityKeyC2S)
     {
-        ExchangeHash = exchangeHash ?? throw new ArgumentException(nameof(exchangeHash));
-        InitialIVS2C = initialIVS2C ?? throw new ArgumentException(nameof(initialIVS2C));
-        EncryptionKeyS2C = encryptionKeyS2C ?? throw new ArgumentException(nameof(encryptionKeyS2C));
-        IntegrityKeyS2C = integrityKeyS2C ?? throw new ArgumentException(nameof(integrityKeyS2C));
-        InitialIVC2S = initialIVC2S ?? throw new ArgumentException(nameof(initialIVC2S));
-        EncryptionKeyC2S = encryptionKeyC2S ?? throw new ArgumentException(nameof(encryptionKeyC2S));
-        IntegrityKeyC2S = integrityKeyC2S ?? throw new ArgumentException(nameof(integrityKeyC2S));
+        ExchangeHash = exchangeHash ?? throw new ArgumentNullException(nameof(exchangeHash));
+        InitialIVS2C = initialIVS2C ?? throw new ArgumentNullException(nameof(initialIVS2C));
+        EncryptionKeyS2C = encryptionKeyS2C ?? throw new ArgumentNullException(nameof(encryptionKeyS2C));
+        IntegrityKeyS2C = integrityKeyS2C ?? throw new ArgumentNullException(nameof(integrityKeyS2C));
+        InitialIVC2S = initialIVC2S ?? throw new ArgumentNullException(nameof(initialIVC2S));
+        EncryptionKeyC2S = encryptionKeyC2S ?? throw new ArgumentNullException(nameof(encryptionKeyC2S));
+        IntegrityKeyC2S = integrityKeyC2S ?? throw new ArgumentNullException(nameof(integrityKeyC2S));
     }
 
     public byte[] ExchangeHash { get; }
