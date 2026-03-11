@@ -372,7 +372,7 @@ sealed class SshConfig
                     config.CertificateFiles = ListOfNone;
                 }
 
-                if (!object.ReferenceEquals(config.IdentityFiles, ListOfNone))
+                if (!object.ReferenceEquals(config.CertificateFiles, ListOfNone))
                 {
                     config.CertificateFiles ??= new();
 
