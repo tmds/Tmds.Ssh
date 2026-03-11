@@ -52,13 +52,19 @@ static class Connect
     {
         context.LogConnect();
 
-        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
+        // Dual-stack socket: supports both IPv4 and IPv6.
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         try
         {
             // Connect to the remote host
             await socket.ConnectAsync(context.EndPoint.Host, context.EndPoint.Port, cancellationToken).ConfigureAwait(false);
 
-            context.SetHostIPAddress((socket.RemoteEndPoint as IPEndPoint)!.Address);
+            IPAddress remoteAddress = (socket.RemoteEndPoint as IPEndPoint)!.Address;
+            if (remoteAddress.IsIPv4MappedToIPv6)
+            {
+                remoteAddress = remoteAddress.MapToIPv4();
+            }
+            context.SetHostIPAddress(remoteAddress);
 
             socket.NoDelay = true;
 
