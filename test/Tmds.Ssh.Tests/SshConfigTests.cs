@@ -59,7 +59,7 @@ public class SshConfigTests
     KexAlgorithms ecdh-sha2-nistp384
     Macs hmac-sha2-512
     PubKeyAcceptedAlgorithms ecdsa-sha2-nistp256
-    CanonicalizeHostName yes
+    CanonicalizeHostName no
     ServerAliveCountMax 8
     ServerAliveInterval 30
     IdentitiesOnly no
