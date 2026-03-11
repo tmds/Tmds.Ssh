@@ -158,7 +158,8 @@ partial class HostKey
 
         var ros = reader.ReadStringAsBytes(); // principals
         var innerReader = new SequenceReader(ros);
-        List<string> principals = new();
+        // Use case-insensitive comparison since SSH hostnames are case-insensitive.
+        HashSet<string> principals = new(StringComparer.OrdinalIgnoreCase);
         while (!innerReader.AtEnd)
         {
             principals.Add(innerReader.ReadUtf8String());
