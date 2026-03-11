@@ -691,7 +691,7 @@ sealed class SshConfig
 
     private static void ThrowUnsupportedWhenKeywordValueIsNot(scoped ReadOnlySpan<char> keyword, ref ReadOnlySpan<char> remainder, ReadOnlySpan<char> expected)
     {
-        if (!TryGetNextToken(ref remainder, out ReadOnlySpan<char> value) && value.Equals(expected, StringComparison.OrdinalIgnoreCase))
+        if (!TryGetNextToken(ref remainder, out ReadOnlySpan<char> value) || !value.Equals(expected, StringComparison.OrdinalIgnoreCase))
         {
             ThrowUnsupportedKeywordValue(keyword, value);
         }
