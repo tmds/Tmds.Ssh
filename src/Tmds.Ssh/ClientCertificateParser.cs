@@ -40,7 +40,7 @@ sealed class ClientCertificateParser
         {
             data = data.Slice(0, endOfLine);
         }
-        data.Trim(WhitespaceSeparators);
+        data = data.Trim(WhitespaceSeparators);
         int endOfType = data.IndexOfAny(WhitespaceSeparators);
         if (endOfType == -1)
         {
