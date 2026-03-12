@@ -49,7 +49,7 @@ sealed class HMac : IHMac
         Debug.Assert(bytesWritten == _hash.Length);
 
         Span<byte> expected = _hash.AsSpan().Slice(0, HashSize);
-        return expected.SequenceEqual(hash);
+        return CryptographicOperations.FixedTimeEquals(expected, hash);
     }
 
     internal sealed class HMacNone : IHMac
