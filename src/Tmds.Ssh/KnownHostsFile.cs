@@ -335,10 +335,9 @@ static class KnownHostsFile
             {
                 string regexPattern =
                     "^" +
-                    pattern.ToLowerInvariant()
-                        .Replace(".", "\\.")
-                        .Replace("*", ".*")
-                        .Replace("?", ".?")
+                    Regex.Escape(pattern.ToLowerInvariant())
+                        .Replace("\\*", ".*")
+                        .Replace("\\?", ".")
                     + "$";
 
                 bool isMatch = Regex.IsMatch(host, regexPattern) ||
