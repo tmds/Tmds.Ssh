@@ -53,7 +53,17 @@ static class HostKeyVerification
         }
 
         // Check if the certificate matches the hostname.
-        if (certInfo.Principals.Count != 0 && !certInfo.Principals.Contains(connectionInfo.HostName))
+        // Treat certificates with no principals as not matching (like OpenSSH 10.3+).
+        bool principalMatches = false;
+        foreach (string principal in certInfo.Principals)
+        {
+            if (PatternMatcher.IsPatternMatch(principal, connectionInfo.HostName))
+            {
+                principalMatches = true;
+                break;
+            }
+        }
+        if (!principalMatches)
         {
             throw new ConnectFailedException(ConnectFailedReason.KeyExchangeFailed, $"Server certificate does not match the connection hostname.", connectionInfo);
         }

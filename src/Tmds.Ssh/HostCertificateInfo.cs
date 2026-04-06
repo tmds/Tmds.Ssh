@@ -39,7 +39,7 @@ public sealed class HostCertificateInfo
         bool hasCriticalOptions,
         DateTimeOffset validBefore,
         DateTimeOffset validAfter,
-        HashSet<string> principals,
+        List<string> principals,
         ReadOnlyMemory<byte> signedData,
         ReadOnlySequence<byte> signature,
         PublicKeyAlgorithm caPublicKey
@@ -65,7 +65,7 @@ public sealed class HostCertificateInfo
     internal bool HasCriticalOptions { get; }
     internal DateTimeOffset ValidBefore { get; }
     internal DateTimeOffset ValidAfter { get; }
-    internal HashSet<string> Principals { get; }
+    internal List<string> Principals { get; }
 
     internal ReadOnlyMemory<byte> SignedData { get; }
     internal ReadOnlySequence<byte> Signature { get; }
