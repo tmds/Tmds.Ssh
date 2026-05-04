@@ -7,7 +7,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
     <!-- Test dependencies -->
     <PackageVersion Include="PublicApiGenerator" Version="11.4.5" />
     <PackageVersion Include="Verify.XunitV3" Version="28.16.0" />
