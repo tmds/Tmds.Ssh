@@ -9,7 +9,7 @@
     </PackageVersion>
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.3" />
     <!-- Test dependencies -->
-    <PackageVersion Include="PublicApiGenerator" Version="11.4.5" />
+    <PackageVersion Include="PublicApiGenerator" Version="11.5.4" />
     <PackageVersion Include="Verify.XunitV3" Version="28.16.0" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="System.Linq.Async" Version="7.0.1" />
