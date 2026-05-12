@@ -958,12 +958,16 @@ sealed partial class SftpChannel : IDisposable
             throw new SftpException(SftpError.NoSuchFile);
         }
 
+        ValueTask<long> initialLengthTask = overwrite ? remoteFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
+
         // Pipeline the writes when the source is a sync, seekable Stream.
         // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
         bool pipelineSyncWrites = source.CanSeek && IsSyncStream(source) && source.Length > 0;
 
         if (!pipelineSyncWrites)
         {
+            long initialLength = await initialLengthTask.ConfigureAwait(false);
+
             await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -972,6 +976,11 @@ sealed partial class SftpChannel : IDisposable
             finally
             {
                 s_uploadBufferSemaphore.Release();
+            }
+
+            if (initialLength > remoteFile.Position)
+            {
+                await remoteFile.SetLengthAsync(remoteFile.Position).ConfigureAwait(false);
             }
 
             await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
@@ -1000,6 +1009,13 @@ sealed partial class SftpChannel : IDisposable
             try
             {
                 await previous.ConfigureAwait(false);
+
+                // Truncate if the remote file is larger than what we've written.
+                long initialLength = await initialLengthTask.ConfigureAwait(false);
+                if (initialLength > length.Value)
+                {
+                    await remoteFile.SetLengthAsync(length.Value).ConfigureAwait(false);
+                }
 
                 await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
             }
