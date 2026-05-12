@@ -952,7 +952,10 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
     {
-        using SftpFile? remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, (overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew) | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
+        SftpOpenFlags openFlags = overwrite
+            ? SftpOpenFlags.OpenOrCreate | SftpOpenFlags.Truncate
+            : SftpOpenFlags.CreateNew;
+        using SftpFile? remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
         if (remoteFile is null)
         {
             throw new SftpException(SftpError.NoSuchFile);
