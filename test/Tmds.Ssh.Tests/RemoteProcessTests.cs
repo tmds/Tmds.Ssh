@@ -508,6 +508,17 @@ public class RemoteProcess
                 yield return (new[] { $"{longPrefix}line1\r{longPrefix}line2\r{longPrefix}line3" }, expected);
                 // \n
                 yield return (new[] { $"{longPrefix}line1\n{longPrefix}line2\n{longPrefix}line3" }, expected);
+
+                // -- Type 4: trailing \r at EOF (should be stripped, not included in the last line).
+
+                expected = new[] { "line1" };
+                yield return (new[] { "line1\r" }, expected);
+
+                expected = new[] { $"{longPrefix}line1" };
+                yield return (new[] { $"{longPrefix}line1\r" }, expected);
+
+                expected = new[] { "line1", "line2" };
+                yield return (new[] { "line1\nline2\r" }, expected);
             }
         }
     }
