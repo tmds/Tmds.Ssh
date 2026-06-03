@@ -521,10 +521,10 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="stderrBuffer">Buffer for standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple indicating if data is from stdout or stderr and the amount of bytes read.</returns>
-    public ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
+    public ValueTask<(bool IsError, int BytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
         => ReadAsync(ReadMode.ReadBytes, stdoutBuffer, stderrBuffer, cancellationToken);
 
-    internal async ValueTask<(bool isError, int bytesRead)> ReadAsync(ReadMode readMode, Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken)
+    internal async ValueTask<(bool IsError, int BytesRead)> ReadAsync(ReadMode readMode, Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken)
     {
         CheckReadMode(readMode);
 
@@ -588,7 +588,7 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple containing stdout and stderr as strings.</returns>
-    public async ValueTask<(string stdout, string stderr)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    public async ValueTask<(string StandardOutput, string StandardError)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
@@ -699,12 +699,12 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>An async enumerable of lines with stdout or stderr indicator.</returns>
-    public async IAsyncEnumerable<(bool isError, string line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<(bool IsError, string Line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (true)
         {
-            (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false); ;
-            if (line == null)
+            (bool isError, string? line) = await ReadLineAsync(readStdout, readStderr, cancellationToken).ConfigureAwait(false);
+            if (line is null)
             {
                 break;
             }
@@ -721,8 +721,8 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    /// <returns>A tuple indicating if the line is from stdout or stderr and the line text.</returns>
-    public async ValueTask<(bool isError, string? line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    /// <returns>A tuple with the line and whether it is from standard error. Line is <see langword="null"/> when the process has exited and all output has been read.</returns>
+    public async ValueTask<(bool IsError, string? Line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
@@ -783,7 +783,7 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="stderrBuffer">Buffer for standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple indicating if data is from stdout or stderr and the amount of characters read.</returns>
-    public async ValueTask<(bool isError, int bytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
+    public async ValueTask<(bool IsError, int BytesRead)> ReadAsync(Memory<char>? stdoutBuffer, Memory<char>? stderrBuffer, CancellationToken cancellationToken = default)
     {
         if (stdoutBuffer is { Length: 0 })
         {

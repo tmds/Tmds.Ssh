@@ -1,4 +1,4 @@
-[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
+﻿[assembly: System.Reflection.AssemblyMetadata("IsTrimmable", "True")]
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
@@ -262,26 +262,26 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteProcess.ExitStatus> GetExitStatusAsync(System.Threading.CancellationToken cancellationToken = default) { }
         [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__51))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "isError",
-                "line"})]
+                "IsError",
+                "Line"})]
         public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<bool, string>> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default) { }
         public System.IO.Stream ReadAsStream(Tmds.Ssh.StderrHandler stderrHandler) { }
         public System.IO.StreamReader ReadAsStreamReader(Tmds.Ssh.StderrHandler stderrHandler, int bufferSize = -1) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "isError",
-                "bytesRead"})]
+                "IsError",
+                "BytesRead"})]
         public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, int>> ReadAsync(System.Memory<byte>? stdoutBuffer, System.Memory<byte>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "isError",
-                "bytesRead"})]
+                "IsError",
+                "BytesRead"})]
         public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, int>> ReadAsync(System.Memory<char>? stdoutBuffer, System.Memory<char>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "isError",
-                "line"})]
+                "IsError",
+                "Line"})]
         public System.Threading.Tasks.ValueTask<System.ValueTuple<bool, string?>> ReadLineAsync(bool readStdout = true, bool readStderr = true, System.Threading.CancellationToken cancellationToken = default) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
-                "stdout",
-                "stderr"})]
+                "StandardOutput",
+                "StandardError"})]
         public System.Threading.Tasks.ValueTask<System.ValueTuple<string, string>> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.IO.Stream? stdoutStream, System.IO.Stream? stderrStream, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default) { }
