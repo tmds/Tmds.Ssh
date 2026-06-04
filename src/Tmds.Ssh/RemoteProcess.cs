@@ -50,9 +50,17 @@ public sealed class RemoteProcess : IDisposable
         {
             if (_charBuffer == null)
             {
-                // TODO: alloc from ArrayPool?
-                _charBuffer = new char[encoding.GetMaxCharCount(BufferSize)];
+                _charBuffer = ArrayPool<char>.Shared.Rent(encoding.GetMaxCharCount(BufferSize));
                 _decoder = encoding.GetDecoder();
+            }
+        }
+
+        public void ReturnBuffer()
+        {
+            if (_charBuffer != null)
+            {
+                ArrayPool<char>.Shared.Return(_charBuffer);
+                _charBuffer = null!;
             }
         }
 
@@ -842,8 +850,7 @@ public sealed class RemoteProcess : IDisposable
 
         if (_byteBuffer == null)
         {
-            // TODO: alloc from ArrayPool?
-            _byteBuffer = new byte[BufferSize];
+            _byteBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             if (readStdout)
             {
                 _stdoutBuffer.Initialize(_standardOutputEncoding);
@@ -880,6 +887,13 @@ public sealed class RemoteProcess : IDisposable
     public void Dispose()
     {
         _readMode = ReadMode.Disposed;
+        if (_byteBuffer != null)
+        {
+            ArrayPool<byte>.Shared.Return(_byteBuffer);
+            _byteBuffer = null;
+        }
+        _stdoutBuffer.ReturnBuffer();
+        _stderrBuffer.ReturnBuffer();
         _channel.Dispose();
     }
 
@@ -955,8 +969,7 @@ public sealed class RemoteProcess : IDisposable
             _stderrHandler = stderrHandler;
             if (_stderrHandler != null)
             {
-                // TODO: alloc from ArrayPool?
-                _stderrBuffer = new byte[BufferSize];
+                _stderrBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             }
         }
 
@@ -1071,6 +1084,10 @@ public sealed class RemoteProcess : IDisposable
                 if (disposing)
                 {
                     _stderrHandler?.Dispose();
+                    if (_stderrBuffer != null)
+                    {
+                        ArrayPool<byte>.Shared.Return(_stderrBuffer);
+                    }
                 }
                 _disposed = true;
             }
