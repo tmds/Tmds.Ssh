@@ -582,7 +582,7 @@ public class RemoteProcess
         using var client = await _sshServer.CreateClientAsync();
         using var process = await client.ExecuteAsync($"echo ${_sshServer.AcceptedEnvvar}", new ExecuteOptions() { EnvironmentVariables = { {_sshServer.AcceptedEnvvar, envvarValue } } });
 
-        (bool isError, string? line) = await process.ReadLineAsync();
+        (_, string? line) = await process.ReadLineAsync();
         Assert.Equal(envvarValue, line);
     }
 
@@ -594,7 +594,7 @@ public class RemoteProcess
 
         using var process = await client.ExecuteAsync($"echo ${_sshServer.AcceptedEnvvar}");
 
-        (bool isError, string? line) = await process.ReadLineAsync();
+        (_, string? line) = await process.ReadLineAsync();
         Assert.Equal(envvarValue, line);
     }
 
@@ -610,7 +610,7 @@ public class RemoteProcess
         };
         using var process = await client.ExecuteAsync("echo $TERM", executeOptions);
 
-        (bool isError, string? line) = await process.ReadLineAsync();
+        (_, string? line) = await process.ReadLineAsync();
         Assert.Equal(executeOptions.TerminalType, line);
     }
 
