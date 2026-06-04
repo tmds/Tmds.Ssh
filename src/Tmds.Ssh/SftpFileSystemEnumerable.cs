@@ -1,6 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 
@@ -37,8 +38,8 @@ sealed class SftpFileSystemEnumerable<T> : IAsyncEnumerable<T>
 
 sealed class EnumeratorContext
 {
-    public readonly char[] PathBuffer = new char[RemotePath.MaxPathLength]; // TODO: pool alloc
-    public readonly char[] NameBuffer = new char[RemotePath.MaxNameLength]; // TODO: pool alloc
+    public readonly char[] PathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
+    public readonly char[] NameBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxNameLength);
     public readonly string[]? ExtendedAttributesFilter;
 
     public EnumeratorContext(string[]? extendedAttributesFilter)
@@ -114,6 +115,10 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             _entriesRemaining = Disposed;
 
+            ReturnReadDirPacket();
+            ArrayPool<char>.Shared.Return(_context.PathBuffer);
+            ArrayPool<char>.Shared.Return(_context.NameBuffer);
+
             if (_fileHandle is not null)
             {
                 _fileHandle.Dispose();
@@ -180,6 +185,7 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
 
         const int CountIndex = 4 /* packet length */ + 1 /* packet type */ + 4 /* id */;
 
+        ReturnReadDirPacket();
         _readDirPacket = await _readAhead.ConfigureAwait(false);
 
         if (_readDirPacket.Length < CountIndex + 4)
@@ -323,6 +329,15 @@ sealed class SftpFileSystemEnumerator<T> : IAsyncEnumerator<T>
         {
             SftpFileEntry entry = new SftpFileEntry(_path, linkEntry.Span, _context, out int _, attributes);
             return SetCurrent(ref entry);
+        }
+    }
+
+    private void ReturnReadDirPacket()
+    {
+        if (_readDirPacket is not null)
+        {
+            SftpChannel.ReturnStolenBuffer(_readDirPacket);
+            _readDirPacket = null;
         }
     }
 }

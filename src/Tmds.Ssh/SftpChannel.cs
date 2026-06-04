@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Buffers;
@@ -1566,11 +1567,18 @@ sealed partial class SftpChannel : IDisposable
         return packetBuffer;
     }
 
+    internal static void ReturnStolenBuffer(byte[] buffer)
+    {
+        // Safe to call with Array.Empty<byte>() (EOF marker) — ArrayPool ignores zero-length returns.
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<ReadOnlyMemory<byte>> ReadPacketAsync(CancellationToken cancellationToken)
     {
         if (_packetBuffer is null)
         {
-            _packetBuffer = new byte[_receiveBufferSize]; // TODO: rent from shared pool.
+            _packetBuffer = ArrayPool<byte>.Shared.Rent(_receiveBufferSize);
         }
         int totalReceived = 0;
 
@@ -1602,7 +1610,8 @@ sealed partial class SftpChannel : IDisposable
 
             // _receiveBufferSize changed since we've allocated the buffer.
             // Reallocate the buffer to match the new size.
-            _packetBuffer = new byte[_receiveBufferSize];
+            ArrayPool<byte>.Shared.Return(_packetBuffer);
+            _packetBuffer = ArrayPool<byte>.Shared.Rent(_receiveBufferSize);
         }
 
         // Read packet.
@@ -1663,6 +1672,13 @@ sealed partial class SftpChannel : IDisposable
         }
         finally
         {
+            // Return pooled packet buffer.
+            if (_packetBuffer is not null)
+            {
+                ArrayPool<byte>.Shared.Return(_packetBuffer);
+                _packetBuffer = null;
+            }
+
             // No additional sends can be queued.
             _pendingSends.Writer.Complete();
 
@@ -1741,7 +1757,7 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteInt64(offset);
         packet.WriteInt(buffer.Length);
 
-        return ExecuteAsync<int>(packet, id, pendingOperation, cancellationToken);
+        return ExecuteIntAsync(packet, id, pendingOperation, cancellationToken);
     }
     internal ValueTask<FileEntryAttributes> GetAttributesForHandleAsync(byte[] handle, string[]? filter, CancellationToken cancellationToken = default)
     {

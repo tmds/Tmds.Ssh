@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -111,6 +112,7 @@ sealed class StreamSshConnection : SshConnection
         }
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<int> ReceiveAsync(CancellationToken ct)
     {
         var memory = _receiveBuffer.AllocGetMemory(Constants.PreferredBufferSize);
@@ -156,6 +158,7 @@ sealed class StreamSshConnection : SshConnection
         return false;
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async override ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, int maxLength)
     {
         while (true)

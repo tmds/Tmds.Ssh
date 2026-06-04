@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace Tmds.Ssh;
@@ -82,6 +83,7 @@ sealed partial class SshChannel : ISshChannel
     private bool _closeReceived;
     
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync
         (Memory<byte>? stdoutBuffer = default,
         Memory<byte>? stderrBuffer = default,
@@ -463,9 +465,11 @@ sealed partial class SshChannel : ISshChannel
         {
             case MessageId.SSH_MSG_CHANNEL_REQUEST:
                 HandleMsgChannelRequest(packet);
+                packet.Dispose();
                 return; // Don't queue.
             case MessageId.SSH_MSG_CHANNEL_WINDOW_ADJUST:
                 HandleMsgWindowAdjust(packet);
+                packet.Dispose();
                 return; // Don't queue.
 
             case MessageId.SSH_MSG_CHANNEL_OPEN_CONFIRMATION:
@@ -524,6 +528,7 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<Packet> ReceivePacketAsync(CancellationToken ct, bool forStream = false)
     {
         // Allow reading while in the Closed state so we can receive the peer CLOSE message.

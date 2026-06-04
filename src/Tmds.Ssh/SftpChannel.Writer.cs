@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Text;
 
 namespace Tmds.Ssh;
@@ -225,17 +226,45 @@ partial class SftpChannel
         await ExecuteAsync<object?>(packet, id, pendingOperation, cancellationToken).ConfigureAwait(false);
     }
 
+    private ValueTask<int> ExecuteIntAsync(
+        Packet packet,
+        int id,
+        PendingOperation pendingOperation,
+        CancellationToken cancellationToken)
+    {
+        QueueOperation(packet, id, pendingOperation, cancellationToken);
+
+        return new ValueTask<int>(pendingOperation, pendingOperation.Token);
+    }
+
     private async ValueTask<T> ExecuteAsync<T>(
         Packet packet,
         int id,
         PendingOperation? pendingOperation,
         CancellationToken cancellationToken)
     {
-        CancellationTokenRegistration ctr;
+        Debug.Assert(typeof(T) != typeof(int), "Use ExecuteIntAsync for int return type.");
 
+        QueueOperation(packet, id, pendingOperation, cancellationToken);
+
+        if (pendingOperation is null)
+        {
+            return default!;
+        }
+
+        object? result = await new ValueTask<object?>(pendingOperation, pendingOperation.Token).ConfigureAwait(false);
+        return (T)result!;
+    }
+
+    private void QueueOperation(
+        Packet packet,
+        int id,
+        PendingOperation? pendingOperation,
+        CancellationToken cancellationToken)
+    {
         if (pendingOperation is not null)
         {
-            ctr = pendingOperation.RegisterForCancellation(cancellationToken);
+            pendingOperation.RegisterForCancellation(cancellationToken);
 
             // Track the pending operation before queueing the send.
             _pendingOperations[id] = pendingOperation;
@@ -251,22 +280,6 @@ partial class SftpChannel
             {
                 pendingOperation?.HandleClose();
             }
-        }
-
-        if (pendingOperation is null)
-        {
-            return default!;
-        }
-
-        if (typeof(T) == typeof(int))
-        {
-            int result = await new ValueTask<int>(pendingOperation, pendingOperation.Token).ConfigureAwait(false);
-            return (T)(object)result;
-        }
-        else
-        {
-            object? result = await new ValueTask<object?>(pendingOperation, pendingOperation.Token).ConfigureAwait(false);
-            return (T)result!;
         }
     }
 }

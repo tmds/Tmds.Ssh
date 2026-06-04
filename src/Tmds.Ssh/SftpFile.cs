@@ -116,11 +116,11 @@ public sealed class SftpFile : Stream
     /// <param name="offset">File offset to read from.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>Number of bytes read.</returns>
-    public async ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
+    public ValueTask<int> ReadAtAsync(Memory<byte> buffer, long offset, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
-        return await _channel.ReadFileAsync(Handle, offset, buffer, cancellationToken).ConfigureAwait(false);
+        return _channel.ReadFileAsync(Handle, offset, buffer, cancellationToken);
     }
 
     /// <inheritdoc />
