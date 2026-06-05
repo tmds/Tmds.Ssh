@@ -707,7 +707,7 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>An async enumerable of lines with stdout or stderr indicator.</returns>
-    public async IAsyncEnumerable<(bool IsError, string Line)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<(bool IsError, string Content)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (true)
         {
@@ -730,7 +730,7 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple with the line and whether it is from standard error. Line is <see langword="null"/> when the process has exited and all output has been read.</returns>
-    public async ValueTask<(bool IsError, string? Line)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    public async ValueTask<(bool IsError, string? Content)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
