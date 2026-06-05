@@ -347,7 +347,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="command">The command to execute.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the command.</returns>
-    public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken)
+    public Task<RemoteProcess> ExecuteAsync(string command, CancellationToken cancellationToken = default)
         => ExecuteAsync(command, null, cancellationToken);
 
     /// <summary>
@@ -357,7 +357,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="options"><see cref="ExecuteOptions"/> for command execution.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the command.</returns>
-    public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
+    public async Task<RemoteProcess> ExecuteAsync(string command, ExecuteOptions? options, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -372,7 +372,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="subsystem">The subsystem name to execute.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the subsystem.</returns>
-    public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken)
+    public Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, CancellationToken cancellationToken = default)
         => ExecuteSubsystemAsync(subsystem, null, cancellationToken);
 
     /// <summary>
@@ -382,7 +382,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="options"><see cref="ExecuteOptions"/> for subsystem execution.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the subsystem.</returns>
-    public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options = null, CancellationToken cancellationToken = default)
+    public async Task<RemoteProcess> ExecuteSubsystemAsync(string subsystem, ExecuteOptions? options, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -396,7 +396,7 @@ public sealed partial class SshClient : IDisposable
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the shell.</returns>
-    public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken)
+    public Task<RemoteProcess> ExecuteShellAsync(CancellationToken cancellationToken = default)
         => ExecuteShellAsync(null, cancellationToken);
 
     /// <summary>
@@ -405,7 +405,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="options"><see cref="ExecuteOptions"/> for shell execution.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="RemoteProcess"/> instance for the shell.</returns>
-    public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options = null, CancellationToken cancellationToken = default)
+    public async Task<RemoteProcess> ExecuteShellAsync(ExecuteOptions? options, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -540,7 +540,7 @@ public sealed partial class SshClient : IDisposable
     /// </summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SftpClient"/> instance for filesystem operations.</returns>
-    public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken)
+    public Task<SftpClient> OpenSftpClientAsync(CancellationToken cancellationToken = default)
         => OpenSftpClientAsync(null, cancellationToken);
 
     /// <summary>
@@ -549,7 +549,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="options"><see cref="SftpClientOptions"/> for the <see cref="SftpClient"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SftpClient"/> instance for filesystem operations.</returns>
-    public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options = null, CancellationToken cancellationToken = default)
+    public async Task<SftpClient> OpenSftpClientAsync(SftpClientOptions? options, CancellationToken cancellationToken = default)
     {
         SftpClient sftpClient = new SftpClient(this, options);
         try

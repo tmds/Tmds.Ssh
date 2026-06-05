@@ -270,19 +270,25 @@ public static class SftpDirectoryExtensions
     /// <summary>
     /// Creates a directory. This does not fail when the directory exists (or is a link to a directory).
     /// </summary>
+    /// <remarks>
+    /// Parent directories are not created. To create parent directories, use the overload that accepts a <c>createParents</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask CreateDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+    public static ValueTask CreateDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken = default)
         => directory.CreateDirectoryAsync(path, createParents: false, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
     /// <summary>
     /// Creates a new directory. This fails when the directory already exists.
     /// </summary>
+    /// <remarks>
+    /// Parent directories are not created. To create parent directories, use the overload that accepts a <c>createParents</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask CreateNewDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+    public static ValueTask CreateNewDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken = default)
         => directory.CreateNewDirectoryAsync(path, createParents: false, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
 
     /// <summary>
@@ -298,21 +304,27 @@ public static class SftpDirectoryExtensions
     /// <summary>
     /// Uploads a file.
     /// </summary>
+    /// <remarks>
+    /// Existing files are not overwritten. To overwrite, use the overload that accepts an <c>overwrite</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="localFilePath">The local file path.</param>
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask UploadFileAsync(this ISftpDirectory directory, string localFilePath, string remoteFilePath, CancellationToken cancellationToken)
+    public static ValueTask UploadFileAsync(this ISftpDirectory directory, string localFilePath, string remoteFilePath, CancellationToken cancellationToken = default)
         => directory.UploadFileAsync(localFilePath, remoteFilePath, overwrite: false, createPermissions: null, cancellationToken);
 
     /// <summary>
     /// Uploads a file from a <see cref="Stream"/>.
     /// </summary>
+    /// <remarks>
+    /// Existing files are not overwritten. To overwrite, use the overload that accepts an <c>overwrite</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="source">The source <see cref="Stream"/>.</param>
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask UploadFileAsync(this ISftpDirectory directory, Stream source, string remoteFilePath, CancellationToken cancellationToken)
+    public static ValueTask UploadFileAsync(this ISftpDirectory directory, Stream source, string remoteFilePath, CancellationToken cancellationToken = default)
         => directory.UploadFileAsync(source, remoteFilePath, overwrite: false, createPermissions: SftpClient.DefaultCreateFilePermissions, cancellationToken);
 
     /// <summary>
@@ -328,11 +340,14 @@ public static class SftpDirectoryExtensions
     /// <summary>
     /// Downloads a file.
     /// </summary>
+    /// <remarks>
+    /// Existing files are not overwritten. To overwrite, use the overload that accepts an <c>overwrite</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="localFilePath">The local file path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask DownloadFileAsync(this ISftpDirectory directory, string remoteFilePath, string localFilePath, CancellationToken cancellationToken)
+    public static ValueTask DownloadFileAsync(this ISftpDirectory directory, string remoteFilePath, string localFilePath, CancellationToken cancellationToken = default)
         => directory.DownloadFileAsync(remoteFilePath, localFilePath, overwrite: false, cancellationToken);
 
     /// <summary>
@@ -346,29 +361,33 @@ public static class SftpDirectoryExtensions
     /// <param name="followLinks">Whether to follow symbolic links.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <see cref="FileEntryAttributes"/>, or <see langword="null"/> if not found.</returns>
-    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, bool followLinks = true, CancellationToken cancellationToken = default)
+    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, bool followLinks, CancellationToken cancellationToken = default)
         => directory.GetAttributesAsync(path, followLinks, [], cancellationToken);
 
     /// <summary>
     /// Gets file or directory attributes.
     /// </summary>
     /// <remarks>
+    /// Symbolic links are followed. To control this behavior, use the overload that accepts a <c>followLinks</c> argument.
     /// To retrieve extended attributes, use the overload that accepts a <c>filter</c> argument.
     /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The file or directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The <see cref="FileEntryAttributes"/>, or <see langword="null"/> if not found.</returns>
-    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+    public static ValueTask<FileEntryAttributes?> GetAttributesAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken = default)
         => directory.GetAttributesAsync(path, followLinks: true, [], cancellationToken);
 
     /// <summary>
     /// Deletes a directory. This does not fail when the directory does not exist.
     /// </summary>
+    /// <remarks>
+    /// The directory is not deleted recursively. To delete recursively, use the overload that accepts a <c>recursive</c> argument.
+    /// </remarks>
     /// <param name="directory">The working directory.</param>
     /// <param name="path">The directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    public static ValueTask DeleteDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken)
+    public static ValueTask DeleteDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken = default)
         => directory.DeleteDirectoryAsync(path, recursive: false, cancellationToken);
 
 }
