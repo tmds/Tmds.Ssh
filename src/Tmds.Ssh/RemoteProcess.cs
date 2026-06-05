@@ -590,13 +590,25 @@ public sealed class RemoteProcess : IDisposable
     /// Reads all output until the process exits and returns it as strings.
     /// </summary>
     /// <remarks>
+    /// Both standard output and standard error are read. To control this, use the overload that accepts <c>readStdout</c> and <c>readStderr</c> arguments.
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple containing stdout and stderr as strings.</returns>
+    public ValueTask<(string StandardOutput, string StandardError)> ReadToEndAsStringAsync(CancellationToken cancellationToken = default)
+        => ReadToEndAsStringAsync(readStdout: true, readStderr: true, cancellationToken);
+
+    /// <summary>
+    /// Reads all output until the process exits and returns it as strings.
+    /// </summary>
+    /// <remarks>
     /// After using this method, methods that read bytes or streams can no longer be used.
     /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple containing stdout and stderr as strings.</returns>
-    public async ValueTask<(string StandardOutput, string StandardError)> ReadToEndAsStringAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    public async ValueTask<(string StandardOutput, string StandardError)> ReadToEndAsStringAsync(bool readStdout, bool readStderr, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
@@ -701,13 +713,25 @@ public sealed class RemoteProcess : IDisposable
     /// Reads all lines from the process output asynchronously.
     /// </summary>
     /// <remarks>
+    /// Both standard output and standard error are read. To control this, use the overload that accepts <c>readStdout</c> and <c>readStderr</c> arguments.
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>An async enumerable of lines with stdout or stderr indicator.</returns>
+    public IAsyncEnumerable<(bool IsError, string Content)> ReadAllLinesAsync(CancellationToken cancellationToken = default)
+        => ReadAllLinesAsync(readStdout: true, readStderr: true, cancellationToken);
+
+    /// <summary>
+    /// Reads all lines from the process output asynchronously.
+    /// </summary>
+    /// <remarks>
     /// After using this method, methods that read bytes or streams can no longer be used.
     /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>An async enumerable of lines with stdout or stderr indicator.</returns>
-    public async IAsyncEnumerable<(bool IsError, string Content)> ReadAllLinesAsync(bool readStdout = true, bool readStderr = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<(bool IsError, string Content)> ReadAllLinesAsync(bool readStdout, bool readStderr, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (true)
         {
@@ -724,13 +748,25 @@ public sealed class RemoteProcess : IDisposable
     /// Reads a single line from the process output.
     /// </summary>
     /// <remarks>
+    /// Both standard output and standard error are read. To control this, use the overload that accepts <c>readStdout</c> and <c>readStderr</c> arguments.
+    /// After using this method, methods that read bytes or streams can no longer be used.
+    /// </remarks>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A tuple with the line and whether it is from standard error. Line is <see langword="null"/> when the process has exited and all output has been read.</returns>
+    public ValueTask<(bool IsError, string? Content)> ReadLineAsync(CancellationToken cancellationToken = default)
+        => ReadLineAsync(readStdout: true, readStderr: true, cancellationToken);
+
+    /// <summary>
+    /// Reads a single line from the process output.
+    /// </summary>
+    /// <remarks>
     /// After using this method, methods that read bytes or streams can no longer be used.
     /// </remarks>
     /// <param name="readStdout">Whether to read standard output.</param>
     /// <param name="readStderr">Whether to read standard error.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A tuple with the line and whether it is from standard error. Line is <see langword="null"/> when the process has exited and all output has been read.</returns>
-    public async ValueTask<(bool IsError, string? Content)> ReadLineAsync(bool readStdout = true, bool readStderr = true, CancellationToken cancellationToken = default)
+    public async ValueTask<(bool IsError, string? Content)> ReadLineAsync(bool readStdout, bool readStderr, CancellationToken cancellationToken = default)
     {
         CheckReadMode(ReadMode.ReadChars);
 
