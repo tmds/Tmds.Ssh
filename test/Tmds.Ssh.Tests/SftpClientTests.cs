@@ -1758,6 +1758,386 @@ public class SftpClientTests
         Assert.NotEqual(0, attributes.Length);
     }
 
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(MultiPacketSize)]
+    [Theory]
+    public async Task UploadFileProgress(int fileSize)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            byte[] data = new byte[fileSize];
+            Random.Shared.NextBytes(data);
+            File.WriteAllBytes(sourcePath, data);
+
+            string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+            var collector = new EventCollector();
+            await sftpClient.UploadFileAsync(sourcePath, remotePath, progress: collector);
+
+            AssertSingleFileEvents(collector.Events, sourcePath, fileSize, UnixFileType.RegularFile);
+        }
+        finally
+        {
+            try { File.Delete(sourcePath); } catch { }
+        }
+    }
+
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(MultiPacketSize)]
+    [Theory]
+    public async Task UploadFileStreamProgress(int fileSize)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        byte[] data = new byte[fileSize];
+        Random.Shared.NextBytes(data);
+        MemoryStream uploadStream = new MemoryStream(data);
+
+        string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+        var collector = new EventCollector();
+        await sftpClient.UploadFileAsync(uploadStream, remotePath, progress: collector);
+
+        AssertSingleFileEvents(collector.Events, expectedPath: "", fileSize, UnixFileType.RegularFile);
+    }
+
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(MultiPacketSize)]
+    [Theory]
+    public async Task DownloadFileProgress(int fileSize)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        string destinationPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            byte[] data = new byte[fileSize];
+            Random.Shared.NextBytes(data);
+            File.WriteAllBytes(sourcePath, data);
+
+            string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.UploadFileAsync(sourcePath, remotePath);
+
+            var collector = new EventCollector();
+            await sftpClient.DownloadFileAsync(remotePath, destinationPath, progress: collector);
+
+            AssertSingleFileEvents(collector.Events, remotePath, fileSize, UnixFileType.RegularFile);
+        }
+        finally
+        {
+            try { File.Delete(sourcePath); } catch { }
+            try { File.Delete(destinationPath); } catch { }
+        }
+    }
+
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(MultiPacketSize)]
+    [Theory]
+    public async Task DownloadFileStreamProgress(int fileSize)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            byte[] data = new byte[fileSize];
+            Random.Shared.NextBytes(data);
+            File.WriteAllBytes(sourcePath, data);
+
+            string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.UploadFileAsync(sourcePath, remotePath);
+
+            var collector = new EventCollector();
+            await using var downloadStream = new MemoryStream();
+            await sftpClient.DownloadFileAsync(remotePath, downloadStream, progress: collector);
+
+            AssertSingleFileEvents(collector.Events, remotePath, fileSize, UnixFileType.RegularFile);
+        }
+        finally
+        {
+            try { File.Delete(sourcePath); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task CopyFileProgress()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        // CreateRemoteFileWithRandomDataAsync creates a 10-byte file.
+        (string sourceFileName, byte[] sourceData) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 10);
+
+        string destinationFileName = $"/tmp/{Path.GetRandomFileName()}";
+        var collector = new EventCollector();
+        await sftpClient.CopyFileAsync(sourceFileName, destinationFileName, progress: collector);
+
+        var events = collector.Events;
+        Assert.True(events.Count >= 5, $"Expected at least 5 events, got {events.Count}");
+        // First event: Start.
+        Assert.IsType<EventCollector.StartEvent>(events[0]);
+        // Second event: EntryStart.
+        var start = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
+        Assert.Equal(sourceFileName, start.Path);
+        Assert.Equal(UnixFileType.RegularFile, start.Entry.FileType);
+        // Second-to-last: EntryCompleted.
+        var entryCompleted = Assert.IsType<EventCollector.EntryCompletedEvent>(events[^2]);
+        Assert.Equal(sourceFileName, entryCompleted.Path);
+        // Last event: Completed.
+        var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+        Assert.Null(completed.Exception);
+    }
+
+    [Fact]
+    public async Task UploadDirectoryProgress()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            string childDirPath = Path.Combine(sourcePath, "childdir");
+            Directory.CreateDirectory(childDirPath);
+
+            // Create a few files.
+            int fileCount = 3;
+            for (int i = 0; i < fileCount; i++)
+            {
+                byte[] data = new byte[10];
+                Random.Shared.NextBytes(data);
+                File.WriteAllBytes(Path.Combine(sourcePath, $"file{i}"), data);
+            }
+
+            // Create a symlink.
+            File.CreateSymbolicLink(Path.Combine(sourcePath, "link"), "file0");
+
+            string remoteDirPath = $"/tmp/{Path.GetRandomFileName()}";
+            var collector = new EventCollector();
+            await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath, new UploadEntriesOptions { FollowFileLinks = false }, progress: collector);
+
+            var events = collector.Events;
+
+            // First event: Start.
+            Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+            // Each file should have at least EntryStart + EntryCompleted.
+            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.RegularFile).ToList();
+            Assert.Equal(fileCount, fileStarts.Count);
+
+            // Directory should have EntryStart + EntryCompleted.
+            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.Directory).ToList();
+            Assert.Single(dirStarts);
+
+            // Symlink should have EntryStart + EntryCompleted.
+            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.SymbolicLink).ToList();
+            Assert.Single(linkStarts);
+
+            // Verify each entry has a matching EntryCompleted.
+            var entryCompleteds = events.OfType<EventCollector.EntryCompletedEvent>().ToList();
+            var allStarts = events.OfType<EventCollector.EntryStartEvent>().ToList();
+            foreach (var start in allStarts)
+            {
+                Assert.Contains(entryCompleteds, e => e.Path == start.Path);
+            }
+
+            // Exactly one Completed event at the end.
+            var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+            Assert.Null(completed.Exception);
+        }
+        finally
+        {
+            try { Directory.Delete(sourcePath, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task DownloadDirectoryProgress()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        string destinationPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            string childDirPath = Path.Combine(sourcePath, "childdir");
+            Directory.CreateDirectory(childDirPath);
+
+            int fileCount = 3;
+            for (int i = 0; i < fileCount; i++)
+            {
+                byte[] data = new byte[10];
+                Random.Shared.NextBytes(data);
+                File.WriteAllBytes(Path.Combine(sourcePath, $"file{i}"), data);
+            }
+
+            // Create a symlink.
+            File.CreateSymbolicLink(Path.Combine(sourcePath, "link"), "file0");
+
+            string remoteDirPath = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath, new UploadEntriesOptions { FollowFileLinks = false });
+
+            var collector = new EventCollector();
+            await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath, new DownloadEntriesOptions { FollowFileLinks = false }, progress: collector);
+
+            var events = collector.Events;
+
+            // First event: Start.
+            Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+            // Each file should have at least EntryStart + EntryCompleted.
+            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.RegularFile).ToList();
+            Assert.Equal(fileCount, fileStarts.Count);
+
+            // Directory should have EntryStart + EntryCompleted.
+            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.Directory).ToList();
+            Assert.Single(dirStarts);
+
+            // Symlink should have EntryStart + EntryCompleted.
+            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.SymbolicLink).ToList();
+            Assert.Single(linkStarts);
+
+            // Verify each entry has a matching EntryCompleted.
+            var entryCompleteds = events.OfType<EventCollector.EntryCompletedEvent>().ToList();
+            var allStarts = events.OfType<EventCollector.EntryStartEvent>().ToList();
+            foreach (var start in allStarts)
+            {
+                Assert.Contains(entryCompleteds, e => e.Path == start.Path);
+            }
+
+            // Exactly one Completed event at the end.
+            var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+            Assert.Null(completed.Exception);
+        }
+        finally
+        {
+            try { Directory.Delete(sourcePath, true); } catch { }
+            try { Directory.Delete(destinationPath, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task DataTransferredOffsetIsNonDecreasing()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string sourcePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            byte[] data = new byte[MultiPacketSize];
+            Random.Shared.NextBytes(data);
+            File.WriteAllBytes(sourcePath, data);
+
+            string remotePath = $"/tmp/{Path.GetRandomFileName()}";
+            var collector = new EventCollector();
+            await sftpClient.UploadFileAsync(sourcePath, remotePath, progress: collector);
+
+            long previousOffset = 0;
+            foreach (var dataEvent in collector.Events.OfType<EventCollector.DataTransferredEvent>())
+            {
+                Assert.True(dataEvent.Offset >= previousOffset,
+                    $"Offset decreased from {previousOffset} to {dataEvent.Offset}");
+                Assert.True(dataEvent.BytesTransferred > 0, "BytesTransferred should be positive");
+                previousOffset = dataEvent.Offset;
+            }
+        }
+        finally
+        {
+            try { File.Delete(sourcePath); } catch { }
+        }
+    }
+
+    private static void AssertSingleFileEvents(List<object> events, string expectedPath, int expectedSize, UnixFileType expectedType)
+    {
+        Assert.True(events.Count >= 5, $"Expected at least 5 events (Start + EntryStart + EntriesDiscovered + EntryCompleted + Completed), got {events.Count}");
+
+        // First event: Start.
+        Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+        // Second event: EntryStart.
+        var start = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
+        Assert.Equal(expectedPath, start.Path);
+        Assert.Equal(expectedType, start.Entry.FileType);
+
+        // Third event: EntriesDiscovered.
+        Assert.IsType<EventCollector.EntriesDiscoveredEvent>(events[2]);
+
+        // Second-to-last: EntryCompleted.
+        var entryCompleted = Assert.IsType<EventCollector.EntryCompletedEvent>(events[^2]);
+        Assert.Equal(expectedPath, entryCompleted.Path);
+
+        // Last event: Completed with no exception.
+        var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+        Assert.Null(completed.Exception);
+
+        // For non-zero files, verify DataTransferred events sum to expectedSize.
+        if (expectedSize > 0)
+        {
+            long totalBytes = events.OfType<EventCollector.DataTransferredEvent>().Sum(e => e.BytesTransferred);
+            Assert.Equal(expectedSize, totalBytes);
+        }
+    }
+
+    sealed class EventCollector : SftpProgressHandler
+    {
+        public record StartEvent();
+        public record EntryStartEvent(string Path, SftpProgressHandler.Entry Entry);
+        public record DataTransferredEvent(string Path, long BytesTransferred, long Offset);
+        public record EntriesDiscoveredEvent();
+        public record EntrySkippedEvent(string Path);
+        public record EntryCompletedEvent(string Path);
+        public record CompletedEvent(Exception? Exception);
+
+        private readonly List<object> _events = new();
+
+        public List<object> Events => _events;
+
+        protected internal override void Start()
+        {
+            lock (_events) _events.Add(new StartEvent());
+        }
+
+        protected internal override void EntryStart(string path, SftpProgressHandler.Entry entry)
+        {
+            lock (_events) _events.Add(new EntryStartEvent(path, entry));
+        }
+
+        protected internal override void DataTransferred(string path, long bytesTransferred, long offset)
+        {
+            lock (_events) _events.Add(new DataTransferredEvent(path, bytesTransferred, offset));
+        }
+
+        protected internal override void EntriesDiscovered()
+        {
+            lock (_events) _events.Add(new EntriesDiscoveredEvent());
+        }
+
+        protected internal override void EntrySkipped(string path)
+        {
+            lock (_events) _events.Add(new EntrySkippedEvent(path));
+        }
+
+        protected internal override void EntryCompleted(string path)
+        {
+            lock (_events) _events.Add(new EntryCompletedEvent(path));
+        }
+
+        protected internal override void Completed(Exception? exception)
+        {
+            lock (_events) _events.Add(new CompletedEvent(exception));
+        }
+    }
+
     sealed class NonSeekableAsyncStream : Stream
     {
         private readonly MemoryStream _innerStream = new();

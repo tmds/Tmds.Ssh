@@ -277,176 +277,204 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public async ValueTask CopyFileAsync(string workingDirectory, string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async ValueTask CopyFileAsync(string workingDirectory, string sourcePath, string destinationPath, bool overwrite, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        // Get the source file attributes and open it in parallel.
-        // We get the attribute to dermine the permissions for the destination path.
-        ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(workingDirectory, sourcePath, followLinks: true, filter: [], cancellationToken);
-        using SftpFile? sourceFile = await OpenFileCoreAsync(workingDirectory, sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
-        if (sourceFile is null)
-        {
-            throw new SftpException(SftpError.NoSuchFile);
-        }
-        // Get the attributes ignoring any errors and falling back to getting them from the handle (unlikely).
-        FileEntryAttributes? sourceAttributes = null;
+        progress?.Start();
+        Exception? completedException = null;
         try
         {
-            sourceAttributes = await sourceAttributesTask;
-        }
-        catch
-        { }
-        if (sourceAttributes is null)
-        {
-            sourceAttributes = await sourceFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
-        }
+            // Get the source file attributes and open it in parallel.
+            // We get the attribute to dermine the permissions for the destination path.
+            ValueTask<FileEntryAttributes?> sourceAttributesTask = GetAttributesAsync(workingDirectory, sourcePath, followLinks: true, filter: [], cancellationToken);
+            using SftpFile? sourceFile = await OpenFileCoreAsync(workingDirectory, sourcePath, SftpOpenFlags.Open | SftpOpenFlags.Read, default(UnixFilePermissions), SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+            if (sourceFile is null)
+            {
+                throw new SftpException(SftpError.NoSuchFile);
+            }
+            // Get the attributes ignoring any errors and falling back to getting them from the handle (unlikely).
+            FileEntryAttributes? sourceAttributes = null;
+            try
+            {
+                sourceAttributes = await sourceAttributesTask;
+            }
+            catch
+            { }
+            if (sourceAttributes is null)
+            {
+                sourceAttributes = await sourceFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-        UnixFilePermissions permissions = sourceAttributes.Permissions & OwnershipPermissions; // Do not preserve setid bits (since the owner may change).
+            UnixFilePermissions permissions = sourceAttributes.Permissions & OwnershipPermissions; // Do not preserve setid bits (since the owner may change).
 
-        // Refresh our source length from the handle (in parallel with with opening the destination file).
+            // Refresh our source length from the handle (in parallel with with opening the destination file).
 #pragma warning disable CS8619 // Nullability of reference types in value doesn't match target type.
-        sourceAttributesTask = sourceFile.GetAttributesAsync(cancellationToken);
+            sourceAttributesTask = sourceFile.GetAttributesAsync(cancellationToken);
 #pragma warning restore CS8619
 
-        // When we are overwriting, the file may exists and be larger than the source file.
-        // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
-        // To avoid that, we'll truncate after copying the data instead.
-        SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
-        using SftpFile? destinationFile = (await OpenFileCoreAsync(workingDirectory, destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
-        if (destinationFile is null)
-        {
-            throw new SftpException(SftpError.NoSuchFile);
-        }
-
-        // Get the length before we start writing so we know if we need to truncate.
-        ValueTask<long> initialLengthTask = overwrite ? destinationFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
-
-        long copyLength = (await sourceAttributesTask.ConfigureAwait(false))!.Length;
-        if (copyLength > 0)
-        {
-            bool doCopyAsync = true;
-            if (SupportsCopyData)
+            // When we are overwriting, the file may exists and be larger than the source file.
+            // We could open with Truncate but then the user would lose their data if they (by accident) uses a source and destination that are the same file.
+            // To avoid that, we'll truncate after copying the data instead.
+            SftpOpenFlags openFlags = overwrite ? SftpOpenFlags.OpenOrCreate : SftpOpenFlags.CreateNew;
+            using SftpFile? destinationFile = (await OpenFileCoreAsync(workingDirectory, destinationPath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
+            if (destinationFile is null)
             {
-                try
-                {
-                    await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
-                    doCopyAsync = false;
-                }
-                catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
-                                                ex.Error == SftpError.Failure) // (maybe) source and destination are same path
-                {
-                    // Fall through to async copy.
-                }
+                throw new SftpException(SftpError.NoSuchFile);
             }
 
-            if (doCopyAsync)
+            // Get the length before we start writing so we know if we need to truncate.
+            ValueTask<long> initialLengthTask = overwrite ? destinationFile.GetLengthAsync(cancellationToken) : ValueTask.FromResult(0L);
+
+            long copyLength = (await sourceAttributesTask.ConfigureAwait(false))!.Length;
+
+            progress?.EntryStart(sourcePath, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = copyLength });
+            progress?.EntriesDiscovered();
+
+            if (copyLength > 0)
             {
-                await CopyAsync(copyLength, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        // Truncate if the sourceFile is smaller than the destination file's initial length.
-        long initialLength = await initialLengthTask.ConfigureAwait(false);
-        if (initialLength > copyLength)
-        {
-            await destinationFile.SetLengthAsync(copyLength).ConfigureAwait(false);
-        }
-
-        async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
-        {
-            Debug.Assert(length > 0);
-
-            int bufferSize = GetCopyBetweenSftpFilesBufferSize(length, destinationFile.Handle);
-
-            ValueTask previous = default;
-
-            CancellationTokenSource breakLoop = new();
-
-            for (long offset = 0; offset < length; offset += bufferSize)
-            {
-                if (!breakLoop.IsCancellationRequested)
+                bool doCopyAsync = true;
+                if (SupportsCopyData)
                 {
-                    await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    previous = CopyBuffer(previous, offset, bufferSize);
-                }
-            }
-
-            await previous.ConfigureAwait(false);
-
-            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
-            {
-                try
-                {
-                    do
+                    try
                     {
-                        byte[]? buffer = null;
-                        try
+                        await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
+                        progress?.DataTransferred(sourcePath, copyLength, copyLength);
+                        doCopyAsync = false;
+                    }
+                    catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
+                                                    ex.Error == SftpError.Failure) // (maybe) source and destination are same path
+                    {
+                        // Fall through to async copy.
+                    }
+                }
+
+                if (doCopyAsync)
+                {
+                    await CopyAsync(copyLength, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            // Truncate if the sourceFile is smaller than the destination file's initial length.
+            long initialLength = await initialLengthTask.ConfigureAwait(false);
+            if (initialLength > copyLength)
+            {
+                await destinationFile.SetLengthAsync(copyLength).ConfigureAwait(false);
+            }
+
+            progress?.EntryCompleted(sourcePath);
+
+            async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
+            {
+                Debug.Assert(length > 0);
+
+                int bufferSize = GetCopyBetweenSftpFilesBufferSize(length, destinationFile.Handle);
+
+                ValueTask previous = default;
+
+                CancellationTokenSource breakLoop = new();
+
+                for (long offset = 0; offset < length; offset += bufferSize)
+                {
+                    if (!breakLoop.IsCancellationRequested)
+                    {
+                        await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        previous = CopyBuffer(previous, offset, bufferSize);
+                    }
+                }
+
+                await previous.ConfigureAwait(false);
+
+                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+                {
+                    long startOffset = offset;
+                    try
+                    {
+                        do
                         {
-                            int bytesRead;
+                            byte[]? buffer = null;
                             try
                             {
-                                if (breakLoop.IsCancellationRequested)
+                                int bytesRead;
+                                try
                                 {
-                                    return;
-                                }
+                                    if (breakLoop.IsCancellationRequested)
+                                    {
+                                        return;
+                                    }
 
-                                buffer = ArrayPool<byte>.Shared.Rent(length);
-                                bytesRead = await sourceFile.ReadAtAsync(buffer.AsMemory(0, length), sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
-                                if (bytesRead == 0)
+                                    buffer = ArrayPool<byte>.Shared.Rent(length);
+                                    bytesRead = await sourceFile.ReadAtAsync(buffer.AsMemory(0, length), sourceFile.Position + offset, cancellationToken).ConfigureAwait(false);
+                                    if (bytesRead == 0)
+                                    {
+                                        break;
+                                    }
+
+                                    // Our download buffer becomes an upload buffer.
+                                    await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                                }
+                                catch
                                 {
-                                    break;
+                                    breakLoop.Cancel();
+                                    throw;
                                 }
-
-                                // Our download buffer becomes an upload buffer.
-                                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                            }
-                            catch
-                            {
-                                breakLoop.Cancel();
-                                throw;
-                            }
-                            finally
-                            {
-                                s_downloadBufferSemaphore.Release();
-                            }
-                            try
-                            {
-                                await destinationFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset).ConfigureAwait(false);
-                                length -= bytesRead;
-                                offset += bytesRead;
-                            }
-                            catch
-                            {
-                                breakLoop.Cancel();
-                                throw;
+                                finally
+                                {
+                                    s_downloadBufferSemaphore.Release();
+                                }
+                                try
+                                {
+                                    await destinationFile.WriteAtAsync(buffer.AsMemory(0, bytesRead), offset).ConfigureAwait(false);
+                                    length -= bytesRead;
+                                    offset += bytesRead;
+                                }
+                                catch
+                                {
+                                    breakLoop.Cancel();
+                                    throw;
+                                }
+                                finally
+                                {
+                                    if (buffer != null)
+                                    {
+                                        ArrayPool<byte>.Shared.Return(buffer);
+                                        buffer = null;
+                                    }
+                                    s_uploadBufferSemaphore.Release();
+                                }
                             }
                             finally
                             {
                                 if (buffer != null)
                                 {
                                     ArrayPool<byte>.Shared.Return(buffer);
-                                    buffer = null;
                                 }
-                                s_uploadBufferSemaphore.Release();
                             }
-                        }
-                        finally
-                        {
-                            if (buffer != null)
+                            if (length > 0)
                             {
-                                ArrayPool<byte>.Shared.Return(buffer);
+                                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                             }
-                        }
-                        if (length > 0)
+                        } while (length > 0);
+                    }
+                    finally
+                    {
+                        await previousCopy.ConfigureAwait(false);
+
+                        long bytesWritten = offset - startOffset;
+                        if (bytesWritten > 0)
                         {
-                            await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                            progress?.DataTransferred(sourcePath, bytesWritten, offset);
                         }
-                    } while (length > 0);
-                }
-                finally
-                {
-                    await previousCopy.ConfigureAwait(false);
+                    }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            progress?.Completed(completedException);
         }
     }
 
@@ -641,6 +669,13 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
+    private async ValueTask CreateSymbolicLinkAsync(string workingDirectory, string linkPath, string targetPath, bool overwrite, string entryPath, SftpProgressHandler progress, CancellationToken cancellationToken)
+    {
+        progress.EntryStart(entryPath, new SftpProgressHandler.Entry { FileType = UnixFileType.SymbolicLink, SourceLength = null });
+        await CreateSymbolicLinkAsync(workingDirectory, linkPath, targetPath, overwrite, cancellationToken).ConfigureAwait(false);
+        progress.EntryCompleted(entryPath);
+    }
+
     public ValueTask<SftpFile?> OpenDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
     {
         PacketType packetType = PacketType.SSH_FXP_OPENDIR;
@@ -656,8 +691,14 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync<SftpFile?>(packet, id, pendingOperation, cancellationToken);
     }
 
-    public async ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
+    public ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
+        => CreateDirectoryAsync(workingDirectory, path, createParents, permissions, entryPath: null, progress: null, cancellationToken);
+
+    private async ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents, UnixFilePermissions permissions, string? entryPath, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
+        Debug.Assert(progress is null || entryPath is not null);
+        progress?.EntryStart(entryPath!, new SftpProgressHandler.Entry { FileType = UnixFileType.Directory, SourceLength = null });
+
         // This method doesn't throw if the target directory already exists.
         // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
         ValueTask<FileEntryAttributes?> checkExists = GetAttributesAsync(workingDirectory, path, followLinks: true /* allow the path to be a link to a dir */, filter: [], cancellationToken);
@@ -672,11 +713,14 @@ sealed partial class SftpChannel : IDisposable
         {
             if (await IsDirectory(checkExists).ConfigureAwait(false))
             {
+                progress?.EntryCompleted(entryPath!);
                 return;
             }
 
             throw;
         }
+
+        progress?.EntryCompleted(entryPath!);
 
         async ValueTask<bool> IsDirectory(ValueTask<FileEntryAttributes?> checkExists)
         {
@@ -716,201 +760,218 @@ sealed partial class SftpChannel : IDisposable
         }
     }
 
-    public async ValueTask UploadDirectoryEntriesAsync(string workingDirectory, string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask UploadDirectoryEntriesAsync(string workingDirectory, string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        options ??= SftpClient.DefaultUploadEntriesOptions;
-        bool overwrite = options.Overwrite;
-        bool includeSubdirectories = options.IncludeSubdirectories;
-
-        localDirPath = Path.GetFullPath(localDirPath);
-        int trimLocalDirectory = localDirPath.Length;
-        if (!LocalPath.EndsInDirectorySeparator(localDirPath))
+        progress?.Start();
+        Exception? completedException = null;
+        try
         {
-            trimLocalDirectory++;
-        }
-        remoteDirPath = RemotePath.EnsureTrailingSeparator(remoteDirPath);
+            options ??= SftpClient.DefaultUploadEntriesOptions;
+            bool overwrite = options.Overwrite;
+            bool includeSubdirectories = options.IncludeSubdirectories;
 
-        bool followFileLinks = options.FollowFileLinks;
-        bool followDirectoryLinks = options.FollowDirectoryLinks;
+            localDirPath = Path.GetFullPath(localDirPath);
+            int trimLocalDirectory = localDirPath.Length;
+            if (!LocalPath.EndsInDirectorySeparator(localDirPath))
+            {
+                trimLocalDirectory++;
+            }
+            remoteDirPath = RemotePath.EnsureTrailingSeparator(remoteDirPath);
 
-        char[] pathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
-        var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirPath,
-                        (ref FileSystemEntry entry) =>
-                        {
-                            string localPath = entry.ToFullPath();
-                            using ValueStringBuilder remotePathBuilder = new(pathBuffer);
-                            remotePathBuilder.Append(remoteDirPath);
-                            remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
-                            var attributes = entry.Attributes;
-                            bool isLink = (attributes & FileAttributes.ReparsePoint) != 0;
-                            UnixFileType type;
-                            if ((attributes & FileAttributes.Directory) != 0)
+            bool followFileLinks = options.FollowFileLinks;
+            bool followDirectoryLinks = options.FollowDirectoryLinks;
+
+            char[] pathBuffer = ArrayPool<char>.Shared.Rent(RemotePath.MaxPathLength);
+            var fse = new FileSystemEnumerable<(string LocalPath, string RemotePath, UnixFileType Type, long Length)>(localDirPath,
+                            (ref FileSystemEntry entry) =>
                             {
-                                type = (isLink && !followDirectoryLinks) ? UnixFileType.SymbolicLink
-                                                                         : UnixFileType.Directory;
+                                string localPath = entry.ToFullPath();
+                                using ValueStringBuilder remotePathBuilder = new(pathBuffer);
+                                remotePathBuilder.Append(remoteDirPath);
+                                remotePathBuilder.AppendLocalPathToRemotePath(localPath.AsSpan(trimLocalDirectory));
+                                var attributes = entry.Attributes;
+                                bool isLink = (attributes & FileAttributes.ReparsePoint) != 0;
+                                UnixFileType type;
+                                if ((attributes & FileAttributes.Directory) != 0)
+                                {
+                                    type = (isLink && !followDirectoryLinks) ? UnixFileType.SymbolicLink
+                                                                            : UnixFileType.Directory;
+                                }
+                                else
+                                {
+                                    type = isLink ? UnixFileType.SymbolicLink
+                                                : UnixFileType.RegularFile;
+                                }
+
+                                long length = entry.Length;
+                                return (localPath, remotePathBuilder.ToString(), type, length);
+                            },
+                            new System.IO.EnumerationOptions()
+                            {
+                                RecurseSubdirectories = includeSubdirectories
+                            });
+
+            LocalFileEntryPredicate? shouldRecurse = options.ShouldRecurse;
+            if (includeSubdirectories && (!followDirectoryLinks || shouldRecurse is not null))
+            {
+                fse.ShouldRecursePredicate = (ref FileSystemEntry entry) =>
+                {
+                    bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
+                    if (isLink && !followDirectoryLinks)
+                    {
+                        return false;
+                    }
+
+                    if (shouldRecurse is null)
+                    {
+                        return true;
+                    }
+
+                    LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
+                    return shouldRecurse(ref localFileEntry);
+                };
+            }
+            LocalFileEntryPredicate? shouldInclude = options.ShouldInclude;
+            if (!includeSubdirectories || shouldInclude is not null)
+            {
+                fse.ShouldIncludePredicate = (ref FileSystemEntry entry) =>
+                {
+                    bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
+                    if (!includeSubdirectories &&
+                        (entry.Attributes & FileAttributes.Directory) != 0 &&
+                        (followDirectoryLinks || !isLink))
+                    {
+                        return false;
+                    }
+
+                    if (shouldInclude is not null)
+                    {
+                        LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
+                        return shouldInclude(ref localFileEntry);
+                    }
+
+                    return true;
+                };
+            }
+
+            var onGoing = new Queue<ValueTask>();
+            try
+            {
+                if (options.TargetDirectoryCreation == TargetDirectoryCreation.CreateNew)
+                {
+                    await CreateNewDirectoryAsync(workingDirectory, remoteDirPath, createParents: false, GetPermissionsForDirectory(localDirPath), cancellationToken).ConfigureAwait(false);
+                }
+                else if (options.TargetDirectoryCreation is TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents)
+                {
+                    bool createParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
+                    onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, remoteDirPath, createParents, GetPermissionsForDirectory(localDirPath), cancellationToken));
+                }
+
+                // Track the last directory that is known to exist to avoid calling CreateDirectoryAsync for each item in the same directory.
+                string lastRemoteDirectory = remoteDirPath;
+                bool shouldEnsureParentDirectories = shouldInclude is not null;
+
+                foreach (var item in fse)
+                {
+                    if (onGoing.Count == MaxConcurrentOperations)
+                    {
+                        await onGoing.Dequeue().ConfigureAwait(false);
+                    }
+                    switch (item.Type)
+                    {
+                        case UnixFileType.Directory:
+                            onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, shouldEnsureParentDirectories, GetPermissionsForDirectory(item.LocalPath), item.LocalPath, progress, cancellationToken));
+                            lastRemoteDirectory = item.RemotePath;
+                            break;
+                        case UnixFileType.RegularFile:
+                            if (shouldEnsureParentDirectories)
+                            {
+                                lastRemoteDirectory = EnsureParentRemoteDirectory(lastRemoteDirectory, item.RemotePath);
+                            }
+                            onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, progress, singleFile: false, cancellationToken));
+                            break;
+                        case UnixFileType.SymbolicLink:
+                            if (shouldEnsureParentDirectories)
+                            {
+                                lastRemoteDirectory = EnsureParentRemoteDirectory(lastRemoteDirectory, item.RemotePath);
+                            }
+                            FileInfo file = new FileInfo(item.LocalPath);
+                            FileSystemInfo? linkTarget;
+                            if (followFileLinks &&
+                                (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
+                            {
+                                // Pass linkTarget.Length because item.Length is the length of the link target path.
+                                onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, progress, singleFile: false, cancellationToken));
                             }
                             else
                             {
-                                type = isLink ? UnixFileType.SymbolicLink
-                                              : UnixFileType.RegularFile;
+                                string? targetPath = file.LinkTarget;
+                                if (targetPath is null)
+                                {
+                                    throw new IOException($"Can not determine link target path of '{item.LocalPath}'.");
+                                }
+                                if (OperatingSystem.IsWindows())
+                                {
+                                    targetPath = targetPath.Replace('\\', '/');
+                                }
+                                onGoing.Enqueue(progress is not null
+                                    ? CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, item.LocalPath, progress, cancellationToken)
+                                    : CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, cancellationToken));
                             }
-
-                            long length = entry.Length;
-                            return (localPath, remotePathBuilder.ToString(), type, length);
-                        },
-                        new System.IO.EnumerationOptions()
-                        {
-                            RecurseSubdirectories = includeSubdirectories
-                        });
-
-        LocalFileEntryPredicate? shouldRecurse = options.ShouldRecurse;
-        if (includeSubdirectories && (!followDirectoryLinks || shouldRecurse is not null))
-        {
-            fse.ShouldRecursePredicate = (ref FileSystemEntry entry) =>
-            {
-                bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
-                if (isLink && !followDirectoryLinks)
-                {
-                    return false;
+                            break;
+                        default:
+                            break;
+                    }
                 }
 
-                if (shouldRecurse is null)
-                {
-                    return true;
-                }
-
-                LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
-                return shouldRecurse(ref localFileEntry);
-            };
-        }
-        LocalFileEntryPredicate? shouldInclude = options.ShouldInclude;
-        if (!includeSubdirectories || shouldInclude is not null)
-        {
-            fse.ShouldIncludePredicate = (ref FileSystemEntry entry) =>
-            {
-                bool isLink = (entry.Attributes & FileAttributes.ReparsePoint) != 0;
-                if (!includeSubdirectories &&
-                    (entry.Attributes & FileAttributes.Directory) != 0 &&
-                    (followDirectoryLinks || !isLink))
-                {
-                    return false;
-                }
-
-                if (shouldInclude is not null)
-                {
-                    LocalFileEntry localFileEntry = new LocalFileEntry(ref entry);
-                    return shouldInclude(ref localFileEntry);
-                }
-
-                return true;
-            };
-        }
-
-        var onGoing = new Queue<ValueTask>();
-        var bufferSemaphore = new SemaphoreSlim(MaxConcurrentBuffers, MaxConcurrentBuffers);
-        try
-        {
-            if (options.TargetDirectoryCreation == TargetDirectoryCreation.CreateNew)
-            {
-                await CreateNewDirectoryAsync(workingDirectory, remoteDirPath, createParents: false, GetPermissionsForDirectory(localDirPath), cancellationToken).ConfigureAwait(false);
-            }
-            else if (options.TargetDirectoryCreation is TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents)
-            {
-                bool createParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
-                onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, remoteDirPath, createParents, GetPermissionsForDirectory(localDirPath), cancellationToken));
-            }
-
-            // Track the last directory that is known to exist to avoid calling CreateDirectoryAsync for each item in the same directory.
-            string lastRemoteDirectory = remoteDirPath;
-            bool shouldEnsureParentDirectories = shouldInclude is not null;
-
-            foreach (var item in fse)
-            {
-                if (onGoing.Count == MaxConcurrentOperations)
-                {
-                    await onGoing.Dequeue().ConfigureAwait(false);
-                }
-                switch (item.Type)
-                {
-                    case UnixFileType.Directory:
-                        onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, shouldEnsureParentDirectories, GetPermissionsForDirectory(item.LocalPath), cancellationToken));
-                        lastRemoteDirectory = item.RemotePath;
-                        break;
-                    case UnixFileType.RegularFile:
-                        if (shouldEnsureParentDirectories)
-                        {
-                            lastRemoteDirectory = EnsureParentRemoteDirectoryAsync(lastRemoteDirectory, item.RemotePath);
-                        }
-                        onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, cancellationToken));
-                        break;
-                    case UnixFileType.SymbolicLink:
-                        if (shouldEnsureParentDirectories)
-                        {
-                            lastRemoteDirectory = EnsureParentRemoteDirectoryAsync(lastRemoteDirectory, item.RemotePath);
-                        }
-                        FileInfo file = new FileInfo(item.LocalPath);
-                        FileSystemInfo? linkTarget;
-                        if (followFileLinks &&
-                            (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
-                        {
-                            // Pass linkTarget.Length because item.Length is the length of the link target path.
-                            onGoing.Enqueue(UploadFileAsync(workingDirectory, item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, cancellationToken));
-                        }
-                        else
-                        {
-                            string? targetPath = file.LinkTarget;
-                            if (targetPath is null)
-                            {
-                                throw new IOException($"Can not determine link target path of '{item.LocalPath}'.");
-                            }
-                            if (OperatingSystem.IsWindows())
-                            {
-                                targetPath = targetPath.Replace('\\', '/');
-                            }
-                            onGoing.Enqueue(CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, cancellationToken));
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            while (onGoing.TryDequeue(out ValueTask pending))
-            {
-                await pending.ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            while (onGoing.TryDequeue(out ValueTask pending))
-            {
-                try
+                progress?.EntriesDiscovered();
+                while (onGoing.TryDequeue(out ValueTask pending))
                 {
                     await pending.ConfigureAwait(false);
                 }
-                catch
-                { }
             }
-            ArrayPool<char>.Shared.Return(pathBuffer);
-        }
-
-        string EnsureParentRemoteDirectoryAsync(string lastDirectory, string itemPath)
-        {
-            int lastSeparator = itemPath.LastIndexOf(RemotePath.DirectorySeparatorChar);
-            if (lastSeparator <= 0)
+            finally
             {
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    try
+                    {
+                        await pending.ConfigureAwait(false);
+                    }
+                    catch
+                    { }
+                }
+                ArrayPool<char>.Shared.Return(pathBuffer);
+            }
+
+            string EnsureParentRemoteDirectory(string lastDirectory, string itemPath)
+            {
+                int lastSeparator = itemPath.LastIndexOf(RemotePath.DirectorySeparatorChar);
+                if (lastSeparator <= 0)
+                {
+                    return lastDirectory;
+                }
+                ReadOnlySpan<char> parentPath = itemPath.AsSpan(0, lastSeparator);
+                bool isSameOrParentOfCurrent =
+                    lastDirectory.AsSpan().StartsWith(parentPath) &&
+                    (lastDirectory.Length == parentPath.Length || lastDirectory[parentPath.Length] == RemotePath.DirectorySeparatorChar);
+                if (!isSameOrParentOfCurrent)
+                {
+                    lastDirectory = new string(parentPath);
+                    ValueTask createDirTask = CreateDirectoryAsync(workingDirectory, lastDirectory, createParents: true, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
+                    onGoing.Enqueue(createDirTask);
+                }
                 return lastDirectory;
             }
-            ReadOnlySpan<char> parentPath = itemPath.AsSpan(0, lastSeparator);
-            bool isSameOrParentOfCurrent =
-                lastDirectory.AsSpan().StartsWith(parentPath) &&
-                (lastDirectory.Length == parentPath.Length || lastDirectory[parentPath.Length] == RemotePath.DirectorySeparatorChar);
-            if (!isSameOrParentOfCurrent)
-            {
-                lastDirectory = new string(parentPath);
-                ValueTask createDirTask = CreateDirectoryAsync(workingDirectory, lastDirectory, createParents: true, SftpClient.DefaultCreateDirectoryPermissions, cancellationToken);
-                onGoing.Enqueue(createDirTask);
-            }
-            return lastDirectory;
+        }
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            progress?.Completed(completedException);
         }
     }
 
@@ -942,144 +1003,235 @@ sealed partial class SftpChannel : IDisposable
 #endif
     }
 
-    public async ValueTask UploadFileAsync(string workingDirectory, string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, CancellationToken cancellationToken)
+    public ValueTask UploadFileAsync(string workingDirectory, string localPath, string remotePath, bool overwrite, UnixFilePermissions? permissions, SftpProgressHandler? progress, CancellationToken cancellationToken)
+        => UploadFileFromPathAsync(workingDirectory, localPath, remotePath, length: null, overwrite, permissions, progress, singleFile: true, cancellationToken);
+
+    private async ValueTask UploadFileFromPathAsync(string workingDirectory, string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, SftpProgressHandler? progress, bool singleFile, CancellationToken cancellationToken)
     {
-        using FileStream localFile = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
+        if (singleFile)
+        {
+            progress?.Start();
+        }
 
-        permissions ??= GetPermissionsForFile(localFile.SafeFileHandle);
+        FileStream? localFile = null;
+        try
+        {
+            localFile = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
+            permissions ??= GetPermissionsForFile(localFile.SafeFileHandle);
+        }
+        catch (Exception ex)
+        {
+            localFile?.Dispose();
+            if (singleFile)
+            {
+                progress?.Completed(ex);
+            }
+            throw;
+        }
 
-        await UploadFileAsync(workingDirectory, localFile, remotePath, length, overwrite, permissions.Value, cancellationToken).ConfigureAwait(false);
+        using (localFile)
+        {
+            await UploadFileCoreAsync(workingDirectory, localFile, remotePath, length, overwrite, permissions.Value, progress, localPath, singleFile, cancellationToken).ConfigureAwait(false);
+        }
     }
 
-    public async ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, CancellationToken cancellationToken)
+    public ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, bool overwrite, UnixFilePermissions permissions, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
-        SftpOpenFlags openFlags = overwrite
-            ? SftpOpenFlags.OpenOrCreate | SftpOpenFlags.Truncate
-            : SftpOpenFlags.CreateNew;
-        using SftpFile? remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
-        if (remoteFile is null)
-        {
-            throw new SftpException(SftpError.NoSuchFile);
-        }
+        progress?.Start();
+        return UploadFileCoreAsync(workingDirectory, source, remotePath, length: null, overwrite, permissions, progress, path: "", singleFile: true, cancellationToken);
+    }
 
-        // Pipeline the writes when the source is a sync, seekable Stream.
-        // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
-        bool pipelineSyncWrites = source.CanSeek && IsSyncStream(source) && source.Length > 0;
-
-        if (!pipelineSyncWrites)
+    private async ValueTask UploadFileCoreAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, SftpProgressHandler? progress, string path, bool singleFile, CancellationToken cancellationToken)
+    {
+        Exception? completedException = null;
+        try
         {
-            await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
+            // directory upload, emit start sync when the method gets called.
+            if (!singleFile)
             {
-                await source.CopyToAsync(remoteFile, GetMaxWritePayload(remoteFile.Handle)).ConfigureAwait(false);
-            }
-            finally
-            {
-                s_uploadBufferSemaphore.Release();
+                Debug.Assert(length is not null);
+                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
             }
 
-            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            length ??= source.Length;
-
-            ValueTask previous = default;
-            long startOffset = source.Position;
-            long bytesSuccesfullyWritten = 0;
-            CancellationTokenSource breakLoop = new();
-            int maxWritePayload = GetMaxWritePayload(length.Value, remoteFile.Handle);
-
-            for (long offset = 0; offset < length; offset += maxWritePayload)
+            SftpOpenFlags openFlags = overwrite
+                ? SftpOpenFlags.OpenOrCreate | SftpOpenFlags.Truncate
+                : SftpOpenFlags.CreateNew;
+            using SftpFile? remoteFile = (await OpenFileCoreAsync(workingDirectory, remotePath, openFlags | SftpOpenFlags.Write, permissions, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false));
+            if (remoteFile is null)
             {
-                if (!breakLoop.IsCancellationRequested)
+                throw new SftpException(SftpError.NoSuchFile);
+            }
+
+            // Pipeline the writes when the source is a sync, seekable Stream.
+            // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
+            bool pipelineSyncWrites = source.CanSeek && IsSyncStream(source) && source.Length > 0;
+
+            if (!pipelineSyncWrites)
+            {
+                if (singleFile)
                 {
-                    await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    int copyLength = (int)Math.Min((long)maxWritePayload, length.Value - offset);
-                    previous = CopyBuffer(previous, offset, copyLength);
+                    progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
+                    progress?.EntriesDiscovered();
                 }
-            }
 
-            bool ignorePositionUpdateException = false;
-            try
-            {
-                await previous.ConfigureAwait(false);
-
-                await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                ignorePositionUpdateException = true;
-
-                throw;
-            }
-            finally
-            {
-                // Set the position to what was succesfully written.
+                await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    source.Position = startOffset + bytesSuccesfullyWritten;
-                }
-                catch when (ignorePositionUpdateException)
-                { }
-            }
-
-            async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
-            {
-                try
-                {
-                    byte[]? buffer = null;
-                    try
-                    {
-                        if (breakLoop.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        buffer = ArrayPool<byte>.Shared.Rent(length);
-                        int remaining = length;
-                        long readOffset = startOffset + offset;
-                        do
-                        {
-                            int bytesRead;
-                            lock (breakLoop) // Ensure only one thread is reading the Stream concurrently.
-                            {
-                                source.Position = readOffset;
-                                bytesRead = source.Read(buffer.AsSpan(length - remaining, remaining));
-                            }
-                            if (bytesRead == 0)
-                            {
-                                throw new IOException("Unexpected end of file. The source was truncated during the upload.");
-                            }
-                            remaining -= bytesRead;
-                            readOffset += bytesRead;
-                        } while (remaining > 0);
-
-                        await remoteFile.WriteAtAsync(buffer.AsMemory(0, length), offset, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        length = 0; // Assume nothing was written succesfully.
-                        breakLoop.Cancel();
-                        throw;
-                    }
-                    finally
-                    {
-                        if (buffer != null)
-                        {
-                            ArrayPool<byte>.Shared.Return(buffer);
-                        }
-                        s_uploadBufferSemaphore.Release();
-                    }
+                    await CopyToAsync(source, remoteFile, GetMaxWritePayload(remoteFile.Handle), path, progress, cancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
-                    await previousCopy.ConfigureAwait(false);
+                    s_uploadBufferSemaphore.Release();
+                }
 
-                    // Update with our length after the previous write completed succesfully.
-                    bytesSuccesfullyWritten += length;
+                await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                length ??= source.Length;
+
+                if (singleFile)
+                {
+                    progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
+                    progress?.EntriesDiscovered();
+                }
+
+                ValueTask previous = default;
+                long startOffset = source.Position;
+                long bytesSuccesfullyWritten = 0;
+                CancellationTokenSource breakLoop = new();
+                int maxWritePayload = GetMaxWritePayload(length.Value, remoteFile.Handle);
+
+                for (long offset = 0; offset < length; offset += maxWritePayload)
+                {
+                    if (!breakLoop.IsCancellationRequested)
+                    {
+                        await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        int copyLength = (int)Math.Min((long)maxWritePayload, length.Value - offset);
+                        previous = CopyBuffer(previous, offset, copyLength);
+                    }
+                }
+
+                bool ignorePositionUpdateException = false;
+                try
+                {
+                    await previous.ConfigureAwait(false);
+
+                    await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    ignorePositionUpdateException = true;
+
+                    throw;
+                }
+                finally
+                {
+                    // Set the position to what was succesfully written.
+                    try
+                    {
+                        source.Position = startOffset + bytesSuccesfullyWritten;
+                    }
+                    catch when (ignorePositionUpdateException)
+                    { }
+                }
+
+                async ValueTask CopyBuffer(ValueTask previousCopy, long offset, int length)
+                {
+                    try
+                    {
+                        byte[]? buffer = null;
+                        try
+                        {
+                            if (breakLoop.IsCancellationRequested)
+                            {
+                                return;
+                            }
+
+                            buffer = ArrayPool<byte>.Shared.Rent(length);
+                            int remaining = length;
+                            long readOffset = startOffset + offset;
+                            do
+                            {
+                                int bytesRead;
+                                lock (breakLoop) // Ensure only one thread is reading the Stream concurrently.
+                                {
+                                    source.Position = readOffset;
+                                    bytesRead = source.Read(buffer.AsSpan(length - remaining, remaining));
+                                }
+                                if (bytesRead == 0)
+                                {
+                                    throw new IOException("Unexpected end of file. The source was truncated during the upload.");
+                                }
+                                remaining -= bytesRead;
+                                readOffset += bytesRead;
+                            } while (remaining > 0);
+
+                            await remoteFile.WriteAtAsync(buffer.AsMemory(0, length), offset, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            length = 0; // Assume nothing was written succesfully.
+                            breakLoop.Cancel();
+                            throw;
+                        }
+                        finally
+                        {
+                            if (buffer != null)
+                            {
+                                ArrayPool<byte>.Shared.Return(buffer);
+                            }
+                            s_uploadBufferSemaphore.Release();
+                        }
+                    }
+                    finally
+                    {
+                        await previousCopy.ConfigureAwait(false);
+
+                        if (length > 0)
+                        {
+                            // Update with our length after the previous write completed succesfully.
+                            bytesSuccesfullyWritten += length;
+
+                            progress?.DataTransferred(path, length, offset + length);
+                        }
+                    }
                 }
             }
+
+            progress?.EntryCompleted(path);
+        }
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            if (singleFile)
+            {
+                progress?.Completed(completedException);
+            }
+        }
+    }
+
+    private static async ValueTask CopyToAsync(Stream source, Stream destination, int bufferSize, string path, SftpProgressHandler? progress, CancellationToken cancellationToken)
+    {
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        try
+        {
+            long offset = 0;
+            int bytesRead;
+            while ((bytesRead = await source.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                offset += bytesRead;
+                progress?.DataTransferred(path, bytesRead, offset);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
@@ -1090,157 +1242,174 @@ sealed partial class SftpChannel : IDisposable
     private IAsyncEnumerable<T> GetDirectoryEntriesAsync<T>(string path, SftpFileEntryTransform<T> transform, EnumerationOptions options)
         => new SftpFileSystemEnumerable<T>(this, path, transform, options);
 
-    public async ValueTask DownloadDirectoryEntriesAsync(string workingDirectory, string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadDirectoryEntriesAsync(string workingDirectory, string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        options ??= SftpClient.DefaultDownloadEntriesOptions;
-
-        const UnixFileTypeFilter SupportedFileTypes =
-            UnixFileTypeFilter.RegularFile |
-            UnixFileTypeFilter.Directory |
-            UnixFileTypeFilter.SymbolicLink;
-        UnixFileTypeFilter unsupportedFileTypes = options.FileTypeFilter & ~SupportedFileTypes;
-        if (unsupportedFileTypes != 0)
-        {
-            throw new NotSupportedException($"{nameof(options.FileTypeFilter)} includes unsupported file types: {unsupportedFileTypes}. {nameof(options.FileTypeFilter)} may only include {SupportedFileTypes}.");
-        }
-
-        // TargetDirectoryCreation
-        bool localDirExists = Directory.Exists(localDirPath);
-        bool canCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew or TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents;
-        bool mustCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew;
-        if (!localDirExists && canCreate)
-        {
-            bool canCreateParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
-            if (!canCreateParents)
-            {
-                if (!Directory.Exists(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(localDirPath)))))
-                {
-                    throw new DirectoryNotFoundException($"Directory parent not found for {localDirPath}.");
-                }
-            }
-            Directory.CreateDirectory(localDirPath);
-        }
-        else if (localDirExists && mustCreate)
-        {
-            throw new IOException($"Target directory already exists: {localDirPath}");
-        }
-
-        bool overwrite = options.Overwrite;
-        DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
-
-        remoteDirPath = RemotePath.ResolvePath([workingDirectory, remoteDirPath]);
-        workingDirectory = "";
-
-        int trimRemoteDirectory = remoteDirPath.Length;
-        if (remoteDirPath.Length != 0 && !RemotePath.EndsInDirectorySeparator(remoteDirPath))
-        {
-            trimRemoteDirectory++;
-        }
-        localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
-
-        // Track the last directory that is known to exist to avoid calling Directory.CreateDirectory for each item in the same directory.
-        string lastDirectory = localDirPath;
-
-        char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
-        var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(
-            remoteDirPath,
-            (ref SftpFileEntry entry) =>
-            {
-                string remotePath = entry.ToPath();
-                string localPath;
-                ReadOnlySpan<char> relativePath = remotePath.AsSpan(trimRemoteDirectory);
-                if (!LocalPath.IsRemotePathValidLocalSubPath(relativePath))
-                {
-                    relativePath = replaceInvalidCharacters(relativePath, LocalPath.InvalidLocalPathChars, pathBuffer);
-                    using ValueStringBuilder localPathBuilder = new(pathBuffer);
-                    // relativePath may used pathBuffer for storage
-                    // append it first so we don't overwrite it with localDirPath.
-                    localPathBuilder.Append(relativePath);
-                    localPathBuilder.Insert(0, localDirPath);
-                    localPath = localPathBuilder.ToString();
-                }
-                else
-                {
-                    using ValueStringBuilder localPathBuilder = new(pathBuffer);
-                    localPathBuilder.Append(localDirPath);
-                    localPathBuilder.Append(relativePath);
-                    localPath = localPathBuilder.ToString();
-                }
-
-                return (localPath, remotePath, entry.FileType, entry.Permissions, entry.Length);
-            },
-            new EnumerationOptions()
-            {
-                RecurseSubdirectories = options.IncludeSubdirectories,
-                FollowDirectoryLinks = options.FollowDirectoryLinks,
-                FollowFileLinks = options.FollowFileLinks,
-                FileTypeFilter = options.FileTypeFilter & ~(options.IncludeSubdirectories ? 0 : UnixFileTypeFilter.Directory),
-                ShouldInclude = options.ShouldInclude,
-                ShouldRecurse = options.ShouldRecurse
-            });
-
-        var onGoing = new Queue<ValueTask>();
+        progress?.Start();
+        Exception? completedException = null;
         try
         {
-            await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
+            options ??= SftpClient.DefaultDownloadEntriesOptions;
+
+            const UnixFileTypeFilter SupportedFileTypes =
+                UnixFileTypeFilter.RegularFile |
+                UnixFileTypeFilter.Directory |
+                UnixFileTypeFilter.SymbolicLink;
+            UnixFileTypeFilter unsupportedFileTypes = options.FileTypeFilter & ~SupportedFileTypes;
+            if (unsupportedFileTypes != 0)
             {
-                if (onGoing.Count == MaxConcurrentOperations)
-                {
-                    await onGoing.Dequeue().ConfigureAwait(false);
-                }
-                switch (item.Type)
-                {
-                    case UnixFileType.Directory:
-                        bool exists = Directory.Exists(item.LocalPath);
-                        if (!exists)
-                        {
-                            CreateLocalDirectory(item.LocalPath, item.Permissions);
-                        }
-                        lastDirectory = item.LocalPath;
-                        break;
-                    case UnixFileType.RegularFile:
-                        lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadFileAsync(workingDirectory, item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, cancellationToken));
-                        break;
-                    case UnixFileType.SymbolicLink:
-                        lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                        onGoing.Enqueue(DownloadLinkAsync(workingDirectory, item.RemotePath, item.LocalPath, overwrite, cancellationToken));
-                        break;
-                    default:
-                        throw new NotSupportedException($"Downloading file type '{item.Type}' is not supported.");
-                }
+                throw new NotSupportedException($"{nameof(options.FileTypeFilter)} includes unsupported file types: {unsupportedFileTypes}. {nameof(options.FileTypeFilter)} may only include {SupportedFileTypes}.");
             }
-            while (onGoing.TryDequeue(out ValueTask pending))
+
+            bool localDirExists = Directory.Exists(localDirPath);
+            bool canCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew or TargetDirectoryCreation.Create or TargetDirectoryCreation.CreateWithParents;
+            bool mustCreate = options.TargetDirectoryCreation is TargetDirectoryCreation.CreateNew;
+            if (!localDirExists && canCreate)
             {
-                await pending.ConfigureAwait(false);
+                bool canCreateParents = options.TargetDirectoryCreation == TargetDirectoryCreation.CreateWithParents;
+                if (!canCreateParents)
+                {
+                    if (!Directory.Exists(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(localDirPath)))))
+                    {
+                        throw new DirectoryNotFoundException($"Directory parent not found for {localDirPath}.");
+                    }
+                }
+                Directory.CreateDirectory(localDirPath);
             }
-        }
-        finally
-        {
-            while (onGoing.TryDequeue(out ValueTask pending))
+            else if (localDirExists && mustCreate)
             {
-                try
+                throw new IOException($"Target directory already exists: {localDirPath}");
+            }
+
+            bool overwrite = options.Overwrite;
+            DownloadEntriesOptions.ReplaceCharacters replaceInvalidCharacters = options.ReplaceInvalidCharacters ?? throw new ArgumentNullException(nameof(options.ReplaceInvalidCharacters));
+
+            remoteDirPath = RemotePath.ResolvePath([workingDirectory, remoteDirPath]);
+            workingDirectory = "";
+
+            int trimRemoteDirectory = remoteDirPath.Length;
+            if (remoteDirPath.Length != 0 && !RemotePath.EndsInDirectorySeparator(remoteDirPath))
+            {
+                trimRemoteDirectory++;
+            }
+            localDirPath = LocalPath.EnsureTrailingSeparator(localDirPath);
+
+            // Track the last directory that is known to exist to avoid calling Directory.CreateDirectory for each item in the same directory.
+            string lastDirectory = localDirPath;
+
+            char[] pathBuffer = ArrayPool<char>.Shared.Rent(4096);
+            var fse = GetDirectoryEntriesAsync<(string LocalPath, string RemotePath, UnixFileType Type, UnixFilePermissions Permissions, long Length)>(
+                remoteDirPath,
+                (ref SftpFileEntry entry) =>
+                {
+                    string remotePath = entry.ToPath();
+                    string localPath;
+                    ReadOnlySpan<char> relativePath = remotePath.AsSpan(trimRemoteDirectory);
+                    if (!LocalPath.IsRemotePathValidLocalSubPath(relativePath))
+                    {
+                        relativePath = replaceInvalidCharacters(relativePath, LocalPath.InvalidLocalPathChars, pathBuffer);
+                        using ValueStringBuilder localPathBuilder = new(pathBuffer);
+                        // relativePath may used pathBuffer for storage
+                        // append it first so we don't overwrite it with localDirPath.
+                        localPathBuilder.Append(relativePath);
+                        localPathBuilder.Insert(0, localDirPath);
+                        localPath = localPathBuilder.ToString();
+                    }
+                    else
+                    {
+                        using ValueStringBuilder localPathBuilder = new(pathBuffer);
+                        localPathBuilder.Append(localDirPath);
+                        localPathBuilder.Append(relativePath);
+                        localPath = localPathBuilder.ToString();
+                    }
+
+                    return (localPath, remotePath, entry.FileType, entry.Permissions, entry.Length);
+                },
+                new EnumerationOptions()
+                {
+                    RecurseSubdirectories = options.IncludeSubdirectories,
+                    FollowDirectoryLinks = options.FollowDirectoryLinks,
+                    FollowFileLinks = options.FollowFileLinks,
+                    FileTypeFilter = options.FileTypeFilter & ~(options.IncludeSubdirectories ? 0 : UnixFileTypeFilter.Directory),
+                    ShouldInclude = options.ShouldInclude,
+                    ShouldRecurse = options.ShouldRecurse
+                });
+
+            var onGoing = new Queue<ValueTask>();
+            try
+            {
+                await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
+                {
+                    if (onGoing.Count == MaxConcurrentOperations)
+                    {
+                        await onGoing.Dequeue().ConfigureAwait(false);
+                    }
+                    switch (item.Type)
+                    {
+                        case UnixFileType.Directory:
+                            progress?.EntryStart(item.RemotePath, new SftpProgressHandler.Entry { FileType = UnixFileType.Directory, SourceLength = null });
+                            bool exists = Directory.Exists(item.LocalPath);
+                            if (!exists)
+                            {
+                                CreateLocalDirectory(item.LocalPath, item.Permissions);
+                            }
+                            lastDirectory = item.LocalPath;
+                            progress?.EntryCompleted(item.RemotePath);
+                            break;
+                        case UnixFileType.RegularFile:
+                            lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
+                            onGoing.Enqueue(DownloadFileCoreAsync(workingDirectory, item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, progress, item.RemotePath, singleFile: false, cancellationToken));
+                            break;
+                        case UnixFileType.SymbolicLink:
+                            lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
+                            onGoing.Enqueue(DownloadLinkAsync(workingDirectory, item.RemotePath, item.LocalPath, overwrite, item.RemotePath, progress, cancellationToken));
+                            break;
+                        default:
+                            throw new NotSupportedException($"Downloading file type '{item.Type}' is not supported.");
+                    }
+                }
+
+                progress?.EntriesDiscovered();
+                while (onGoing.TryDequeue(out ValueTask pending))
                 {
                     await pending.ConfigureAwait(false);
                 }
-                catch
-                { }
             }
-            ArrayPool<char>.Shared.Return(pathBuffer);
-        }
-
-        static string EnsureParentDirectory(string lastDirectory, string itemPath)
-        {
-            ReadOnlySpan<char> parentPath = Path.GetDirectoryName(itemPath.AsSpan());
-            bool isSameOrParentOfCurrent =
-                lastDirectory.AsSpan().StartsWith(parentPath) &&
-                (lastDirectory.Length == parentPath.Length || LocalPath.IsDirectorySeparator(lastDirectory[parentPath.Length]));
-            if (!isSameOrParentOfCurrent)
+            finally
             {
-                lastDirectory = new string(parentPath);
-                Directory.CreateDirectory(lastDirectory);
+                while (onGoing.TryDequeue(out ValueTask pending))
+                {
+                    try
+                    {
+                        await pending.ConfigureAwait(false);
+                    }
+                    catch
+                    { }
+                }
+                ArrayPool<char>.Shared.Return(pathBuffer);
             }
-            return lastDirectory;
+
+            static string EnsureParentDirectory(string lastDirectory, string itemPath)
+            {
+                ReadOnlySpan<char> parentPath = Path.GetDirectoryName(itemPath.AsSpan());
+                bool isSameOrParentOfCurrent =
+                    lastDirectory.AsSpan().StartsWith(parentPath) &&
+                    (lastDirectory.Length == parentPath.Length || LocalPath.IsDirectorySeparator(lastDirectory[parentPath.Length]));
+                if (!isSameOrParentOfCurrent)
+                {
+                    lastDirectory = new string(parentPath);
+                    Directory.CreateDirectory(lastDirectory);
+                }
+                return lastDirectory;
+            }
+        }
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            progress?.Completed(completedException);
         }
     }
 
@@ -1278,8 +1447,11 @@ sealed partial class SftpChannel : IDisposable
         return new FileStream(path, options);
     }
 
-    private async ValueTask DownloadLinkAsync(string workingDirectory, string remotePath, string localPath, bool overwrite, CancellationToken cancellationToken)
+    private async ValueTask DownloadLinkAsync(string workingDirectory, string remotePath, string localPath, bool overwrite, string? entryPath, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
+        Debug.Assert(progress is null || entryPath is not null);
+        progress?.EntryStart(entryPath!, new SftpProgressHandler.Entry { FileType = UnixFileType.SymbolicLink, SourceLength = null });
+
         bool exists =
 #if NET7_0_OR_GREATER
              Path.Exists(localPath);
@@ -1298,141 +1470,186 @@ sealed partial class SftpChannel : IDisposable
             File.Delete(localPath);
         }
         File.CreateSymbolicLink(localPath, targetPath);
+
+        progress?.EntryCompleted(entryPath!);
     }
 
-    public ValueTask DownloadFileAsync(string workingDirectory, string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(workingDirectory, remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, cancellationToken);
-
-    public ValueTask DownloadFileAsync(string workingDirectory, string remotePath, Stream destination, CancellationToken cancellationToken = default)
-        => DownloadFileAsync(workingDirectory, remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, cancellationToken);
-
-    private async ValueTask DownloadFileAsync(string workingDirectory, string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, CancellationToken cancellationToken)
+    public ValueTask DownloadFileAsync(string workingDirectory, string remoteFilePath, string localFilePath, bool overwrite, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        // Call GetAttributesAsync in parallel with OpenFileAsync.
-        // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
-        ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(workingDirectory, remotePath, followLinks: true, filter: []) : default;
+        progress?.Start();
+        return DownloadFileCoreAsync(workingDirectory, remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, progress, remoteFilePath, singleFile: true, cancellationToken);
+    }
 
-        using SftpFile? remoteFile = await OpenFileAsync(workingDirectory, remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
-        if (remoteFile is null)
+    public ValueTask DownloadFileAsync(string workingDirectory, string remotePath, Stream destination, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
+    {
+        progress?.Start();
+        return DownloadFileCoreAsync(workingDirectory, remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, progress, remotePath, singleFile: true, cancellationToken);
+    }
+
+    private async ValueTask DownloadFileCoreAsync(string workingDirectory, string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, SftpProgressHandler? progress, string path, bool singleFile, CancellationToken cancellationToken)
+    {
+        Exception? completedException = null;
+        try
         {
-            if (throwIfNotFound)
+            // directory download, emit start sync when the method gets called.
+            if (!singleFile)
             {
-                throw new SftpException(SftpError.NoSuchFile);
+                Debug.Assert(length is not null);
+                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
             }
-            return;
-        }
 
-        if (length == null || permissions == null)
-        {
-            FileEntryAttributes? attributes = await getAttributes.ConfigureAwait(false);
-            if (attributes is null) // unlikely
+            // Call GetAttributesAsync in parallel with OpenFileAsync.
+            // We don't need to pass the CancellationToken since GetAttributesAsync will complete before the awaited OpenFileAsync completes.
+            ValueTask<FileEntryAttributes?> getAttributes = length == null || permissions == null ? GetAttributesAsync(workingDirectory, remotePath, followLinks: true, filter: []) : default;
+
+            using SftpFile? remoteFile = await OpenFileAsync(workingDirectory, remotePath, SftpOpenFlags.Open, FileAccess.Read, SftpClient.DefaultFileOpenOptions, cancellationToken).ConfigureAwait(false);
+            if (remoteFile is null)
             {
-                attributes = await remoteFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
-            }
-            length = attributes.Length;
-            permissions = attributes.Permissions;
-        }
-
-        using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
-        destination ??= localFile;
-
-        Debug.Assert(destination is not null);
-
-        // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
-        if (length == 0)
-        {
-            await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                await remoteFile.CopyToAsync(destination, GetMaxReadPayload(), cancellationToken);
-            }
-            finally
-            {
-                s_downloadBufferSemaphore.Release();
-            }
-        }
-        else
-        {
-            bool writeSync = IsSyncStream(destination);
-
-            ValueTask previous = default;
-            CancellationTokenSource? breakLoop = length > 0 ? new() : null;
-
-            int maxPayload = GetMaxReadPayload(length.Value);
-            for (long offset = 0; offset < length; offset += maxPayload)
-            {
-                Debug.Assert(breakLoop is not null);
-                if (!breakLoop.IsCancellationRequested)
+                if (throwIfNotFound)
                 {
-                    await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    long remaining = length.Value - offset;
-                    previous = CopyBuffer(previous, offset, remaining > maxPayload ? maxPayload : (int)remaining);
+                    throw new SftpException(SftpError.NoSuchFile);
                 }
+                if (!singleFile)
+                {
+                    progress?.EntrySkipped(path);
+                    progress?.EntryCompleted(path);
+                }
+                return;
             }
 
-            await previous.ConfigureAwait(false);
-
-            async ValueTask CopyBuffer(ValueTask previousCopy, long fileOffset, int length)
+            if (length == null || permissions == null)
             {
-                byte[]? buffer = null;
+                FileEntryAttributes? attributes = await getAttributes.ConfigureAwait(false);
+                if (attributes is null) // unlikely
+                {
+                    attributes = await remoteFile.GetAttributesAsync(cancellationToken).ConfigureAwait(false);
+                }
+                length = attributes.Length;
+                permissions = attributes.Permissions;
+            }
+
+            if (singleFile)
+            {
+                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
+                progress?.EntriesDiscovered();
+            }
+
+            using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
+            destination ??= localFile;
+
+            Debug.Assert(destination is not null);
+
+            // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
+            if (length == 0)
+            {
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    try
-                    {
-                        if (breakLoop.IsCancellationRequested)
-                        {
-                            // previousCopy will throw.
-                            return;
-                        }
-
-                        buffer = ArrayPool<byte>.Shared.Rent(length);
-                        int remaining = length;
-                        long position = fileOffset;
-                        do
-                        {
-                            int bytesRead = await remoteFile.ReadAtAsync(buffer.AsMemory(length - remaining, remaining), position, cancellationToken).ConfigureAwait(false);
-                            if (bytesRead == 0)
-                            {
-                                // Unexpected EOF.
-                                throw new SftpException(SftpError.Eof);
-                            }
-                            position += bytesRead;
-                            remaining -= bytesRead;
-                        } while (remaining > 0);
-                    }
-                    // Wait for the previous buffer to be written so we're writing sequentially to the file.
-                    finally
-                    {
-                        await previousCopy.ConfigureAwait(false);
-                    }
-
-                    if (writeSync)
-                    {
-                        destination.Write(buffer.AsSpan(0, length));
-                    }
-                    else
-                    {
-                        await destination.WriteAsync(buffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
-                    }
-                }
-                catch
-                {
-                    breakLoop.Cancel();
-                    throw;
+                    await CopyToAsync(remoteFile, destination, GetMaxReadPayload(), path, progress, cancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
-                    if (buffer != null)
-                    {
-                        ArrayPool<byte>.Shared.Return(buffer);
-                    }
                     s_downloadBufferSemaphore.Release();
                 }
             }
+            else
+            {
+                bool writeSync = IsSyncStream(destination);
+
+                ValueTask previous = default;
+                CancellationTokenSource? breakLoop = length > 0 ? new() : null;
+
+                int maxPayload = GetMaxReadPayload(length.Value);
+                for (long offset = 0; offset < length; offset += maxPayload)
+                {
+                    Debug.Assert(breakLoop is not null);
+                    if (!breakLoop.IsCancellationRequested)
+                    {
+                        await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        long remaining = length.Value - offset;
+                        previous = CopyBuffer(previous, offset, remaining > maxPayload ? maxPayload : (int)remaining);
+                    }
+                }
+
+                await previous.ConfigureAwait(false);
+
+                async ValueTask CopyBuffer(ValueTask previousCopy, long remoteOffset, int length)
+                {
+                    byte[]? buffer = null;
+                    try
+                    {
+                        try
+                        {
+                            if (breakLoop.IsCancellationRequested)
+                            {
+                                // previousCopy will throw.
+                                return;
+                            }
+
+                            buffer = ArrayPool<byte>.Shared.Rent(length);
+                            int remaining = length;
+                            long position = remoteOffset;
+                            do
+                            {
+                                int bytesRead = await remoteFile.ReadAtAsync(buffer.AsMemory(length - remaining, remaining), position, cancellationToken).ConfigureAwait(false);
+                                if (bytesRead == 0)
+                                {
+                                    // Unexpected EOF.
+                                    throw new SftpException(SftpError.Eof);
+                                }
+                                position += bytesRead;
+                                remaining -= bytesRead;
+                            } while (remaining > 0);
+                        }
+                        // Wait for the previous buffer to be written so we're writing sequentially to the file.
+                        finally
+                        {
+                            await previousCopy.ConfigureAwait(false);
+                        }
+
+                        if (writeSync)
+                        {
+                            destination.Write(buffer.AsSpan(0, length));
+                        }
+                        else
+                        {
+                            await destination.WriteAsync(buffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+                        }
+
+                        progress?.DataTransferred(path, length, remoteOffset + length);
+                    }
+                    catch
+                    {
+                        breakLoop.Cancel();
+                        throw;
+                    }
+                    finally
+                    {
+                        if (buffer != null)
+                        {
+                            ArrayPool<byte>.Shared.Return(buffer);
+                        }
+                        s_downloadBufferSemaphore.Release();
+                    }
+                }
+            }
+
+            await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
+
+            progress?.EntryCompleted(path);
         }
-
-        await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
-
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            if (singleFile)
+            {
+                progress?.Completed(completedException);
+            }
+        }
     }
 
     private ValueTask CreateNewDirectory(string workingDirectory, ReadOnlySpan<char> path, bool awaitable, UnixFilePermissions permissions, CancellationToken cancellationToken)

@@ -393,10 +393,10 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.CopyFileAsync(sourcePath, destinationPath, overwrite, cancellationToken).ConfigureAwait(false);
+        await dir.CopyFileAsync(sourcePath, destinationPath, overwrite, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -460,45 +460,45 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.UploadDirectoryEntriesAsync(localDirPath, remoteDirPath, options, cancellationToken).ConfigureAwait(false);
+        await dir.UploadDirectoryEntriesAsync(localDirPath, remoteDirPath, options, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = default, CancellationToken cancellationToken = default)
+    public async ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = default, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.UploadFileAsync(localFilePath, remoteFilePath, overwrite, createPermissions, cancellationToken).ConfigureAwait(false);
+        await dir.UploadFileAsync(localFilePath, remoteFilePath, overwrite, createPermissions, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = DefaultCreateFilePermissions, CancellationToken cancellationToken = default)
+    public async ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = DefaultCreateFilePermissions, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.UploadFileAsync(source, remoteFilePath, overwrite, createPermissions, cancellationToken).ConfigureAwait(false);
+        await dir.UploadFileAsync(source, remoteFilePath, overwrite, createPermissions, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.DownloadDirectoryEntriesAsync(remoteDirPath, localDirPath, options, cancellationToken).ConfigureAwait(false);
+        await dir.DownloadDirectoryEntriesAsync(remoteDirPath, localDirPath, options, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.DownloadFileAsync(remoteFilePath, localFilePath, overwrite, cancellationToken).ConfigureAwait(false);
+        await dir.DownloadFileAsync(remoteFilePath, localFilePath, overwrite, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async ValueTask DownloadFileAsync(string remoteFilePath, Stream destination, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadFileAsync(string remoteFilePath, Stream destination, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.DownloadFileAsync(remoteFilePath, destination, cancellationToken).ConfigureAwait(false);
+        await dir.DownloadFileAsync(remoteFilePath, destination, progress, cancellationToken).ConfigureAwait(false);
     }
 
     private ObjectDisposedException NewObjectDisposedException()
