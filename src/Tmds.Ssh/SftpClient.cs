@@ -379,10 +379,10 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default)
+    public async ValueTask DeleteDirectoryAsync(string path, bool recursive = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
-        await dir.DeleteDirectoryAsync(path, recursive, cancellationToken).ConfigureAwait(false);
+        await dir.DeleteDirectoryAsync(path, recursive, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -60,10 +60,14 @@ public interface ISftpDirectory
     /// <summary>
     /// Deletes a directory. This does not fail when the directory does not exist.
     /// </summary>
+    /// <remarks>
+    /// If the directory does not exist, <see cref="SftpProgressHandler.EntrySkipped"/> is called instead of <see cref="SftpProgressHandler.EntryCompleted"/>.
+    /// </remarks>
     /// <param name="path">The directory path.</param>
     /// <param name="recursive">Whether to delete directories recursively.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> for monitoring the operation.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    ValueTask DeleteDirectoryAsync(string path, bool recursive = false, CancellationToken cancellationToken = default);
+    ValueTask DeleteDirectoryAsync(string path, bool recursive = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Renames or moves a file or directory.
@@ -79,7 +83,7 @@ public interface ISftpDirectory
     /// <param name="sourcePath">The source file path.</param>
     /// <param name="destinationPath">The destination file path.</param>
     /// <param name="overwrite">Whether to overwrite an existing file.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is <paramref name="sourcePath"/>.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry index is 0.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask CopyFileAsync(string sourcePath, string destinationPath, bool overwrite = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -170,7 +174,7 @@ public interface ISftpDirectory
     /// <param name="localDirPath">The local directory path.</param>
     /// <param name="remoteDirPath">The remote directory path.</param>
     /// <param name="options"><see cref="UploadEntriesOptions"/> for the upload operation.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is the full local path of each entry.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. Entries are indexed in discovery order.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -181,7 +185,7 @@ public interface ISftpDirectory
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="overwrite">Whether to overwrite an existing file.</param>
     /// <param name="createPermissions"><see cref="UnixFilePermissions"/> when a new file is created.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is <paramref name="localFilePath"/>.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry index is 0.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask UploadFileAsync(string localFilePath, string remoteFilePath, bool overwrite = false, UnixFilePermissions? createPermissions = default, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -192,7 +196,7 @@ public interface ISftpDirectory
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="overwrite">Whether to overwrite an existing file.</param>
     /// <param name="createPermissions"><see cref="UnixFilePermissions"/> when a new file is created.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is empty.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry index is 0.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask UploadFileAsync(Stream source, string remoteFilePath, bool overwrite = false, UnixFilePermissions createPermissions = SftpClient.DefaultCreateFilePermissions, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -202,7 +206,7 @@ public interface ISftpDirectory
     /// <param name="remoteDirPath">The remote directory path.</param>
     /// <param name="localDirPath">The local directory path.</param>
     /// <param name="options"><see cref="DownloadEntriesOptions"/> for the download operation.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is the full remote path of each entry.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. Entries are indexed in discovery order.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -212,7 +216,7 @@ public interface ISftpDirectory
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="localFilePath">The local file path.</param>
     /// <param name="overwrite">Whether to overwrite an existing file.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is <paramref name="remoteFilePath"/>.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry index is 0.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask DownloadFileAsync(string remoteFilePath, string localFilePath, bool overwrite = false, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
@@ -221,7 +225,7 @@ public interface ISftpDirectory
     /// </summary>
     /// <param name="remoteFilePath">The remote file path.</param>
     /// <param name="destination">The destination <see cref="Stream"/>.</param>
-    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry path is <paramref name="remoteFilePath"/>.</param>
+    /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. The entry index is 0.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     ValueTask DownloadFileAsync(string remoteFilePath, Stream destination, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 }
@@ -395,6 +399,5 @@ public static class SftpDirectoryExtensions
     /// <param name="path">The directory path.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static ValueTask DeleteDirectoryAsync(this ISftpDirectory directory, string path, CancellationToken cancellationToken = default)
-        => directory.DeleteDirectoryAsync(path, recursive: false, cancellationToken);
-
+        => directory.DeleteDirectoryAsync(path, recursive: false, progress: null, cancellationToken);
 }

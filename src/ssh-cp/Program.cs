@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
 using System.CommandLine.Help;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Tmds.Ssh;
 
@@ -83,12 +84,21 @@ rootCommand.SetAction(
     bool overwrite = parseResult.GetValue(overwriteOption);
     bool includesName = parseResult.GetValue(renameOption);
     string[] options = parseResult.GetValue(sshConfigOptions)!;
-    return ExecuteAsync(paths, informationVerbosity, debugVerbosity, traceVerbosity, options, overwrite, includesName)
+    return CopyAsync(paths, informationVerbosity, debugVerbosity, traceVerbosity, options, overwrite, includesName)
         .ContinueWith(task => task.Result, ct);
 });
 
-ParseResult parseResult = rootCommand.Parse(args);
-return await parseResult.InvokeAsync();
+try
+{
+    ParseResult parseResult = rootCommand.Parse(args);
+    return await parseResult.InvokeAsync();
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("The command failed:");
+    Console.Error.WriteLine(ex);
+    return 1;
+}
 
 bool IsHelp(string[] args)
 {
@@ -111,7 +121,7 @@ bool IsHelp(string[] args)
     return false;
 }
 
-static async Task<int> ExecuteAsync(string[] paths, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, string[] options, bool overwrite, bool includesName)
+static async Task<int> CopyAsync(string[] paths, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, string[] options, bool overwrite, bool includesName)
 {
     if (paths.Length < 2)
     {
@@ -169,29 +179,35 @@ static async Task<int> ExecuteAsync(string[] paths, bool informationVerbosity, b
             builder.SetMinimumLevel(logLevel);
         });
 
+    return await DoCopyAsync(sources, destinationLocation, options, loggerFactory, overwrite, includesName);
+}
+
+static async Task<int> DoCopyAsync(string[] sources, Location destinationLocation, string[] options, ILoggerFactory? loggerFactory, bool overwrite, bool includesName)
+{
     Dictionary<string, SftpClient> clients = new();
 
     foreach (var source in sources)
     {
         Location sourceLocation = Location.Parse(source);
+        string sshDestination = (sourceLocation.IsLocal ? destinationLocation : sourceLocation).SshDestination!;
 
-        if (sourceLocation.IsLocal)
+        SftpClient sftpClient = await GetConnectedClientAsync(clients, sshDestination, options, loggerFactory);
+
+        var progress = new ConsoleProgress();
+        Task<int> transferOperation = sourceLocation.IsLocal
+            ? UploadAsync(sourceLocation.Path, sftpClient, destinationLocation.Path, overwrite, includesName, progress)
+            : DownloadAsync(sftpClient, sourceLocation.Path, destinationLocation.Path, overwrite, includesName, progress);
+
+        if (!Console.IsOutputRedirected && progress.IsStarted /* when a transfer was started */)
         {
-            SftpClient sftpClient = await GetConnectedClientAsync(clients, destinationLocation.SshDestination!, options, loggerFactory);
-            int rv = await UploadAsync(sourceLocation.Path, sftpClient, destinationLocation.Path, overwrite, includesName);
-            if (rv != 0)
-            {
-                return rv;
-            }
+            await progress.WriteProgressToConsoleAsync();
         }
-        else
+
+        int rv = await transferOperation;
+        if (rv != 0)
         {
-            SftpClient sftpClient = await GetConnectedClientAsync(clients, sourceLocation.SshDestination!, options, loggerFactory);
-            int rv = await DownloadAsync(sftpClient, sourceLocation.Path, destinationLocation.Path, overwrite, includesName);
-            if (rv != 0)
-            {
-                return rv;
-            }
+            // Failed, don't continue with other sources.
+            return rv;
         }
     }
 
@@ -210,7 +226,7 @@ static async ValueTask<SftpClient> GetConnectedClientAsync(Dictionary<string, Sf
     return sftpClient;
 }
 
-static async Task<int> DownloadAsync(SftpClient sftpClient, string remoteSourcePath, string targetPath, bool overwrite, bool includesName)
+static async Task<int> DownloadAsync(SftpClient sftpClient, string remoteSourcePath, string targetPath, bool overwrite, bool includesName, SftpProgressHandler? progress)
 {
     string sourceFileName = GetRemoteFileName(remoteSourcePath);
     bool copyEntries = sourceFileName == "." || sourceFileName == "";
@@ -235,7 +251,7 @@ static async Task<int> DownloadAsync(SftpClient sftpClient, string remoteSourceP
             {
                 targetPath = Path.Join(targetPath, sourceFileName);
             }
-            await sftpClient.DownloadDirectoryEntriesAsync(remoteSourcePath, targetPath, new() { Overwrite = overwrite });
+            await sftpClient.DownloadDirectoryEntriesAsync(remoteSourcePath, targetPath, new() { Overwrite = overwrite }, progress);
             break;
         case UnixFileType.RegularFile:
             if (copyEntries)
@@ -248,7 +264,7 @@ static async Task<int> DownloadAsync(SftpClient sftpClient, string remoteSourceP
             {
                 targetPath = Path.Join(targetPath, sourceFileName);
             }
-            await sftpClient.DownloadFileAsync(remoteSourcePath, targetPath, overwrite);
+            await sftpClient.DownloadFileAsync(remoteSourcePath, targetPath, overwrite, progress);
             break;
         default:
             Console.Error.WriteLine($"Cannot copy file of type {sourceAttributes.FileType}.");
@@ -268,7 +284,7 @@ static async Task<int> DownloadAsync(SftpClient sftpClient, string remoteSourceP
     }
 }
 
-static async Task<int> UploadAsync(string localSourcePath, SftpClient sftpClient, string remoteDestinationPath, bool overwrite, bool includesName)
+static async Task<int> UploadAsync(string localSourcePath, SftpClient sftpClient, string remoteDestinationPath, bool overwrite, bool includesName, SftpProgressHandler? progress)
 {
     string sourceFileName = Path.GetFileName(localSourcePath);
     bool copyEntries = sourceFileName == "." || sourceFileName == "";
@@ -286,7 +302,7 @@ static async Task<int> UploadAsync(string localSourcePath, SftpClient sftpClient
         {
             remoteDestinationPath = RemotePathCombine(remoteDestinationPath, sourceFileName);
         }
-        await sftpClient.UploadDirectoryEntriesAsync(localSourcePath, remoteDestinationPath, new() { Overwrite = overwrite });
+        await sftpClient.UploadDirectoryEntriesAsync(localSourcePath, remoteDestinationPath, new() { Overwrite = overwrite }, progress);
     }
     else
     {
@@ -302,7 +318,7 @@ static async Task<int> UploadAsync(string localSourcePath, SftpClient sftpClient
         }
         try
         {
-            await sftpClient.UploadFileAsync(localSourcePath, remoteDestinationPath, overwrite);
+            await sftpClient.UploadFileAsync(localSourcePath, remoteDestinationPath, overwrite, createPermissions: null, progress);
         }
         finally
         {
@@ -484,6 +500,204 @@ sealed class Location
                 SshDestination = null,
                 Path = value
             };
+        }
+    }
+}
+
+sealed class ConsoleProgress : SftpProgressHandler
+{
+    private const int RefreshInterval = 100; // Refresh the output every 100ms.
+    private const int SampleCount = 50; // ~5 seconds at 100ms interval
+
+    private readonly TaskCompletionSource _completed = new();
+
+    private long _startTime;
+    private long _endTime;
+    private long _totalBytesTransferred;
+    private int _discoveredEntries;
+    private int _completedEntries;
+    private bool _allDiscovered;
+    private Exception? _exception;
+
+    private readonly (long timestamp, long bytes)[] _samples = new (long, long)[SampleCount];
+    private int _sampleIndex;
+    private int _samplesFilled;
+    public bool IsStarted => _startTime != 0;
+
+    private TimeSpan ElapsedTime
+    {
+        get
+        {
+            long endTime = Volatile.Read(ref _endTime);
+            if (endTime == 0)
+            {
+                endTime = Stopwatch.GetTimestamp();
+                if (_completed.Task.IsCompleted)
+                {
+                    endTime = Volatile.Read(ref _endTime);
+                }
+            }
+            return Stopwatch.GetElapsedTime(_startTime, endTime);
+        }
+    }
+
+    protected override void Start()
+        => _startTime = Stopwatch.GetTimestamp();
+
+    protected override void EntryStart(int index, UnixFileType type, Entry entry)
+    {
+        if (type == UnixFileType.RegularFile)
+        {
+            Interlocked.Increment(ref _discoveredEntries);
+        }
+    }
+
+    protected override void DataTransferred(int index, long bytesTransferred, long offset)
+        => Interlocked.Add(ref _totalBytesTransferred, bytesTransferred);
+
+    protected override void EntriesDiscovered()
+        => Volatile.Write(ref _allDiscovered, true);
+
+    protected override void EntryCompleted(int index, UnixFileType type)
+    {
+        if (type == UnixFileType.RegularFile)
+        {
+            Interlocked.Increment(ref _completedEntries);
+        }
+    }
+
+    protected override void Completed(Exception? exception)
+    {
+        Volatile.Write(ref _exception, exception);
+        Volatile.Write(ref _endTime, Stopwatch.GetTimestamp());
+        _completed.TrySetResult();
+    }
+
+    public async Task WriteProgressToConsoleAsync()
+    {
+        if (!IsStarted)
+        {
+            throw new InvalidOperationException("Progress handler has not been started.");
+        }
+
+        while (true)
+        {
+            bool isCompleted = _completed.Task.IsCompleted;
+
+            long now = Stopwatch.GetTimestamp();
+            long transferred = Volatile.Read(ref _totalBytesTransferred);
+            bool allDiscovered = Volatile.Read(ref _allDiscovered);
+            int completed = Volatile.Read(ref _completedEntries);
+            int discovered = Volatile.Read(ref _discoveredEntries);
+
+            RecordSample(now, transferred);
+
+            if (isCompleted)
+            {
+                if (Volatile.Read(ref _exception) is null)
+                {
+                    ClearLine();
+                    if (discovered > 0)
+                    {
+                        TimeSpan elapsed = ElapsedTime;
+                        string speed = FormatAverageSpeed(transferred, elapsed);
+                        string fileWord = completed == 1 ? "file" : "files";
+                        WriteProgressLine($"Finished copying {completed} {fileWord} in {FormatElapsed(elapsed)}", $"{FormatSize(transferred, 10)}  {speed,12}");
+                        Console.WriteLine();
+                    }
+                }
+                else
+                {
+                    ClearLine();
+                }
+                break;
+            }
+
+            if (discovered > 0)
+            {
+                string suffix = allDiscovered ? "" : "+";
+                string speed = FormatCurrentSpeed();
+                string fileWord = discovered == 1 ? "file" : "files";
+                WriteProgressLine($"Copied {completed} out of {discovered}{suffix} {fileWord}...", $"{FormatSize(transferred, 10)}  {speed,12}");
+            }
+
+            await Task.WhenAny(_completed.Task, Task.Delay(RefreshInterval));
+        }
+    }
+
+    private void RecordSample(long timestamp, long totalBytes)
+    {
+        _samples[_sampleIndex] = (timestamp, totalBytes);
+        _sampleIndex = (_sampleIndex + 1) % SampleCount;
+        if (_samplesFilled < SampleCount)
+        {
+            _samplesFilled++;
+        }
+    }
+
+    private string FormatCurrentSpeed()
+    {
+        if (_samplesFilled < 2)
+        {
+            return "?/s";
+        }
+        int oldestIndex = _samplesFilled < SampleCount ? 0 : _sampleIndex;
+        var oldest = _samples[oldestIndex];
+        var newest = _samples[(_sampleIndex - 1 + SampleCount) % SampleCount];
+        double windowSeconds = Stopwatch.GetElapsedTime(oldest.timestamp, newest.timestamp).TotalSeconds;
+        double bytesPerSecond = (newest.bytes - oldest.bytes) / windowSeconds;
+        return $"{FormatSize(bytesPerSecond)}/s";
+    }
+
+    private static void ClearLine()
+    {
+        Console.Write($"\r{new string(' ', Console.WindowWidth - 1)}\r");
+    }
+
+    private static string FormatAverageSpeed(long bytes, TimeSpan elapsed)
+    {
+        if (elapsed.TotalSeconds < 0.001)
+        {
+            return "?/s";
+        }
+        double bytesPerSecond = bytes / elapsed.TotalSeconds;
+        return $"{FormatSize(bytesPerSecond)}/s";
+    }
+
+    private static readonly string[] s_sizeUnits = ["bytes", "KiB", "MiB", "GiB", "TiB"];
+
+    private static string FormatSize(double bytes, int padTo = 0)
+    {
+        int unit = 0;
+        double size = bytes;
+        while (size >= 1024 && unit < s_sizeUnits.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+        string result = unit == 0 ? $"{(int)size} {s_sizeUnits[unit]}" : $"{size:F1} {s_sizeUnits[unit]}";
+        return padTo > 0 ? result.PadLeft(padTo) : result;
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        return elapsed.TotalHours >= 1 ? elapsed.ToString(@"h\:mm\:ss")
+             : elapsed.TotalMinutes >= 1 ? elapsed.ToString(@"m\:ss")
+             : $"{elapsed.TotalSeconds:F1}s";
+    }
+
+    private static void WriteProgressLine(string left, string right)
+    {
+        int width = Console.WindowWidth - 1;
+        int padding = width - left.Length - right.Length;
+        ClearLine();
+        if (padding >= 1)
+        {
+            Console.Write($"{left}{new string(' ', padding)}{right}");
+        }
+        else
+        {
+            Console.Write(left);
         }
     }
 }

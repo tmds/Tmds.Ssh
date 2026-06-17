@@ -178,7 +178,7 @@ partial class SftpChannel
                         return;
                     case (PacketType.SSH_FXP_REMOVE, _):
                     case (PacketType.SSH_FXP_RMDIR, _):
-                        SetResult(null!);
+                        SetIntResult((int)error);
                         return;
                     case (PacketType.SSH_FXP_READDIR, _):
                         SetResult(error == SftpError.Eof ? Array.Empty<byte>() : _channel.StealPacketBuffer());

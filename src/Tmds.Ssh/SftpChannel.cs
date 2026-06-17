@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
@@ -23,7 +24,7 @@ sealed partial class SftpChannel : IDisposable
     // This is the version implemented by OpenSSH.
     const uint ProtocolVersion = 3;
 
-    const int MaxConcurrentOperations = 64;
+    const int MaxConcurrentTransferOperations = 64;
     // Limit the number of buffers allocated for copying.
     // An onGoing ValueTask may allocate multiple buffers.
     const int MaxConcurrentBuffers = 64;
@@ -152,34 +153,46 @@ sealed partial class SftpChannel : IDisposable
 
     public ValueTask DeleteFileAsync(string workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
     {
-        PacketType packetType = PacketType.SSH_FXP_REMOVE;
-
-        int id = GetNextId();
-        PendingOperation pendingOperation = CreatePendingOperation(packetType);
-
-        Packet packet = new Packet(packetType);
-        packet.WriteInt(id);
-        packet.WritePath(workingDirectory, path);
-
+        var (packet, id, pendingOperation) = CreatePendingOperationForDelete(PacketType.SSH_FXP_REMOVE, workingDirectory, path);
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    public ValueTask DeleteDirectoryAsync(string workingDirectory, string path, bool recursive, CancellationToken cancellationToken = default)
+    private ValueTask<int> DeleteFileWithResultAsync(string workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
+    {
+        var (packet, id, pendingOperation) = CreatePendingOperationForDelete(PacketType.SSH_FXP_REMOVE, workingDirectory, path);
+        return ExecuteIntAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    public ValueTask DeleteDirectoryAsync(string workingDirectory, string path, bool recursive, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
         if (recursive)
         {
-            return DeleteDirectoryRecursiveAsync(workingDirectory, path, cancellationToken);
+            return DeleteDirectoryRecursiveAsync(workingDirectory, path, progress, cancellationToken);
         }
         else
         {
+            if (progress is not null)
+            {
+                return DeleteDirectoryWithProgressAsync(workingDirectory, path, progress, cancellationToken);
+            }
             return DeleteDirectoryAsync(workingDirectory, path, cancellationToken);
         }
     }
 
     private ValueTask DeleteDirectoryAsync(ReadOnlySpan<char> workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
     {
-        PacketType packetType = PacketType.SSH_FXP_RMDIR;
+        var (packet, id, pendingOperation) = CreatePendingOperationForDelete(PacketType.SSH_FXP_RMDIR, workingDirectory, path);
+        return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+    }
 
+    private ValueTask<int> DeleteDirectoryWithResultAsync(ReadOnlySpan<char> workingDirectory, ReadOnlySpan<char> path, CancellationToken cancellationToken = default)
+    {
+        var (packet, id, pendingOperation) = CreatePendingOperationForDelete(PacketType.SSH_FXP_RMDIR, workingDirectory, path);
+        return ExecuteIntAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    private (Packet packet, int id, PendingOperation pendingOperation) CreatePendingOperationForDelete(PacketType packetType, ReadOnlySpan<char> workingDirectory, ReadOnlySpan<char> path)
+    {
         int id = GetNextId();
         PendingOperation pendingOperation = CreatePendingOperation(packetType);
 
@@ -187,79 +200,198 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteInt(id);
         packet.WritePath(workingDirectory, path);
 
-        return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+        return (packet, id, pendingOperation);
     }
 
-    private async ValueTask DeleteDirectoryRecursiveAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
+    private async ValueTask DeleteDirectoryWithProgressAsync(string workingDirectory, string path, SftpProgressHandler progress, CancellationToken cancellationToken)
     {
-        path = RemotePath.ResolvePath([workingDirectory, path]);
-
-        // Handle the case of empty directory or and directory does not exist.
-        ValueTask deleteTask = DeleteDirectoryAsync("", path, cancellationToken);
-        ValueTask<SftpFile?> openDirTask = OpenDirectoryAsync(workingDirectory: "", path, cancellationToken);
+        progress.CallStart();
+        Exception? completedException = null;
         try
         {
-            await deleteTask.ConfigureAwait(false);
-            // don't return yet, we need to await the openDirTask.
-        }
-        catch
-        { } // ignore any errors and proceed with 'handle'.
-
-        {
-            using SftpFile? handle = await openDirTask.ConfigureAwait(false);
-            if (handle is null)
+            progress.CallEntryStart(0, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = path, SourceLength = null });
+            progress.CallEntriesDiscovered();
+            int result = await DeleteDirectoryWithResultAsync(workingDirectory, path, cancellationToken).ConfigureAwait(false);
+            if (result == (int)SftpError.None)
             {
-                return; // directory did not exist or was removed by deleteTask.
+                progress.CallEntryCompleted(0, UnixFileType.Directory);
             }
+            else
+            {
+                progress.CallEntrySkipped(0, UnixFileType.Directory);
+            }
+        }
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            progress.CallCompleted(completedException);
+        }
+    }
 
-            var onGoing = new Queue<ValueTask>();
+    private async ValueTask DeleteDirectoryEntryWithProgressAsync(string path, SftpDeleteProgressHandler deleteProgress, CancellationToken cancellationToken)
+    {
+        int entryIndex = deleteProgress.ReserveIndex();
+        deleteProgress.CallEntryStart(entryIndex, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = path, SourceLength = null });
+        int result = await DeleteDirectoryWithResultAsync("", path, cancellationToken).ConfigureAwait(false);
+        if (result == (int)SftpError.None)
+        {
+            deleteProgress.CallEntryCompleted(entryIndex, UnixFileType.Directory);
+        }
+        else
+        {
+            deleteProgress.CallEntrySkipped(entryIndex, UnixFileType.Directory);
+        }
+        deleteProgress.ReturnIndex(entryIndex);
+    }
 
-            await using var enumerator = new SftpFileSystemEnumerator<object?>(
-                this,
-                path,
-                (ref SftpFileEntry entry) => (object?)null,
-                new EnumerationOptions()
-                {
-                    RecurseSubdirectories = true,
-                    FollowDirectoryLinks = false,
-                    FollowFileLinks = false,
-                    FileTypeFilter = ~UnixFileTypeFilter.Directory,
-                    DirectoryCompleted = (ReadOnlySpan<char> dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken)),
-                    ShouldInclude = (ref SftpFileEntry entry) => { onGoing.Enqueue(DeleteFileAsync("", entry.Path, cancellationToken)); return true; }
-                },
-                cancellationToken);
-            enumerator.SetRootHandle(handle);
+    private async ValueTask DeleteFileEntryWithProgressAsync(string path, UnixFileType fileType, SftpDeleteProgressHandler deleteProgress, CancellationToken cancellationToken)
+    {
+        int entryIndex = deleteProgress.ReserveIndex();
+        deleteProgress.CallEntryStart(entryIndex, fileType, new SftpProgressHandler.Entry { SourcePath = path, SourceLength = null });
+        int result = await DeleteFileWithResultAsync("", path, cancellationToken).ConfigureAwait(false);
+        if (result == (int)SftpError.None)
+        {
+            deleteProgress.CallEntryCompleted(entryIndex, fileType);
+        }
+        else
+        {
+            deleteProgress.CallEntrySkipped(entryIndex, fileType);
+        }
+        deleteProgress.ReturnIndex(entryIndex);
+    }
 
+    private async ValueTask DeleteDirectoryRecursiveAsync(string workingDirectory, string path, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
+    {
+        SftpDeleteProgressHandler? deleteProgress = progress is not null ? new(progress) : null;
+        deleteProgress?.CallStart();
+        Exception? completedException = null;
+        try
+        {
+            path = RemotePath.ResolvePath([workingDirectory, path]);
+
+            // Handle the case of empty directory or and directory does not exist.
+            ValueTask<int> deleteTask = DeleteDirectoryWithResultAsync("", path, cancellationToken);
+            ValueTask<SftpFile?> openDirTask = OpenDirectoryAsync(workingDirectory: "", path, cancellationToken);
+            int deleteError = (int)SftpError.None;
             try
             {
-                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                deleteError = await deleteTask.ConfigureAwait(false);
+                // don't return yet, we need to await the openDirTask.
+            }
+            catch
+            { } // ignore any errors and proceed with 'handle'.
+
+            int rootEntryIndex = -1;
+            {
+                using SftpFile? handle = await openDirTask.ConfigureAwait(false);
+                if (handle is null)
                 {
-                    while (onGoing.TryPeek(out ValueTask first) && first.IsCompleted)
+                    // Directory does not exist or was removed by the deleteTask.
+                    if (deleteProgress is not null)
                     {
-                        await onGoing.Dequeue().ConfigureAwait(false);
+                        rootEntryIndex = deleteProgress.ReserveIndex();
+                        deleteProgress.CallEntryStart(rootEntryIndex, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = path, SourceLength = null });
+                        deleteProgress.CallEntriesDiscovered();
+                        if (deleteError == (int)SftpError.None)
+                        {
+                            // deleteTask removed the directory.
+                            deleteProgress.CallEntryCompleted(rootEntryIndex, UnixFileType.Directory);
+                        }
+                        else
+                        {
+                            // Directory did not exist.
+                            deleteProgress.CallEntrySkipped(rootEntryIndex, UnixFileType.Directory);
+                        }
                     }
+                    return;
                 }
 
-                while (onGoing.TryDequeue(out ValueTask pending))
+                var onGoing = new Queue<ValueTask>();
+
+                await using var enumerator = new SftpFileSystemEnumerator<object?>(
+                    this,
+                    path,
+                    (ref SftpFileEntry entry) => (object?)null,
+                    new EnumerationOptions()
+                    {
+                        RecurseSubdirectories = true,
+                        FollowDirectoryLinks = false,
+                        FollowFileLinks = false,
+                        FileTypeFilter = ~UnixFileTypeFilter.Directory,
+                        DirectoryCompleted = deleteProgress is not null
+                            ? (ReadOnlySpan<char> dir) => onGoing.Enqueue(DeleteDirectoryEntryWithProgressAsync(new string(dir), deleteProgress, cancellationToken))
+                            : (ReadOnlySpan<char> dir) => onGoing.Enqueue(DeleteDirectoryAsync("", dir, cancellationToken)),
+                        ShouldInclude = deleteProgress is not null
+                            ? (ref SftpFileEntry entry) => { onGoing.Enqueue(DeleteFileEntryWithProgressAsync(entry.ToPath(), entry.FileType, deleteProgress, cancellationToken)); return true; }
+                            : (ref SftpFileEntry entry) => { onGoing.Enqueue(DeleteFileAsync("", entry.Path, cancellationToken)); return true; }
+                    },
+                    cancellationToken);
+                enumerator.SetRootHandle(handle);
+
+                try
                 {
-                    await pending.ConfigureAwait(false);
-                }
-            }
-            finally
-            {
-                while (onGoing.TryDequeue(out ValueTask pending))
-                {
-                    try
+                    // When the enumerator needs to make a request for additional entries
+                    // delete requests that came before it will have completed.
+                    // This limits the number of on-going delete requests.
+                    while (await enumerator.MoveNextAsync().ConfigureAwait(false))
+                    {
+                        while (onGoing.TryPeek(out ValueTask first) && first.IsCompleted)
+                        {
+                            await onGoing.Dequeue().ConfigureAwait(false);
+                        }
+                    }
+
+                    if (deleteProgress is not null)
+                    {
+                        rootEntryIndex = deleteProgress.ReserveIndex();
+                        deleteProgress.CallEntryStart(rootEntryIndex, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = path, SourceLength = null });
+                    }
+                    deleteProgress?.CallEntriesDiscovered();
+                    while (onGoing.TryDequeue(out ValueTask pending))
                     {
                         await pending.ConfigureAwait(false);
                     }
-                    catch
-                    { }
+                }
+                finally
+                {
+                    while (onGoing.TryDequeue(out ValueTask pending))
+                    {
+                        try
+                        {
+                            await pending.ConfigureAwait(false);
+                        }
+                        catch
+                        { }
+                    }
+                }
+            }
+
+            int rootResult = await DeleteDirectoryWithResultAsync("", path, cancellationToken).ConfigureAwait(false);
+            if (deleteProgress is not null)
+            {
+                if (rootResult == (int)SftpError.None)
+                {
+                    deleteProgress.CallEntryCompleted(rootEntryIndex, UnixFileType.Directory);
+                }
+                else
+                {
+                    deleteProgress.CallEntrySkipped(rootEntryIndex, UnixFileType.Directory);
                 }
             }
         }
-
-        await DeleteDirectoryAsync("", path, cancellationToken).ConfigureAwait(false);
+        catch (Exception ex)
+        {
+            completedException = ex;
+            throw;
+        }
+        finally
+        {
+            deleteProgress?.CallCompleted(completedException);
+        }
     }
 
     public ValueTask RenameAsync(string workingDirectory, string oldPath, string newPath, CancellationToken cancellationToken = default)
@@ -279,7 +411,7 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask CopyFileAsync(string workingDirectory, string sourcePath, string destinationPath, bool overwrite, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Start();
+        progress?.CallStart();
         Exception? completedException = null;
         try
         {
@@ -326,8 +458,8 @@ sealed partial class SftpChannel : IDisposable
 
             long copyLength = (await sourceAttributesTask.ConfigureAwait(false))!.Length;
 
-            progress?.EntryStart(sourcePath, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = copyLength });
-            progress?.EntriesDiscovered();
+            progress?.CallEntryStart(index: 0, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = copyLength });
+            progress?.CallEntriesDiscovered();
 
             if (copyLength > 0)
             {
@@ -337,7 +469,7 @@ sealed partial class SftpChannel : IDisposable
                     try
                     {
                         await CopyDataAsync(sourceFile.Handle, 0, destinationFile.Handle, 0, (ulong)copyLength, cancellationToken).ConfigureAwait(false);
-                        progress?.DataTransferred(sourcePath, copyLength, copyLength);
+                        progress?.CallDataTransferred(index: 0, copyLength, copyLength);
                         doCopyAsync = false;
                     }
                     catch (SftpException ex) when (ex.Error == SftpError.Eof ||   // source has less data than copyLength (unlikely).
@@ -360,7 +492,7 @@ sealed partial class SftpChannel : IDisposable
                 await destinationFile.SetLengthAsync(copyLength).ConfigureAwait(false);
             }
 
-            progress?.EntryCompleted(sourcePath);
+            progress?.CallEntryCompleted(index: 0, UnixFileType.RegularFile);
 
             async ValueTask CopyAsync(long length, CancellationToken cancellationToken)
             {
@@ -461,7 +593,7 @@ sealed partial class SftpChannel : IDisposable
                         long bytesWritten = offset - startOffset;
                         if (bytesWritten > 0)
                         {
-                            progress?.DataTransferred(sourcePath, bytesWritten, offset);
+                            progress?.CallDataTransferred(index: 0, bytesWritten, offset);
                         }
                     }
                 }
@@ -474,7 +606,7 @@ sealed partial class SftpChannel : IDisposable
         }
         finally
         {
-            progress?.Completed(completedException);
+            progress?.CallCompleted(completedException);
         }
     }
 
@@ -669,11 +801,11 @@ sealed partial class SftpChannel : IDisposable
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
     }
 
-    private async ValueTask CreateSymbolicLinkAsync(string workingDirectory, string linkPath, string targetPath, bool overwrite, string entryPath, SftpProgressHandler progress, CancellationToken cancellationToken)
+    private async ValueTask CreateSymbolicLinkAsync(string workingDirectory, string linkPath, string targetPath, bool overwrite, int entryIndex, string sourcePath, SftpProgressHandler progress, CancellationToken cancellationToken)
     {
-        progress.EntryStart(entryPath, new SftpProgressHandler.Entry { FileType = UnixFileType.SymbolicLink, SourceLength = null });
+        progress.CallEntryStart(entryIndex, UnixFileType.SymbolicLink, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = null });
         await CreateSymbolicLinkAsync(workingDirectory, linkPath, targetPath, overwrite, cancellationToken).ConfigureAwait(false);
-        progress.EntryCompleted(entryPath);
+        progress.CallEntryCompleted(entryIndex, UnixFileType.SymbolicLink);
     }
 
     public ValueTask<SftpFile?> OpenDirectoryAsync(string workingDirectory, string path, CancellationToken cancellationToken = default)
@@ -692,12 +824,11 @@ sealed partial class SftpChannel : IDisposable
     }
 
     public ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents = false, UnixFilePermissions permissions = SftpClient.DefaultCreateDirectoryPermissions, CancellationToken cancellationToken = default)
-        => CreateDirectoryAsync(workingDirectory, path, createParents, permissions, entryPath: null, progress: null, cancellationToken);
+        => CreateDirectoryAsync(workingDirectory, path, createParents, permissions, entryIndex: 0, sourcePath: null, progress: null, cancellationToken);
 
-    private async ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents, UnixFilePermissions permissions, string? entryPath, SftpProgressHandler? progress, CancellationToken cancellationToken)
+    private async ValueTask CreateDirectoryAsync(string workingDirectory, string path, bool createParents, UnixFilePermissions permissions, int entryIndex, string? sourcePath, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
-        Debug.Assert(progress is null || entryPath is not null);
-        progress?.EntryStart(entryPath!, new SftpProgressHandler.Entry { FileType = UnixFileType.Directory, SourceLength = null });
+        progress?.CallEntryStart(entryIndex, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = sourcePath ?? "", SourceLength = null });
 
         // This method doesn't throw if the target directory already exists.
         // We run a SSH_FXP_STAT in parallel with the SSH_FXP_MKDIR to check if the target directory already exists.
@@ -713,14 +844,14 @@ sealed partial class SftpChannel : IDisposable
         {
             if (await IsDirectory(checkExists).ConfigureAwait(false))
             {
-                progress?.EntryCompleted(entryPath!);
+                progress?.CallEntryCompleted(entryIndex, UnixFileType.Directory);
                 return;
             }
 
             throw;
         }
 
-        progress?.EntryCompleted(entryPath!);
+        progress?.CallEntryCompleted(entryIndex, UnixFileType.Directory);
 
         async ValueTask<bool> IsDirectory(ValueTask<FileEntryAttributes?> checkExists)
         {
@@ -762,7 +893,7 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask UploadDirectoryEntriesAsync(string workingDirectory, string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Start();
+        progress?.CallStart();
         Exception? completedException = null;
         try
         {
@@ -873,14 +1004,15 @@ sealed partial class SftpChannel : IDisposable
 
                 foreach (var item in fse)
                 {
-                    if (onGoing.Count == MaxConcurrentOperations)
+                    if (onGoing.Count == MaxConcurrentTransferOperations)
                     {
                         await onGoing.Dequeue().ConfigureAwait(false);
                     }
+                    int entryIndex = progress?.ReserveIndex64() ?? 0;
                     switch (item.Type)
                     {
                         case UnixFileType.Directory:
-                            onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, shouldEnsureParentDirectories, GetPermissionsForDirectory(item.LocalPath), item.LocalPath, progress, cancellationToken));
+                            onGoing.Enqueue(CreateDirectoryAsync(workingDirectory, item.RemotePath, shouldEnsureParentDirectories, GetPermissionsForDirectory(item.LocalPath), entryIndex, item.LocalPath, progress, cancellationToken));
                             lastRemoteDirectory = item.RemotePath;
                             break;
                         case UnixFileType.RegularFile:
@@ -888,7 +1020,7 @@ sealed partial class SftpChannel : IDisposable
                             {
                                 lastRemoteDirectory = EnsureParentRemoteDirectory(lastRemoteDirectory, item.RemotePath);
                             }
-                            onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, progress, singleFile: false, cancellationToken));
+                            onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, item.Length, overwrite, permissions: null, progress, entryIndex, singleFile: false, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
                             if (shouldEnsureParentDirectories)
@@ -901,7 +1033,7 @@ sealed partial class SftpChannel : IDisposable
                                 (linkTarget = file.ResolveLinkTarget(returnFinalTarget: true))?.Exists == true)
                             {
                                 // Pass linkTarget.Length because item.Length is the length of the link target path.
-                                onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, progress, singleFile: false, cancellationToken));
+                                onGoing.Enqueue(UploadFileFromPathAsync(workingDirectory, item.LocalPath, item.RemotePath, ((FileInfo)linkTarget).Length, overwrite, permissions: null, progress, entryIndex, singleFile: false, cancellationToken));
                             }
                             else
                             {
@@ -915,7 +1047,7 @@ sealed partial class SftpChannel : IDisposable
                                     targetPath = targetPath.Replace('\\', '/');
                                 }
                                 onGoing.Enqueue(progress is not null
-                                    ? CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, item.LocalPath, progress, cancellationToken)
+                                    ? CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, entryIndex, item.LocalPath, progress, cancellationToken)
                                     : CreateSymbolicLinkAsync(workingDirectory, item.RemotePath, targetPath, overwrite, cancellationToken));
                             }
                             break;
@@ -924,7 +1056,7 @@ sealed partial class SftpChannel : IDisposable
                     }
                 }
 
-                progress?.EntriesDiscovered();
+                progress?.CallEntriesDiscovered();
                 while (onGoing.TryDequeue(out ValueTask pending))
                 {
                     await pending.ConfigureAwait(false);
@@ -971,7 +1103,7 @@ sealed partial class SftpChannel : IDisposable
         }
         finally
         {
-            progress?.Completed(completedException);
+            progress?.CallCompleted(completedException);
         }
     }
 
@@ -1004,13 +1136,13 @@ sealed partial class SftpChannel : IDisposable
     }
 
     public ValueTask UploadFileAsync(string workingDirectory, string localPath, string remotePath, bool overwrite, UnixFilePermissions? permissions, SftpProgressHandler? progress, CancellationToken cancellationToken)
-        => UploadFileFromPathAsync(workingDirectory, localPath, remotePath, length: null, overwrite, permissions, progress, singleFile: true, cancellationToken);
+        => UploadFileFromPathAsync(workingDirectory, localPath, remotePath, length: null, overwrite, permissions, progress, entryIndex: 0, singleFile: true, cancellationToken);
 
-    private async ValueTask UploadFileFromPathAsync(string workingDirectory, string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, SftpProgressHandler? progress, bool singleFile, CancellationToken cancellationToken)
+    private async ValueTask UploadFileFromPathAsync(string workingDirectory, string localPath, string remotePath, long? length, bool overwrite, UnixFilePermissions? permissions, SftpProgressHandler? progress, int entryIndex, bool singleFile, CancellationToken cancellationToken)
     {
         if (singleFile)
         {
-            progress?.Start();
+            progress?.CallStart();
         }
 
         FileStream? localFile = null;
@@ -1024,24 +1156,24 @@ sealed partial class SftpChannel : IDisposable
             localFile?.Dispose();
             if (singleFile)
             {
-                progress?.Completed(ex);
+                progress?.CallCompleted(ex);
             }
             throw;
         }
 
         using (localFile)
         {
-            await UploadFileCoreAsync(workingDirectory, localFile, remotePath, length, overwrite, permissions.Value, progress, localPath, singleFile, cancellationToken).ConfigureAwait(false);
+            await UploadFileCoreAsync(workingDirectory, localFile, remotePath, length, overwrite, permissions.Value, progress, entryIndex, localPath, singleFile, cancellationToken).ConfigureAwait(false);
         }
     }
 
     public ValueTask UploadFileAsync(string workingDirectory, Stream source, string remotePath, bool overwrite, UnixFilePermissions permissions, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
-        progress?.Start();
-        return UploadFileCoreAsync(workingDirectory, source, remotePath, length: null, overwrite, permissions, progress, path: "", singleFile: true, cancellationToken);
+        progress?.CallStart();
+        return UploadFileCoreAsync(workingDirectory, source, remotePath, length: null, overwrite, permissions, progress, entryIndex: 0, sourcePath: "", singleFile: true, cancellationToken);
     }
 
-    private async ValueTask UploadFileCoreAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, SftpProgressHandler? progress, string path, bool singleFile, CancellationToken cancellationToken)
+    private async ValueTask UploadFileCoreAsync(string workingDirectory, Stream source, string remotePath, long? length, bool overwrite, UnixFilePermissions permissions, SftpProgressHandler? progress, int entryIndex, string sourcePath, bool singleFile, CancellationToken cancellationToken)
     {
         Exception? completedException = null;
         try
@@ -1050,7 +1182,7 @@ sealed partial class SftpChannel : IDisposable
             if (!singleFile)
             {
                 Debug.Assert(length is not null);
-                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
+                progress?.CallEntryStart(entryIndex, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = length });
             }
 
             SftpOpenFlags openFlags = overwrite
@@ -1070,14 +1202,14 @@ sealed partial class SftpChannel : IDisposable
             {
                 if (singleFile)
                 {
-                    progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
-                    progress?.EntriesDiscovered();
+                    progress?.CallEntryStart(entryIndex, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = length });
+                    progress?.CallEntriesDiscovered();
                 }
 
                 await s_uploadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    await CopyToAsync(source, remoteFile, GetMaxWritePayload(remoteFile.Handle), path, progress, cancellationToken).ConfigureAwait(false);
+                    await CopyToAsync(source, remoteFile, GetMaxWritePayload(remoteFile.Handle), entryIndex, progress, cancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -1092,8 +1224,8 @@ sealed partial class SftpChannel : IDisposable
 
                 if (singleFile)
                 {
-                    progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
-                    progress?.EntriesDiscovered();
+                    progress?.CallEntryStart(entryIndex, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = length });
+                    progress?.CallEntriesDiscovered();
                 }
 
                 ValueTask previous = default;
@@ -1193,13 +1325,13 @@ sealed partial class SftpChannel : IDisposable
                             // Update with our length after the previous write completed succesfully.
                             bytesSuccesfullyWritten += length;
 
-                            progress?.DataTransferred(path, length, offset + length);
+                            progress?.CallDataTransferred(entryIndex, length, offset + length);
                         }
                     }
                 }
             }
 
-            progress?.EntryCompleted(path);
+            progress?.CallEntryCompleted(entryIndex, UnixFileType.RegularFile);
         }
         catch (Exception ex)
         {
@@ -1210,12 +1342,12 @@ sealed partial class SftpChannel : IDisposable
         {
             if (singleFile)
             {
-                progress?.Completed(completedException);
+                progress?.CallCompleted(completedException);
             }
         }
     }
 
-    private static async ValueTask CopyToAsync(Stream source, Stream destination, int bufferSize, string path, SftpProgressHandler? progress, CancellationToken cancellationToken)
+    private static async ValueTask CopyToAsync(Stream source, Stream destination, int bufferSize, int entryIndex, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
         try
@@ -1226,7 +1358,7 @@ sealed partial class SftpChannel : IDisposable
             {
                 await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
                 offset += bytesRead;
-                progress?.DataTransferred(path, bytesRead, offset);
+                progress?.CallDataTransferred(entryIndex, bytesRead, offset);
             }
         }
         finally
@@ -1244,7 +1376,7 @@ sealed partial class SftpChannel : IDisposable
 
     public async ValueTask DownloadDirectoryEntriesAsync(string workingDirectory, string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Start();
+        progress?.CallStart();
         Exception? completedException = null;
         try
         {
@@ -1339,36 +1471,37 @@ sealed partial class SftpChannel : IDisposable
             {
                 await foreach (var item in fse.WithCancellation(cancellationToken).ConfigureAwait(false))
                 {
-                    if (onGoing.Count == MaxConcurrentOperations)
+                    if (onGoing.Count == MaxConcurrentTransferOperations)
                     {
                         await onGoing.Dequeue().ConfigureAwait(false);
                     }
+                    int entryIndex = progress?.ReserveIndex64() ?? 0;
                     switch (item.Type)
                     {
                         case UnixFileType.Directory:
-                            progress?.EntryStart(item.RemotePath, new SftpProgressHandler.Entry { FileType = UnixFileType.Directory, SourceLength = null });
+                            progress?.CallEntryStart(entryIndex, UnixFileType.Directory, new SftpProgressHandler.Entry { SourcePath = item.RemotePath, SourceLength = null });
                             bool exists = Directory.Exists(item.LocalPath);
                             if (!exists)
                             {
                                 CreateLocalDirectory(item.LocalPath, item.Permissions);
                             }
                             lastDirectory = item.LocalPath;
-                            progress?.EntryCompleted(item.RemotePath);
+                            progress?.CallEntryCompleted(entryIndex, UnixFileType.Directory);
                             break;
                         case UnixFileType.RegularFile:
                             lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                            onGoing.Enqueue(DownloadFileCoreAsync(workingDirectory, item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, progress, item.RemotePath, singleFile: false, cancellationToken));
+                            onGoing.Enqueue(DownloadFileCoreAsync(workingDirectory, item.RemotePath, item.LocalPath, destination: null, item.Length, overwrite, item.Permissions, throwIfNotFound: false, progress, entryIndex, item.RemotePath, singleFile: false, cancellationToken));
                             break;
                         case UnixFileType.SymbolicLink:
                             lastDirectory = EnsureParentDirectory(lastDirectory, item.LocalPath);
-                            onGoing.Enqueue(DownloadLinkAsync(workingDirectory, item.RemotePath, item.LocalPath, overwrite, item.RemotePath, progress, cancellationToken));
+                            onGoing.Enqueue(DownloadLinkAsync(workingDirectory, item.RemotePath, item.LocalPath, overwrite, entryIndex, progress, cancellationToken));
                             break;
                         default:
                             throw new NotSupportedException($"Downloading file type '{item.Type}' is not supported.");
                     }
                 }
 
-                progress?.EntriesDiscovered();
+                progress?.CallEntriesDiscovered();
                 while (onGoing.TryDequeue(out ValueTask pending))
                 {
                     await pending.ConfigureAwait(false);
@@ -1409,7 +1542,7 @@ sealed partial class SftpChannel : IDisposable
         }
         finally
         {
-            progress?.Completed(completedException);
+            progress?.CallCompleted(completedException);
         }
     }
 
@@ -1447,10 +1580,9 @@ sealed partial class SftpChannel : IDisposable
         return new FileStream(path, options);
     }
 
-    private async ValueTask DownloadLinkAsync(string workingDirectory, string remotePath, string localPath, bool overwrite, string? entryPath, SftpProgressHandler? progress, CancellationToken cancellationToken)
+    private async ValueTask DownloadLinkAsync(string workingDirectory, string remotePath, string localPath, bool overwrite, int entryIndex, SftpProgressHandler? progress, CancellationToken cancellationToken)
     {
-        Debug.Assert(progress is null || entryPath is not null);
-        progress?.EntryStart(entryPath!, new SftpProgressHandler.Entry { FileType = UnixFileType.SymbolicLink, SourceLength = null });
+        progress?.CallEntryStart(entryIndex, UnixFileType.SymbolicLink, new SftpProgressHandler.Entry { SourcePath = remotePath, SourceLength = null });
 
         bool exists =
 #if NET7_0_OR_GREATER
@@ -1471,22 +1603,22 @@ sealed partial class SftpChannel : IDisposable
         }
         File.CreateSymbolicLink(localPath, targetPath);
 
-        progress?.EntryCompleted(entryPath!);
+        progress?.CallEntryCompleted(entryIndex, UnixFileType.SymbolicLink);
     }
 
     public ValueTask DownloadFileAsync(string workingDirectory, string remoteFilePath, string localFilePath, bool overwrite, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Start();
-        return DownloadFileCoreAsync(workingDirectory, remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, progress, remoteFilePath, singleFile: true, cancellationToken);
+        progress?.CallStart();
+        return DownloadFileCoreAsync(workingDirectory, remoteFilePath, localFilePath, destination: null, length: null, overwrite, permissions: null, throwIfNotFound: true, progress, entryIndex: 0, remoteFilePath, singleFile: true, cancellationToken);
     }
 
     public ValueTask DownloadFileAsync(string workingDirectory, string remotePath, Stream destination, SftpProgressHandler? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Start();
-        return DownloadFileCoreAsync(workingDirectory, remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, progress, remotePath, singleFile: true, cancellationToken);
+        progress?.CallStart();
+        return DownloadFileCoreAsync(workingDirectory, remotePath, localPath: null, destination, length: null, overwrite: false, permissions: null, throwIfNotFound: true, progress, entryIndex: 0, remotePath, singleFile: true, cancellationToken);
     }
 
-    private async ValueTask DownloadFileCoreAsync(string workingDirectory, string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, SftpProgressHandler? progress, string path, bool singleFile, CancellationToken cancellationToken)
+    private async ValueTask DownloadFileCoreAsync(string workingDirectory, string remotePath, string? localPath, Stream? destination, long? length, bool overwrite, UnixFilePermissions? permissions, bool throwIfNotFound, SftpProgressHandler? progress, int entryIndex, string sourcePath, bool singleFile, CancellationToken cancellationToken)
     {
         Exception? completedException = null;
         try
@@ -1495,7 +1627,7 @@ sealed partial class SftpChannel : IDisposable
             if (!singleFile)
             {
                 Debug.Assert(length is not null);
-                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
+                progress?.CallEntryStart(entryIndex, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = length });
             }
 
             // Call GetAttributesAsync in parallel with OpenFileAsync.
@@ -1511,8 +1643,7 @@ sealed partial class SftpChannel : IDisposable
                 }
                 if (!singleFile)
                 {
-                    progress?.EntrySkipped(path);
-                    progress?.EntryCompleted(path);
+                    progress?.CallEntrySkipped(entryIndex, UnixFileType.RegularFile);
                 }
                 return;
             }
@@ -1530,8 +1661,8 @@ sealed partial class SftpChannel : IDisposable
 
             if (singleFile)
             {
-                progress?.EntryStart(path, new SftpProgressHandler.Entry { FileType = UnixFileType.RegularFile, SourceLength = length });
-                progress?.EntriesDiscovered();
+                progress?.CallEntryStart(entryIndex, UnixFileType.RegularFile, new SftpProgressHandler.Entry { SourcePath = sourcePath, SourceLength = length });
+                progress?.CallEntriesDiscovered();
             }
 
             using FileStream? localFile = localPath is null ? null : OpenFileStream(localPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, permissions.Value);
@@ -1545,7 +1676,7 @@ sealed partial class SftpChannel : IDisposable
                 await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    await CopyToAsync(remoteFile, destination, GetMaxReadPayload(), path, progress, cancellationToken).ConfigureAwait(false);
+                    await CopyToAsync(remoteFile, destination, GetMaxReadPayload(), entryIndex, progress, cancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -1616,7 +1747,7 @@ sealed partial class SftpChannel : IDisposable
                             await destination.WriteAsync(buffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
                         }
 
-                        progress?.DataTransferred(path, length, remoteOffset + length);
+                        progress?.CallDataTransferred(entryIndex, length, remoteOffset + length);
                     }
                     catch
                     {
@@ -1636,7 +1767,7 @@ sealed partial class SftpChannel : IDisposable
 
             await remoteFile.CloseAsync(cancellationToken).ConfigureAwait(false);
 
-            progress?.EntryCompleted(path);
+            progress?.CallEntryCompleted(entryIndex, UnixFileType.RegularFile);
         }
         catch (Exception ex)
         {
@@ -1647,7 +1778,7 @@ sealed partial class SftpChannel : IDisposable
         {
             if (singleFile)
             {
-                progress?.Completed(completedException);
+                progress?.CallCompleted(completedException);
             }
         }
     }
@@ -2063,5 +2194,50 @@ sealed partial class SftpChannel : IDisposable
         packet.WriteString(handle);
 
         return ExecuteAsync(packet, id, pendingOperation, cancellationToken);
+    }
+
+    private sealed class SftpDeleteProgressHandler
+    {
+        private readonly SftpProgressHandler _handler;
+        private int _nextIndex = 64;
+        private ConcurrentStack<int>? _returnedIndexes;
+
+        internal SftpDeleteProgressHandler(SftpProgressHandler handler)
+        {
+            _handler = handler;
+        }
+
+        internal int ReserveIndex()
+        {
+            if (_handler.TryReserveIndex(out int index))
+            {
+                return index;
+            }
+            _returnedIndexes ??= new();
+            if (_returnedIndexes.TryPop(out index))
+            {
+                return index;
+            }
+            return Interlocked.Increment(ref _nextIndex) - 1;
+        }
+
+        internal void ReturnIndex(int index)
+        {
+            if (index < 64)
+            {
+                _handler.ReturnIndex(index);
+            }
+            else
+            {
+                _returnedIndexes?.Push(index);
+            }
+        }
+
+        internal void CallStart() => _handler.CallStart();
+        internal void CallCompleted(Exception? exception) => _handler.CallCompleted(exception);
+        internal void CallEntryStart(int index, UnixFileType type, SftpProgressHandler.Entry entry) => _handler.CallEntryStart(index, type, entry);
+        internal void CallEntryCompleted(int index, UnixFileType type) => _handler.CallEntryCompleted(index, type);
+        internal void CallEntrySkipped(int index, UnixFileType type) => _handler.CallEntrySkipped(index, type);
+        internal void CallEntriesDiscovered() => _handler.CallEntriesDiscovered();
     }
 }

@@ -110,7 +110,7 @@ namespace Tmds.Ssh
         System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask DeleteFileAsync(string path, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, Tmds.Ssh.DownloadEntriesOptions? options, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, System.IO.Stream destination, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default);
@@ -333,7 +333,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask DeleteFileAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, Tmds.Ssh.DownloadEntriesOptions? options, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
@@ -368,7 +368,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask CreateNewDirectoryAsync(string path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = 511, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile> CreateNewFileAsync(string path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask CreateSymbolicLinkAsync(string linkPath, string targetPath, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DeleteDirectoryAsync(string path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask DeleteFileAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, Tmds.Ssh.DownloadEntriesOptions? options, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask DownloadFileAsync(string remoteFilePath, System.IO.Stream destination, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default) { }
@@ -472,18 +472,19 @@ namespace Tmds.Ssh
     public delegate T SftpFileEntryTransform<T>(ref Tmds.Ssh.SftpFileEntry entry);
     public abstract class SftpProgressHandler
     {
+        public const int MaxConcurrentTransferEntries = 64;
         protected SftpProgressHandler() { }
         protected virtual void Completed(System.Exception? exception) { }
-        protected virtual void DataTransferred(string path, long bytesTransferred, long offset) { }
+        protected virtual void DataTransferred(int index, long bytesTransferred, long offset) { }
         protected virtual void EntriesDiscovered() { }
-        protected virtual void EntryCompleted(string path) { }
-        protected virtual void EntrySkipped(string path) { }
-        protected virtual void EntryStart(string path, Tmds.Ssh.SftpProgressHandler.Entry entry) { }
+        protected virtual void EntryCompleted(int index, Tmds.Ssh.UnixFileType type) { }
+        protected virtual void EntrySkipped(int index, Tmds.Ssh.UnixFileType type) { }
+        protected virtual void EntryStart(int index, Tmds.Ssh.UnixFileType type, Tmds.Ssh.SftpProgressHandler.Entry entry) { }
         protected virtual void Start() { }
         public readonly struct Entry
         {
-            public Tmds.Ssh.UnixFileType FileType { get; init; }
             public long? SourceLength { get; init; }
+            public string SourcePath { get; init; }
         }
     }
     public static class SignalName
