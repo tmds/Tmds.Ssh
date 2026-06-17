@@ -1778,7 +1778,7 @@ public class SftpClientTests
             var collector = new EventCollector();
             await sftpClient.UploadFileAsync(sourcePath, remotePath, progress: collector);
 
-            AssertSingleFileEvents(collector.Events, sourcePath, fileSize, UnixFileType.RegularFile);
+            AssertSingleFileEvents(collector.Events, fileSize, UnixFileType.RegularFile);
         }
         finally
         {
@@ -1802,7 +1802,7 @@ public class SftpClientTests
         var collector = new EventCollector();
         await sftpClient.UploadFileAsync(uploadStream, remotePath, progress: collector);
 
-        AssertSingleFileEvents(collector.Events, expectedPath: "", fileSize, UnixFileType.RegularFile);
+        AssertSingleFileEvents(collector.Events, fileSize, UnixFileType.RegularFile);
     }
 
     [InlineData(0)]
@@ -1828,7 +1828,7 @@ public class SftpClientTests
             var collector = new EventCollector();
             await sftpClient.DownloadFileAsync(remotePath, destinationPath, progress: collector);
 
-            AssertSingleFileEvents(collector.Events, remotePath, fileSize, UnixFileType.RegularFile);
+            AssertSingleFileEvents(collector.Events, fileSize, UnixFileType.RegularFile);
         }
         finally
         {
@@ -1860,7 +1860,7 @@ public class SftpClientTests
             await using var downloadStream = new MemoryStream();
             await sftpClient.DownloadFileAsync(remotePath, downloadStream, progress: collector);
 
-            AssertSingleFileEvents(collector.Events, remotePath, fileSize, UnixFileType.RegularFile);
+            AssertSingleFileEvents(collector.Events, fileSize, UnixFileType.RegularFile);
         }
         finally
         {
@@ -1886,11 +1886,11 @@ public class SftpClientTests
         Assert.IsType<EventCollector.StartEvent>(events[0]);
         // Second event: EntryStart.
         var start = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
-        Assert.Equal(sourceFileName, start.Path);
-        Assert.Equal(UnixFileType.RegularFile, start.Entry.FileType);
+        Assert.Equal(0, start.Index);
+        Assert.Equal(UnixFileType.RegularFile, start.Type);
         // Second-to-last: EntryCompleted.
         var entryCompleted = Assert.IsType<EventCollector.EntryCompletedEvent>(events[^2]);
-        Assert.Equal(sourceFileName, entryCompleted.Path);
+        Assert.Equal(0, entryCompleted.Index);
         // Last event: Completed.
         var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
         Assert.Null(completed.Exception);
@@ -1930,15 +1930,15 @@ public class SftpClientTests
             Assert.IsType<EventCollector.StartEvent>(events[0]);
 
             // Each file should have at least EntryStart + EntryCompleted.
-            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.RegularFile).ToList();
+            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.RegularFile).ToList();
             Assert.Equal(fileCount, fileStarts.Count);
 
             // Directory should have EntryStart + EntryCompleted.
-            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.Directory).ToList();
+            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.Directory).ToList();
             Assert.Single(dirStarts);
 
             // Symlink should have EntryStart + EntryCompleted.
-            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.SymbolicLink).ToList();
+            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.SymbolicLink).ToList();
             Assert.Single(linkStarts);
 
             // Verify each entry has a matching EntryCompleted.
@@ -1946,7 +1946,7 @@ public class SftpClientTests
             var allStarts = events.OfType<EventCollector.EntryStartEvent>().ToList();
             foreach (var start in allStarts)
             {
-                Assert.Contains(entryCompleteds, e => e.Path == start.Path);
+                Assert.Contains(entryCompleteds, e => e.Index == start.Index);
             }
 
             // Exactly one Completed event at the end.
@@ -1995,15 +1995,15 @@ public class SftpClientTests
             Assert.IsType<EventCollector.StartEvent>(events[0]);
 
             // Each file should have at least EntryStart + EntryCompleted.
-            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.RegularFile).ToList();
+            var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.RegularFile).ToList();
             Assert.Equal(fileCount, fileStarts.Count);
 
             // Directory should have EntryStart + EntryCompleted.
-            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.Directory).ToList();
+            var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.Directory).ToList();
             Assert.Single(dirStarts);
 
             // Symlink should have EntryStart + EntryCompleted.
-            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Entry.FileType == UnixFileType.SymbolicLink).ToList();
+            var linkStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.SymbolicLink).ToList();
             Assert.Single(linkStarts);
 
             // Verify each entry has a matching EntryCompleted.
@@ -2011,7 +2011,7 @@ public class SftpClientTests
             var allStarts = events.OfType<EventCollector.EntryStartEvent>().ToList();
             foreach (var start in allStarts)
             {
-                Assert.Contains(entryCompleteds, e => e.Path == start.Path);
+                Assert.Contains(entryCompleteds, e => e.Index == start.Index);
             }
 
             // Exactly one Completed event at the end.
@@ -2023,6 +2023,125 @@ public class SftpClientTests
             try { Directory.Delete(sourcePath, true); } catch { }
             try { Directory.Delete(destinationPath, true); } catch { }
         }
+    }
+
+    [Fact]
+    public async Task DeleteEmptyDirectoryProgress()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(directoryPath);
+
+        var collector = new EventCollector();
+        await sftpClient.DeleteDirectoryAsync(directoryPath, recursive: false, progress: collector);
+
+        var events = collector.Events;
+
+        Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+        var start = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
+        Assert.Equal(0, start.Index);
+        Assert.Equal(UnixFileType.Directory, start.Type);
+
+        Assert.IsType<EventCollector.EntriesDiscoveredEvent>(events[2]);
+
+        var entryCompleted = Assert.IsType<EventCollector.EntryCompletedEvent>(events[^2]);
+        Assert.Equal(0, entryCompleted.Index);
+        Assert.Equal(UnixFileType.Directory, entryCompleted.Type);
+
+        var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+        Assert.Null(completed.Exception);
+
+        var attributes = await sftpClient.GetAttributesAsync(directoryPath);
+        Assert.Null(attributes);
+    }
+
+    [Fact]
+    public async Task DeleteDirectoryRecursiveProgress()
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+        await sftpClient.CreateNewDirectoryAsync(directoryPath);
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1");
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child1/grandchild1");
+        using var file1 = await sftpClient.CreateNewFileAsync($"{directoryPath}/child1/grandchild1/file1", FileAccess.Write);
+        await file1.CloseAsync();
+        await sftpClient.CreateDirectoryAsync($"{directoryPath}/child2");
+        using var file2 = await sftpClient.CreateNewFileAsync($"{directoryPath}/file2", FileAccess.Write);
+        await file2.CloseAsync();
+
+        var collector = new EventCollector();
+        await sftpClient.DeleteDirectoryAsync(directoryPath, recursive: true, progress: collector);
+
+        var events = collector.Events;
+
+        // First event: Start.
+        Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+        // Files should have EntryStart + EntryCompleted.
+        var fileStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.RegularFile).ToList();
+        Assert.Equal(2, fileStarts.Count);
+
+        // Directories: root + child1 + grandchild1 + child2 = 4.
+        var dirStarts = events.OfType<EventCollector.EntryStartEvent>().Where(e => e.Type == UnixFileType.Directory).ToList();
+        Assert.Equal(4, dirStarts.Count);
+
+        // Verify indexes are properly paired: each EntryStart is completed before the index is reused.
+        var activeIndexes = new HashSet<int>();
+        foreach (var evt in events)
+        {
+            if (evt is EventCollector.EntryStartEvent s)
+            {
+                Assert.True(activeIndexes.Add(s.Index), $"Index {s.Index} started twice without completing");
+            }
+            else if (evt is EventCollector.EntryCompletedEvent c)
+            {
+                Assert.True(activeIndexes.Remove(c.Index), $"Index {c.Index} completed without a matching start");
+            }
+        }
+        Assert.Empty(activeIndexes);
+
+        // No DataTransferred events for delete.
+        Assert.Empty(events.OfType<EventCollector.DataTransferredEvent>());
+
+        // Exactly one Completed event at the end.
+        var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+        Assert.Null(completed.Exception);
+
+        // Directory is actually deleted.
+        var attributes = await sftpClient.GetAttributesAsync(directoryPath);
+        Assert.Null(attributes);
+    }
+
+    [InlineData(false)]
+    [InlineData(true)]
+    [Theory]
+    public async Task DeleteNonExistentDirectoryProgress(bool recursive)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        var collector = new EventCollector();
+        await sftpClient.DeleteDirectoryAsync(directoryPath, recursive: recursive, progress: collector);
+
+        var events = collector.Events;
+
+        Assert.IsType<EventCollector.StartEvent>(events[0]);
+
+        var entryStart = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
+        Assert.Equal(UnixFileType.Directory, entryStart.Type);
+
+        Assert.IsType<EventCollector.EntriesDiscoveredEvent>(events[2]);
+
+        var entrySkipped = Assert.IsType<EventCollector.EntrySkippedEvent>(events[^2]);
+        Assert.Equal(entryStart.Index, entrySkipped.Index);
+        Assert.Equal(UnixFileType.Directory, entrySkipped.Type);
+
+        var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
+        Assert.Null(completed.Exception);
     }
 
     [Fact]
@@ -2057,7 +2176,7 @@ public class SftpClientTests
         }
     }
 
-    private static void AssertSingleFileEvents(List<object> events, string expectedPath, int expectedSize, UnixFileType expectedType)
+    private static void AssertSingleFileEvents(List<object> events, int expectedSize, UnixFileType expectedType)
     {
         Assert.True(events.Count >= 5, $"Expected at least 5 events (Start + EntryStart + EntriesDiscovered + EntryCompleted + Completed), got {events.Count}");
 
@@ -2066,15 +2185,15 @@ public class SftpClientTests
 
         // Second event: EntryStart.
         var start = Assert.IsType<EventCollector.EntryStartEvent>(events[1]);
-        Assert.Equal(expectedPath, start.Path);
-        Assert.Equal(expectedType, start.Entry.FileType);
+        Assert.Equal(0, start.Index);
+        Assert.Equal(expectedType, start.Type);
 
         // Third event: EntriesDiscovered.
         Assert.IsType<EventCollector.EntriesDiscoveredEvent>(events[2]);
 
         // Second-to-last: EntryCompleted.
         var entryCompleted = Assert.IsType<EventCollector.EntryCompletedEvent>(events[^2]);
-        Assert.Equal(expectedPath, entryCompleted.Path);
+        Assert.Equal(0, entryCompleted.Index);
 
         // Last event: Completed with no exception.
         var completed = Assert.IsType<EventCollector.CompletedEvent>(events[^1]);
@@ -2091,48 +2210,48 @@ public class SftpClientTests
     sealed class EventCollector : SftpProgressHandler
     {
         public record StartEvent();
-        public record EntryStartEvent(string Path, SftpProgressHandler.Entry Entry);
-        public record DataTransferredEvent(string Path, long BytesTransferred, long Offset);
+        public record EntryStartEvent(int Index, UnixFileType Type, SftpProgressHandler.Entry Entry);
+        public record DataTransferredEvent(int Index, long BytesTransferred, long Offset);
         public record EntriesDiscoveredEvent();
-        public record EntrySkippedEvent(string Path);
-        public record EntryCompletedEvent(string Path);
+        public record EntrySkippedEvent(int Index, UnixFileType Type);
+        public record EntryCompletedEvent(int Index, UnixFileType Type);
         public record CompletedEvent(Exception? Exception);
 
         private readonly List<object> _events = new();
 
         public List<object> Events => _events;
 
-        protected internal override void Start()
+        protected override void Start()
         {
             lock (_events) _events.Add(new StartEvent());
         }
 
-        protected internal override void EntryStart(string path, SftpProgressHandler.Entry entry)
+        protected override void EntryStart(int index, UnixFileType type, SftpProgressHandler.Entry entry)
         {
-            lock (_events) _events.Add(new EntryStartEvent(path, entry));
+            lock (_events) _events.Add(new EntryStartEvent(index, type, entry));
         }
 
-        protected internal override void DataTransferred(string path, long bytesTransferred, long offset)
+        protected override void DataTransferred(int index, long bytesTransferred, long offset)
         {
-            lock (_events) _events.Add(new DataTransferredEvent(path, bytesTransferred, offset));
+            lock (_events) _events.Add(new DataTransferredEvent(index, bytesTransferred, offset));
         }
 
-        protected internal override void EntriesDiscovered()
+        protected override void EntriesDiscovered()
         {
             lock (_events) _events.Add(new EntriesDiscoveredEvent());
         }
 
-        protected internal override void EntrySkipped(string path)
+        protected override void EntrySkipped(int index, UnixFileType type)
         {
-            lock (_events) _events.Add(new EntrySkippedEvent(path));
+            lock (_events) _events.Add(new EntrySkippedEvent(index, type));
         }
 
-        protected internal override void EntryCompleted(string path)
+        protected override void EntryCompleted(int index, UnixFileType type)
         {
-            lock (_events) _events.Add(new EntryCompletedEvent(path));
+            lock (_events) _events.Add(new EntryCompletedEvent(index, type));
         }
 
-        protected internal override void Completed(Exception? exception)
+        protected override void Completed(Exception? exception)
         {
             lock (_events) _events.Add(new CompletedEvent(exception));
         }
