@@ -68,6 +68,21 @@ public sealed class DownloadEntriesOptions
     /// </summary>
     public TargetDirectoryCreation TargetDirectoryCreation { get; set; } = TargetDirectoryCreation.CreateWithParents;
 
+    /// <summary>
+    /// Gets or sets the maximum number of concurrent entries. Defaults to <c>1</c>. Must be between <c>1</c> and <c>64</c>.
+    /// </summary>
+    /// <remarks>Increasing this value enables having more files in flight when transferring a lot of small files over high latency connections.</remarks>
+    public int MaxConcurrentEntries
+    {
+        get => field;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, SftpChannel.MaxConcurrentTransferEntries);
+            field = value;
+        }
+    } = 1;
+
     private static ReadOnlySpan<char> ReplaceInvalidCharactersWithUnderscore(ReadOnlySpan<char> invalidPath, ReadOnlySpan<char> invalidChars, Span<char> buffer)
     {
         Span<char> path = buffer.Length >= invalidPath.Length ? buffer.Slice(0, invalidPath.Length)

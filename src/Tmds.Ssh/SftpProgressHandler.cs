@@ -11,7 +11,7 @@ namespace Tmds.Ssh;
 /// <para><see cref="Start"/> is always called synchronously before the async method returns its <see cref="System.Threading.Tasks.ValueTask"/>. <see cref="Completed"/> is called at the end, including when the operation fails.</para>
 /// <para>Entries are identified by an <c>index</c> parameter. For single-entry operations the index is always 0.
 /// For multi-entry operations, indexes are assigned and reused as entries finish.
-/// The index value is always less than <c>64</c> for upload and download operations. For recursive delete operations, the index range may be larger but is bounded by the number of concurrent delete operations.</para>
+/// The index value is always less than the <c>maxConcurrentEntries</c> argument passed to <see cref="Start"/>.</para>
 /// <para>For each discovered entry, <see cref="EntryStart"/> is called.
 /// <see cref="DataTransferred"/> is called for each chunk of data that is successfully transferred.
 /// When the entry is successfully handled, <see cref="EntryCompleted"/> is called.
@@ -19,12 +19,12 @@ namespace Tmds.Ssh;
 /// <para>After all entries have been discovered, <see cref="EntriesDiscovered"/> is called and no more <see cref="EntryStart"/> calls will follow.</para>
 /// <para><see cref="EntryStart"/> calls are always sequential. <see cref="EntryCompleted"/>, <see cref="EntrySkipped"/>, and <see cref="DataTransferred"/> may be called concurrently for different entries but are sequential for the same entry.</para>
 /// <para>Because <see cref="EntryStart"/> calls are sequential, they can be used to resize an array that tracks per-entry information using the index as position. Each new entry can fill in its information at start. Note that clearing information when an entry finishes may be lost if the array is resized by a concurrent <see cref="EntryStart"/> call.</para>
-/// <para>For per-entry <see cref="DataTransferred"/> information, resizing does not work because it would affect tracking for on-going entries. A fixed-size array of <see cref="MaxConcurrentTransferEntries"/> elements can be used instead.</para>
+/// <para>For per-entry <see cref="DataTransferred"/> information, resizing does not work because it would affect tracking for on-going entries. A fixed-size array of <c>maxConcurrentEntries</c> elements can be used instead.</para>
 /// </remarks>
 public abstract class SftpProgressHandler
 {
     /// <summary>The maximum number of concurrent entries for upload and download operations (64).</summary>
-    public const int MaxConcurrentTransferEntries = 64;
+    public const int MaxConcurrentTransferEntries = SftpChannel.MaxConcurrentTransferEntries;
 
     private long _allocatedIndexes;
 
@@ -59,9 +59,10 @@ public abstract class SftpProgressHandler
     }
 
     /// <summary>Called when the operation starts.</summary>
-    protected virtual void Start() { }
+    /// <param name="maxConcurrentEntries">The upper bound for entry indices used during this operation.</param>
+    protected virtual void Start(int maxConcurrentEntries) { }
 
-    internal void CallStart() => Start();
+    internal void CallStart(int maxConcurrentEntries) => Start(maxConcurrentEntries);
 
     /// <summary>Called when the operation finishes.</summary>
     /// <param name="exception"><see langword="null"/> on success, the exception that caused the operation to fail.</param>
@@ -118,12 +119,21 @@ public abstract class SftpProgressHandler
     internal void CallEntriesDiscovered() => EntriesDiscovered();
 
     /// <summary>Describes an entry being handled.</summary>
-    public readonly struct Entry
+    public readonly ref struct Entry
     {
+        /// <summary>Initializes a new <see cref="Entry"/>.</summary>
+        /// <param name="sourcePath">The source path of the entry.</param>
+        /// <param name="sourceLength">The expected length of the source data, or <see langword="null"/> if unknown.</param>
+        public Entry(string sourcePath, long? sourceLength)
+        {
+            SourcePath = sourcePath;
+            SourceLength = sourceLength;
+        }
+
         /// <summary>The source path of the entry.</summary>
-        public string SourcePath { get; init; }
+        public string SourcePath { get; }
 
         /// <summary>The expected length of the source data, or <see langword="null"/> if unknown.</summary>
-        public long? SourceLength { get; init; }
+        public long? SourceLength { get; }
     }
 }
