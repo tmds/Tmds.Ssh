@@ -32,6 +32,7 @@ namespace Tmds.Ssh
         public bool FollowDirectoryLinks { get; set; }
         public bool FollowFileLinks { get; set; }
         public bool IncludeSubdirectories { get; set; }
+        public int MaxConcurrentEntries { get; set; }
         public bool Overwrite { get; set; }
         public Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters ReplaceInvalidCharacters { get; set; }
         public Tmds.Ssh.SftpFileEntryPredicate? ShouldInclude { get; set; }
@@ -480,11 +481,12 @@ namespace Tmds.Ssh
         protected virtual void EntryCompleted(int index, Tmds.Ssh.UnixFileType type) { }
         protected virtual void EntrySkipped(int index, Tmds.Ssh.UnixFileType type) { }
         protected virtual void EntryStart(int index, Tmds.Ssh.UnixFileType type, Tmds.Ssh.SftpProgressHandler.Entry entry) { }
-        protected virtual void Start() { }
-        public readonly struct Entry
+        protected virtual void Start(int maxConcurrentEntries) { }
+        public readonly ref struct Entry
         {
-            public long? SourceLength { get; init; }
-            public string SourcePath { get; init; }
+            public Entry(string sourcePath, long? sourceLength) { }
+            public long? SourceLength { get; }
+            public string SourcePath { get; }
         }
     }
     public static class SignalName
@@ -778,6 +780,7 @@ namespace Tmds.Ssh
         public bool FollowDirectoryLinks { get; set; }
         public bool FollowFileLinks { get; set; }
         public bool IncludeSubdirectories { get; set; }
+        public int MaxConcurrentEntries { get; set; }
         public bool Overwrite { get; set; }
         public Tmds.Ssh.LocalFileEntryPredicate? ShouldInclude { get; set; }
         public Tmds.Ssh.LocalFileEntryPredicate? ShouldRecurse { get; set; }

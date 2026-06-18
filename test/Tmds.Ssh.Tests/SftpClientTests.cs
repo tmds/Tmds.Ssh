@@ -211,6 +211,42 @@ public class SftpClientTests
         Assert.Null(attributes);
     }
 
+    [InlineData(false)]
+    [InlineData(true)]
+    [Theory]
+    public async Task DeleteDirectoryRecursiveManyEntries(bool withProgress)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        string directoryPath = $"/tmp/{Path.GetRandomFileName()}";
+
+        // Create a directory tree 50 levels deep.
+        string deepPath = directoryPath;
+        for (int i = 0; i < 50; i++)
+        {
+            deepPath = $"{deepPath}/d{i}";
+        }
+        await sftpClient.CreateNewDirectoryAsync(deepPath, createParents: true);
+
+        // Create 100 files in the deepest directory.
+        for (int i = 0; i < 100; i++)
+        {
+            using var file = await sftpClient.CreateNewFileAsync($"{deepPath}/file{i}", FileAccess.Write);
+            await file.CloseAsync();
+        }
+
+        var collector = withProgress ? new EventCollector() : null;
+        await sftpClient.DeleteDirectoryAsync(directoryPath, recursive: true, progress: collector);
+
+        var attributes = await sftpClient.GetAttributesAsync(directoryPath);
+        Assert.Null(attributes);
+
+        if (withProgress)
+        {
+            Assert.Equal(128, collector!.MaxConcurrentEntries);
+        }
+    }
+
     [Fact]
     public async Task CreateNewDirectoryThrowsIfExists()
     {
@@ -691,8 +727,10 @@ public class SftpClientTests
         Assert.False(options.RecurseSubdirectories);
     }
 
-    [Fact]
-    public async Task UploadDownloadDirectory()
+    [InlineData(1)] // Default
+    [InlineData(64)] // Max
+    [Theory]
+    public async Task UploadDownloadDirectory(int maxConcurrentEntries)
     {
         using var sftpClient = await _sshServer.CreateSftpClientAsync();
 
@@ -721,10 +759,16 @@ public class SftpClientTests
 
             // Upload
             string remoteDirPath = $"/tmp/{Path.GetRandomFileName()}";
-            await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath);
+            var uploadCollector = new EventCollector();
+            await sftpClient.UploadDirectoryEntriesAsync(sourcePath, remoteDirPath, new UploadEntriesOptions() { MaxConcurrentEntries = maxConcurrentEntries }, progress: uploadCollector);
 
             // Download
-            await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath);
+            var downloadCollector = new EventCollector();
+            await sftpClient.DownloadDirectoryEntriesAsync(remoteDirPath, destinationPath, new DownloadEntriesOptions() { MaxConcurrentEntries = maxConcurrentEntries }, progress: downloadCollector);
+
+            // Verify maxConcurrentEntries was passed correctly.
+            Assert.Equal(maxConcurrentEntries, uploadCollector.MaxConcurrentEntries);
+            Assert.Equal(maxConcurrentEntries, downloadCollector.MaxConcurrentEntries);
 
             // Verify the download matches the source directory that was uploaded.
             byte[] buffer2 = new byte[PacketSize * 2];
@@ -2209,8 +2253,8 @@ public class SftpClientTests
 
     sealed class EventCollector : SftpProgressHandler
     {
-        public record StartEvent();
-        public record EntryStartEvent(int Index, UnixFileType Type, SftpProgressHandler.Entry Entry);
+        public record StartEvent(int MaxConcurrentEntries);
+        public record EntryStartEvent(int Index, UnixFileType Type, string SourcePath, long? SourceLength);
         public record DataTransferredEvent(int Index, long BytesTransferred, long Offset);
         public record EntriesDiscoveredEvent();
         public record EntrySkippedEvent(int Index, UnixFileType Type);
@@ -2218,21 +2262,32 @@ public class SftpClientTests
         public record CompletedEvent(Exception? Exception);
 
         private readonly List<object> _events = new();
+        private int _maxConcurrentEntries;
 
         public List<object> Events => _events;
+        public int MaxConcurrentEntries => _maxConcurrentEntries;
 
-        protected override void Start()
+        private void AssertIndexInRange(int index)
         {
-            lock (_events) _events.Add(new StartEvent());
+            Assert.True(index >= 0 && index < _maxConcurrentEntries,
+                $"Index {index} is out of range [0, {_maxConcurrentEntries})");
+        }
+
+        protected override void Start(int maxConcurrentEntries)
+        {
+            _maxConcurrentEntries = maxConcurrentEntries;
+            lock (_events) _events.Add(new StartEvent(maxConcurrentEntries));
         }
 
         protected override void EntryStart(int index, UnixFileType type, SftpProgressHandler.Entry entry)
         {
-            lock (_events) _events.Add(new EntryStartEvent(index, type, entry));
+            AssertIndexInRange(index);
+            lock (_events) _events.Add(new EntryStartEvent(index, type, entry.SourcePath, entry.SourceLength));
         }
 
         protected override void DataTransferred(int index, long bytesTransferred, long offset)
         {
+            AssertIndexInRange(index);
             lock (_events) _events.Add(new DataTransferredEvent(index, bytesTransferred, offset));
         }
 
@@ -2243,11 +2298,13 @@ public class SftpClientTests
 
         protected override void EntrySkipped(int index, UnixFileType type)
         {
+            AssertIndexInRange(index);
             lock (_events) _events.Add(new EntrySkippedEvent(index, type));
         }
 
         protected override void EntryCompleted(int index, UnixFileType type)
         {
+            AssertIndexInRange(index);
             lock (_events) _events.Add(new EntryCompletedEvent(index, type));
         }
 

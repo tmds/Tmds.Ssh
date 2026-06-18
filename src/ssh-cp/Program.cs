@@ -541,7 +541,7 @@ sealed class ConsoleProgress : SftpProgressHandler
         }
     }
 
-    protected override void Start()
+    protected override void Start(int maxConcurrentEntries)
         => _startTime = Stopwatch.GetTimestamp();
 
     protected override void EntryStart(int index, UnixFileType type, Entry entry)
