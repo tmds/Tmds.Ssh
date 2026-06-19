@@ -4,6 +4,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Tmds.Ssh;
@@ -217,6 +218,7 @@ partial class SftpChannel
         private const int StackallocThreshold = 256;
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask ExecuteAsync(
         Packet packet,
         int id,
@@ -237,6 +239,7 @@ partial class SftpChannel
         return new ValueTask<int>(pendingOperation, pendingOperation.Token);
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<T> ExecuteAsync<T>(
         Packet packet,
         int id,

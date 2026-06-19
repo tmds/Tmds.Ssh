@@ -453,6 +453,7 @@ namespace Tmds.Ssh
         public override void Write(byte[] buffer, int offset, int count) { }
         public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public override System.Threading.Tasks.Task WriteAsync(byte[] buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) { }
+        [System.Runtime.CompilerServices.AsyncMethodBuilder(typeof(System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder))]
         public System.Threading.Tasks.ValueTask WriteAtAsync(System.ReadOnlyMemory<byte> buffer, long offset, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public ref struct SftpFileEntry

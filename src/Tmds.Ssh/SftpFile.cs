@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Tmds.Ssh;
 
@@ -158,6 +159,7 @@ public sealed class SftpFile : Stream
     /// <param name="buffer">Buffer containing data to write.</param>
     /// <param name="offset">File offset to write at.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     public async ValueTask WriteAtAsync(ReadOnlyMemory<byte> buffer, long offset, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
