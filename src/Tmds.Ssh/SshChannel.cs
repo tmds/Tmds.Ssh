@@ -271,6 +271,7 @@ sealed partial class SshChannel : ISshChannel
         throw CreateCloseException(forStream);
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> memory, CancellationToken cancellationToken = default, bool forStream = false)
     {
         ThrowIfDisposed();

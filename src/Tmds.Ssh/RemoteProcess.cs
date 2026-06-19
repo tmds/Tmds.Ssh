@@ -532,6 +532,7 @@ public sealed class RemoteProcess : IDisposable
     public ValueTask<(bool IsError, int BytesRead)> ReadAsync(Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken = default)
         => ReadAsync(ReadMode.ReadBytes, stdoutBuffer, stderrBuffer, cancellationToken);
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     internal async ValueTask<(bool IsError, int BytesRead)> ReadAsync(ReadMode readMode, Memory<byte>? stdoutBuffer, Memory<byte>? stderrBuffer, CancellationToken cancellationToken)
     {
         CheckReadMode(readMode);
