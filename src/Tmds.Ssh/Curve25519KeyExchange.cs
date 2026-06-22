@@ -3,34 +3,21 @@
 
 using System.Buffers;
 using System.Security.Cryptography;
-using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto.Prng;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Agreement;
 
 namespace Tmds.Ssh;
 
 // Curve25519 Key Exchange: https://datatracker.ietf.org/doc/html/rfc8731
-class Curve25519KeyExchange : KeyExchange<AsymmetricCipherKeyPair, byte[]>
+class Curve25519KeyExchange : KeyExchange<X25519Key, byte[]>
 {
     public Curve25519KeyExchange() : base(HashAlgorithmName.SHA256)
     { }
 
-    protected override AsymmetricCipherKeyPair GenerateKeyPair(KeyExchangeContext context)
-    {
-        using (var randomGenerator = new CryptoApiRandomGenerator())
-        {
-            var x25519KeyPairGenerator = new X25519KeyPairGenerator();
-            x25519KeyPairGenerator.Init(new X25519KeyGenerationParameters(new SecureRandom(randomGenerator)));
-            return x25519KeyPairGenerator.GenerateKeyPair();
-        }
-    }
+    protected override X25519Key GenerateKeyPair(KeyExchangeContext context)
+        => X25519Key.Generate();
 
-    protected override Packet CreateInitMessage(SequencePool sequencePool, AsymmetricCipherKeyPair keyPair)
+    protected override Packet CreateInitMessage(SequencePool sequencePool, X25519Key keyPair)
     {
-        byte[] publicKey = ((X25519PublicKeyParameters)keyPair.Public).GetEncoded();
+        byte[] publicKey = keyPair.ExportPublicKey();
         return CreateEcdhInitMessage(sequencePool, publicKey);
     }
 
@@ -40,19 +27,24 @@ class Curve25519KeyExchange : KeyExchange<AsymmetricCipherKeyPair, byte[]>
         return (reply.public_host_key, reply.q_s, reply.exchange_hash_signature);
     }
 
-    protected override byte[] DeriveSharedSecret(AsymmetricCipherKeyPair clientKeyPair, byte[] serverPublicKey)
+    protected override byte[] DeriveSharedSecret(X25519Key clientKeyPair, byte[] serverPublicKey)
     {
-        return DeriveSharedSecret(clientKeyPair.Private, new X25519PublicKeyParameters(serverPublicKey));
+        byte[] rawSecretAgreement = clientKeyPair.DeriveRawSecretAgreement(serverPublicKey);
+        var sharedSecret = rawSecretAgreement.ToBigInteger();
+        rawSecretAgreement.AsSpan().Clear();
+        return sharedSecret.ToMPIntByteArray();
     }
 
-    protected override byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, AsymmetricCipherKeyPair clientKeyPair, byte[] serverPublicKey, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
+    protected override byte[] CalculateExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, X25519Key clientKeyPair, byte[] serverPublicKey, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
-        byte[] clientPublicKey = ((X25519PublicKeyParameters)clientKeyPair.Public).GetEncoded();
+        byte[] clientPublicKey = clientKeyPair.ExportPublicKey();
         return CalculateCurve25519ExchangeHash(sequencePool, connectionInfo, clientKexInitMsg, serverKexInitMsg, public_host_key, clientPublicKey, serverPublicKey, sharedSecret, hashAlgorithmName);
     }
 
-    protected override void DisposeKeyPair(AsymmetricCipherKeyPair keyPair)
-    { }
+    protected override void DisposeKeyPair(X25519Key keyPair)
+    {
+        keyPair.Dispose();
+    }
 
     internal static byte[] CalculateCurve25519ExchangeHash(SequencePool sequencePool, SshConnectionInfo connectionInfo, ReadOnlyPacket clientKexInitMsg, ReadOnlyPacket serverKexInitMsg, ReadOnlyMemory<byte> public_host_key, byte[] q_c, byte[] q_s, byte[] sharedSecret, HashAlgorithmName hashAlgorithmName)
     {
@@ -83,18 +75,6 @@ class Curve25519KeyExchange : KeyExchange<AsymmetricCipherKeyPair, byte[]>
             hash.AppendData(segment.Span);
         }
         return hash.GetHashAndReset();
-    }
-
-    private static byte[] DeriveSharedSecret(AsymmetricKeyParameter privateKey, AsymmetricKeyParameter peerPublicKey)
-    {
-        var keyAgreement = new X25519Agreement();
-        keyAgreement.Init(privateKey);
-
-        var rawSecretAgreement = new byte[keyAgreement.AgreementSize];
-        keyAgreement.CalculateAgreement(peerPublicKey, rawSecretAgreement);
-        var sharedSecret = rawSecretAgreement.ToBigInteger();
-        rawSecretAgreement.AsSpan().Clear();
-        return sharedSecret.ToMPIntByteArray();
     }
 
     internal static Packet CreateEcdhInitMessage(SequencePool sequencePool, ReadOnlySpan<byte> q_c)
