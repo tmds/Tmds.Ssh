@@ -460,7 +460,7 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
+    public async ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options = null, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.UploadDirectoryEntriesAsync(localDirPath, remoteDirPath, options, progress, cancellationToken).ConfigureAwait(false);
@@ -481,7 +481,7 @@ public sealed partial class SftpClient : ISftpDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
+    public async ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options = null, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default)
     {
         var dir = await GetWorkingDirectoryAsync(cancellationToken).ConfigureAwait(false);
         await dir.DownloadDirectoryEntriesAsync(remoteDirPath, localDirPath, options, progress, cancellationToken).ConfigureAwait(false);

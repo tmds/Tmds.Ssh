@@ -479,7 +479,7 @@ public sealed partial class SshClient : IDisposable
     /// <param name="bindEP">The local endpoint to bind to.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="SocksForward"/> instance for managing the proxy.</returns>
-    public async Task<SocksForward> StartSocksForward(EndPoint bindEP, CancellationToken cancellationToken = default)
+    public async Task<SocksForward> StartSocksForwardAsync(EndPoint bindEP, CancellationToken cancellationToken = default)
     {
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 

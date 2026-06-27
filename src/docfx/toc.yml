@@ -3,5 +3,3 @@ items:
     href: index.md
   - name: API
     href: api/Tmds.Ssh.yml
-  - name: Tools
-    href: tools.md

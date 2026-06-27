@@ -43,7 +43,7 @@ public class LocalForwardTests
         using var soCatProcess = await client.ExecuteAsync($"socat -v tcp-l:{socatPort},fork exec:'/bin/cat'");
         await Task.Delay(SocatStartDelay); // wait a little for socat to start.
 
-        using var socksForward = await client.StartSocksForward(new IPEndPoint(IPAddress.Loopback, 0));
+        using var socksForward = await client.StartSocksForwardAsync(new IPEndPoint(IPAddress.Loopback, 0));
         await AssertForwards(socksForward, useIP ? IPAddress.Loopback : null, useIP ? null : "localhost", socatPort);
     }
 
