@@ -1,0 +1,14 @@
+article h2 {
+    border-bottom: 1px solid var(--bs-border-color);
+    padding-bottom: 0.3rem;
+}
+
+article h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+article h4 {
+    font-size: 1.15rem;
+    font-weight: 600;
+}

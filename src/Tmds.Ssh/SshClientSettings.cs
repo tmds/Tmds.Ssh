@@ -441,7 +441,7 @@ public sealed partial class SshClientSettings
     /// Gets or sets whether to hash hostnames in the known hosts file.
     /// </summary>
     /// <remarks>
-    /// Defaults to <see langword="false"/>.
+    /// Defaults to <see langword="false"/>. Hashing hostnames is no longer considered good practice.
     /// </remarks>
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 

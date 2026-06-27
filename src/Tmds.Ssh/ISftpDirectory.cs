@@ -176,7 +176,7 @@ public interface ISftpDirectory
     /// <param name="options"><see cref="UploadEntriesOptions"/> for the upload operation.</param>
     /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. Entries are indexed in discovery order.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
+    ValueTask UploadDirectoryEntriesAsync(string localDirPath, string remoteDirPath, UploadEntriesOptions? options = null, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Uploads a file.
@@ -208,7 +208,7 @@ public interface ISftpDirectory
     /// <param name="options"><see cref="DownloadEntriesOptions"/> for the download operation.</param>
     /// <param name="progress">Optional <see cref="SftpProgressHandler"/> callbacks. Entries are indexed in discovery order.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
-    ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
+    ValueTask DownloadDirectoryEntriesAsync(string remoteDirPath, string localDirPath, DownloadEntriesOptions? options = null, SftpProgressHandler? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Downloads a file.
