@@ -510,6 +510,21 @@ sealed partial class SftpChannel : IDisposable
                     await CopyAsync(copyLength, cancellationToken).ConfigureAwait(false);
                 }
             }
+            else
+            {
+                // Treat length zero separately because some Linux file systems (like procfs) have zero lengths for files that are not empty.
+                int bufferSize = Math.Min(GetMaxReadPayload(), GetMaxWritePayload(destinationFile.Handle));
+                await s_downloadBufferSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await CopyToAsync(sourceFile, destinationFile, bufferSize, entryIndex: 0, progress, cancellationToken).ConfigureAwait(false);
+                    copyLength = destinationFile.Position;
+                }
+                finally
+                {
+                    s_downloadBufferSemaphore.Release();
+                }
+            }
 
             // Truncate if the sourceFile is smaller than the destination file's initial length.
             long initialLength = await initialLengthTask.ConfigureAwait(false);

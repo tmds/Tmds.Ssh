@@ -1784,6 +1784,43 @@ public class SftpClientTests
         Assert.NotEqual(0, ms.Length);
     }
 
+    [InlineData(false)]
+    [InlineData(true)]
+    [Theory]
+    public async Task CopySpecialZeroLengthFile(bool overwriteLargerDestination)
+    {
+        using var sftpClient = await _sshServer.CreateSftpClientAsync();
+
+        // Verify the source file reports a length of zero.
+        var sourceAttributes = await sftpClient.GetAttributesAsync("/proc/self/mountinfo");
+        Assert.Equal(0, sourceAttributes!.Length);
+
+        string destinationPath;
+        if (overwriteLargerDestination)
+        {
+            (destinationPath, _) = await CreateRemoteFileWithRandomDataAsync(sftpClient, length: 100_000);
+        }
+        else
+        {
+            destinationPath = $"/tmp/{Path.GetRandomFileName()}";
+        }
+
+        await sftpClient.CopyFileAsync("/proc/self/mountinfo", destinationPath, overwrite: overwriteLargerDestination);
+
+        var attributes = await sftpClient.GetAttributesAsync(destinationPath);
+        Assert.NotNull(attributes);
+        Assert.NotEqual(0, attributes.Length);
+
+        if (overwriteLargerDestination)
+        {
+            // Verify length matches a fresh copy (catches truncation issues).
+            string referencePath = $"/tmp/{Path.GetRandomFileName()}";
+            await sftpClient.CopyFileAsync("/proc/self/mountinfo", referencePath);
+            var referenceAttributes = await sftpClient.GetAttributesAsync(referencePath);
+            Assert.Equal(referenceAttributes!.Length, attributes.Length);
+        }
+    }
+
     [Fact]
     public async Task UploadSpecialZeroLengthFile()
     {
