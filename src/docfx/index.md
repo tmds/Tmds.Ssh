@@ -95,6 +95,12 @@ Authentication algorithms:
 
 *: Please convert your keys (using `ssh-keygen`, `PuttyGen`, ...) to a supported format rather than suggesting the library should support an additional format. If you can motivate why the library should support a additional format, open an issue to request support.
 
+### Sponsoring
+
+Tmds.Ssh is open source and free to use under the MIT license. If your organization depends on it, please consider [sponsoring its maintenance](https://github.com/sponsors/tmds).
+
+This isn't a support contract or a license fee — the source stays open and the rules stay simple. Sponsoring is a small, predictable way to help sustain the work that goes into bug fixes, security updates, and new features.
+
 ### Reporting Bugs and Contributing
 
 Found a bug or want to request a feature? Please [open an issue on GitHub](https://github.com/tmds/Tmds.Ssh/issues).
