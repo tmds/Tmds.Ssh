@@ -222,12 +222,18 @@ sealed partial class SshSession
             await AuthenticateAsync(connection, connectCts.Token).ConfigureAwait(false);
 
             // Allow sending.
-            _sendQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
+            var sendQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
             {
                 SingleWriter = false, // Enable different channels to write concurrently.
                 SingleReader = true,  // Only reader is the send loop.
                 AllowSynchronousContinuations = true // Allow direct sending when send is queued.
             });
+            // Ensure we don't miss the abort.
+            Volatile.Write(ref _sendQueue, sendQueue);
+            if (Volatile.Read(ref _abortReason) is not null)
+            {
+                sendQueue.Writer.TryComplete(_abortReason);
+            }
             // ConnectAsync completed successfully.
             connectTcs.SetResult(true);
         }
@@ -374,7 +380,9 @@ sealed partial class SshSession
             CancellationToken abortToken = _abortCts.Token;
             while (true)
             {
-                using var pkt = await _sendQueue!.Reader.ReadAsync(abortToken).ConfigureAwait(false);
+                // Don't pass abortToken so the Channel can pool the AsyncOperation.
+                // On Abort, the queue gets completed.
+                using var pkt = await _sendQueue!.Reader.ReadAsync().ConfigureAwait(false);
 
                 bool isKexInit = pkt.MessageId == MessageId.SSH_MSG_KEXINIT;
 
@@ -404,14 +412,11 @@ sealed partial class SshSession
         finally
         {
             // Empty _sendQueue and prevent new sends.
-            if (_sendQueue != null)
-            {
-                _sendQueue.Writer.Complete();
+            _sendQueue!.Writer.TryComplete();
 
-                while (_sendQueue.Reader.TryRead(out Packet packet))
-                {
-                    packet.Dispose();
-                }
+            while (_sendQueue.Reader.TryRead(out Packet packet))
+            {
+                packet.Dispose();
             }
 
             // Do this after we've completed the sendQueue writer
@@ -741,6 +746,7 @@ sealed partial class SshSession
                 _client.OnSessionDisconnect(this);
             }
 
+            Volatile.Read(ref _sendQueue)?.Writer.TryComplete(reason);
             _abortCts.Cancel();
 
             lock (_gate)
