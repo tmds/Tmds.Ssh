@@ -181,6 +181,18 @@ var configSettings = new SshConfigSettings()
 using var sshClient = new SshClient("myhost", configSettings);
 ```
 
+To know what hosts are known in the configuration files, you can use <xref:Tmds.Ssh.SshConfig.GetHosts>:
+
+```csharp
+ISet<string> hosts = SshConfig.GetHosts();
+foreach (string host in hosts.Order(StringComparer.OrdinalIgnoreCase))
+{
+    Console.WriteLine(host.ToLowerInvariant());
+}
+```
+
+There is also an overload that accepts the list of config files to check.
+
 ### Creating an SftpClient
 
 The connection to the SSH server is always made by the `SshClient`. If your application has an `SshClient` instance, you can open an SFTP session by calling the <xref:Tmds.Ssh.SshClient.OpenSftpClientAsync(System.Threading.CancellationToken)>.

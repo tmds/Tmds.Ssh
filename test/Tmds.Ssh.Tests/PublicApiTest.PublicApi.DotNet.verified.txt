@@ -579,6 +579,11 @@ namespace Tmds.Ssh
         public static System.Collections.Generic.IReadOnlyList<string> DefaultGlobalKnownHostsFilePaths { get; }
         public static System.Collections.Generic.IReadOnlyList<string> DefaultUserKnownHostsFilePaths { get; }
     }
+    public static class SshConfig
+    {
+        public static System.Collections.Generic.ISet<string> GetHosts() { }
+        public static System.Collections.Generic.ISet<string> GetHosts(System.Collections.Generic.IReadOnlyList<string> configFilePaths) { }
+    }
     public enum SshConfigOption
     {
         Hostname = 0,
