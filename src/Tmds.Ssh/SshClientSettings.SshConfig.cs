@@ -19,7 +19,7 @@ partial class SshClientSettings
 
     internal static async ValueTask<SshClientSettings> LoadFromConfigAsync(string? userName, string host, int? port, SshConfigSettings options, CancellationToken cancellationToken = default)
     {
-        SshConfig sshConfig = await SshConfig.DetermineConfigForHost(userName, host, port, options.OptionsOrDefault, options.ConfigFilePathsOrDefault, cancellationToken);
+        SshConfigParser sshConfig = await SshConfigParser.DetermineConfigForHost(userName, host, port, options.OptionsOrDefault, options.ConfigFilePathsOrDefault, cancellationToken);
 
         List<Name> ciphers = DetermineAlgorithms(sshConfig.Ciphers, DefaultEncryptionAlgorithms, SupportedEncryptionAlgorithms);
         List<Name> hostKeyAlgorithms = DetermineAlgorithms(sshConfig.HostKeyAlgorithms, DefaultServerHostKeyAlgorithms, SupportedServerHostKeyAlgorithms);
@@ -72,10 +72,10 @@ partial class SshClientSettings
             settings.EnvironmentVariables = envvars;
         }
 
-        SshConfig.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfig.StrictHostKeyChecking.Ask;
+        SshConfigParser.StrictHostKeyChecking hostKeyChecking = sshConfig.HostKeyChecking ?? SshConfigParser.StrictHostKeyChecking.Ask;
         switch (hostKeyChecking)
         {
-            case SshConfig.StrictHostKeyChecking.No:
+            case SshConfigParser.StrictHostKeyChecking.No:
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Allow unknown and changed.
                 settings.HostAuthentication =
@@ -83,7 +83,7 @@ partial class SshClientSettings
                         => ValueTask.FromResult(context.KnownHostResult is KnownHostResult.Unknown or KnownHostResult.Changed);
                 break;
 
-            case SshConfig.StrictHostKeyChecking.AcceptNew:
+            case SshConfigParser.StrictHostKeyChecking.AcceptNew:
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Disallow changed. Allow unknown.
                 settings.HostAuthentication =
@@ -91,7 +91,7 @@ partial class SshClientSettings
                         => ValueTask.FromResult(context.KnownHostResult == KnownHostResult.Unknown);
                 break;
 
-            case SshConfig.StrictHostKeyChecking.Ask:
+            case SshConfigParser.StrictHostKeyChecking.Ask:
                 settings.UpdateKnownHostsFileAfterAuthentication = true;
                 // Disallow changed, and ask for unknown keys.
                 if (options.HostAuthentication is HostAuthentication authentication)
@@ -112,7 +112,7 @@ partial class SshClientSettings
                 }
                 break;
 
-            case SshConfig.StrictHostKeyChecking.Yes:
+            case SshConfigParser.StrictHostKeyChecking.Yes:
             default:
                 settings.UpdateKnownHostsFileAfterAuthentication = false;
                 settings.HostAuthentication = delegate { return ValueTask.FromResult(false); };
@@ -145,7 +145,7 @@ partial class SshClientSettings
         return envvars;
     }
 
-    private static List<Credential> DetermineCredentials(SshConfig config, SshConfigSettings options)
+    private static List<Credential> DetermineCredentials(SshConfigParser config, SshConfigSettings options)
     {
         bool addPubKeyCredentials = (config.PubKeyAuthentication ?? true) && IsAcceptedAuthentication(AlgorithmNames.PublicKey);
         bool addGssApiCredentials = (config.GssApiAuthentication ?? false) && IsAcceptedAuthentication(AlgorithmNames.GssApiWithMic);
@@ -249,32 +249,32 @@ partial class SshClientSettings
     }
 
     // internal for tests.
-    internal static List<Name> DetermineAlgorithms(SshConfig.AlgorithmList? config, IReadOnlyList<Name> defaultAlgorithms, IReadOnlyList<Name>? supportedAlgorithms)
+    internal static List<Name> DetermineAlgorithms(SshConfigParser.AlgorithmList? config, IReadOnlyList<Name> defaultAlgorithms, IReadOnlyList<Name>? supportedAlgorithms)
     {
         if (!config.HasValue)
         {
             return new List<Name>(defaultAlgorithms);
         }
 
-        SshConfig.AlgorithmList configAlgorithms = config.Value;
+        SshConfigParser.AlgorithmList configAlgorithms = config.Value;
 
         switch (configAlgorithms.Operation)
         {
-            case SshConfig.AlgorithmListOperation.Prepend:
+            case SshConfigParser.AlgorithmListOperation.Prepend:
             {
                 OrderedSet<Name> algorithms = new(defaultAlgorithms.Count + configAlgorithms.Algorithms.Length);
                 AddConfigAlgorithms(algorithms, configAlgorithms.Algorithms, supportedAlgorithms);
                 AddDefaultAlgorithms(algorithms, defaultAlgorithms);
                 return algorithms.List;
             }
-            case SshConfig.AlgorithmListOperation.Append:
+            case SshConfigParser.AlgorithmListOperation.Append:
             {
                 OrderedSet<Name> algorithms = new(defaultAlgorithms.Count + configAlgorithms.Algorithms.Length);
                 AddDefaultAlgorithms(algorithms, defaultAlgorithms);
                 AddConfigAlgorithms(algorithms, configAlgorithms.Algorithms, supportedAlgorithms);
                 return algorithms.List;
             }
-            case SshConfig.AlgorithmListOperation.Remove:
+            case SshConfigParser.AlgorithmListOperation.Remove:
             {
                 List<Name> algorithms = new(defaultAlgorithms.Count);
                 foreach (var algo in defaultAlgorithms)
@@ -287,13 +287,13 @@ partial class SshClientSettings
                 }
                 return algorithms;
             }
-            case SshConfig.AlgorithmListOperation.Set:
+            case SshConfigParser.AlgorithmListOperation.Set:
             {
                 OrderedSet<Name> algorithms = new(configAlgorithms.Algorithms.Length);
                 AddConfigAlgorithms(algorithms, configAlgorithms.Algorithms, supportedAlgorithms);
                 return algorithms.List;
             }
-            case SshConfig.AlgorithmListOperation.Filter:
+            case SshConfigParser.AlgorithmListOperation.Filter:
             {
                 List<Name> algorithms = new(defaultAlgorithms.Count);
                 foreach (var algo in defaultAlgorithms)

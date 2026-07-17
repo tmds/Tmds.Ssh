@@ -68,7 +68,7 @@ public class SshConfigTests
     [Fact]
     public async Task SupportedSettings()
     {
-        SshConfig config = await DetermineConfigAsync(SupportedSettingsConfig);
+        SshConfigParser config = await DetermineConfigAsync(SupportedSettingsConfig);
 
         VerifyConfig(config);
     }
@@ -83,12 +83,12 @@ public class SshConfigTests
         {SupportedSettingsConfig}
         {SupportedSettingsAlternateConfig}
         """;
-        SshConfig config = await DetermineConfigAsync(Config);
+        SshConfigParser config = await DetermineConfigAsync(Config);
 
         VerifyConfig(config);
     }
 
-    private void VerifyConfig(SshConfig config)
+    private void VerifyConfig(SshConfigParser config)
     {
         Assert.Equal("hostname", config.HostName);
         Assert.Equal("username", config.UserName);
@@ -137,7 +137,7 @@ public class SshConfigTests
         """;
 
 
-        SshConfig config = await DetermineConfigAsync(HostMatchConfig, host: "foo.bar");
+        SshConfigParser config = await DetermineConfigAsync(HostMatchConfig, host: "foo.bar");
 
         Assert.Equal(3000, config.Port);
         Assert.Equal(5000, config.ConnectTimeout);
@@ -188,7 +188,7 @@ public class SshConfigTests
         GssApiAuthentication yes
         """;
 
-        SshConfig config = await DetermineConfigAsync(MatchConfig, username: User, host: Host);
+        SshConfigParser config = await DetermineConfigAsync(MatchConfig, username: User, host: Host);
 
         Assert.Equal(3000, config.Port);
         Assert.Equal(4000, config.ConnectTimeout);
@@ -244,7 +244,7 @@ public class SshConfigTests
 
             string configFile = Path.Combine(configDir, "ssh_config");
             File.WriteAllText(configFile, IncludeConfig);
-            SshConfig config = await SshConfig.DetermineConfigForHost(userName: null, host: "", port: null, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [configFile], cancellationToken: default);
+            SshConfigParser config = await SshConfigParser.DetermineConfigForHost(userName: null, host: "", port: null, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [configFile], cancellationToken: default);
 
             Assert.Equal(2000, config.ConnectTimeout);
             Assert.Equal(6000, config.RequiredRSASize);
@@ -273,31 +273,31 @@ public class SshConfigTests
         PubKeyAcceptedAlgorithms pubkey1,pubkey2*
         """;
 
-        SshConfig config = await DetermineConfigAsync(Config);
+        SshConfigParser config = await DetermineConfigAsync(Config);
 
-        Assert.Equal(SshConfig.AlgorithmListOperation.Set, config.Ciphers!.Value.Operation);
+        Assert.Equal(SshConfigParser.AlgorithmListOperation.Set, config.Ciphers!.Value.Operation);
         Assert.Equal(new[] { new Name("cipher1"), new Name("cipher2")}, config.Ciphers!.Value.Algorithms);
 
-        Assert.Equal(SshConfig.AlgorithmListOperation.Append, config.HostKeyAlgorithms!.Value.Operation);
+        Assert.Equal(SshConfigParser.AlgorithmListOperation.Append, config.HostKeyAlgorithms!.Value.Operation);
         Assert.Equal(new[] { new Name("alg1"), new Name("alg2")}, config.HostKeyAlgorithms!.Value.Algorithms);
 
-        Assert.Equal(SshConfig.AlgorithmListOperation.Remove, config.KexAlgorithms!.Value.Operation);
+        Assert.Equal(SshConfigParser.AlgorithmListOperation.Remove, config.KexAlgorithms!.Value.Operation);
         Assert.Equal("kex1,kex2", config.KexAlgorithms!.Value.PatternList);
 
-        Assert.Equal(SshConfig.AlgorithmListOperation.Prepend, config.Macs!.Value.Operation);
+        Assert.Equal(SshConfigParser.AlgorithmListOperation.Prepend, config.Macs!.Value.Operation);
         Assert.Equal(new[] { new Name("mac1"), new Name("mac2")}, config.Macs!.Value.Algorithms);
 
-        Assert.Equal(SshConfig.AlgorithmListOperation.Filter, config.PublicKeyAcceptedAlgorithms!.Value.Operation);
+        Assert.Equal(SshConfigParser.AlgorithmListOperation.Filter, config.PublicKeyAcceptedAlgorithms!.Value.Operation);
         Assert.Equal("pubkey1,pubkey2*", config.PublicKeyAcceptedAlgorithms!.Value.PatternList);
     }
 
     [Fact]
     public void DetermineAlgorithms_Prepend()
     {
-        SshConfig.AlgorithmList list = new()
+        SshConfigParser.AlgorithmList list = new()
         {
             Algorithms = new[] { new Name("alg1"), new Name("alg2"), new Name("unsupported")},
-            Operation = SshConfig.AlgorithmListOperation.Prepend,
+            Operation = SshConfigParser.AlgorithmListOperation.Prepend,
             PatternList = ""
         };
 
@@ -312,10 +312,10 @@ public class SshConfigTests
     [Fact]
     public void DetermineAlgorithms_Append()
     {
-        SshConfig.AlgorithmList list = new()
+        SshConfigParser.AlgorithmList list = new()
         {
             Algorithms = new[] { new Name("alg1"), new Name("alg2"), new Name("unsupported")},
-            Operation = SshConfig.AlgorithmListOperation.Append,
+            Operation = SshConfigParser.AlgorithmListOperation.Append,
             PatternList = ""
         };
 
@@ -330,10 +330,10 @@ public class SshConfigTests
     [Fact]
     public void DetermineAlgorithms_Remove()
     {
-        SshConfig.AlgorithmList list = new()
+        SshConfigParser.AlgorithmList list = new()
         {
             Algorithms = Array.Empty<Name>(),
-            Operation = SshConfig.AlgorithmListOperation.Remove,
+            Operation = SshConfigParser.AlgorithmListOperation.Remove,
             PatternList = "alg3,alg4"
         };
 
@@ -348,10 +348,10 @@ public class SshConfigTests
     [Fact]
     public void DetermineAlgorithms_Filter()
     {
-        SshConfig.AlgorithmList list = new()
+        SshConfigParser.AlgorithmList list = new()
         {
             Algorithms = Array.Empty<Name>(),
-            Operation = SshConfig.AlgorithmListOperation.Filter,
+            Operation = SshConfigParser.AlgorithmListOperation.Filter,
             PatternList = "alg3,alg4"
         };
 
@@ -366,10 +366,10 @@ public class SshConfigTests
     [Fact]
     public void DetermineAlgorithms_Set()
     {
-        SshConfig.AlgorithmList list = new()
+        SshConfigParser.AlgorithmList list = new()
         {
             Algorithms = new[] { new Name("alg1"), new Name("alg2"), new Name("unsupported")},
-            Operation = SshConfig.AlgorithmListOperation.Set,
+            Operation = SshConfigParser.AlgorithmListOperation.Set,
             PatternList = ""
         };
 
@@ -390,7 +390,7 @@ public class SshConfigTests
         SendEnv -FOO BAR
         SendEnv BAZZ*
         """;
-        SshConfig config = await DetermineConfigAsync(Config);
+        SshConfigParser config = await DetermineConfigAsync(Config);
 
         Assert.Equal(new[] { "BAR", "BAZZ*" }, config.SendEnv);
     }
@@ -415,10 +415,10 @@ public class SshConfigTests
         Assert.Equal(expected, SshClientSettings.CreateEnvironmentVariables(environment, sendEnv));
     }
 
-    private static async Task<SshConfig> DetermineConfigAsync(string config, string? username = null, string host = "", int? port = null, CancellationToken cancellationToken = default)
+    private static async Task<SshConfigParser> DetermineConfigAsync(string config, string? username = null, string host = "", int? port = null, CancellationToken cancellationToken = default)
     {
         using TempFile tempFile = new TempFile(Path.GetTempFileName());
         File.WriteAllText(tempFile.Path, config);
-        return await SshConfig.DetermineConfigForHost(username, host, port, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [tempFile.Path], cancellationToken: default);
+        return await SshConfigParser.DetermineConfigForHost(username, host, port, new Dictionary<SshConfigOption, SshConfigOptionValue>(), [tempFile.Path], cancellationToken: default);
     }
 }
