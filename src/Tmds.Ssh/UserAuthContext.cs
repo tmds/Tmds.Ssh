@@ -9,6 +9,8 @@ namespace Tmds.Ssh;
 sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
+    private readonly SshConnectionInfo _connectionInfo;
+    private readonly BannerHandler? _bannerHandler;
     private readonly ILogger<SshClient> _logger;
     private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
@@ -25,9 +27,13 @@ sealed class UserAuthContext
         IReadOnlyList<Name> supportedPublicKeyAlgorithms, // what the library supports
         IReadOnlyList<Name>? allowedSignatureAlgorithms,  // what the server accepts
         int minimumRSAKeySize,
+        SshConnectionInfo connectionInfo,
+        BannerHandler? bannerHandler,
         ILogger<SshClient> logger)
     {
         _connection = connection;
+        _connectionInfo = connectionInfo;
+        _bannerHandler = bannerHandler;
         _logger = logger;
         UserName = userName;
         _supportedAcceptedPublicKeyAlgorithms = new HashSet<Name>(supportedPublicKeyAlgorithms);
@@ -104,9 +110,19 @@ sealed class UserAuthContext
                    time after this authentication protocol starts and before
                    authentication is successful. */
 
-                // TODO: provide the banner to the user.
+                if (_bannerHandler is { } bannerHandler)
+                {
+                    BannerContext bannerContext = ParseBanner(packet, _connectionInfo);
+                    packet.Dispose();
 
-                packet.Dispose();
+                    // The handler completes before the next packet is read, so a server that sends
+                    // a banner and then waits for the user to act on it is handled in order.
+                    await bannerHandler(bannerContext, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    packet.Dispose();
+                }
 
                 if (_bannerPacketCount++ > Constants.MaxBannerPackets)
                 {
@@ -205,6 +221,21 @@ sealed class UserAuthContext
     {
         _currentMethod = default;
         _authResult = AuthResult.Failure;
+    }
+
+    internal static BannerContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo)
+    {
+        var reader = packet.GetReader();
+        /*
+            byte         SSH_MSG_USERAUTH_BANNER
+            string       message in ISO-10646 UTF-8 encoding [RFC3629]
+            string       language tag [RFC3066]
+        */
+        reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_BANNER);
+        string message = reader.ReadUtf8String();
+        string languageTag = reader.ReadUtf8String();
+
+        return new BannerContext(message, languageTag, connectionInfo);
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)

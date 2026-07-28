@@ -86,6 +86,7 @@ public class SshServer : IDisposable
     private readonly string _krbConfigFilePath;
     private readonly string _sshConfigFilePath;
     private readonly string? _sshdConfigFilePath;
+    private readonly List<string> _extraFilePaths = new();
     private readonly IMessageSink _messageSink;
     private bool _useDockerInstead;
 
@@ -98,7 +99,10 @@ public class SshServer : IDisposable
         _messageSink.OnMessage(new Xunit.v3.DiagnosticMessage(message));
     }
 
-    protected SshServer(string? sshdConfig, IMessageSink messageSink, string userPassword = "secret")
+    /// <param name="extraFiles">Files to mount in the container, keyed by their path in the container.
+    /// Needed for sshd options that take a file path, like 'Banner'.</param>
+    protected SshServer(string? sshdConfig, IMessageSink messageSink, string userPassword = "secret",
+        IReadOnlyDictionary<string, string>? extraFiles = null)
     {
         TestUserPassword = userPassword;
         ContainerImageName = $"test_{GetType().Name.ToLowerInvariant()}:latest";
@@ -130,6 +134,16 @@ public class SshServer : IDisposable
                 runArgs.AddRange(
                     [ "-v", $"{_sshdConfigFilePath}:/etc/ssh/sshd_config.d/10-custom.conf:z" ]
                 );
+            }
+            if (extraFiles is not null)
+            {
+                foreach (var extraFile in extraFiles)
+                {
+                    string path = Path.GetTempFileName();
+                    File.WriteAllText(path, extraFile.Value);
+                    _extraFilePaths.Add(path);
+                    runArgs.AddRange([ "-v", $"{path}:{extraFile.Key}:z" ]);
+                }
             }
             _containerId = LastWord(Run("podman", ["run", ..runArgs, ContainerImageName]));
             var stopwatch = Stopwatch.StartNew();
@@ -291,6 +305,10 @@ public class SshServer : IDisposable
             if (_sshdConfigFilePath != null)
             {
                 File.Delete(_sshdConfigFilePath);
+            }
+            foreach (string extraFilePath in _extraFilePaths)
+            {
+                File.Delete(extraFilePath);
             }
             if (_containerId != null)
             {
@@ -520,6 +538,35 @@ public class NoneAuthSshServer : SshServer
 
 [CollectionDefinition(nameof(NoneAuthSshServerCollection))]
 public class NoneAuthSshServerCollection : ICollectionFixture<NoneAuthSshServer>
+{
+    // This class has no code, and is never created. Its purpose is simply
+    // to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
+}
+
+public class BannerSshServer : SshServer
+{
+    public const string BannerFilePath = "/etc/ssh/test_banner";
+
+    public const string BannerMessage =
+        """
+        Authorized use only.
+        Second line of the banner.
+        """;
+
+    public const string Config =
+        $"""
+        Banner {BannerFilePath}
+        """;
+
+    public BannerSshServer(IMessageSink messageSink) :
+        base(Config, messageSink,
+            extraFiles: new Dictionary<string, string>() { [BannerFilePath] = BannerMessage })
+    { }
+}
+
+[CollectionDefinition(nameof(BannerSshServerCollection))]
+public class BannerSshServerCollection : ICollectionFixture<BannerSshServer>
 {
     // This class has no code, and is never created. Its purpose is simply
     // to be the place to apply [CollectionDefinition] and all the
