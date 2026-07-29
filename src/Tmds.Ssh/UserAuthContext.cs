@@ -110,23 +110,32 @@ sealed class UserAuthContext
                    time after this authentication protocol starts and before
                    authentication is successful. */
 
-                if (_bannerHandler is { } bannerHandler)
+                BannerHandler? bannerHandler = _bannerHandler;
+                BannerContext bannerContext = default;
+                try
                 {
-                    BannerContext bannerContext = ParseBanner(packet, _connectionInfo);
-                    packet.Dispose();
+                    // Check the limit before parsing or invoking user code. Preserve the existing
+                    // counting semantics while ensuring an over-limit packet is not observed.
+                    if (_bannerPacketCount++ > Constants.MaxBannerPackets)
+                    {
+                        ThrowHelper.ThrowBannerTooLong();
+                    }
 
+                    if (bannerHandler is not null)
+                    {
+                        bannerContext = ParseBanner(packet, _connectionInfo);
+                    }
+                }
+                finally
+                {
+                    packet.Dispose();
+                }
+
+                if (bannerHandler is not null)
+                {
                     // The handler completes before the next packet is read, so a server that sends
                     // a banner and then waits for the user to act on it is handled in order.
                     await bannerHandler(bannerContext, ct).ConfigureAwait(false);
-                }
-                else
-                {
-                    packet.Dispose();
-                }
-
-                if (_bannerPacketCount++ > Constants.MaxBannerPackets)
-                {
-                    ThrowHelper.ThrowBannerTooLong();
                 }
             }
             else
@@ -234,6 +243,7 @@ sealed class UserAuthContext
         reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_BANNER);
         string message = reader.ReadUtf8String();
         string languageTag = reader.ReadUtf8String();
+        reader.ReadEnd();
 
         return new BannerContext(message, languageTag, connectionInfo);
     }

@@ -40,6 +40,34 @@ public class BannerServerTests
 
         await client.ConnectAsync();
     }
+
+    [Fact]
+    public async Task Connect_WaitsForBannerHandler()
+    {
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completeHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var settings = _sshServer.CreateSshClientSettings(s =>
+            s.BannerHandler = async (context, ct) =>
+            {
+                handlerStarted.SetResult();
+                await completeHandler.Task.WaitAsync(ct);
+            });
+
+        using var client = new SshClient(settings);
+        Task connectTask = client.ConnectAsync();
+
+        try
+        {
+            await handlerStarted.Task.TimeoutAfter(TimeSpan.FromSeconds(5));
+            Assert.False(connectTask.IsCompleted);
+        }
+        finally
+        {
+            completeHandler.TrySetResult();
+        }
+
+        await connectTask;
+    }
 }
 
 public class BannerTests
@@ -77,13 +105,29 @@ public class BannerTests
         Assert.Equal(message, context.Message);
     }
 
-    private static Packet CreateBannerPacket(string message, string languageTag)
+    [Fact]
+    public void ParseBanner_RejectsTrailingData()
+    {
+        using Packet packet = CreateBannerPacket("Welcome.", "", addTrailingByte: true);
+
+        Assert.Throws<InvalidDataException>(
+            () => UserAuthContext.ParseBanner(packet, new SshConnectionInfo()));
+    }
+
+    private static Packet CreateBannerPacket(
+        string message,
+        string languageTag,
+        bool addTrailingByte = false)
     {
         using var packet = new SequencePool().RentPacket();
         var writer = packet.GetWriter();
         writer.WriteMessageId(MessageId.SSH_MSG_USERAUTH_BANNER);
         writer.WriteString(message);
         writer.WriteString(languageTag);
+        if (addTrailingByte)
+        {
+            writer.WriteByte(0);
+        }
         return packet.Move();
     }
 }
