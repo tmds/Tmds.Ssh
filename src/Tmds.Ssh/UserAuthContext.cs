@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Text;
 
 namespace Tmds.Ssh;
 
@@ -10,7 +11,7 @@ sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
     private readonly SshConnectionInfo _connectionInfo;
-    private readonly BannerHandler? _bannerHandler;
+    private readonly BannerMessageHandler? _bannerMessageHandler;
     private readonly ILogger<SshClient> _logger;
     private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
@@ -28,12 +29,12 @@ sealed class UserAuthContext
         IReadOnlyList<Name>? allowedSignatureAlgorithms,  // what the server accepts
         int minimumRSAKeySize,
         SshConnectionInfo connectionInfo,
-        BannerHandler? bannerHandler,
+        BannerMessageHandler? bannerMessageHandler,
         ILogger<SshClient> logger)
     {
         _connection = connection;
         _connectionInfo = connectionInfo;
-        _bannerHandler = bannerHandler;
+        _bannerMessageHandler = bannerMessageHandler;
         _logger = logger;
         UserName = userName;
         _supportedAcceptedPublicKeyAlgorithms = new HashSet<Name>(supportedPublicKeyAlgorithms);
@@ -110,8 +111,8 @@ sealed class UserAuthContext
                    time after this authentication protocol starts and before
                    authentication is successful. */
 
-                BannerHandler? bannerHandler = _bannerHandler;
-                BannerContext bannerContext = default;
+                BannerMessageHandler? bannerMessageHandler = _bannerMessageHandler;
+                BannerMessageContext bannerMessageContext = default;
                 try
                 {
                     // Check the limit before parsing or invoking user code. Preserve the existing
@@ -121,9 +122,9 @@ sealed class UserAuthContext
                         ThrowHelper.ThrowBannerTooLong();
                     }
 
-                    if (bannerHandler is not null)
+                    if (bannerMessageHandler is not null)
                     {
-                        bannerContext = ParseBanner(packet, _connectionInfo);
+                        bannerMessageContext = ParseBanner(packet, _connectionInfo);
                     }
                 }
                 finally
@@ -131,11 +132,9 @@ sealed class UserAuthContext
                     packet.Dispose();
                 }
 
-                if (bannerHandler is not null)
+                if (bannerMessageHandler is not null)
                 {
-                    // The handler completes before the next packet is read, so a server that sends
-                    // a banner and then waits for the user to act on it is handled in order.
-                    await bannerHandler(bannerContext, ct).ConfigureAwait(false);
+                    bannerMessageHandler(bannerMessageContext);
                 }
             }
             else
@@ -232,7 +231,7 @@ sealed class UserAuthContext
         _authResult = AuthResult.Failure;
     }
 
-    internal static BannerContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo)
+    internal static BannerMessageContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo)
     {
         var reader = packet.GetReader();
         /*
@@ -242,10 +241,50 @@ sealed class UserAuthContext
         */
         reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_BANNER);
         string message = reader.ReadUtf8String();
-        string languageTag = reader.ReadUtf8String();
+        reader.SkipString(); // language tag
         reader.ReadEnd();
 
-        return new BannerContext(message, languageTag, connectionInfo);
+        return new BannerMessageContext(EscapeControlCharacters(message), connectionInfo);
+    }
+
+    // Match OpenSSH: keep tab, carriage return, and newline; replace other control
+    // characters by an octal escape sequence per UTF-8 byte (RFC 4251 section 9.2).
+    internal static string EscapeControlCharacters(string message)
+    {
+        StringBuilder? builder = null;
+        int copiedUpTo = 0;
+        int index = 0;
+        Span<byte> utf8 = stackalloc byte[4];
+
+        foreach (Rune rune in message.EnumerateRunes())
+        {
+            if (Rune.IsControl(rune) && rune.Value is not ('\t' or '\n' or '\r'))
+            {
+                builder ??= new StringBuilder(message.Length + 16);
+                builder.Append(message, copiedUpTo, index - copiedUpTo);
+
+                int byteCount = rune.EncodeToUtf8(utf8);
+                for (int i = 0; i < byteCount; i++)
+                {
+                    byte b = utf8[i];
+                    builder.Append('\\')
+                           .Append((char)('0' + ((b >> 6) & 7)))
+                           .Append((char)('0' + ((b >> 3) & 7)))
+                           .Append((char)('0' + (b & 7)));
+                }
+
+                copiedUpTo = index + rune.Utf16SequenceLength;
+            }
+            index += rune.Utf16SequenceLength;
+        }
+
+        if (builder is null)
+        {
+            return message;
+        }
+
+        builder.Append(message, copiedUpTo, message.Length - copiedUpTo);
+        return builder.ToString();
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)

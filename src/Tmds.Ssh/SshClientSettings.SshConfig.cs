@@ -57,7 +57,7 @@ partial class SshClientSettings
             KeepAliveInterval = sshConfig.ServerAliveInterval > 0 ? TimeSpan.FromSeconds(sshConfig.ServerAliveInterval.Value) : TimeSpan.Zero,
             Proxy = DetermineProxy(sshConfig.ProxyJump, options),
             BatchMode = sshConfig.BatchMode ?? false,
-            BannerHandler = options.BannerHandler
+            BannerMessageHandler = options.BannerMessageHandler
         };
         if (sshConfig.UserKnownHostsFiles is not null)
         {
@@ -351,7 +351,7 @@ partial class SshClientSettings
                 ConfigFilePaths = configFilePaths,
                 ConnectTimeout = options.ConnectTimeout,
                 HostAuthentication = options.HostAuthentication,
-                BannerHandler = options.BannerHandler
+                BannerMessageHandler = options.BannerMessageHandler
             };
 
             if (!isFirst)

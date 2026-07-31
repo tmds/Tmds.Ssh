@@ -6,12 +6,11 @@ namespace Tmds.Ssh;
 /// <summary>
 /// Context for a banner message sent by the server during authentication.
 /// </summary>
-public struct BannerContext
+public struct BannerMessageContext
 {
-    internal BannerContext(string message, string languageTag, SshConnectionInfo connectionInfo)
+    internal BannerMessageContext(string message, SshConnectionInfo connectionInfo)
     {
         Message = message;
-        LanguageTag = languageTag;
         ConnectionInfo = connectionInfo;
     }
 
@@ -19,40 +18,25 @@ public struct BannerContext
     /// Gets the banner message.
     /// </summary>
     /// <remarks>
-    /// The message is under the control of the server. It may be empty, span multiple lines, and
-    /// contain control characters. Treat it as untrusted when displaying it to a user.
+    /// The message may be empty and may span multiple lines. Control characters other than tab,
+    /// carriage return, and newline are replaced by escape sequences, so the message is safe to
+    /// write to a terminal.
     /// </remarks>
     public string Message { get; }
-
-    /// <summary>
-    /// Gets the language tag of the message, as described in RFC 3066. Often empty.
-    /// </summary>
-    public string LanguageTag { get; }
 
     /// <summary>
     /// Gets the SSH connection information.
     /// </summary>
     public SshConnectionInfo ConnectionInfo { get; }
-
-    /// <summary>
-    /// Returns whether batch (non-interactive) mode is enabled.
-    /// </summary>
-    /// <remarks>
-    /// In batch mode the <see cref="BannerHandler"/> delegate mustn't make interactive prompts.
-    /// </remarks>
-    public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 }
 
 /// <summary>
 /// Delegate for handling banner messages sent by the server.
 /// </summary>
-/// <param name="context">The banner context.</param>
-/// <param name="cancellationToken">Token to cancel the operation.</param>
+/// <param name="context">The banner message context.</param>
 /// <remarks>
 /// The server may send a banner at any time after the authentication protocol starts and before
-/// authentication succeeds, and may send several. Authentication does not continue until the
-/// delegate completes, so a delegate that waits for the user also delays the connection. Bear in
-/// mind that <see cref="SshClientSettings.ConnectTimeout"/> bounds the entire authenticated
-/// connect, including time spent in this delegate.
+/// authentication succeeds, and may send several. The next packet is not read until the delegate
+/// returns.
 /// </remarks>
-public delegate ValueTask BannerHandler(BannerContext context, CancellationToken cancellationToken);
+public delegate void BannerMessageHandler(BannerMessageContext context);

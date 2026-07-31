@@ -304,6 +304,18 @@ Credentials = [ new KerberosCredential() ]
 Credentials = [ new KerberosCredential(new NetworkCredential("user", "password", "REALM"), delegateCredential: true) ]
 ```
 
+#### Authentication Banners
+
+An SSH server may send banner messages while authenticating. Set <xref:Tmds.Ssh.SshClientSettings.BannerMessageHandler> to handle each message. The handler is also available as <xref:Tmds.Ssh.SshConfigSettings.BannerMessageHandler>. When it is unset, banners are ignored. Control characters other than tab, carriage return, and newline are replaced by escape sequences so the message is safe to write to a terminal:
+
+```csharp
+var settings = new SshClientSettings("user@example.com")
+{
+    BannerMessageHandler = (BannerMessageContext context) =>
+        Console.Error.Write(context.Message),
+};
+```
+
 ### Server Authentication
 
 By default, the server's host key is verified against the OpenSSH `known_hosts` files. The <xref:Tmds.Ssh.SshClientSettings.UserKnownHostsFilePaths> and <xref:Tmds.Ssh.SshClientSettings.GlobalKnownHostsFilePaths> properties control which files are used.

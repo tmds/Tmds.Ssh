@@ -47,6 +47,10 @@ RUN echo 'PerSourcePenaltyExemptList "0.0.0.0/0,::/0"' > /etc/ssh/sshd_config.d/
 # Accept TEST_ENVVAR.
 RUN echo 'AcceptEnv TEST_ENVVAR' > /etc/ssh/sshd_config.d/99-accept-envvar.conf
 
+# Send a banner during user authentication.
+RUN printf 'Authorized use only.\nSecond line of the banner.\n' > /etc/ssh/test_banner && \
+    echo 'Banner /etc/ssh/test_banner' > /etc/ssh/sshd_config.d/95-banner.conf
+
 # Configure KDC and setup keytab
 COPY krb5.conf /etc/krb5.conf
 COPY kadm5.acl /var/kerberos/krb5kdc/kadm5.acl

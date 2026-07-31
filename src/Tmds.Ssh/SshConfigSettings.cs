@@ -38,7 +38,7 @@ public sealed class SshConfigSettings
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
     private HostAuthentication? _hostAuthentication;
     private PasswordPrompt? _passwordPrompt;
-    private BannerHandler? _bannerHandler;
+    private BannerMessageHandler? _bannerMessageHandler;
 
     // Avoid allocations from the public getters.
     internal IReadOnlyList<string> ConfigFilePathsOrDefault
@@ -180,14 +180,14 @@ public sealed class SshConfigSettings
     /// <remarks>
     /// When unset, banners are ignored.
     /// </remarks>
-    public BannerHandler? BannerHandler
+    public BannerMessageHandler? BannerMessageHandler
     {
-        get => _bannerHandler;
+        get => _bannerMessageHandler;
         set
         {
             ThrowIfLocked();
 
-            _bannerHandler = value;
+            _bannerMessageHandler = value;
         }
     }
 
