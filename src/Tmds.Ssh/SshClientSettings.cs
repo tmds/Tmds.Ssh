@@ -344,7 +344,7 @@ public sealed partial class SshClientSettings
 
         // Host auth.
         settings.HostAuthentication = HostAuthentication;
-        settings.BannerMessageHandler = BannerMessageHandler;
+        settings.BannerHandler = BannerHandler;
         if (_globalKnownHostsFilePaths is not null)
         {
             settings.GlobalKnownHostsFilePaths = GlobalKnownHostsFilePaths;
@@ -423,13 +423,13 @@ public sealed partial class SshClientSettings
     public HostAuthentication? HostAuthentication { get; set; }
 
     /// <summary>
-    /// Gets or sets the <see cref="Tmds.Ssh.BannerMessageHandler"/> delegate.
+    /// Gets or sets the <see cref="Tmds.Ssh.BannerHandler"/> delegate.
     /// </summary>
     /// <remarks>
     /// When set, the delegate is called for each banner the server sends during authentication.
     /// When unset, banners are ignored.
     /// </remarks>
-    public BannerMessageHandler? BannerMessageHandler { get; set; }
+    public BannerHandler? BannerHandler { get; set; }
 
     /// <summary>
     /// Gets or sets whether to automatically connect when the client is used.

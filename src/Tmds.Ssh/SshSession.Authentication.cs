@@ -42,7 +42,7 @@ sealed partial class SshSession
             connection, _settings.UserName,
             _settings.ClientKeyAlgorithmsOrDefault, SshClientSettings.SupportedClientKeyAlgorithms,
             keySignatureAlgorithms,
-            _settings.MinimumRSAKeySize, ConnectionInfo, _settings.BannerMessageHandler, Logger);
+            _settings.MinimumRSAKeySize, ConnectionInfo, _settings.BannerHandler, Logger);
 
         HashSet<Name>? rejectedMethods = null;
         HashSet<Name>? failedMethods = null;

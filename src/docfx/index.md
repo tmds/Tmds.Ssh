@@ -304,18 +304,6 @@ Credentials = [ new KerberosCredential() ]
 Credentials = [ new KerberosCredential(new NetworkCredential("user", "password", "REALM"), delegateCredential: true) ]
 ```
 
-#### Authentication Banners
-
-An SSH server may send banner messages while authenticating. Set <xref:Tmds.Ssh.SshClientSettings.BannerMessageHandler> to handle each message. The handler is also available as <xref:Tmds.Ssh.SshConfigSettings.BannerMessageHandler>. When it is unset, banners are ignored. Control characters other than tab, carriage return, and newline are replaced by escape sequences so the message is safe to write to a terminal:
-
-```csharp
-var settings = new SshClientSettings("user@example.com")
-{
-    BannerMessageHandler = (BannerMessageContext context) =>
-        Console.Error.Write(context.Message),
-};
-```
-
 ### Server Authentication
 
 By default, the server's host key is verified against the OpenSSH `known_hosts` files. The <xref:Tmds.Ssh.SshClientSettings.UserKnownHostsFilePaths> and <xref:Tmds.Ssh.SshClientSettings.GlobalKnownHostsFilePaths> properties control which files are used.
@@ -345,16 +333,17 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `AutoConnect` | `true` | Automatically connect on first operation. |
 | `AutoReconnect` | `false` | Reconnect automatically after an unexpected disconnect on the next operation. |
-| `TcpKeepAlive` | `true` | Enable TCP keep-alive. |
-| `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
-| `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
+| `BannerHandler` | | Called for each banner message the server sends during authentication; control characters are escaped. When unset, banners are ignored. |
 | `BatchMode` | `false` | Disable interactive prompts. |
+| `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `EnableBatchModeWhenConsoleIsRedirected` | `true` | Automatically enable batch mode when the console is redirected. |
-| `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
+| `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
+| `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
+| `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
+| `TcpKeepAlive` | `true` | Enable TCP keep-alive. |
 
 ### Jump hosts
 

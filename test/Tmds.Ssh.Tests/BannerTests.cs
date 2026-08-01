@@ -13,12 +13,12 @@ public class BannerServerTests
     }
 
     [Fact]
-    public async Task BannerMessageHandler_ReceivesTheServerBanner()
+    public async Task BannerHandler_ReceivesTheServerBanner()
     {
         List<string> banners = new();
 
         var settings = _sshServer.CreateSshClientSettings(s =>
-            s.BannerMessageHandler = context => banners.Add(context.Message));
+            s.BannerHandler = context => banners.Add(context.Message));
 
         using var client = new SshClient(settings);
         await client.ConnectAsync();
@@ -74,12 +74,12 @@ public class BannerTests
     [Theory]
     [InlineData("", "")]
     [InlineData("line one\r\n\tline two", "line one\r\n\tline two")]
-    [InlineData("\0", "\\000")]
-    [InlineData("\a", "\\007")]
-    [InlineData("\u001b[2J", "\\033[2J")]
-    [InlineData("\u007f", "\\177")]
-    [InlineData("\u0085", "\\302\\205")]
-    public void EscapeControlCharacters_UsesOpenSshSemantics(string message, string expected)
+    [InlineData("\0", "\\u0000")]
+    [InlineData("\a", "\\u0007")]
+    [InlineData("\u001b[2J", "\\u001B[2J")]
+    [InlineData("\u007f", "\\u007F")]
+    [InlineData("\u0085", "\\u0085")]
+    public void EscapeControlCharacters_EscapesAsUnicodeHex(string message, string expected)
     {
         Assert.Equal(expected, UserAuthContext.EscapeControlCharacters(message));
     }

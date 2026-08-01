@@ -2,6 +2,7 @@
 // See file LICENSE for full license details.
 
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 using System.Diagnostics;
 using System.Text;
 
@@ -11,7 +12,7 @@ sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
     private readonly SshConnectionInfo _connectionInfo;
-    private readonly BannerMessageHandler? _bannerMessageHandler;
+    private readonly BannerHandler? _bannerHandler;
     private readonly ILogger<SshClient> _logger;
     private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
@@ -29,12 +30,12 @@ sealed class UserAuthContext
         IReadOnlyList<Name>? allowedSignatureAlgorithms,  // what the server accepts
         int minimumRSAKeySize,
         SshConnectionInfo connectionInfo,
-        BannerMessageHandler? bannerMessageHandler,
+        BannerHandler? bannerHandler,
         ILogger<SshClient> logger)
     {
         _connection = connection;
         _connectionInfo = connectionInfo;
-        _bannerMessageHandler = bannerMessageHandler;
+        _bannerHandler = bannerHandler;
         _logger = logger;
         UserName = userName;
         _supportedAcceptedPublicKeyAlgorithms = new HashSet<Name>(supportedPublicKeyAlgorithms);
@@ -111,7 +112,7 @@ sealed class UserAuthContext
                    time after this authentication protocol starts and before
                    authentication is successful. */
 
-                BannerMessageHandler? bannerMessageHandler = _bannerMessageHandler;
+                BannerHandler? bannerHandler = _bannerHandler;
                 BannerMessageContext bannerMessageContext = default;
                 try
                 {
@@ -122,7 +123,7 @@ sealed class UserAuthContext
                         ThrowHelper.ThrowBannerTooLong();
                     }
 
-                    if (bannerMessageHandler is not null)
+                    if (bannerHandler is not null)
                     {
                         bannerMessageContext = ParseBanner(packet, _connectionInfo);
                     }
@@ -132,9 +133,9 @@ sealed class UserAuthContext
                     packet.Dispose();
                 }
 
-                if (bannerMessageHandler is not null)
+                if (bannerHandler is not null)
                 {
-                    bannerMessageHandler(bannerMessageContext);
+                    bannerHandler(bannerMessageContext);
                 }
             }
             else
@@ -247,44 +248,88 @@ sealed class UserAuthContext
         return new BannerMessageContext(EscapeControlCharacters(message), connectionInfo);
     }
 
-    // Match OpenSSH: keep tab, carriage return, and newline; replace other control
-    // characters by an octal escape sequence per UTF-8 byte (RFC 4251 section 9.2).
-    internal static string EscapeControlCharacters(string message)
+    // Built from ShouldEscape so the vectorized scan can never drift from the scalar predicate.
+    private static readonly SearchValues<char> BannerCharsToEscape = CreateBannerCharsToEscape();
+
+    private static SearchValues<char> CreateBannerCharsToEscape()
     {
-        StringBuilder? builder = null;
-        int copiedUpTo = 0;
-        int index = 0;
-        Span<byte> utf8 = stackalloc byte[4];
-
-        foreach (Rune rune in message.EnumerateRunes())
+        // ShouldEscape only returns true for characters in the C0/DEL/C1 range (<= U+009F),
+        // so there is no need to scan the rest of the BMP when building the set.
+        Span<char> chars = stackalloc char[0xA0];
+        int count = 0;
+        for (char c = '\0'; c <= '\u009F'; c++)
         {
-            if (Rune.IsControl(rune) && rune.Value is not ('\t' or '\n' or '\r'))
+            if (ShouldEscape(c))
             {
-                builder ??= new StringBuilder(message.Length + 16);
-                builder.Append(message, copiedUpTo, index - copiedUpTo);
-
-                int byteCount = rune.EncodeToUtf8(utf8);
-                for (int i = 0; i < byteCount; i++)
-                {
-                    byte b = utf8[i];
-                    builder.Append('\\')
-                           .Append((char)('0' + ((b >> 6) & 7)))
-                           .Append((char)('0' + ((b >> 3) & 7)))
-                           .Append((char)('0' + (b & 7)));
-                }
-
-                copiedUpTo = index + rune.Utf16SequenceLength;
+                chars[count++] = c;
             }
-            index += rune.Utf16SequenceLength;
         }
 
-        if (builder is null)
+        return SearchValues.Create(chars.Slice(0, count));
+    }
+
+    private static bool ShouldEscape(char c)
+    {
+        // Escape the control characters that can drive terminal escape sequences when the banner
+        // is written to a console: the C0 range (U+0000-U+001F), DEL (U+007F) and the C1 range
+        // (U+0080-U+009F). Tab, newline and carriage return are preserved.
+        if (c is '\t' or '\n' or '\r')
+        {
+            return false;
+        }
+
+        return c <= '\u001F' || (c >= '\u007F' && c <= '\u009F');
+    }
+
+    // Escapes like Microsoft.Extensions.Logging.Console ConsoleControlCharacterSanitizer.
+    internal static string EscapeControlCharacters(string message)
+    {
+        ReadOnlySpan<char> remaining = message;
+        int firstEscapedCharacterIndex = remaining.IndexOfAny(BannerCharsToEscape);
+        if (firstEscapedCharacterIndex < 0)
         {
             return message;
         }
 
-        builder.Append(message, copiedUpTo, message.Length - copiedUpTo);
-        return builder.ToString();
+        var escaped = new ValueStringBuilder(stackalloc char[256]);
+        escaped.Append(remaining.Slice(0, firstEscapedCharacterIndex));
+        remaining = remaining.Slice(firstEscapedCharacterIndex);
+
+        while (true)
+        {
+            // remaining[0] is always a character that must be escaped.
+            AppendEscaped(ref escaped, remaining[0]);
+            remaining = remaining.Slice(1);
+
+            int next = remaining.IndexOfAny(BannerCharsToEscape);
+            if (next < 0)
+            {
+                escaped.Append(remaining);
+                break;
+            }
+
+            escaped.Append(remaining.Slice(0, next));
+            remaining = remaining.Slice(next);
+        }
+
+        return escaped.ToString();
+    }
+
+    private static void AppendEscaped(ref ValueStringBuilder builder, char c)
+    {
+        Span<char> escaped = builder.AppendSpan(6);
+        escaped[0] = '\\';
+        escaped[1] = 'u';
+        escaped[2] = ToHexChar(c >> 12);
+        escaped[3] = ToHexChar(c >> 8);
+        escaped[4] = ToHexChar(c >> 4);
+        escaped[5] = ToHexChar(c);
+    }
+
+    private static char ToHexChar(int nibble)
+    {
+        nibble &= 0xF;
+        return (char)(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)

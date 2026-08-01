@@ -39,4 +39,4 @@ public struct BannerMessageContext
 /// authentication succeeds, and may send several. The next packet is not read until the delegate
 /// returns.
 /// </remarks>
-public delegate void BannerMessageHandler(BannerMessageContext context);
+public delegate void BannerHandler(BannerMessageContext context);
