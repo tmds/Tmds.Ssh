@@ -333,16 +333,17 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `AutoConnect` | `true` | Automatically connect on first operation. |
 | `AutoReconnect` | `false` | Reconnect automatically after an unexpected disconnect on the next operation. |
-| `TcpKeepAlive` | `true` | Enable TCP keep-alive. |
-| `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
-| `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
+| `BannerHandler` | | Called for each banner message the server sends during authentication; control characters are escaped. When unset, banners are ignored. |
 | `BatchMode` | `false` | Disable interactive prompts. |
+| `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `EnableBatchModeWhenConsoleIsRedirected` | `true` | Automatically enable batch mode when the console is redirected. |
-| `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
+| `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
+| `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
+| `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
+| `TcpKeepAlive` | `true` | Enable TCP keep-alive. |
 
 ### Jump hosts
 

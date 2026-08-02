@@ -381,6 +381,9 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
     }
     configSettings.Options = optionsDict;
 
+    configSettings.BannerHandler = (BannerMessageContext ctx) =>
+        Console.Error.Write(ctx.Message);
+
     configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
     {
         if (ctx.IsBatchMode)

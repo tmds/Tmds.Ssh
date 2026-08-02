@@ -2,13 +2,17 @@
 // See file LICENSE for full license details.
 
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 using System.Diagnostics;
+using System.Text;
 
 namespace Tmds.Ssh;
 
 sealed class UserAuthContext
 {
     private readonly SshConnection _connection;
+    private readonly SshConnectionInfo _connectionInfo;
+    private readonly BannerHandler? _bannerHandler;
     private readonly ILogger<SshClient> _logger;
     private readonly HashSet<SshKeyData> _publicKeysToSkip = new(); // track keys that were already attempted.
     private HashSet<Name>? _acceptedPublicKeyAlgorithms; // Allowed algorithms by config/server.
@@ -25,9 +29,13 @@ sealed class UserAuthContext
         IReadOnlyList<Name> supportedPublicKeyAlgorithms, // what the library supports
         IReadOnlyList<Name>? allowedSignatureAlgorithms,  // what the server accepts
         int minimumRSAKeySize,
+        SshConnectionInfo connectionInfo,
+        BannerHandler? bannerHandler,
         ILogger<SshClient> logger)
     {
         _connection = connection;
+        _connectionInfo = connectionInfo;
+        _bannerHandler = bannerHandler;
         _logger = logger;
         UserName = userName;
         _supportedAcceptedPublicKeyAlgorithms = new HashSet<Name>(supportedPublicKeyAlgorithms);
@@ -104,13 +112,30 @@ sealed class UserAuthContext
                    time after this authentication protocol starts and before
                    authentication is successful. */
 
-                // TODO: provide the banner to the user.
-
-                packet.Dispose();
-
-                if (_bannerPacketCount++ > Constants.MaxBannerPackets)
+                BannerHandler? bannerHandler = _bannerHandler;
+                BannerMessageContext bannerMessageContext = default;
+                try
                 {
-                    ThrowHelper.ThrowBannerTooLong();
+                    // Check the limit before parsing or invoking user code. Preserve the existing
+                    // counting semantics while ensuring an over-limit packet is not observed.
+                    if (_bannerPacketCount++ > Constants.MaxBannerPackets)
+                    {
+                        ThrowHelper.ThrowBannerTooLong();
+                    }
+
+                    if (bannerHandler is not null)
+                    {
+                        bannerMessageContext = ParseBanner(packet, _connectionInfo);
+                    }
+                }
+                finally
+                {
+                    packet.Dispose();
+                }
+
+                if (bannerHandler is not null)
+                {
+                    bannerHandler(bannerMessageContext);
                 }
             }
             else
@@ -205,6 +230,106 @@ sealed class UserAuthContext
     {
         _currentMethod = default;
         _authResult = AuthResult.Failure;
+    }
+
+    internal static BannerMessageContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo)
+    {
+        var reader = packet.GetReader();
+        /*
+            byte         SSH_MSG_USERAUTH_BANNER
+            string       message in ISO-10646 UTF-8 encoding [RFC3629]
+            string       language tag [RFC3066]
+        */
+        reader.ReadMessageId(MessageId.SSH_MSG_USERAUTH_BANNER);
+        string message = reader.ReadUtf8String();
+        reader.SkipString(); // language tag
+        reader.ReadEnd();
+
+        return new BannerMessageContext(EscapeControlCharacters(message), connectionInfo);
+    }
+
+    // Built from ShouldEscape so the vectorized scan can never drift from the scalar predicate.
+    private static readonly SearchValues<char> BannerCharsToEscape = CreateBannerCharsToEscape();
+
+    private static SearchValues<char> CreateBannerCharsToEscape()
+    {
+        // ShouldEscape only returns true for characters in the C0/DEL/C1 range (<= U+009F),
+        // so there is no need to scan the rest of the BMP when building the set.
+        Span<char> chars = stackalloc char[0xA0];
+        int count = 0;
+        for (char c = '\0'; c <= '\u009F'; c++)
+        {
+            if (ShouldEscape(c))
+            {
+                chars[count++] = c;
+            }
+        }
+
+        return SearchValues.Create(chars.Slice(0, count));
+    }
+
+    private static bool ShouldEscape(char c)
+    {
+        // Escape the control characters that can drive terminal escape sequences when the banner
+        // is written to a console: the C0 range (U+0000-U+001F), DEL (U+007F) and the C1 range
+        // (U+0080-U+009F). Tab, newline and carriage return are preserved.
+        if (c is '\t' or '\n' or '\r')
+        {
+            return false;
+        }
+
+        return c <= '\u001F' || (c >= '\u007F' && c <= '\u009F');
+    }
+
+    // Escapes like Microsoft.Extensions.Logging.Console ConsoleControlCharacterSanitizer.
+    internal static string EscapeControlCharacters(string message)
+    {
+        ReadOnlySpan<char> remaining = message;
+        int firstEscapedCharacterIndex = remaining.IndexOfAny(BannerCharsToEscape);
+        if (firstEscapedCharacterIndex < 0)
+        {
+            return message;
+        }
+
+        var escaped = new ValueStringBuilder(stackalloc char[256]);
+        escaped.Append(remaining.Slice(0, firstEscapedCharacterIndex));
+        remaining = remaining.Slice(firstEscapedCharacterIndex);
+
+        while (true)
+        {
+            // remaining[0] is always a character that must be escaped.
+            AppendEscaped(ref escaped, remaining[0]);
+            remaining = remaining.Slice(1);
+
+            int next = remaining.IndexOfAny(BannerCharsToEscape);
+            if (next < 0)
+            {
+                escaped.Append(remaining);
+                break;
+            }
+
+            escaped.Append(remaining.Slice(0, next));
+            remaining = remaining.Slice(next);
+        }
+
+        return escaped.ToString();
+    }
+
+    private static void AppendEscaped(ref ValueStringBuilder builder, char c)
+    {
+        Span<char> escaped = builder.AppendSpan(6);
+        escaped[0] = '\\';
+        escaped[1] = 'u';
+        escaped[2] = ToHexChar(c >> 12);
+        escaped[3] = ToHexChar(c >> 8);
+        escaped[4] = ToHexChar(c >> 4);
+        escaped[5] = ToHexChar(c);
+    }
+
+    private static char ToHexChar(int nibble)
+    {
+        nibble &= 0xF;
+        return (char)(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
     }
 
     private void ParseAuthFail(ReadOnlyPacket packet)

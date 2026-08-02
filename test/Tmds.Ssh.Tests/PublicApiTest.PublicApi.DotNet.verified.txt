@@ -20,6 +20,12 @@ namespace Tmds.Ssh
         public bool Remove(string item) { }
         public void RemoveAt(int index) { }
     }
+    public delegate void BannerHandler(Tmds.Ssh.BannerMessageContext context);
+    public struct BannerMessageContext
+    {
+        public Tmds.Ssh.SshConnectionInfo ConnectionInfo { get; }
+        public string Message { get; }
+    }
     public sealed class CertificateCredential : Tmds.Ssh.Credential
     {
         public CertificateCredential(string path, Tmds.Ssh.PrivateKeyCredential privateKey) { }
@@ -549,6 +555,7 @@ namespace Tmds.Ssh
         public SshClientSettings(string destination) { }
         public bool AutoConnect { get; set; }
         public bool AutoReconnect { get; set; }
+        public Tmds.Ssh.BannerHandler? BannerHandler { get; set; }
         public bool BatchMode { get; set; }
         public Tmds.Ssh.AlgorithmList? ClientKeyAlgorithms { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
@@ -632,6 +639,7 @@ namespace Tmds.Ssh
         public SshConfigSettings() { }
         public bool AutoConnect { get; set; }
         public bool AutoReconnect { get; set; }
+        public Tmds.Ssh.BannerHandler? BannerHandler { get; set; }
         public System.Collections.Generic.List<string> ConfigFilePaths { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
         public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
