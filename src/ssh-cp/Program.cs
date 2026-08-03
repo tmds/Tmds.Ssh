@@ -382,7 +382,10 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
     configSettings.Options = optionsDict;
 
     configSettings.BannerHandler = (BannerMessageContext ctx) =>
+    {
         Console.Error.Write(ctx.Message);
+        Console.Error.Flush();
+    };
 
     configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
     {
