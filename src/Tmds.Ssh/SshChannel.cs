@@ -22,13 +22,15 @@ sealed partial class SshChannel : ISshChannel
         Disposed // By user
     }
 
-    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType, Action<SshChannel>? onAbort = null,
-        uint remoteChannel = 0, int sendMaxPacket = 0, int sendWindow = 0)
+    public SshChannel(SshSession client, SequencePool sequencePool, uint channelNumber, Type channelType, int windowSize,
+        Action<SshChannel>? onAbort, uint remoteChannel, int sendMaxPacket, int sendWindow)
     {
         LocalChannel = channelNumber;
         _client = client;
         _sequencePool = sequencePool;
-        _receiveWindow = MaxWindowSize;
+        // Round up to the pool buffer size.
+        _windowSize = Math.Max(windowSize, Constants.PreferredBufferSize);
+        _receiveWindow = WindowSize;
         _channelType = channelType;
         _onAbort = onAbort;
 
@@ -51,7 +53,7 @@ sealed partial class SshChannel : ISshChannel
     public bool EofSent => _eofSent;
     public int SendMaxPacket { get; private set; }
     public int ReceiveMaxPacket => Constants.MaxDataPacketSize;
-    private int MaxWindowSize => Constants.DefaultWindowSize;
+    public int WindowSize => _windowSize;
 
     internal uint LocalChannel { get; set; }
     private uint RemoteChannel { get; set; }
@@ -59,6 +61,7 @@ sealed partial class SshChannel : ISshChannel
     private readonly SshSession _client;
     private readonly SequencePool _sequencePool;
     private readonly Type _channelType;
+    private readonly int _windowSize;
     private readonly CancellationTokenSource _abortedTcs = new();
     private readonly Action<SshChannel>? _onAbort;
     private readonly Channel<Packet> _receiveQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
@@ -444,10 +447,10 @@ sealed partial class SshChannel : ISshChannel
         }
 
         // Send window adjust when we drop below half the window size.
-        int adjustThreshold = MaxWindowSize / 2;
+        int adjustThreshold = WindowSize / 2;
         if (newWindow <= adjustThreshold)
         {
-            int adjust = MaxWindowSize - newWindow;
+            int adjust = WindowSize - newWindow;
             _receiveWindow += adjust;
 
             TrySendChannelWindowAdjustMessage((uint)adjust);

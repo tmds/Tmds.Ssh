@@ -17,8 +17,8 @@ public sealed class RemoteListener : IDisposable
     /// Gets the remote endpoint being listened on.
     /// </summary>
     /// <remarks>
-    /// <para>For <see cref="SshClient.ListenTcpAsync"/>, the type is <see cref="RemoteIPListenEndPoint"/>.</para>
-    /// <para>For <see cref="SshClient.ListenUnixAsync"/>, the type is <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</para>
+    /// <para>For <see cref="SshClient.ListenTcpAsync(string, int, CancellationToken)"/>, the type is <see cref="RemoteIPListenEndPoint"/>.</para>
+    /// <para>For <see cref="SshClient.ListenUnixAsync(string, CancellationToken)"/>, the type is <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</para>
     /// </remarks>
     public RemoteEndPoint ListenEndPoint => _listenEndPoint ?? throw new InvalidOperationException("Not started");
 
@@ -27,6 +27,7 @@ public sealed class RemoteListener : IDisposable
     private Name _forwardType;
     private CancellationTokenRegistration _ctr;
     private Exception? _stopReason;
+    private int? _windowSize;
 
     /// <summary>
     /// Stops accepting new connections.
@@ -136,7 +137,7 @@ public sealed class RemoteListener : IDisposable
 
         try
         {
-            port = await _session.StartRemoteForwardAsync(forwardType, address, port, _connectionChannel.Writer, cancellationToken).ConfigureAwait(false);
+            port = await _session.StartRemoteForwardAsync(forwardType, address, port, _connectionChannel.Writer, _windowSize, cancellationToken).ConfigureAwait(false);
             if (forwardType == AlgorithmNames.ForwardTcpIp)
             {
                 _listenEndPoint = new RemoteIPListenEndPoint(address, port);
@@ -159,18 +160,20 @@ public sealed class RemoteListener : IDisposable
         }
     }
 
-    internal Task OpenTcpAsync(SshSession session, string address, int port, CancellationToken cancellationToken)
+    internal Task OpenTcpAsync(SshSession session, string address, int port, int? windowSize, CancellationToken cancellationToken)
     {
         ArgumentValidation.ValidateIPListenAddress(address);
         ArgumentValidation.ValidatePort(port, allowZero: true);
 
+        _windowSize = windowSize;
         return OpenAsync(session, AlgorithmNames.ForwardTcpIp, address, (ushort)port, cancellationToken);
     }
 
-    internal Task OpenUnixAsync(SshSession session, string path, CancellationToken cancellationToken)
+    internal Task OpenUnixAsync(SshSession session, string path, int? windowSize, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
+        _windowSize = windowSize;
         return OpenAsync(session, AlgorithmNames.ForwardStreamLocal, path, 0, cancellationToken);
     }
 }

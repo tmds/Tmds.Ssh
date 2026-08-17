@@ -13,6 +13,7 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
     private RemoteListener? _listener;
     private RemoteEndPoint? _remoteEndPoint;
     private EndPoint? _localEndPoint; // When DirectForward.
+    private int? _windowSize;
     private int _id;
 
     public RemoteEndPoint RemoteEndPoint
@@ -28,7 +29,7 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
         : base(logger)
     { }
 
-    internal async ValueTask StartDirectForwardAsync(SshSession session, RemoteEndPoint bindEP, EndPoint localEndPoint, CancellationToken cancellationToken)
+    internal async ValueTask StartDirectForwardAsync(SshSession session, RemoteEndPoint bindEP, EndPoint localEndPoint, int? windowSize, CancellationToken cancellationToken)
     {
         Debug.Assert(bindEP is not null);
         CheckBindEndPoint(bindEP);
@@ -36,6 +37,7 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
 
         _remoteEndPoint = bindEP;
         _localEndPoint = localEndPoint;
+        _windowSize = windowSize;
 
         await StartAsync(session, ForwardProtocol.Direct, bindEP.ToString()!, localEndPoint.ToString(), cancellationToken);
     }
@@ -131,14 +133,14 @@ sealed partial class RemoteForwardServer<T> : ForwardServer<T, Stream>
         if (bindEP is RemoteIPListenEndPoint ipEndPoint)
         {
             _listener = new RemoteListener();
-            await _listener.OpenTcpAsync(_session, ipEndPoint.Address, ipEndPoint.Port, cancellationToken).ConfigureAwait(false);
+            await _listener.OpenTcpAsync(_session, ipEndPoint.Address, ipEndPoint.Port, _windowSize, cancellationToken).ConfigureAwait(false);
 
             updateEndPoint = ipEndPoint.Port == 0;
         }
         else if (bindEP is RemoteUnixEndPoint unixEndPoint)
         {
             _listener = new RemoteListener();
-            await _listener.OpenUnixAsync(_session, unixEndPoint.Path, cancellationToken).ConfigureAwait(false);
+            await _listener.OpenUnixAsync(_session, unixEndPoint.Path, _windowSize, cancellationToken).ConfigureAwait(false);
         }
         else
         {

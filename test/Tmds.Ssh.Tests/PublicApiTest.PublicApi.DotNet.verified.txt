@@ -69,6 +69,7 @@ namespace Tmds.Ssh
         public Tmds.Ssh.TerminalSettings TerminalSettings { get; }
         public string TerminalType { get; set; }
         public int TerminalWidth { get; set; }
+        public int? WindowSize { get; set; }
     }
     public sealed class FileEntryAttributes
     {
@@ -366,6 +367,7 @@ namespace Tmds.Ssh
     public sealed class SftpClientOptions
     {
         public SftpClientOptions() { }
+        public int? WindowSize { get; set; }
     }
     public sealed class SftpDirectory : Tmds.Ssh.ISftpDirectory
     {
@@ -540,14 +542,21 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess> ExecuteSubsystemAsync(string subsystem, Tmds.Ssh.ExecuteOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenTcpAsync(string address, int port, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenTcpAsync(string address, int port, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenUnixAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener> ListenUnixAsync(string path, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SftpClient> OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenTcpConnectionAsync(string host, int port, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenUnixConnectionAsync(string path, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream> OpenUnixConnectionAsync(string path, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.LocalForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.LocalForward> StartForwardAsync(System.Net.EndPoint bindEP, Tmds.Ssh.RemoteEndPoint remoteEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward> StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint bindEP, System.Net.EndPoint localEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward> StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint bindEP, System.Net.EndPoint localEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.Task<Tmds.Ssh.SocksForward> StartSocksForwardAsync(System.Net.EndPoint bindEP, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<Tmds.Ssh.SocksForward> StartSocksForwardAsync(System.Net.EndPoint bindEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class SshClientSettings
     {
@@ -560,6 +569,7 @@ namespace Tmds.Ssh
         public Tmds.Ssh.AlgorithmList? ClientKeyAlgorithms { get; set; }
         public System.TimeSpan ConnectTimeout { get; set; }
         public System.Collections.Generic.List<Tmds.Ssh.Credential> Credentials { get; set; }
+        public int DefaultWindowSize { get; set; }
         public bool EnableBatchModeWhenConsoleIsRedirected { get; set; }
         public Tmds.Ssh.AlgorithmList EncryptionAlgorithmsClientToServer { get; set; }
         public Tmds.Ssh.AlgorithmList EncryptionAlgorithmsServerToClient { get; set; }

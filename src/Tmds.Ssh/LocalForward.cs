@@ -18,8 +18,8 @@ public sealed class LocalForward : IDisposable
         _forwarder = new(logger);
     }
 
-    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint, CancellationToken cancellationToken)
-        => _forwarder.StartDirectForwardAsync(session, bindEP, remoteEndPoint, cancellationToken);
+    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint, int? windowSize, CancellationToken cancellationToken)
+        => _forwarder.StartDirectForwardAsync(session, bindEP, remoteEndPoint, windowSize, cancellationToken);
 
     /// <summary>
     /// Gets the local endpoint being forwarded from.

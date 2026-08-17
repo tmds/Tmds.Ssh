@@ -4,6 +4,7 @@ interface ISshChannel
 {
     int ReceiveMaxPacket { get; }
     int SendMaxPacket { get; }
+    int WindowSize { get; }
     CancellationToken ChannelAborted { get; }
     int? ExitCode { get; }
     string? ExitSignal { get; }

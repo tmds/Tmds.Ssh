@@ -33,9 +33,12 @@ sealed partial class SshSession
     private readonly SshLoggers _loggers;
     private int _keepAliveMax;
     private int _keepAliveCount;
-    private Dictionary<ListenAddress, ChannelWriter<RemoteConnection>>? _remoteListeners;
+    private Dictionary<ListenAddress, RemoteListenerInfo>? _remoteListeners;
 
     record struct ListenAddress(Name ForwardType, string Address, ushort Port)
+    { }
+
+    record struct RemoteListenerInfo(ChannelWriter<RemoteConnection> Writer, int? WindowSize)
     { }
 
     internal struct GlobalRequestReply
@@ -310,14 +313,16 @@ sealed partial class SshSession
         }
     }
 
-    private SshChannel CreateChannel(Type channelType, Action<SshChannel>? onAbort = null, uint remoteChannel = 0, int sendMaxPacket = 0, int sendWindow = 0)
+    private SshChannel CreateChannel(Type channelType, int? windowSize, Action<SshChannel>? onAbort = null, uint remoteChannel = 0, int sendMaxPacket = 0, int sendWindow = 0)
     {
         lock (_gate)
         {
             ThrowIfNotConnected();
 
+            int ws = windowSize ?? _settings!.DefaultWindowSize;
+
             uint channelNumber = AllocateChannel();
-            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType, onAbort, remoteChannel, sendMaxPacket, sendWindow);
+            var channelContext = new SshChannel(this, _sequencePool, channelNumber, channelType, ws, onAbort, remoteChannel, sendMaxPacket, sendWindow);
             _channels[channelNumber] = channelContext;
 
             return channelContext;
@@ -636,15 +641,15 @@ sealed partial class SshSession
 
         if (listenAddress != default)
         {
-            ChannelWriter<RemoteConnection>? listener = null;
+            RemoteListenerInfo listenerInfo = default;
             lock (_gate)
             {
-                _remoteListeners?.TryGetValue(listenAddress, out listener);
+                _remoteListeners?.TryGetValue(listenAddress, out listenerInfo);
             }
 
-            if (listener is not null)
+            if (listenerInfo.Writer is not null)
             {
-                SshChannel channel = CreateChannel(typeof(SshDataStream), onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
+                SshChannel channel = CreateChannel(typeof(SshDataStream), listenerInfo.WindowSize, onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
                 channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
                 SshDataStream sshDataStream = new SshDataStream(channel);
 
@@ -661,7 +666,7 @@ sealed partial class SshSession
                     remoteEndPoint = new RemoteIPEndPoint(originatorIPAddress ?? IPAddress.Broadcast, originatorPort <= ushort.MaxValue ? (int)originatorPort : 0);
                 }
 
-                if (!listener.TryWrite(new RemoteConnection(sshDataStream, remoteEndPoint)))
+                if (!listenerInfo.Writer.TryWrite(new RemoteConnection(sshDataStream, remoteEndPoint)))
                 {
                     // Listener stopped, close the channel.
                     sshDataStream.Dispose();
@@ -849,7 +854,7 @@ sealed partial class SshSession
 
     public async Task<ISshChannel> OpenRemoteProcessChannelAsync(Type channelType, string command, ExecuteOptions? options, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(channelType);
+        SshChannel channel = CreateChannel(channelType, options?.WindowSize);
         try
         {
             await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
@@ -871,7 +876,7 @@ sealed partial class SshSession
 
     public async Task<ISshChannel> OpenRemoteShellChannelAsync(Type channelType, ExecuteOptions? options, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(channelType);
+        SshChannel channel = CreateChannel(channelType, options?.WindowSize);
         try
         {
             await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
@@ -941,9 +946,9 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, CancellationToken cancellationToken)
+    public async Task<SshDataStream> OpenTcpConnectionChannelAsync(string host, int port, int? windowSize, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(typeof(SshDataStream));
+        SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize);
         try
         {
             IPAddress originatorIP = IPAddress.Any;
@@ -960,9 +965,9 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<SshDataStream> OpenUnixConnectionChannelAsync(string path, CancellationToken cancellationToken)
+    public async Task<SshDataStream> OpenUnixConnectionChannelAsync(string path, int? windowSize, CancellationToken cancellationToken)
     {
-        SshChannel channel = CreateChannel(typeof(SshDataStream));
+        SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize);
         try
         {
             channel.TrySendChannelOpenDirectStreamLocalMessage(path);
@@ -977,17 +982,17 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", options: null, cancellationToken).ConfigureAwait(false);
+    public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, int? windowSize, CancellationToken cancellationToken)
+        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", options: null, windowSize, cancellationToken).ConfigureAwait(false);
 
     public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, ExecuteOptions? options, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(channelType, null, subsystem, options, cancellationToken).ConfigureAwait(false);
+        => await OpenSubsystemChannelAsync(channelType, null, subsystem, options, windowSize: null, cancellationToken).ConfigureAwait(false);
 
-    private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, ExecuteOptions? options, CancellationToken cancellationToken)
+    private async Task<ISshChannel> OpenSubsystemChannelAsync(Type channelType, Action<SshChannel>? onAbort, string subsystem, ExecuteOptions? options, int? windowSize, CancellationToken cancellationToken)
     {
         Debug.Assert(_settings is not null);
 
-        SshChannel channel = CreateChannel(channelType, onAbort);
+        SshChannel channel = CreateChannel(channelType, windowSize ?? options?.WindowSize, onAbort);
         try
         {
             await OpenSessionAsync(channel, options, cancellationToken).ConfigureAwait(false);
@@ -1007,7 +1012,7 @@ sealed partial class SshSession
         }
     }
 
-    public async Task<ushort> StartRemoteForwardAsync(Name forwardType, string address, ushort port, ChannelWriter<RemoteConnection> listener, CancellationToken cancellationToken)
+    public async Task<ushort> StartRemoteForwardAsync(Name forwardType, string address, ushort port, ChannelWriter<RemoteConnection> listener, int? windowSize, CancellationToken cancellationToken)
     {
         address = ReplaceAnyAddress(forwardType, address);
 
@@ -1075,7 +1080,7 @@ sealed partial class SshSession
                     lock (_gate)
                     {
                         _remoteListeners ??= new();
-                        _remoteListeners[listenAddress] = listener;
+                        _remoteListeners[listenAddress] = new RemoteListenerInfo(listener, windowSize);
                     }
                 }
 
