@@ -18,8 +18,8 @@ public sealed class RemoteForward : IDisposable
         _forwarder = new(logger);
     }
 
-    internal ValueTask StartAsync(SshSession session, RemoteEndPoint bindEP, EndPoint localEndPoint, CancellationToken cancellationToken)
-        => _forwarder.StartDirectForwardAsync(session, bindEP, localEndPoint, cancellationToken);
+    internal ValueTask StartAsync(SshSession session, RemoteEndPoint bindEP, EndPoint localEndPoint, int? windowSize, CancellationToken cancellationToken)
+        => _forwarder.StartDirectForwardAsync(session, bindEP, localEndPoint, windowSize, cancellationToken);
 
     /// <summary>
     /// Gets the remote endpoint being forwarded from.

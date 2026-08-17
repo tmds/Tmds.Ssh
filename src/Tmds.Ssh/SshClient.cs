@@ -434,13 +434,25 @@ public sealed partial class SshClient : IDisposable
     /// <param name="port">The remote port to connect to.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SshDataStream"/> for the TCP connection.</returns>
-    public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+    public Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+        => OpenTcpConnectionAsync(host, port, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Opens a TCP connection to a remote host.
+    /// </summary>
+    /// <param name="host">The remote host to connect to.</param>
+    /// <param name="port">The remote port to connect to.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SshDataStream"/> for the TCP connection.</returns>
+    public async Task<SshDataStream> OpenTcpConnectionAsync(string host, int port, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
         ArgumentValidation.ValidateHost(host);
         ArgumentValidation.ValidatePort(port, allowZero: false);
 
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        return await session.OpenTcpConnectionChannelAsync(host, port, cancellationToken).ConfigureAwait(false);
+        return await session.OpenTcpConnectionChannelAsync(host, port, windowSize, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -449,12 +461,23 @@ public sealed partial class SshClient : IDisposable
     /// <param name="path">The Unix socket path on the remote server.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns><see cref="SshDataStream"/> to the Unix socket.</returns>
-    public async Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
+    public Task<SshDataStream> OpenUnixConnectionAsync(string path, CancellationToken cancellationToken = default)
+        => OpenUnixConnectionAsync(path, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Opens a Unix domain socket connection.
+    /// </summary>
+    /// <param name="path">The Unix socket path on the remote server.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns><see cref="SshDataStream"/> to the Unix socket.</returns>
+    public async Task<SshDataStream> OpenUnixConnectionAsync(string path, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
-        return await session.OpenUnixConnectionChannelAsync(path, cancellationToken).ConfigureAwait(false);
+        return await session.OpenUnixConnectionChannelAsync(path, windowSize, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -464,12 +487,25 @@ public sealed partial class SshClient : IDisposable
     /// <param name="remoteEP">The <see cref="RemoteEndPoint"/> to forward to. This can be a <see cref="RemoteHostEndPoint"/>, a <see cref="RemoteUnixEndPoint"/> or a <see cref="RemoteIPEndPoint"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="LocalForward"/> instance for managing the forward.</returns>
-    public async Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
+    public Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, CancellationToken cancellationToken = default)
+        => StartForwardAsync(bindEP, remoteEP, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Starts local port forwarding to a remote endpoint.
+    /// </summary>
+    /// <param name="bindEP">The local endpoint to bind to. This can be an <see cref="IPEndPoint"/> or a <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</param>
+    /// <param name="remoteEP">The <see cref="RemoteEndPoint"/> to forward to. This can be a <see cref="RemoteHostEndPoint"/>, a <see cref="RemoteUnixEndPoint"/> or a <see cref="RemoteIPEndPoint"/>.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes for forwarded connections, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="LocalForward"/> instance for managing the forward.</returns>
+    public async Task<LocalForward> StartForwardAsync(EndPoint bindEP, RemoteEndPoint remoteEP, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var forward = new LocalForward(_loggers.DirectForwardLogger);
-        await forward.StartAsync(session, bindEP, remoteEP, cancellationToken).ConfigureAwait(false);
+        await forward.StartAsync(session, bindEP, remoteEP, windowSize, cancellationToken).ConfigureAwait(false);
         return forward;
     }
 
@@ -479,12 +515,24 @@ public sealed partial class SshClient : IDisposable
     /// <param name="bindEP">The local endpoint to bind to.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="SocksForward"/> instance for managing the proxy.</returns>
-    public async Task<SocksForward> StartSocksForwardAsync(EndPoint bindEP, CancellationToken cancellationToken = default)
+    public Task<SocksForward> StartSocksForwardAsync(EndPoint bindEP, CancellationToken cancellationToken = default)
+        => StartSocksForwardAsync(bindEP, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Starts a SOCKS proxy server on the local endpoint that forwards to the remote server.
+    /// </summary>
+    /// <param name="bindEP">The local endpoint to bind to.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes for forwarded connections, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="SocksForward"/> instance for managing the proxy.</returns>
+    public async Task<SocksForward> StartSocksForwardAsync(EndPoint bindEP, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var forward = new SocksForward(_loggers.SocksForwardLogger);
-        await forward.StartAsync(session, bindEP, cancellationToken).ConfigureAwait(false);
+        await forward.StartAsync(session, bindEP, windowSize, cancellationToken).ConfigureAwait(false);
         return forward;
     }
 
@@ -495,12 +543,25 @@ public sealed partial class SshClient : IDisposable
     /// <param name="localEP">The local endpoint to forward to. This can be a <see cref="DnsEndPoint"/>, an <see cref="IPEndPoint"/> or a <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteForward"/> instance for managing the forward.</returns>
-    public async Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default)
+    public Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, CancellationToken cancellationToken = default)
+        => StartRemoteForwardAsync(bindEP, localEP, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Starts remote port forwarding from a remote endpoint to a local endpoint.
+    /// </summary>
+    /// <param name="bindEP">The <see cref="RemoteEndPoint"/> to bind to. This can be a <see cref="RemoteIPListenEndPoint"/> or a <see cref="RemoteUnixEndPoint"/>.</param>
+    /// <param name="localEP">The local endpoint to forward to. This can be a <see cref="DnsEndPoint"/>, an <see cref="IPEndPoint"/> or a <see cref="System.Net.Sockets.UnixDomainSocketEndPoint"/>.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes for forwarded connections, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteForward"/> instance for managing the forward.</returns>
+    public async Task<RemoteForward> StartRemoteForwardAsync(RemoteEndPoint bindEP, EndPoint localEP, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var forward = new RemoteForward(_loggers.RemoteForwardLogger);
-        await forward.StartAsync(session, bindEP, localEP, cancellationToken).ConfigureAwait(false);
+        await forward.StartAsync(session, bindEP, localEP, windowSize, cancellationToken).ConfigureAwait(false);
         return forward;
     }
 
@@ -511,12 +572,25 @@ public sealed partial class SshClient : IDisposable
     /// <param name="port">The port to bind to on the remote server.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
-    public async Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default)
+    public Task<RemoteListener> ListenTcpAsync(string address, int port, CancellationToken cancellationToken = default)
+        => ListenTcpAsync(address, port, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Creates a TCP listener.
+    /// </summary>
+    /// <param name="address">The address to bind to on the remote server.</param>
+    /// <param name="port">The port to bind to on the remote server.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes for accepted connections, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
+    public async Task<RemoteListener> ListenTcpAsync(string address, int port, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var listener = new RemoteListener();
-        await listener.OpenTcpAsync(session, address, port, cancellationToken).ConfigureAwait(false);
+        await listener.OpenTcpAsync(session, address, port, windowSize, cancellationToken).ConfigureAwait(false);
         return listener;
     }
 
@@ -526,12 +600,24 @@ public sealed partial class SshClient : IDisposable
     /// <param name="path">The Unix socket path on the remote server.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
-    public async Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default)
+    public Task<RemoteListener> ListenUnixAsync(string path, CancellationToken cancellationToken = default)
+        => ListenUnixAsync(path, windowSize: null, cancellationToken);
+
+    /// <summary>
+    /// Creates a Unix domain socket listener.
+    /// </summary>
+    /// <param name="path">The Unix socket path on the remote server.</param>
+    /// <param name="windowSize">The SSH channel window size in bytes for accepted connections, or <see langword="null"/> to use <see cref="SshClientSettings.DefaultWindowSize"/>.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A <see cref="RemoteListener"/> for accepting incoming connections.</returns>
+    public async Task<RemoteListener> ListenUnixAsync(string path, int? windowSize, CancellationToken cancellationToken = default)
     {
+        ValidateWindowSize(windowSize);
+
         SshSession session = await GetSessionAsync(cancellationToken).ConfigureAwait(false);
 
         var listener = new RemoteListener();
-        await listener.OpenUnixAsync(session, path, cancellationToken).ConfigureAwait(false);
+        await listener.OpenUnixAsync(session, path, windowSize, cancellationToken).ConfigureAwait(false);
         return listener;
     }
 
@@ -569,7 +655,7 @@ public sealed partial class SshClient : IDisposable
     {
         SshSession session = await GetSessionAsync(cancellationToken, explicitConnect).ConfigureAwait(false);
 
-        var channel = await session.OpenSftpClientChannelAsync(onAbort, cancellationToken).ConfigureAwait(false);
+        var channel = await session.OpenSftpClientChannelAsync(onAbort, options.WindowSize, cancellationToken).ConfigureAwait(false);
 
         var sftpChannel = new SftpChannel(channel, options, workingDirectory);
 
@@ -606,6 +692,14 @@ public sealed partial class SshClient : IDisposable
         {
             Debug.Assert(_session is not null);
             return _session.ConnectionInfo;
+        }
+    }
+
+    private static void ValidateWindowSize(int? windowSize)
+    {
+        if (windowSize.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(windowSize.Value, 0, nameof(windowSize));
         }
     }
 }

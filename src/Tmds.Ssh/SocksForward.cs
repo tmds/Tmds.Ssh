@@ -18,8 +18,8 @@ public sealed class SocksForward : IDisposable
         _forwarder = new(logger);
     }
 
-    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, CancellationToken cancellationToken)
-        => _forwarder.StartSocksForwardAsync(session, bindEP, cancellationToken);
+    internal ValueTask StartAsync(SshSession session, EndPoint bindEP, int? windowSize, CancellationToken cancellationToken)
+        => _forwarder.StartSocksForwardAsync(session, bindEP, windowSize, cancellationToken);
 
     /// <summary>
     /// Gets the local endpoint the SOCKS server listens on.

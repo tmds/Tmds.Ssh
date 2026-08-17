@@ -338,6 +338,7 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 | `BannerHandler` | | Called for each banner message the server sends during authentication; control characters are escaped. When unset, banners are ignored. |
 | `BatchMode` | `false` | Disable interactive prompts. |
 | `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
+| `DefaultWindowSize` | 2 MB | SSH channel window size; larger values improve throughput on high-latency or high-bandwidth links at the cost of memory. It can be overridden per operation using `SftpClientOptions`, `ExecuteOptions`, or a `windowSize` method argument. |
 | `EnableBatchModeWhenConsoleIsRedirected` | `true` | Automatically enable batch mode when the console is redirected. |
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
 | `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |

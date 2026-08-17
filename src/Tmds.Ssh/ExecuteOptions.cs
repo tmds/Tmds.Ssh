@@ -20,6 +20,7 @@ public sealed class ExecuteOptions
     private int _termWidth = 80;
     private int _termHeight = 24;
     private Dictionary<string, string>? _environmentVariables;
+    private int? _windowSize;
 
     internal Dictionary<string, string>? EnvironmentVariablesOrDefault
         => _environmentVariables;
@@ -138,6 +139,27 @@ public sealed class ExecuteOptions
         {
             ArgumentNullException.ThrowIfNull(value);
             _environmentVariables = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the SSH channel window size in bytes.
+    /// </summary>
+    /// <remarks>
+    /// <para>When <see langword="null"/> (the default), <see cref="SshClientSettings.DefaultWindowSize"/> is used.</para>
+    /// <para>The window size controls the maximum amount of data that can be sent by the remote end before it must wait for acknowledgement.
+    /// Larger values can improve throughput on high-latency or high-bandwidth links at the cost of higher memory usage per channel.</para>
+    /// </remarks>
+    public int? WindowSize
+    {
+        get => _windowSize;
+        set
+        {
+            if (value.HasValue)
+            {
+                ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value.Value, 0);
+            }
+            _windowSize = value;
         }
     }
 

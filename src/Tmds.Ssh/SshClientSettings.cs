@@ -28,6 +28,7 @@ public sealed partial class SshClientSettings
     private AlgorithmList? _compressionAlgorithmsClientToServer;
     private AlgorithmList? _compressionAlgorithmsServerToClient;
     private AlgorithmList? _caSignatureAlgorithms;
+    private int _defaultWindowSize = Constants.DefaultWindowSize;
 
     // Avoid allocations from the public getters.
     internal IReadOnlyList<Credential> CredentialsOrDefault
@@ -491,6 +492,23 @@ public sealed partial class SshClientSettings
     /// Defaults to <see langword="true"/>.
     /// </remarks>
     public bool TcpKeepAlive { get; set; } = DefaultTcpKeepAlive;
+
+    /// <summary>
+    /// Gets or sets the default SSH channel window size in bytes. Defaults to 2 MB (2,097,152 bytes).
+    /// </summary>
+    /// <remarks>
+    /// <para>The window size controls the maximum amount of data that can be sent by the remote end before it must wait for acknowledgement.
+    /// Larger values can improve throughput on high-latency or high-bandwidth links at the cost of higher memory usage per channel.</para>
+    /// </remarks>
+    public int DefaultWindowSize
+    {
+        get => _defaultWindowSize;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0);
+            _defaultWindowSize = value;
+        }
+    }
 
     /// <summary>
     /// Gets or sets the minimum RSA key size accepted for authentication.

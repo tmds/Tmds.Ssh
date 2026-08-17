@@ -13,6 +13,7 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
     private Socket? _serverSocket;
     private EndPoint? _localEndPoint;
     private RemoteEndPoint? _remoteEndPoint; // When DirectForward.
+    private int? _windowSize;
     private int _id;
 
     public EndPoint LocalEndPoint
@@ -28,7 +29,7 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
         : base(logger)
     { }
 
-    internal async ValueTask StartDirectForwardAsync(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint, CancellationToken cancellationToken)
+    internal async ValueTask StartDirectForwardAsync(SshSession session, EndPoint bindEP, RemoteEndPoint remoteEndPoint, int? windowSize, CancellationToken cancellationToken)
     {
         Debug.Assert(bindEP is not null);
         CheckBindEndPoint(bindEP);
@@ -36,17 +37,19 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
 
         _localEndPoint = bindEP;
         _remoteEndPoint = remoteEndPoint;
+        _windowSize = windowSize;
 
         await StartAsync(session, ForwardProtocol.Direct, bindEP.ToString()!, _remoteEndPoint.ToString(), cancellationToken);
     }
 
-    internal async ValueTask StartSocksForwardAsync(SshSession session, EndPoint bindEP, CancellationToken cancellationToken)
+    internal async ValueTask StartSocksForwardAsync(SshSession session, EndPoint bindEP, int? windowSize, CancellationToken cancellationToken)
     {
         Debug.Assert(bindEP is not null);
         CheckBindEndPoint(bindEP);
 
         _localEndPoint = bindEP;
         _remoteEndPoint = null;
+        _windowSize = windowSize;
 
         await StartAsync(session, ForwardProtocol.Socks, bindEP.ToString()!, targetEndPoint: null, cancellationToken);
     }
@@ -107,20 +110,20 @@ sealed partial class LocalForwardServer<T> : ForwardServer<T, SshDataStream>
         if (_protocol == ForwardProtocol.Socks)
         {
             (string host, int port) = await ReadSocks5HostAndPortAsync(clientStream, ct).ConfigureAwait(false);
-            connect = session.OpenTcpConnectionChannelAsync(host, port, ct);
+            connect = session.OpenTcpConnectionChannelAsync(host, port, _windowSize, ct);
             endPoint = new RemoteHostEndPoint(host, port);
         }
         else if (endPoint is RemoteHostEndPoint hostEndPoint)
         {
-            connect = session.OpenTcpConnectionChannelAsync(hostEndPoint.Host, hostEndPoint.Port, ct);
+            connect = session.OpenTcpConnectionChannelAsync(hostEndPoint.Host, hostEndPoint.Port, _windowSize, ct);
         }
         else if (endPoint is RemoteIPEndPoint ipEndPoint)
         {
-            connect = session.OpenTcpConnectionChannelAsync(ipEndPoint.Address.ToString(), ipEndPoint.Port, ct);
+            connect = session.OpenTcpConnectionChannelAsync(ipEndPoint.Address.ToString(), ipEndPoint.Port, _windowSize, ct);
         }
         else if (endPoint is RemoteUnixEndPoint unixEndPoint)
         {
-            connect = session.OpenUnixConnectionChannelAsync(unixEndPoint.Path, ct);
+            connect = session.OpenUnixConnectionChannelAsync(unixEndPoint.Path, _windowSize, ct);
         }
         else
         {

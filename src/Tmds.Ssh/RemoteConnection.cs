@@ -34,8 +34,8 @@ public struct RemoteConnection : IDisposable
     /// Gets the remote endpoint of the connection.
     /// </summary>
     /// <remarks>
-    /// <para>For <see cref="SshClient.ListenTcpAsync"/>, the type is <see cref="RemoteIPEndPoint"/>.</para>
-    /// <para>For <see cref="SshClient.ListenUnixAsync"/>, the value is <see langword="null"/>.</para>
+    /// <para>For <see cref="SshClient.ListenTcpAsync(string, int, CancellationToken)"/>, the type is <see cref="RemoteIPEndPoint"/>.</para>
+    /// <para>For <see cref="SshClient.ListenUnixAsync(string, CancellationToken)"/>, the value is <see langword="null"/>.</para>
     /// </remarks>
     public RemoteEndPoint? RemoteEndPoint { get; }
 
