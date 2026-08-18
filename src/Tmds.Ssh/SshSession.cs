@@ -123,11 +123,6 @@ sealed partial class SshSession
         {
             ctx = new SshConnectContext(_settings, ConnectionInfo, _loggers);
         }
-        else
-        {
-            Debug.Assert(ctx is ProxyConnectContext);
-            ConnectionInfo.IsProxy = true;
-        }
 
         Stream stream = await Connect.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
 
@@ -174,11 +169,15 @@ sealed partial class SshSession
             long startTime = Stopwatch.GetTimestamp();
             using var timer = new Timer(cts => ((CancellationTokenSource)cts!).Cancel(), connectCts, connectTimeout, Timeout.InfiniteTimeSpan);
 
+            bool isProxy = connectContext is not null;
+            Debug.Assert(!isProxy || connectContext is ProxyConnectContext);
+
             if (_settings is null)
             {
                 Debug.Assert(_destination is not null);
                 Debug.Assert(_sshConfigOptions is not null);
                 _settings = await SshClientSettings.LoadFromConfigAsync(userName, host, port, _sshConfigOptions, connectCts.Token).ConfigureAwait(false);
+                _sshConfigOptions.PostConfigure?.Invoke(new SshConfigSettings.PostConfigureContext(isProxy, _settings));
             }
 
             // Normalize the hostname to lowercase.
@@ -186,6 +185,7 @@ sealed partial class SshSession
             ConnectionInfo.Port = _settings.Port;
             ConnectionInfo.UserName = _settings.UserName;
             ConnectionInfo.IsBatchMode = _settings.BatchMode || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
+            ConnectionInfo.IsProxy = isProxy;
 
             // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
             TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;

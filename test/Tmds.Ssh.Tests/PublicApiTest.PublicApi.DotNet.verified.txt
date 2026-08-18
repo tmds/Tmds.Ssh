@@ -655,9 +655,15 @@ namespace Tmds.Ssh
         public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }
         public System.Collections.Generic.Dictionary<Tmds.Ssh.SshConfigOption, Tmds.Ssh.SshConfigOptionValue> Options { get; set; }
         public Tmds.Ssh.PasswordPrompt? PasswordPrompt { get; set; }
+        public System.Action<Tmds.Ssh.SshConfigSettings.PostConfigureContext>? PostConfigure { get; set; }
         public static Tmds.Ssh.SshConfigSettings DefaultConfig { get; }
         public static System.Collections.Generic.IReadOnlyList<string> DefaultConfigFilePaths { get; }
         public static Tmds.Ssh.SshConfigSettings NoConfig { get; }
+        public readonly struct PostConfigureContext
+        {
+            public bool IsProxy { get; }
+            public Tmds.Ssh.SshClientSettings Settings { get; }
+        }
     }
     public class SshConnectionClosedException : Tmds.Ssh.SshConnectionException { }
     public class SshConnectionException : Tmds.Ssh.SshException { }
