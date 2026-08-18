@@ -15,6 +15,28 @@ namespace Tmds.Ssh;
 public sealed class SshConfigSettings
 {
     /// <summary>
+    /// Provides context for the <see cref="PostConfigure"/> callback.
+    /// </summary>
+    public readonly struct PostConfigureContext
+    {
+        internal PostConfigureContext(bool isProxy, SshClientSettings settings)
+        {
+            IsProxy = isProxy;
+            Settings = settings;
+        }
+
+        /// <summary>
+        /// Gets whether the settings are for a proxy connection.
+        /// </summary>
+        public bool IsProxy { get; }
+
+        /// <summary>
+        /// Gets the settings that were derived from the SSH configuration.
+        /// </summary>
+        public SshClientSettings Settings { get; }
+    }
+
+    /// <summary>
     /// Gets default configuration file paths.
     /// </summary>
     public static IReadOnlyList<string> DefaultConfigFilePaths { get; } = CreateDefaultConfigFilePaths();
@@ -39,6 +61,7 @@ public sealed class SshConfigSettings
     private HostAuthentication? _hostAuthentication;
     private PasswordPrompt? _passwordPrompt;
     private BannerHandler? _bannerHandler;
+    private Action<PostConfigureContext>? _postConfigure;
 
     // Avoid allocations from the public getters.
     internal IReadOnlyList<string> ConfigFilePathsOrDefault
@@ -188,6 +211,20 @@ public sealed class SshConfigSettings
             ThrowIfLocked();
 
             _bannerHandler = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets a callback that is invoked after the <see cref="SshClientSettings"/> have been derived from the SSH configuration.
+    /// </summary>
+    public Action<PostConfigureContext>? PostConfigure
+    {
+        get => _postConfigure;
+        set
+        {
+            ThrowIfLocked();
+
+            _postConfigure = value;
         }
     }
 

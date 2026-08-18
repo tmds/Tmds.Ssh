@@ -445,6 +445,39 @@ public class ConnectTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
+    public async Task SshConfig_PostConfigure(bool mutate)
+    {
+        bool postConfigureCalled = false;
+        var configSettings = new SshConfigSettings()
+        {
+            ConfigFilePaths = [ _sshServer.SshConfigFilePath ],
+            PostConfigure = context =>
+            {
+                postConfigureCalled = true;
+                Assert.False(context.IsProxy);
+                Assert.NotNull(context.Settings);
+                if (mutate)
+                {
+                    context.Settings.Port = 1;
+                }
+            }
+        };
+
+        if (mutate)
+        {
+            await Assert.ThrowsAnyAsync<SshConnectionException>(() =>
+                _sshServer.CreateClientAsync(configSettings));
+        }
+        else
+        {
+            using var client = await _sshServer.CreateClientAsync(configSettings);
+        }
+        Assert.True(postConfigureCalled);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
     public async Task SshConfig_HostAuthentication(bool isCertificate)
     {
         using TempFile configFile = new TempFile(Path.GetTempFileName());

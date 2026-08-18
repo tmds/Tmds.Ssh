@@ -351,7 +351,9 @@ partial class SshClientSettings
                 ConfigFilePaths = configFilePaths,
                 ConnectTimeout = options.ConnectTimeout,
                 HostAuthentication = options.HostAuthentication,
-                BannerHandler = options.BannerHandler
+                PasswordPrompt = options.PasswordPrompt,
+                BannerHandler = options.BannerHandler,
+                PostConfigure = options.PostConfigure
             };
 
             if (!isFirst)

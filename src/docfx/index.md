@@ -181,6 +181,8 @@ var configSettings = new SshConfigSettings()
 using var sshClient = new SshClient("myhost", configSettings);
 ```
 
+The client settings are derived based on the OpenSSH config files and can be inspected or modified using the <xref:Tmds.Ssh.SshConfigSettings.PostConfigure> callback.
+
 To know what hosts are known in the configuration files, you can use <xref:Tmds.Ssh.SshConfig.GetHosts>:
 
 ```csharp
