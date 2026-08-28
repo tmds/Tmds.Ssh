@@ -39,6 +39,9 @@ static class KnownNameStrings
     internal const string ChaCha20Poly1305 = "chacha20-poly1305@openssh.com";
     internal const string BCrypt = "bcrypt";
     internal const string HMacSha2_256 = "hmac-sha2-256";
+    internal const string HMacSha2_512 = "hmac-sha2-512";
+    internal const string HMacSha2_256Etm = "hmac-sha2-256-etm@openssh.com";
+    internal const string HMacSha2_512Etm = "hmac-sha2-512-etm@openssh.com";
     internal const string Nistp256 = "nistp256";
     internal const string Nistp384 = "nistp384";
     internal const string Nistp521 = "nistp521";
@@ -94,6 +97,9 @@ static class KnownNameStrings
             case ChaCha20Poly1305: return ChaCha20Poly1305;
             case BCrypt: return BCrypt;
             case HMacSha2_256: return HMacSha2_256;
+            case HMacSha2_512: return HMacSha2_512;
+            case HMacSha2_256Etm: return HMacSha2_256Etm;
+            case HMacSha2_512Etm: return HMacSha2_512Etm;
             case Nistp256: return Nistp256;
             case Nistp384: return Nistp384;
             case Nistp521: return Nistp521;

@@ -1,3 +1,4 @@
+using System.Buffers;
 using Xunit;
 
 namespace Tmds.Ssh.Tests;
@@ -75,5 +76,43 @@ public class AesCtrTests
         byte[] actual = new byte[ciphertextBytes.Length];
         AesCtr.DecryptCtr(keyBytes, counter, ciphertextBytes, actual);
         Assert.Equal(plaintext, Convert.ToHexString(actual));
+    }
+
+    // Verifies the transform keeps the counter in sync across calls, also when it wraps
+    // and when the input is larger than the internal key stream buffer.
+    [Theory]
+    [InlineData(128 / 8)]
+    [InlineData(192 / 8)]
+    [InlineData(256 / 8)]
+    public void CryptoTransformMatchesDecryptCtr(int keyLength)
+    {
+        int[] chunkLengths = [ 16, 32, 16 * 3, 4096, 4096 + 16, 16 * 7, 16 ];
+
+        byte[] key = new byte[keyLength];
+        Random.Shared.NextBytes(key);
+
+        byte[] iv = new byte[16];
+        Random.Shared.NextBytes(iv);
+        // Ensure the counter wraps over the least significant bytes.
+        iv[14] = 0xff;
+        iv[15] = 0xfd;
+
+        byte[] data = new byte[chunkLengths.Sum()];
+        Random.Shared.NextBytes(data);
+
+        byte[] expected = new byte[data.Length];
+        AesCtr.DecryptCtr(key, iv, data, expected);
+
+        using var transform = new AesCtrCryptoTransform(key, iv);
+        using Sequence output = new SequencePool().RentSequence();
+
+        int offset = 0;
+        foreach (int chunkLength in chunkLengths)
+        {
+            transform.Transform(new ReadOnlySequence<byte>(data, offset, chunkLength), output);
+            offset += chunkLength;
+        }
+
+        Assert.Equal(expected, output.AsReadOnlySequence().ToArray());
     }
 }

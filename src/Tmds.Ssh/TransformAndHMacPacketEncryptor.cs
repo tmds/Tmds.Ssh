@@ -1,6 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Buffers.Binary;
 
 namespace Tmds.Ssh;
@@ -32,13 +33,17 @@ sealed class TransformAndHMacPacketEncryptor : IPacketEncryptor
         // the length of the concatenation of 'packet_length',
         // 'padding_length', 'payload', and 'random padding' MUST be a multiple
         // of the cipher block size or 8, whichever is larger.
+        // For encrypt-then-MAC, 'packet_length' is not encrypted and is excluded from that length.
         uint multipleOf = (uint)Math.Max(_transform.BlockSize, 8);
         // The minimum size of a packet is 16 (or the cipher block size,
         // whichever is larger)
         uint minSize = (uint)Math.Max(16U, _transform.BlockSize);
 
+        bool encryptThenMac = _mac.IsEncryptThenMac;
+
         uint payload_length = (uint)pkt.PayloadLength;
-        byte padding_length = IPacketEncryptor.DeterminePaddingLength(payload_length + 4 + 1, multipleOf);
+        uint encrypted_prefix_length = encryptThenMac ? 0U : 4U;
+        byte padding_length = IPacketEncryptor.DeterminePaddingLength(payload_length + encrypted_prefix_length + 1, multipleOf);
         uint packet_length = payload_length + 1 + padding_length;
         while (packet_length < minSize)
         {
@@ -51,16 +56,37 @@ sealed class TransformAndHMacPacketEncryptor : IPacketEncryptor
 
         var unencrypted_packet = pkt.AsReadOnlySequence();
 
-        // Encrypt
-        _transform.Transform(unencrypted_packet, buffer);
-
-        // Mac
-        // mac = MAC(key, sequence_number || unencrypted_packet)
         Span<byte> sequence_number = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(sequence_number, sequenceNumber);
-        _mac.AppendData(sequence_number);
-        _mac.AppendData(unencrypted_packet);
-        _mac.AppendHashToSequenceAndReset(buffer);
+
+        if (encryptThenMac)
+        {
+            long encryptedOffset = buffer.Length;
+
+            // 'packet_length' is sent unencrypted.
+            unencrypted_packet.Slice(0, 4).CopyTo(buffer.AllocGetSpan(4));
+            buffer.AppendAlloced(4);
+
+            // Encrypt the remainder.
+            _transform.Transform(unencrypted_packet.Slice(4), buffer);
+
+            // Mac
+            // mac = MAC(key, sequence_number || packet_length || encrypted_packet)
+            _mac.AppendData(sequence_number);
+            _mac.AppendData(buffer.AsReadOnlySequence().Slice(encryptedOffset));
+            _mac.AppendHashToSequenceAndReset(buffer);
+        }
+        else
+        {
+            // Encrypt
+            _transform.Transform(unencrypted_packet, buffer);
+
+            // Mac
+            // mac = MAC(key, sequence_number || unencrypted_packet)
+            _mac.AppendData(sequence_number);
+            _mac.AppendData(unencrypted_packet);
+            _mac.AppendHashToSequenceAndReset(buffer);
+        }
     }
 
     public void Dispose()

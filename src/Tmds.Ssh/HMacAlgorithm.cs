@@ -28,11 +28,29 @@ sealed class HMacAlgorithm
 
     public static HMacAlgorithm Find(Name name)
     {
+        // RFC 6668 defines hmac-sha2-256 and hmac-sha2-512.
+        // The '-etm@openssh.com' variants use the same keys and hashes but apply the MAC
+        // to the encrypted packet instead of the plaintext packet.
         if (name == AlgorithmNames.HMacSha2_256)
         {
-            return new HMacAlgorithm(256 / 8, (algorithm, key) => new HMac(HashAlgorithmName.SHA256, 256 / 8, 256 / 8, key));
+            return Create(HashAlgorithmName.SHA256, 256 / 8, isEncryptThenMac: false);
+        }
+        else if (name == AlgorithmNames.HMacSha2_512)
+        {
+            return Create(HashAlgorithmName.SHA512, 512 / 8, isEncryptThenMac: false);
+        }
+        else if (name == AlgorithmNames.HMacSha2_256Etm)
+        {
+            return Create(HashAlgorithmName.SHA256, 256 / 8, isEncryptThenMac: true);
+        }
+        else if (name == AlgorithmNames.HMacSha2_512Etm)
+        {
+            return Create(HashAlgorithmName.SHA512, 512 / 8, isEncryptThenMac: true);
         }
 
         throw new NotSupportedException($"HMac algorithm '{name}' is not supported.");
+
+        static HMacAlgorithm Create(HashAlgorithmName hashAlgorithm, int length, bool isEncryptThenMac)
+            => new HMacAlgorithm(length, (algorithm, key) => new HMac(hashAlgorithm, length, length, key, isEncryptThenMac));
     }
 }

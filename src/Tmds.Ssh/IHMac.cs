@@ -26,6 +26,9 @@ static class HMacExtensions
 interface IHMac : IDisposable
 {
     int HashSize { get; }
+    // When set, the MAC is computed over the encrypted packet (encrypt-then-MAC)
+    // and the packet length is sent unencrypted.
+    bool IsEncryptThenMac { get; }
     void AppendData(ReadOnlySpan<byte> data);
     void AppendHashToSequenceAndReset(Sequence output);
     bool CheckHashAndReset(ReadOnlySpan<byte> hash);

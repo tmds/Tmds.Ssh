@@ -29,10 +29,10 @@ public class ClientSettingsTests
         Assert.Equal(new[] {
             new Name("ssh-ed25519-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp521-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp384-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp256-cert-v01@openssh.com"), new Name("rsa-sha2-512-cert-v01@openssh.com"), new Name("rsa-sha2-256-cert-v01@openssh.com"),
             new Name("ssh-ed25519"), new Name("ecdsa-sha2-nistp521"), new Name("ecdsa-sha2-nistp384"), new Name("ecdsa-sha2-nistp256"), new Name("rsa-sha2-512"), new Name("rsa-sha2-256") }, SshClientSettings.SupportedClientKeyAlgorithms);
-        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsClientToServer.AsNameList());
-        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsServerToClient.AsNameList());
-        Assert.Equal(new[] { new Name("hmac-sha2-256") }, settings.MacAlgorithmsClientToServer.AsNameList());
-        Assert.Equal(new[] { new Name("hmac-sha2-256") }, settings.MacAlgorithmsServerToClient.AsNameList());
+        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com"), new Name("aes256-ctr"), new Name("aes192-ctr"), new Name("aes128-ctr") }, settings.EncryptionAlgorithmsClientToServer.AsNameList());
+        Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com"), new Name("aes256-ctr"), new Name("aes192-ctr"), new Name("aes128-ctr") }, settings.EncryptionAlgorithmsServerToClient.AsNameList());
+        Assert.Equal(new[] { new Name("hmac-sha2-256-etm@openssh.com"), new Name("hmac-sha2-512-etm@openssh.com"), new Name("hmac-sha2-256"), new Name("hmac-sha2-512") }, settings.MacAlgorithmsClientToServer.AsNameList());
+        Assert.Equal(new[] { new Name("hmac-sha2-256-etm@openssh.com"), new Name("hmac-sha2-512-etm@openssh.com"), new Name("hmac-sha2-256"), new Name("hmac-sha2-512") }, settings.MacAlgorithmsServerToClient.AsNameList());
         Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsClientToServer.AsNameList());
         Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsServerToClient.AsNameList());
         Assert.Equal(Array.Empty<Name>(), settings.LanguagesClientToServer);

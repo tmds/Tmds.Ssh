@@ -73,9 +73,14 @@ partial class SshClientSettings
         AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedServerHostKeyCertificateAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
     internal readonly static List<Name> SupportedMacAlgorithms = [
-        // The supported ciphers do not need a MAC.
-        // We add a MAC here to workaround an issue with Apache MINA SSHD server disconnecting when there is no common MAC algorithm (https://github.com/apache/mina-sshd/issues/664).
-        AlgorithmNames.HMacSha2_256
+        // The preferred ciphers are authenticated and don't use these algorithms.
+        // They are used with the aes[128|192|256]-ctr ciphers, and they also workaround an issue with
+        // Apache MINA SSHD server disconnecting when there is no common MAC algorithm (https://github.com/apache/mina-sshd/issues/664).
+        // Prefer encrypt-then-MAC over the encrypt-and-MAC variants defined in RFC 4253.
+        AlgorithmNames.HMacSha2_256Etm,
+        AlgorithmNames.HMacSha2_512Etm,
+        AlgorithmNames.HMacSha2_256,
+        AlgorithmNames.HMacSha2_512
     ];
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];
     internal readonly static List<Name> DefaultKeyExchangeAlgorithms = SupportedKeyExchangeAlgorithms;
@@ -112,6 +117,8 @@ partial class SshClientSettings
     {
         // The preferred encryption algorithms must only include algorithms that are considered secure.
         // We make an attempt to order them fastest to slowest.
+        // The authenticated ciphers are preferred over aes[128|192|256]-ctr which needs a separate MAC.
+        // The ctr ciphers are included because they are the only ciphers supported by some (older) servers.
 
         // Prefer AesGcm over ChaCha20Poly when the platform has AES instructions.
         bool addAesGcm = AesGcm.IsSupported;
@@ -135,6 +142,10 @@ partial class SshClientSettings
             Debug.Assert(!hasAesInstructions);
             AddAesGcmAlgorithms(algorithms);
         }
+
+        algorithms.Add(AlgorithmNames.Aes256Ctr);
+        algorithms.Add(AlgorithmNames.Aes192Ctr);
+        algorithms.Add(AlgorithmNames.Aes128Ctr);
 
         return algorithms;
 

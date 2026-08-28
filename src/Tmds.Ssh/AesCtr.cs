@@ -30,15 +30,7 @@ static class AesCtr
             // iv/counter manipulation between blocks.
             aes.EncryptEcb(counter, temp, PaddingMode.None);
 
-            // Increment the counter that is treated as a big endian uint128
-            // value.
-            for (int i = blockSize - 1; i >= 0; i--)
-            {
-                if (++counter[i] != 0)
-                {
-                    break;
-                }
-            }
+            IncrementCounter(counter);
 
             for (int i = 0; i < Math.Min(blockSize, ciphertext.Length - offset); i++)
             {
@@ -46,6 +38,18 @@ static class AesCtr
             }
 
             offset += blockSize;
+        }
+    }
+
+    // Increments the counter that is treated as a big endian value.
+    public static void IncrementCounter(Span<byte> counter)
+    {
+        for (int i = counter.Length - 1; i >= 0; i--)
+        {
+            if (++counter[i] != 0)
+            {
+                break;
+            }
         }
     }
 }

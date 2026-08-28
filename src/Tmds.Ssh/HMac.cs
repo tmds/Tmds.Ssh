@@ -14,10 +14,13 @@ sealed class HMac : IHMac
 
     public int HashSize { get; }
 
-    public HMac(HashAlgorithmName algorithmName, int nativeHashSize, int hashSize, byte[] key)
+    public bool IsEncryptThenMac { get; }
+
+    public HMac(HashAlgorithmName algorithmName, int nativeHashSize, int hashSize, byte[] key, bool isEncryptThenMac = false)
     {
         _incrementalHash = IncrementalHash.CreateHMAC(algorithmName, key);
         HashSize = hashSize;
+        IsEncryptThenMac = isEncryptThenMac;
         _hash = new byte[nativeHashSize];
     }
 
@@ -55,6 +58,8 @@ sealed class HMac : IHMac
     internal sealed class HMacNone : IHMac
     {
         public int HashSize => 0;
+
+        public bool IsEncryptThenMac => false;
 
         public void Dispose()
         { }

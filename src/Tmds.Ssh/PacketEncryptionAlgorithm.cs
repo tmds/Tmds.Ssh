@@ -90,7 +90,37 @@ sealed class PacketEncryptionAlgorithm
                     isAuthenticated: true,
                     tagLength: ChaCha20Poly1305PacketEncryptor.TagSize);
         }
+        else if (name == AlgorithmNames.Aes128Ctr)
+        {
+            return CreateAesCtr(keyLength: 128 / 8);
+        }
+        else if (name == AlgorithmNames.Aes192Ctr)
+        {
+            return CreateAesCtr(keyLength: 192 / 8);
+        }
+        else if (name == AlgorithmNames.Aes256Ctr)
+        {
+            return CreateAesCtr(keyLength: 256 / 8);
+        }
 
         throw new NotSupportedException($"Packet encryption algorithm '{name}' is not supported.");
+
+        // aes[128|192|256]-ctr (RFC 4344) is not an authenticated cipher, it is combined with a MAC algorithm.
+        static PacketEncryptionAlgorithm CreateAesCtr(int keyLength)
+            => new PacketEncryptionAlgorithm(keyLength: keyLength, ivLength: AesCtrCryptoTransform.AesBlockSize,
+                (PacketEncryptionAlgorithm algorithm, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new TransformAndHMacPacketEncryptor(new AesCtrCryptoTransform(key, iv), CreateHMac(hmac, hmacKey)),
+                (PacketEncryptionAlgorithm algorithm, SequencePool sequencePool, byte[] key, byte[] iv, HMacAlgorithm? hmac, byte[] hmacKey)
+                    => new TransformAndHMacPacketDecryptor(sequencePool, new AesCtrCryptoTransform(key, iv), CreateHMac(hmac, hmacKey)));
+    }
+
+    private static IHMac CreateHMac(HMacAlgorithm? hmacAlgorithm, byte[] hmacKey)
+    {
+        if (hmacAlgorithm is null)
+        {
+            // A MAC algorithm is required for ciphers that are not authenticated.
+            throw new ArgumentNullException(nameof(hmacAlgorithm));
+        }
+        return hmacAlgorithm.Create(hmacKey);
     }
 }

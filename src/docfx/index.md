@@ -78,9 +78,16 @@ Encryption algorithms:
 - aes256-gcm@openssh.com
 - aes128-gcm@openssh.com
 - chacha20-poly1305@openssh.com
+- aes256-ctr
+- aes192-ctr
+- aes128-ctr
 
 Message authentication code algorithms:
-- none
+- none (used with the authenticated encryption algorithms)
+- hmac-sha2-256-etm@openssh.com
+- hmac-sha2-512-etm@openssh.com
+- hmac-sha2-256
+- hmac-sha2-512
 
 Compression algorithms:
 - none

@@ -33,6 +33,11 @@ sealed class TransformAndHMacPacketDecryptor : IPacketDecryptor
             byte[m]   mac (Message Authentication Code - MAC); m = mac_length
         */
 
+        if (_mac.IsEncryptThenMac)
+        {
+            return TryDecryptEncryptThenMac(receiveBuffer, sequenceNumber, maxLength, out packet);
+        }
+
         if (_decodedPacket == null)
         {
             _decodedPacket = _sequencePool.RentSequence();
@@ -102,6 +107,67 @@ sealed class TransformAndHMacPacketDecryptor : IPacketDecryptor
 
         packet = new Packet(null);
         return false;
+    }
+
+    // Encrypt-then-MAC: 'packet_length' is not encrypted and the MAC is computed over the encrypted packet.
+    // This enables verifying the MAC before decrypting anything.
+    private bool TryDecryptEncryptThenMac(Sequence receiveBuffer, uint sequenceNumber, int maxLength, out Packet packet)
+    {
+        packet = new Packet(null);
+
+        if (receiveBuffer.Length < 4)
+        {
+            return false;
+        }
+
+        Span<byte> packet_length_bytes = stackalloc byte[4];
+        receiveBuffer.CopyTo(packet_length_bytes, 4);
+        uint packet_length = BinaryPrimitives.ReadUInt32BigEndian(packet_length_bytes);
+        if (packet_length > maxLength)
+        {
+            ThrowHelper.ThrowProtocolPacketTooLong();
+        }
+
+        // The encrypted part must be a multiple of the cipher block size or 8, whichever is larger.
+        uint multipleOf = (uint)Math.Max(_transform.BlockSize, 8);
+        if (packet_length == 0 || (packet_length % multipleOf) != 0)
+        {
+            ThrowHelper.ThrowProtocolInvalidPacketLength();
+        }
+
+        long totalLength = 4 + packet_length + _mac.HashSize;
+        if (receiveBuffer.Length < totalLength)
+        {
+            return false;
+        }
+
+        ReadOnlySequence<byte> received = receiveBuffer.AsReadOnlySequence();
+
+        // Verify the mac before decrypting.
+        // mac = MAC(key, sequence_number || packet_length || encrypted_packet)
+        Span<byte> sequence_number = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(sequence_number, sequenceNumber);
+        _mac.AppendData(sequence_number);
+        _mac.AppendData(received.Slice(0, 4 + packet_length));
+        received.Slice(4 + packet_length, _mac.HashSize).CopyTo(_macBuffer);
+        if (!_mac.CheckHashAndReset(_macBuffer))
+        {
+            ThrowHelper.ThrowProtocolIncorrectMac();
+        }
+
+        _decodedPacket ??= _sequencePool.RentSequence();
+
+        // The unencrypted 'packet_length' is part of the decoded packet.
+        // Reserve room for the first encrypted block too so it ends up in the same segment.
+        packet_length_bytes.CopyTo(_decodedPacket.AllocGetSpan(4 + _transform.BlockSize));
+        _decodedPacket.AppendAlloced(4);
+
+        _transform.Transform(received.Slice(4, packet_length), _decodedPacket);
+        receiveBuffer.Remove(totalLength);
+
+        packet = new Packet(_decodedPacket);
+        _decodedPacket = null;
+        return true;
     }
 
     public void Dispose()

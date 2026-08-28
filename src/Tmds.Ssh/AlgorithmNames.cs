@@ -51,6 +51,9 @@ static class AlgorithmNames
     public static Name BCrypt => Name.FromKnownNameString(KnownNameStrings.BCrypt);
     // MAC Algorithms
     public static Name HMacSha2_256 => Name.FromKnownNameString(KnownNameStrings.HMacSha2_256);
+    public static Name HMacSha2_512 => Name.FromKnownNameString(KnownNameStrings.HMacSha2_512);
+    public static Name HMacSha2_256Etm => Name.FromKnownNameString(KnownNameStrings.HMacSha2_256Etm);
+    public static Name HMacSha2_512Etm => Name.FromKnownNameString(KnownNameStrings.HMacSha2_512Etm);
     // Curve names
     public static Name Nistp256 => Name.FromKnownNameString(KnownNameStrings.Nistp256);
     public static Name Nistp384 => Name.FromKnownNameString(KnownNameStrings.Nistp384);
