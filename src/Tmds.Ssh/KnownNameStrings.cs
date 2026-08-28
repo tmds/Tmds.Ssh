@@ -14,6 +14,10 @@ static class KnownNameStrings
     internal const string SNtruP761X25519Sha512 = "sntrup761x25519-sha512";
     internal const string SNtruP761X25519Sha512OpenSsh = "sntrup761x25519-sha512@openssh.com";
     internal const string MLKem768X25519Sha256 = "mlkem768x25519-sha256";
+    internal const string DiffieHellmanGroup14Sha256 = "diffie-hellman-group14-sha256";
+    internal const string DiffieHellmanGroup16Sha512 = "diffie-hellman-group16-sha512";
+    internal const string DiffieHellmanGroup18Sha512 = "diffie-hellman-group18-sha512";
+    internal const string DiffieHellmanGroupExchangeSha256 = "diffie-hellman-group-exchange-sha256";
     internal const string SshRsa = "ssh-rsa";
     internal const string RsaSshSha2_256 = "rsa-sha2-256";
     internal const string RsaSshSha2_512 = "rsa-sha2-512";
@@ -69,6 +73,10 @@ static class KnownNameStrings
             case SNtruP761X25519Sha512: return SNtruP761X25519Sha512;
             case SNtruP761X25519Sha512OpenSsh: return SNtruP761X25519Sha512OpenSsh;
             case MLKem768X25519Sha256: return MLKem768X25519Sha256;
+            case DiffieHellmanGroup14Sha256: return DiffieHellmanGroup14Sha256;
+            case DiffieHellmanGroup16Sha512: return DiffieHellmanGroup16Sha512;
+            case DiffieHellmanGroup18Sha512: return DiffieHellmanGroup18Sha512;
+            case DiffieHellmanGroupExchangeSha256: return DiffieHellmanGroupExchangeSha256;
             case SshRsa: return SshRsa;
             case RsaSshSha2_256: return RsaSshSha2_256;
             case RsaSshSha2_512: return RsaSshSha2_512;

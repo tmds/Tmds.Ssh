@@ -18,14 +18,16 @@ abstract class KeyExchange<TKeyPair, TPublicKey> : IKeyExchangeAlgorithm
         var sequencePool = context.SequencePool;
         var connectionInfo = input.ConnectionInfo;
 
+        // Algorithms that need to exchange messages before the init message can be sent do that here.
+        firstPacket = await PrepareAsync(context, firstPacket, ct).ConfigureAwait(false);
+
         TKeyPair keyPair = GenerateKeyPair(context);
         try
         {
             await context.SendPacketAsync(CreateInitMessage(sequencePool, keyPair), ct).ConfigureAwait(false);
 
             // Receive reply message
-            // All current key exchange algorithms use the same reply message ID (31)
-            using Packet replyMsg = await context.ReceivePacketAsync(MessageId.SSH_MSG_KEX_ECDH_REPLY, firstPacket.Move(), ct).ConfigureAwait(false);
+            using Packet replyMsg = await context.ReceivePacketAsync(ReplyMessageId, firstPacket.Move(), ct).ConfigureAwait(false);
             var serverReply = ParseReplyMessage(replyMsg);
 
             await VerifyHostKeyAsync(hostKeyAuthentication, input, serverReply.publicHostKey, ct).ConfigureAwait(false);
@@ -51,6 +53,13 @@ abstract class KeyExchange<TKeyPair, TPublicKey> : IKeyExchangeAlgorithm
             DisposeKeyPair(keyPair);
         }
     }
+
+    // Most key exchange algorithms use the same reply message ID (31).
+    protected virtual MessageId ReplyMessageId => MessageId.SSH_MSG_KEX_ECDH_REPLY;
+
+    // Returns the packet that the reply message is expected in, or an empty packet to receive it from the connection.
+    protected virtual ValueTask<Packet> PrepareAsync(KeyExchangeContext context, Packet firstPacket, CancellationToken ct)
+        => new ValueTask<Packet>(firstPacket);
 
     protected abstract TKeyPair GenerateKeyPair(KeyExchangeContext context);
     protected abstract Packet CreateInitMessage(SequencePool sequencePool, TKeyPair keyPair);

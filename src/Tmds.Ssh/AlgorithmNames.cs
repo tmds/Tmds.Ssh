@@ -20,6 +20,10 @@ static class AlgorithmNames
     public static Name SNtruP761X25519Sha512 => Name.FromKnownNameString(KnownNameStrings.SNtruP761X25519Sha512);
     public static Name SNtruP761X25519Sha512OpenSsh => Name.FromKnownNameString(KnownNameStrings.SNtruP761X25519Sha512OpenSsh);
     public static Name MLKem768X25519Sha256 => Name.FromKnownNameString(KnownNameStrings.MLKem768X25519Sha256);
+    public static Name DiffieHellmanGroup14Sha256 => Name.FromKnownNameString(KnownNameStrings.DiffieHellmanGroup14Sha256);
+    public static Name DiffieHellmanGroup16Sha512 => Name.FromKnownNameString(KnownNameStrings.DiffieHellmanGroup16Sha512);
+    public static Name DiffieHellmanGroup18Sha512 => Name.FromKnownNameString(KnownNameStrings.DiffieHellmanGroup18Sha512);
+    public static Name DiffieHellmanGroupExchangeSha256 => Name.FromKnownNameString(KnownNameStrings.DiffieHellmanGroupExchangeSha256);
     // Host key types
     public static Name SshRsa => Name.FromKnownNameString(KnownNameStrings.SshRsa);
     public static Name SshRsaCert => Name.FromKnownNameString(KnownNameStrings.SshRsaCert);

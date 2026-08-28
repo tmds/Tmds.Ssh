@@ -62,7 +62,11 @@ partial class SshClientSettings
 
     // Algorithms are in **order of preference**.
     private readonly static List<Name> EmptyList = [];
-    internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [AlgorithmNames.MLKem768X25519Sha256, AlgorithmNames.SNtruP761X25519Sha512, AlgorithmNames.SNtruP761X25519Sha512OpenSsh, AlgorithmNames.Curve25519Sha256, AlgorithmNames.Curve25519Sha256LibSsh, AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521];
+    internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [
+        AlgorithmNames.MLKem768X25519Sha256, AlgorithmNames.SNtruP761X25519Sha512, AlgorithmNames.SNtruP761X25519Sha512OpenSsh, AlgorithmNames.Curve25519Sha256, AlgorithmNames.Curve25519Sha256LibSsh, AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521,
+        // The finite field Diffie-Hellman algorithms are slower than the algorithms above.
+        // They are included because they are the only algorithms supported by some (older) servers.
+        AlgorithmNames.DiffieHellmanGroupExchangeSha256, AlgorithmNames.DiffieHellmanGroup16Sha512, AlgorithmNames.DiffieHellmanGroup18Sha512, AlgorithmNames.DiffieHellmanGroup14Sha256];
     internal readonly static List<Name> SupportedServerHostKeyAlgorithms = [
         AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert,
         AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256

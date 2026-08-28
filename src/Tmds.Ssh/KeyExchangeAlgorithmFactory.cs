@@ -22,6 +22,10 @@ sealed class KeyExchangeAlgorithmFactory
         _algorithms.Add(AlgorithmNames.SNtruP761X25519Sha512, name => new SNtruPrime761X25519KeyExchange());
         _algorithms.Add(AlgorithmNames.SNtruP761X25519Sha512OpenSsh, name => new SNtruPrime761X25519KeyExchange());
         _algorithms.Add(AlgorithmNames.MLKem768X25519Sha256, name => new MLKem768X25519KeyExchange());
+        _algorithms.Add(AlgorithmNames.DiffieHellmanGroupExchangeSha256, name => new DiffieHellmanGroupExchangeKeyExchange(HashAlgorithmName.SHA256));
+        _algorithms.Add(AlgorithmNames.DiffieHellmanGroup16Sha512, name => new DiffieHellmanKeyExchange(DiffieHellmanGroup.Group16, HashAlgorithmName.SHA512));
+        _algorithms.Add(AlgorithmNames.DiffieHellmanGroup18Sha512, name => new DiffieHellmanKeyExchange(DiffieHellmanGroup.Group18, HashAlgorithmName.SHA512));
+        _algorithms.Add(AlgorithmNames.DiffieHellmanGroup14Sha256, name => new DiffieHellmanKeyExchange(DiffieHellmanGroup.Group14, HashAlgorithmName.SHA256));
     }
 
     public IKeyExchangeAlgorithm Create(Name name)

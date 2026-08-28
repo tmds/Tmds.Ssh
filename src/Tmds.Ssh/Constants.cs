@@ -14,7 +14,7 @@ static class Constants
     public const int MaxParseNameLength = 128;   // Arbitrary limit, may be increased.
     public const int MaxECPointLength = 256 + 1; // Arbitrary limit, may be increased.
     public const int MaxKeyLength = 2048;        // Arbitrary limit, may be increased.
-    public const int MaxMPIntLength = 1024;      // Arbitrary limit, may be increased.
+    public const int MaxMPIntLength = 1088;      // Fits the 8192-bit values of diffie-hellman-group18-sha512. May be increased.
     public const int MaxBannerPackets = 1024;    // Abitrary limit
     public const int MaxPartialAuths = 16;       // Abitrary limit
     public const string AnyAddress = "*";        // Public API listen address for "all IPv4 and all IPv6".

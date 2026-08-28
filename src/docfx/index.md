@@ -73,6 +73,10 @@ Key exchange methods:
 - ecdh-sha2-nistp256
 - ecdh-sha2-nistp384
 - ecdh-sha2-nistp521
+- diffie-hellman-group-exchange-sha256 (groups of at least 2048 bits)
+- diffie-hellman-group16-sha512
+- diffie-hellman-group18-sha512
+- diffie-hellman-group14-sha256
 
 Encryption algorithms:
 - aes256-gcm@openssh.com
