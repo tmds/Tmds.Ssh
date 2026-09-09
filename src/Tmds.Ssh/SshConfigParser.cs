@@ -70,6 +70,8 @@ sealed class SshConfigParser
     public int? ServerAliveCountMax { get; set; }
     public int? ServerAliveInterval { get; set; }
     public string? ProxyJump { get; set; }
+    public bool? ForwardAgent { get; set; }
+    public string? ForwardAgentAddress { get; set; }
 
     internal static void CollectHosts(string filePath, string includeBasePath, HashSet<string> hosts)
     {
@@ -514,9 +516,34 @@ sealed class SshConfigParser
             case "clearallforwardings":
                 ThrowUnsupportedWhenKeywordValueIsNot(keyword, ref remainder, "no");
                 break;
+            case "forwardagent":
+            {
+                if (config.ForwardAgent is null)
+                {
+                    ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
+                    if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.ForwardAgent = false;
+                    }
+                    else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.ForwardAgent = true;
+                    }
+                    else
+                    {
+                        // The value may also be the path of the agent socket, or the name of an
+                        // environment variable (prefixed with '$') that holds that path.
+                        string? address = value.StartsWith("$")
+                            ? Environment.GetEnvironmentVariable(value.Slice(1).ToString())
+                            : TildeExpand(value);
+                        config.ForwardAgent = !string.IsNullOrEmpty(address);
+                        config.ForwardAgentAddress = string.IsNullOrEmpty(address) ? null : address;
+                    }
+                }
+                break;
+            }
             case "dynamicforward":
             case "exitonforwardfailure":
-            case "forwardagent":
             case "forwardx11":
             case "forwardx11timeout":
             case "forwardx11trusted":

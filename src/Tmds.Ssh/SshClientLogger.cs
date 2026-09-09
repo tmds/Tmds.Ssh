@@ -359,6 +359,12 @@ static partial class SshClientLogger
         Message = "Skipping environment variable '{Name}'")]
     public static partial void SkipEnvironmentVariable(this ILogger<SshClient> logger, string name);
 
+    [LoggerMessage(
+        EventId = 41,
+        Level = LogLevel.Error,
+        Message = "Failed to handle SSH Agent channel")]
+    public static partial void AgentChannelFailed(this ILogger<SshClient> logger, Exception exception);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;

@@ -8,7 +8,7 @@ EXPOSE 88/tcp
 EXPOSE 88/udp
 
 # Install packages.
-RUN dnf install -y krb5-{libs,server,workstation} openssh-server passwd socat dos2unix && \
+RUN dnf install -y krb5-{libs,server,workstation} openssh-server openssh-clients passwd socat dos2unix && \
     rm -rf /var/cache/yum/*
 
 # Add a user.

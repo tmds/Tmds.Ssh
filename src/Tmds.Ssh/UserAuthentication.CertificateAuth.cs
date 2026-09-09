@@ -16,7 +16,7 @@ partial class UserAuthentication
                 return AuthResult.Skipped;
             }
 
-            (SshAgent? sshAgent, PrivateKey? privateKey) = await FindMatchingPrivateKey(credential.Path, publicKey, credential.IdentityFiles, credential.SshAgent, context.SequencePool, logger, ct).ConfigureAwait(false);
+            (SshAgent? sshAgent, PrivateKey? privateKey) = await FindMatchingPrivateKey(credential.Path, publicKey, credential.IdentityFiles, credential.SshAgent, context.SequencePool, connectionInfo, logger, ct).ConfigureAwait(false);
 
             using (sshAgent)
             using (privateKey)
@@ -30,7 +30,7 @@ partial class UserAuthentication
             }
         }
 
-        private static async ValueTask<(SshAgent? sshAgent, PrivateKey? privateKey)> FindMatchingPrivateKey(string credentialFilePath, SshKeyData publicKey, List<string>? identityFiles, SshAgentCredentials? sshAgentCredential, SequencePool sequencePool, ILogger<SshClient> logger, CancellationToken ct)
+        private static async ValueTask<(SshAgent? sshAgent, PrivateKey? privateKey)> FindMatchingPrivateKey(string credentialFilePath, SshKeyData publicKey, List<string>? identityFiles, SshAgentCredentials? sshAgentCredential, SequencePool sequencePool, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
         {
             if (identityFiles is not null)
             {
@@ -71,7 +71,7 @@ partial class UserAuthentication
                     try
                     {
                         sshAgent = new SshAgent(address, sequencePool);
-                        await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
+                        await sshAgent.ConnectAsync(connectionInfo, ct).ConfigureAwait(false);
                         connectedToSshAgent = true;
                     }
                     catch

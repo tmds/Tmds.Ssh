@@ -433,6 +433,36 @@ public sealed partial class SshClientSettings
     public BannerHandler? BannerHandler { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to forward the SSH agent to the server.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defaults to <see langword="false"/>.</para>
+    /// <para>When enabled, remote processes started through <see cref="SshClient.ExecuteAsync(string, CancellationToken)"/> and
+    /// related methods can use the keys of the local SSH agent to authenticate with other servers.</para>
+    /// <para>Agent channels opened by the server are handled by <see cref="AgentChannelHandler"/>. When no handler is set,
+    /// they are proxied to the local SSH agent.</para>
+    /// <para>Enabling this gives users who can access the agent socket on the server (including the administrator) full control
+    /// over the local agent for the duration of the connection. Besides using keys to authenticate, this includes operations that
+    /// change the agent, like removing keys. Set an <see cref="AgentChannelHandler"/> to restrict what the server can do.</para>
+    /// <para>The server may refuse to forward the agent (OpenSSH: <c>AllowAgentForwarding no</c>). Then no agent channels are opened.</para>
+    /// </remarks>
+    public bool ForwardAgent { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the <see cref="Tmds.Ssh.AgentChannelHandler"/> delegate.
+    /// </summary>
+    /// <remarks>
+    /// <para>When set, the delegate handles the agent channels that are opened by the server while
+    /// <see cref="ForwardAgent"/> is enabled. When unset, those channels are proxied to the local SSH agent.</para>
+    /// <para>The delegate enables applying a policy to the requests made by the server, for example, to only allow signing.</para>
+    /// </remarks>
+    public AgentChannelHandler? AgentChannelHandler { get; set; }
+
+    // Address of the agent to forward. When null, SshAgent.DefaultAddress is used.
+    // This is set when the 'ForwardAgent' config option specifies a path.
+    internal string? ForwardAgentAddress { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to automatically connect when the client is used.
     /// </summary>
     /// <remarks>

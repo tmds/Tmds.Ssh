@@ -162,5 +162,10 @@ public enum SshConfigOption
     /// <summary>
     /// Disable user interaction such as password prompts and host key confirmation requests.
     /// </summary>
-    BatchMode
+    BatchMode,
+
+    /// <summary>
+    /// Forward the SSH agent to the server.
+    /// </summary>
+    ForwardAgent
 }

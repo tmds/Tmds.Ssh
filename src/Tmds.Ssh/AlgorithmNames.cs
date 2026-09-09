@@ -69,6 +69,7 @@ static class AlgorithmNames
     // Channel types
     public static Name ForwardTcpIp => Name.FromKnownNameString(KnownNameStrings.ForwardTcpIp);
     public static Name ForwardStreamLocal => Name.FromKnownNameString(KnownNameStrings.ForwardStreamLocal);
+    public static Name AuthAgent => Name.FromKnownNameString(KnownNameStrings.AuthAgent);
 
     // For GetSignatureAlgorithmsForKeyType
     internal static readonly Name[] SshRsaAlgorithms = [ RsaSshSha2_512, RsaSshSha2_256 ];

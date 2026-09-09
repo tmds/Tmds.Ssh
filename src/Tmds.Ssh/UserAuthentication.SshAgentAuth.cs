@@ -23,7 +23,7 @@ partial class UserAuthentication
 
             try
             {
-                await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
+                await sshAgent.ConnectAsync(connectionInfo, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

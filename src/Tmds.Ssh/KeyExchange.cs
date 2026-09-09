@@ -44,6 +44,13 @@ abstract class KeyExchange<TKeyPair, TPublicKey> : IKeyExchangeAlgorithm
 
             VerifySignature(connectionInfo.ServerKey, input.HostKeyAlgorithms, exchangeHash, serverReply.exchangeHashSignature, connectionInfo);
 
+            if (connectionInfo.SessionId is null)
+            {
+                // Retain the host key and signature of the initial key exchange for 'session-bind@openssh.com'.
+                connectionInfo.InitialServerKey = serverReply.publicHostKey.RawData.ToArray();
+                connectionInfo.InitialExchangeHashSignature = serverReply.exchangeHashSignature.ToArray();
+            }
+
             return CalculateKeyExchangeOutput(input, sequencePool, sharedSecret, exchangeHash, HashAlgorithmName);
         }
         finally

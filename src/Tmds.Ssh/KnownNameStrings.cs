@@ -52,6 +52,7 @@ static class KnownNameStrings
     internal const string ClientExtensionNegotiation = "ext-info-c";
     internal const string ForwardTcpIp = "forwarded-tcpip";
     internal const string ForwardStreamLocal = "forwarded-streamlocal@openssh.com";
+    internal const string AuthAgent = "auth-agent@openssh.com";
 
     public static string? FindKnownName(ReadOnlySpan<char> name)
     {
@@ -107,6 +108,7 @@ static class KnownNameStrings
             case ClientExtensionNegotiation: return ClientExtensionNegotiation;
             case ForwardTcpIp: return ForwardTcpIp;
             case ForwardStreamLocal: return ForwardStreamLocal;
+            case AuthAgent: return AuthAgent;
             default: return null;
         }
     }

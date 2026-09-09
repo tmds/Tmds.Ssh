@@ -638,6 +638,22 @@ sealed partial class SshSession
             string path = reader.ReadUtf8String();
             listenAddress = new ListenAddress(channelType, path, 0);
         }
+        else if (channelType == AlgorithmNames.AuthAgent)
+        {
+            // The server opens these channels in response to 'auth-agent-req@openssh.com'.
+            SshClientSettings? settings = _settings;
+            if (IsAgentForwardingEnabled(settings))
+            {
+                SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize: null, onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
+                channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
+
+                // Don't handle the channel on the receive loop.
+                SshDataStream stream = new SshDataStream(channel);
+                _ = Task.Run(() => HandleAgentChannelAsync(stream, settings));
+
+                return;
+            }
+        }
 
         if (listenAddress != default)
         {
@@ -676,6 +692,40 @@ sealed partial class SshSession
         }
 
         TrySendPacket(_sequencePool.CreateChannelOpenFailureMessage(remoteChannel));
+    }
+
+    // Agent forwarding is enabled when the user asked for it and we can handle the channels the server opens.
+    private static bool IsAgentForwardingEnabled([NotNullWhen(true)] SshClientSettings? settings)
+        => settings is { ForwardAgent: true } &&
+            (settings.AgentChannelHandler is not null || GetForwardAgentAddress(settings) is not null);
+
+    private static string? GetForwardAgentAddress(SshClientSettings settings)
+        => settings.ForwardAgentAddress ?? SshAgent.DefaultAddress;
+
+    private async Task HandleAgentChannelAsync(SshDataStream stream, SshClientSettings settings)
+    {
+        try
+        {
+            using (stream)
+            {
+                AgentChannelHandler? handler = settings.AgentChannelHandler;
+                if (handler is not null)
+                {
+                    await handler(stream, ConnectionInfo, _abortCts.Token).ConfigureAwait(false);
+                }
+                else
+                {
+                    await AgentForwarding.ProxyToLocalAgentAsync(stream, GetForwardAgentAddress(settings)!, ConnectionInfo, _abortCts.Token).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!_abortCts.IsCancellationRequested)
+            {
+                Logger.AgentChannelFailed(ex);
+            }
+        }
     }
 
     private void HandleDisconnectMessage(ReadOnlyPacket packet)
@@ -904,6 +954,13 @@ sealed partial class SshSession
         {
             channel.TrySendChannelOpenSessionMessage();
             await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (IsAgentForwardingEnabled(_settings))
+        {
+            // Like 'ssh' we don't wait for a reply.
+            // When the server refuses, it will not open any agent channels.
+            channel.TrySendAuthAgentRequestMessage();
         }
 
         string? term = null;

@@ -40,6 +40,10 @@ var quietModeOption = new Option<bool>("-q")
 {
     Description = "Suppress logging"
 };
+var forwardAgentOption = new Option<bool>("-A")
+{
+    Description = "Forward the SSH agent to the remote host"
+};
 var sshConfigOptions = new Option<string[]>("-o")
 {
     Description = $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}",
@@ -54,6 +58,7 @@ rootCommand.Options.Add(informationVerbosityOption);
 rootCommand.Options.Add(debugVerbosityOption);
 rootCommand.Options.Add(traceVerbosityOption);
 rootCommand.Options.Add(quietModeOption);
+rootCommand.Options.Add(forwardAgentOption);
 
 rootCommand.Arguments.Add(destinationArg);
 rootCommand.Arguments.Add(commandArg);
@@ -67,16 +72,17 @@ rootCommand.SetAction(
         bool debugVerbosity = parseResult.GetValue(debugVerbosityOption);
         bool traceVerbosity = parseResult.GetValue(traceVerbosityOption);
         bool quietMode = parseResult.GetValue(quietModeOption);
+        bool forwardAgent = parseResult.GetValue(forwardAgentOption);
         string[] options = parseResult.GetValue(sshConfigOptions)!;
         string destination = parseResult.GetValue(destinationArg)!;
         string[] command = parseResult.GetValue(commandArg)!;
-        return ExecuteAsync(destination, command, forceTty, disableTty, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, options);
+        return ExecuteAsync(destination, command, forceTty, disableTty, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, forwardAgent, options);
     });
 
 ParseResult parseResult = rootCommand.Parse(args);
 return await parseResult.InvokeAsync();
 
-static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quiet, string[] options)
+static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quiet, bool forwardAgent, string[] options)
 {
     LogLevel logLevel;
     if (traceVerbosity)
@@ -109,7 +115,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
             builder.SetMinimumLevel(logLevel);
         });
 
-    SshConfigSettings configSettings = CreateSshConfigSettings(options);
+    SshConfigSettings configSettings = CreateSshConfigSettings(options, forwardAgent);
 
     using SshClient client = new SshClient(destination, configSettings, loggerFactory);
 
@@ -247,11 +253,15 @@ static IStandardInputReader CreateConsoleInReader(bool forTerminal)
     }
 }
 
-static SshConfigSettings CreateSshConfigSettings(string[] options)
+static SshConfigSettings CreateSshConfigSettings(string[] options, bool forwardAgent)
 {
     SshConfigSettings configSettings = new SshConfigSettings();
 
     Dictionary<SshConfigOption, SshConfigOptionValue> optionsDict = new();
+    if (forwardAgent)
+    {
+        optionsDict[SshConfigOption.ForwardAgent] = "yes";
+    }
     foreach (var option in options)
     {
         string[] split = option.Split('=', 2);

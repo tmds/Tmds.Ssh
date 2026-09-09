@@ -39,6 +39,9 @@ public sealed class SshConnectionInfo
 
     internal bool UseStrictKex { get; set; }
     internal byte[]? SessionId { get; set; }
+    // Server host key and exchange hash signature of the first key exchange ('session-bind@openssh.com').
+    internal byte[]? InitialServerKey { get; set; }
+    internal byte[]? InitialExchangeHashSignature { get; set; }
     internal string? ClientIdentificationString { get; set; }
     internal string? ServerIdentificationString { get; set; }
     internal IPAddress? IPAddress { get; set; }

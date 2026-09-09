@@ -16,9 +16,12 @@ namespace Tmds.Ssh
     {
         private const MessageId SSH_AGENTC_REQUEST_IDENTITIES = (MessageId)11;
         private const MessageId SSH_AGENTC_SIGN_REQUEST = (MessageId)13;
+        private const MessageId SSH_AGENTC_EXTENSION = (MessageId)27;
         private const MessageId SSH_AGENT_FAILURE = (MessageId)5;
+        private const MessageId SSH_AGENT_SUCCESS = (MessageId)6;
         private const MessageId SSH_AGENT_IDENTITIES_ANSWER = (MessageId)12;
         private const MessageId SSH_AGENT_SIGN_RESPONSE = (MessageId)14;
+        private const string SessionBindExtension = "session-bind@openssh.com";
         private const uint SSH_AGENT_RSA_SHA2_256 = 2;
         private const uint SSH_AGENT_RSA_SHA2_512 = 4;
         private const int MaxPacketSize = int.MaxValue; // We trust the SSH Agent.
@@ -52,16 +55,40 @@ namespace Tmds.Ssh
             _sequencePool = sequencePool;
         }
 
-        public async ValueTask ConnectAsync(CancellationToken cancellationToken)
+        // When 'bindSession' is set, the connection is bound to the session (see TryBindSessionAsync).
+        public async ValueTask ConnectAsync(SshConnectionInfo? bindSession, CancellationToken cancellationToken)
         {
             Stream? stream = null;
             try
             {
+                stream = await OpenStreamAsync(_address, cancellationToken).ConfigureAwait(false);
+
+                if (bindSession is not null)
+                {
+                    await TryBindSessionAsync(stream, bindSession, isForwarding: false, cancellationToken).ConfigureAwait(false);
+                }
+
                 var logger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
 
+                _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
+                _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
+            }
+            catch
+            {
+                stream?.Dispose();
+                throw;
+            }
+        }
+
+        // Opens a connection to the SSH agent at 'address'.
+        public static async ValueTask<Stream> OpenStreamAsync(string address, CancellationToken cancellationToken)
+        {
+            Stream? stream = null;
+            try
+            {
                 if (OperatingSystem.IsWindows())
                 {
-                    string normalizedPath = Path.GetFullPath(_address);
+                    string normalizedPath = Path.GetFullPath(address);
                     if (!normalizedPath.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
                     {
                         throw new ArgumentException(
@@ -75,7 +102,7 @@ namespace Tmds.Ssh
                     // connections.
                     if (!File.Exists(normalizedPath))
                     {
-                        throw new FileNotFoundException(_address);
+                        throw new FileNotFoundException(address);
                     }
 
                     NamedPipeClientStream pipe = new NamedPipeClientStream(
@@ -93,7 +120,7 @@ namespace Tmds.Ssh
                     Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
                     try
                     {
-                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
+                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(address), cancellationToken).ConfigureAwait(false);
                         stream = new NetworkStream(socket, ownsSocket: true);
                     }
                     catch
@@ -103,13 +130,71 @@ namespace Tmds.Ssh
                     }
                 }
 
-                _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
-                _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
+                return stream;
             }
             catch
             {
                 stream?.Dispose();
                 throw;
+            }
+        }
+
+        /*
+            Binds the agent connection to the SSH session using the 'session-bind@openssh.com' extension.
+
+            This enables the agent to apply per-destination constraints ('ssh-add -h') and, for forwarded
+            connections, to know which hosts the connection passed through.
+
+            byte             SSH_AGENTC_EXTENSION
+            string           "session-bind@openssh.com"
+            string           hostkey
+            string           session identifier
+            string           signature
+            bool             is_forwarding
+        */
+        public static async ValueTask<bool> TryBindSessionAsync(Stream stream, SshConnectionInfo connectionInfo, bool isForwarding, CancellationToken ct)
+        {
+            byte[]? hostKey = connectionInfo.InitialServerKey;
+            byte[]? sessionId = connectionInfo.SessionId;
+            byte[]? signature = connectionInfo.InitialExchangeHashSignature;
+            if (hostKey is null || sessionId is null || signature is null)
+            {
+                return false;
+            }
+
+            await stream.WriteAsync(CreateBindSessionRequest(hostKey, sessionId, signature, isForwarding), ct).ConfigureAwait(false);
+
+            byte[] buffer = new byte[4];
+            await stream.ReadExactlyAsync(buffer, ct).ConfigureAwait(false);
+            uint responseLength = BinaryPrimitives.ReadUInt32BigEndian(buffer);
+            if (responseLength == 0 || responseLength > 256)
+            {
+                throw new InvalidDataException($"Unexpected SSH Agent response length ({responseLength}).");
+            }
+            buffer = new byte[responseLength];
+            await stream.ReadExactlyAsync(buffer, ct).ConfigureAwait(false);
+
+            // Agents that don't support the extension respond with SSH_AGENT_FAILURE.
+            return (MessageId)buffer[0] == SSH_AGENT_SUCCESS;
+
+            static byte[] CreateBindSessionRequest(byte[] hostKey, byte[] sessionId, byte[] signature, bool isForwarding)
+            {
+                byte[] payload;
+                {
+                    using ArrayWriter payloadWriter = new();
+                    payloadWriter.WriteMessageId(SSH_AGENTC_EXTENSION);
+                    payloadWriter.WriteString(SessionBindExtension);
+                    payloadWriter.WriteString(hostKey);
+                    payloadWriter.WriteString(sessionId);
+                    payloadWriter.WriteString(signature);
+                    payloadWriter.WriteBoolean(isForwarding);
+                    payload = payloadWriter.ToArray();
+                }
+
+                // The SSH Agent protocol frames messages with a 4-byte length.
+                using ArrayWriter requestWriter = new();
+                requestWriter.WriteString(payload);
+                return requestWriter.ToArray();
             }
         }
 
