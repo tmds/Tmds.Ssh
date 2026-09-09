@@ -367,3 +367,8 @@ FodyWeavers.xsd
 # DocFX
 _site/
 src/docfx/api/
+
+# AI Agents
+.omo
+.omc
+.sisyphus
