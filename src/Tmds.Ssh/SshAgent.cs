@@ -37,7 +37,7 @@ namespace Tmds.Ssh
             get
             {
                 string? defaultAddress = OperatingSystem.IsWindows()
-                    ? @"\\pipe\.\openssh-ssh-agent"
+                    ? @"\\.\pipe\openssh-ssh-agent"
                     : null;
                 string? authSock = Environment.GetEnvironmentVariable("SSH_AUTH_SOCK");
                 return string.IsNullOrEmpty(authSock) ? defaultAddress : authSock;
