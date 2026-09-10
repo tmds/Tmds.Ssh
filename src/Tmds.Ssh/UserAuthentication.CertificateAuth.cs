@@ -70,7 +70,7 @@ partial class UserAuthentication
                     SshAgent? sshAgent = null;
                     try
                     {
-                        sshAgent = new SshAgent(address, sequencePool);
+                        sshAgent = new SshAgent(address, sequencePool, logger);
                         await sshAgent.ConnectAsync(connectionInfo, ct).ConfigureAwait(false);
                         connectedToSshAgent = true;
                     }

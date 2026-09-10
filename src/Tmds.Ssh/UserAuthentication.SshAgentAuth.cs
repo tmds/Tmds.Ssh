@@ -19,7 +19,7 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            using var sshAgent = new SshAgent(address, context.SequencePool);
+            using var sshAgent = new SshAgent(address, context.SequencePool, logger);
 
             try
             {

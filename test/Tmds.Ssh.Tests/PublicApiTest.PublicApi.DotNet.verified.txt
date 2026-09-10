@@ -2,7 +2,6 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/tmds/Tmds.Ssh")]
 namespace Tmds.Ssh
 {
-    public delegate System.Threading.Tasks.Task AgentChannelHandler(Tmds.Ssh.SshDataStream channel, Tmds.Ssh.SshConnectionInfo connectionInfo, System.Threading.CancellationToken cancellationToken);
     [System.Diagnostics.DebuggerDisplay("Count = {Count}")]
     [System.Diagnostics.DebuggerTypeProxy(typeof(Tmds.Ssh.ICollectionDebugView<string>))]
     public sealed class AlgorithmList : System.Collections.Generic.ICollection<string>, System.Collections.Generic.IEnumerable<string>, System.Collections.Generic.IList<string>, System.Collections.IEnumerable
@@ -563,7 +562,6 @@ namespace Tmds.Ssh
     {
         public SshClientSettings() { }
         public SshClientSettings(string destination) { }
-        public Tmds.Ssh.AgentChannelHandler? AgentChannelHandler { get; set; }
         public bool AutoConnect { get; set; }
         public bool AutoReconnect { get; set; }
         public Tmds.Ssh.BannerHandler? BannerHandler { get; set; }
@@ -577,6 +575,7 @@ namespace Tmds.Ssh
         public Tmds.Ssh.AlgorithmList EncryptionAlgorithmsServerToClient { get; set; }
         public System.Collections.Generic.Dictionary<string, string> EnvironmentVariables { get; set; }
         public bool ForwardAgent { get; set; }
+        public string? ForwardAgentAddress { get; set; }
         public System.Collections.Generic.List<string> GlobalKnownHostsFilePaths { get; set; }
         public bool HashKnownHosts { get; set; }
         public Tmds.Ssh.HostAuthentication? HostAuthentication { get; set; }

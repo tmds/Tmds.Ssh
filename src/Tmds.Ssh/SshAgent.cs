@@ -46,13 +46,15 @@ namespace Tmds.Ssh
 
         private readonly string _address;
         private readonly SequencePool _sequencePool;
+        private readonly ILogger<SshClient> _logger;
 
         private StreamSshConnection? _agentConnection;
 
-        public SshAgent(string address, SequencePool sequencePool)
+        public SshAgent(string address, SequencePool sequencePool, ILogger<SshClient> logger)
         {
             _address = address;
             _sequencePool = sequencePool;
+            _logger = logger;
         }
 
         // When 'bindSession' is set, the connection is bound to the session (see TryBindSessionAsync).
@@ -65,12 +67,13 @@ namespace Tmds.Ssh
 
                 if (bindSession is not null)
                 {
-                    await TryBindSessionAsync(stream, bindSession, isForwarding: false, cancellationToken).ConfigureAwait(false);
+                    await TryBindSessionAsync(stream, bindSession, isForwarding: false, _logger, cancellationToken).ConfigureAwait(false);
                 }
 
-                var logger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
+                // Use a null logger so the agent protocol packets don't end up in the log.
+                var connectionLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
 
-                _agentConnection = new StreamSshConnection(logger, _sequencePool, stream);
+                _agentConnection = new StreamSshConnection(connectionLogger, _sequencePool, stream);
                 _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
             }
             catch
@@ -152,13 +155,14 @@ namespace Tmds.Ssh
             string           signature
             bool             is_forwarding
         */
-        public static async ValueTask<bool> TryBindSessionAsync(Stream stream, SshConnectionInfo connectionInfo, bool isForwarding, CancellationToken ct)
+        public static async ValueTask<bool> TryBindSessionAsync(Stream stream, SshConnectionInfo connectionInfo, bool isForwarding, ILogger<SshClient> logger, CancellationToken ct)
         {
             byte[]? hostKey = connectionInfo.InitialServerKey;
             byte[]? sessionId = connectionInfo.SessionId;
             byte[]? signature = connectionInfo.InitialExchangeHashSignature;
             if (hostKey is null || sessionId is null || signature is null)
             {
+                logger.SshAgentSessionBindFailed();
                 return false;
             }
 
@@ -175,7 +179,12 @@ namespace Tmds.Ssh
             await stream.ReadExactlyAsync(buffer, ct).ConfigureAwait(false);
 
             // Agents that don't support the extension respond with SSH_AGENT_FAILURE.
-            return (MessageId)buffer[0] == SSH_AGENT_SUCCESS;
+            bool bound = (MessageId)buffer[0] == SSH_AGENT_SUCCESS;
+            if (!bound)
+            {
+                logger.SshAgentSessionBindFailed();
+            }
+            return bound;
 
             static byte[] CreateBindSessionRequest(byte[] hostKey, byte[] sessionId, byte[] signature, bool isForwarding)
             {

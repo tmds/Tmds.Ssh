@@ -365,6 +365,12 @@ static partial class SshClientLogger
         Message = "Failed to handle SSH Agent channel")]
     public static partial void AgentChannelFailed(this ILogger<SshClient> logger, Exception exception);
 
+    [LoggerMessage(
+        EventId = 42,
+        Level = LogLevel.Information,
+        Message = "SSH Agent did not accept the session bind request. Destination constraints of keys will not apply to this connection.")]
+    public static partial void SshAgentSessionBindFailed(this ILogger<SshClient> logger);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;

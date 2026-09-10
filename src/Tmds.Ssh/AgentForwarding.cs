@@ -1,6 +1,8 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using Microsoft.Extensions.Logging;
+
 namespace Tmds.Ssh;
 
 // Implements the client side of 'auth-agent-req@openssh.com'/'auth-agent@openssh.com' agent forwarding.
@@ -9,13 +11,14 @@ static class AgentForwarding
     private const int BufferSize = 4096;
 
     // Proxies an agent channel opened by the server to the SSH agent at 'address'.
-    public static async Task ProxyToLocalAgentAsync(SshDataStream channel, string address, SshConnectionInfo connectionInfo, CancellationToken cancellationToken)
+    public static async Task ProxyToLocalAgentAsync(SshDataStream channel, string address, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken cancellationToken)
     {
         using Stream agentStream = await SshAgent.OpenStreamAsync(address, cancellationToken).ConfigureAwait(false);
 
         // Binding tells the agent this connection is forwarded, which enables it to
         // apply the constraints of keys that are restricted to specific destinations.
-        await SshAgent.TryBindSessionAsync(agentStream, connectionInfo, isForwarding: true, cancellationToken).ConfigureAwait(false);
+        // When the agent doesn't accept it, we still forward, like the OpenSSH client does.
+        await SshAgent.TryBindSessionAsync(agentStream, connectionInfo, isForwarding: true, logger, cancellationToken).ConfigureAwait(false);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 

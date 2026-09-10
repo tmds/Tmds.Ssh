@@ -694,13 +694,16 @@ sealed partial class SshSession
         TrySendPacket(_sequencePool.CreateChannelOpenFailureMessage(remoteChannel));
     }
 
-    // Agent forwarding is enabled when the user asked for it and we can handle the channels the server opens.
+    // Agent forwarding is enabled when the user asked for it and we know which agent to forward.
     private static bool IsAgentForwardingEnabled([NotNullWhen(true)] SshClientSettings? settings)
-        => settings is { ForwardAgent: true } &&
-            (settings.AgentChannelHandler is not null || GetForwardAgentAddress(settings) is not null);
+        => settings is { ForwardAgent: true } && GetForwardAgentAddress(settings) is not null;
 
+    // When no address is set, the default agent is forwarded.
     private static string? GetForwardAgentAddress(SshClientSettings settings)
-        => settings.ForwardAgentAddress ?? SshAgent.DefaultAddress;
+    {
+        string? address = settings.ForwardAgentAddress;
+        return string.IsNullOrEmpty(address) ? SshAgent.DefaultAddress : address;
+    }
 
     private async Task HandleAgentChannelAsync(SshDataStream stream, SshClientSettings settings)
     {
@@ -708,15 +711,7 @@ sealed partial class SshSession
         {
             using (stream)
             {
-                AgentChannelHandler? handler = settings.AgentChannelHandler;
-                if (handler is not null)
-                {
-                    await handler(stream, ConnectionInfo, _abortCts.Token).ConfigureAwait(false);
-                }
-                else
-                {
-                    await AgentForwarding.ProxyToLocalAgentAsync(stream, GetForwardAgentAddress(settings)!, ConnectionInfo, _abortCts.Token).ConfigureAwait(false);
-                }
+                await AgentForwarding.ProxyToLocalAgentAsync(stream, GetForwardAgentAddress(settings)!, ConnectionInfo, Logger, _abortCts.Token).ConfigureAwait(false);
             }
         }
         catch (Exception ex)

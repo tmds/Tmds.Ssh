@@ -344,6 +344,7 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 | `EnableBatchModeWhenConsoleIsRedirected` | `true` | Automatically enable batch mode when the console is redirected. |
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
 | `ForwardAgent` | `false` | Forward the local SSH agent to the server. See [Forwarding the SSH agent](#forwarding-the-ssh-agent). |
+| `ForwardAgentAddress` | | Address of the SSH agent to forward. When unset, the default SSH agent is forwarded. |
 | `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
 | `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
 | `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
@@ -622,24 +623,19 @@ using var client = new SshClient(settings);
 using var process = await client.ExecuteAsync("ssh second-hop hostname");
 ```
 
-The agent that gets forwarded is the one used by `ssh`: on Unix the socket from the `SSH_AUTH_SOCK`
-environment variable, and on Windows the `openssh-ssh-agent` named pipe. When the server doesn't
-allow agent forwarding (OpenSSH: `AllowAgentForwarding no`), the agent is not forwarded, and the remote
-processes run without it.
+By default the agent that gets forwarded is the one used by `ssh`: on Unix the socket from the `SSH_AUTH_SOCK`
+environment variable, and on Windows the `openssh-ssh-agent` named pipe. Another agent can be forwarded by
+setting <xref:Tmds.Ssh.SshClientSettings.ForwardAgentAddress>. When the server doesn't allow agent forwarding
+(OpenSSH: `AllowAgentForwarding no`), the agent is not forwarded, and the remote processes run without it.
+
+The forwarded connections are bound to the session using the `session-bind@openssh.com` agent extension.
+This enables the agent to apply the constraints of keys that are restricted to specific destinations
+(`ssh-add -h`).
 
 Forwarding gives everyone who can access the agent socket on the server -- including the administrator --
 full control over the local agent for as long as the connection is up. Besides using keys to authenticate,
-that includes operations that change the agent, like removing keys. To limit what the server can do, set an
-<xref:Tmds.Ssh.SshClientSettings.AgentChannelHandler>. The handler receives the channels the server opens as
-a <xref:Tmds.Ssh.SshDataStream> and speaks the SSH agent protocol on it, so it can filter the requests before
-they reach an agent:
-
-```csharp
-settings.AgentChannelHandler = async (channel, connectionInfo, cancellationToken) =>
-{
-    // Read the requests made by the server, and write back the responses.
-};
-```
+that includes operations that change the agent, like removing keys. Only forward the agent to servers you
+trust.
 
 ## SSH File Transfer Protocol (SFTP)
 
