@@ -49,6 +49,10 @@ var sshConfigOptions = new Option<string[]>("-o")
     Description = $"Set an SSH Config option, for example: Ciphers=chacha20-poly1305@openssh.com.{Environment.NewLine}Supported options: {string.Join(", ", Enum.GetValues<SshConfigOption>().Select(o => o.ToString()))}",
     Arity = ArgumentArity.ZeroOrMore
 };
+var forwardWaylandOption = new Option<bool>("--forward-wayland")
+{
+    Description = "Forward Wayland using waypipe (like 'waypipe ssh'). Requires waypipe on the client and the server"
+};
 
 var rootCommand = new RootCommand("An 'ssh'-like CLI implemented using Tmds.Ssh.");
 rootCommand.Options.Add(forceTtyOption);
@@ -59,6 +63,7 @@ rootCommand.Options.Add(debugVerbosityOption);
 rootCommand.Options.Add(traceVerbosityOption);
 rootCommand.Options.Add(quietModeOption);
 rootCommand.Options.Add(forwardAgentOption);
+rootCommand.Options.Add(forwardWaylandOption);
 
 rootCommand.Arguments.Add(destinationArg);
 rootCommand.Arguments.Add(commandArg);
@@ -76,13 +81,14 @@ rootCommand.SetAction(
         string[] options = parseResult.GetValue(sshConfigOptions)!;
         string destination = parseResult.GetValue(destinationArg)!;
         string[] command = parseResult.GetValue(commandArg)!;
-        return ExecuteAsync(destination, command, forceTty, disableTty, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, forwardAgent, options);
+        bool forwardWayland = parseResult.GetValue(forwardWaylandOption);
+        return ExecuteAsync(destination, command, forceTty, disableTty, informationVerbosity, debugVerbosity, traceVerbosity, quietMode, forwardAgent, options, forwardWayland, ct);
     });
 
 ParseResult parseResult = rootCommand.Parse(args);
 return await parseResult.InvokeAsync();
 
-static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quiet, bool forwardAgent, string[] options)
+static async Task<int> ExecuteAsync(string destination, string[] command, bool forceTty, bool disableTty, bool informationVerbosity, bool debugVerbosity, bool traceVerbosity, bool quiet, bool forwardAgent, string[] options, bool forwardWayland, CancellationToken cancellationToken)
 {
     LogLevel logLevel;
     if (traceVerbosity)
@@ -134,9 +140,18 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         }
     }
 
+    string? remoteCommand = command.Length == 0 ? null : string.Join(" ", command);
+
+    // Wayland forwarding is not a library feature: it is implemented in WaypipeForward.cs on top of the public API.
+    // The forward must outlive the remote process, so it is disposed after it (declaration order).
+    using WaypipeForward? waypipe = forwardWayland
+        ? await WaypipeForward.StartAsync(client, loggerFactory?.CreateLogger("waypipe"), cancellationToken: cancellationToken)
+        : null;
+
     using var process =
-        command.Length == 0 ? await client.ExecuteShellAsync(executeOptions)
-                            : await client.ExecuteAsync(string.Join(" ", command), executeOptions);
+        waypipe is not null   ? await client.ExecuteAsync(waypipe.CreateRemoteCommand(remoteCommand), executeOptions)
+        : remoteCommand is null ? await client.ExecuteShellAsync(executeOptions)
+                                : await client.ExecuteAsync(remoteCommand, executeOptions);
 
     Task<int> receiveTask = ReceiveLoop(process);
     Task sendTask = SendLoop(process);
