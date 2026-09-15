@@ -46,52 +46,29 @@ namespace Tmds.Ssh
 
         private readonly string _address;
         private readonly SequencePool _sequencePool;
-        private readonly ILogger<SshClient> _logger;
 
+        private Stream? _stream;
         private StreamSshConnection? _agentConnection;
 
-        public SshAgent(string address, SequencePool sequencePool, ILogger<SshClient> logger)
+        public SshAgent(string address, SequencePool sequencePool)
         {
             _address = address;
             _sequencePool = sequencePool;
-            _logger = logger;
         }
 
-        // When 'bindSession' is set, the connection is bound to the session (see TryBindSessionAsync).
-        public async ValueTask ConnectAsync(SshConnectionInfo? bindSession, CancellationToken cancellationToken)
-        {
-            Stream? stream = null;
-            try
-            {
-                stream = await OpenStreamAsync(_address, cancellationToken).ConfigureAwait(false);
+        // The connection with the SSH agent. It can be used to exchange agent protocol messages,
+        // or to forward the agent to a remote server.
+        public Stream Stream => _stream ?? throw new InvalidOperationException("Not connected");
 
-                if (bindSession is not null)
-                {
-                    await TryBindSessionAsync(stream, bindSession, isForwarding: false, _logger, cancellationToken).ConfigureAwait(false);
-                }
-
-                // Use a null logger so the agent protocol packets don't end up in the log.
-                var connectionLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
-
-                _agentConnection = new StreamSshConnection(connectionLogger, _sequencePool, stream);
-                _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
-            }
-            catch
-            {
-                stream?.Dispose();
-                throw;
-            }
-        }
-
-        // Opens a connection to the SSH agent at 'address'.
-        public static async ValueTask<Stream> OpenStreamAsync(string address, CancellationToken cancellationToken)
+        // Opens a connection to the SSH agent.
+        public async ValueTask ConnectAsync(CancellationToken cancellationToken)
         {
             Stream? stream = null;
             try
             {
                 if (OperatingSystem.IsWindows())
                 {
-                    string normalizedPath = Path.GetFullPath(address);
+                    string normalizedPath = Path.GetFullPath(_address);
                     if (!normalizedPath.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
                     {
                         throw new ArgumentException(
@@ -105,7 +82,7 @@ namespace Tmds.Ssh
                     // connections.
                     if (!File.Exists(normalizedPath))
                     {
-                        throw new FileNotFoundException(address);
+                        throw new FileNotFoundException(_address);
                     }
 
                     NamedPipeClientStream pipe = new NamedPipeClientStream(
@@ -123,7 +100,7 @@ namespace Tmds.Ssh
                     Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
                     try
                     {
-                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(address), cancellationToken).ConfigureAwait(false);
+                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(_address), cancellationToken).ConfigureAwait(false);
                         stream = new NetworkStream(socket, ownsSocket: true);
                     }
                     catch
@@ -133,7 +110,7 @@ namespace Tmds.Ssh
                     }
                 }
 
-                return stream;
+                _stream = stream;
             }
             catch
             {
@@ -148,6 +125,8 @@ namespace Tmds.Ssh
             This enables the agent to apply per-destination constraints ('ssh-add -h') and, for forwarded
             connections, to know which hosts the connection passed through.
 
+            The caller is responsible for logging when the agent doesn't accept the request.
+
             byte             SSH_AGENTC_EXTENSION
             string           "session-bind@openssh.com"
             string           hostkey
@@ -155,16 +134,17 @@ namespace Tmds.Ssh
             string           signature
             bool             is_forwarding
         */
-        public static async ValueTask<bool> TryBindSessionAsync(Stream stream, SshConnectionInfo connectionInfo, bool isForwarding, ILogger<SshClient> logger, CancellationToken ct)
+        public async ValueTask<bool> TryBindSessionAsync(SshConnectionInfo connectionInfo, bool isForwarding, CancellationToken ct)
         {
             byte[]? hostKey = connectionInfo.InitialServerKey;
             byte[]? sessionId = connectionInfo.SessionId;
             byte[]? signature = connectionInfo.InitialExchangeHashSignature;
             if (hostKey is null || sessionId is null || signature is null)
             {
-                logger.SshAgentSessionBindFailed();
                 return false;
             }
+
+            Stream stream = Stream;
 
             await stream.WriteAsync(CreateBindSessionRequest(hostKey, sessionId, signature, isForwarding), ct).ConfigureAwait(false);
 
@@ -179,12 +159,7 @@ namespace Tmds.Ssh
             await stream.ReadExactlyAsync(buffer, ct).ConfigureAwait(false);
 
             // Agents that don't support the extension respond with SSH_AGENT_FAILURE.
-            bool bound = (MessageId)buffer[0] == SSH_AGENT_SUCCESS;
-            if (!bound)
-            {
-                logger.SshAgentSessionBindFailed();
-            }
-            return bound;
+            return (MessageId)buffer[0] == SSH_AGENT_SUCCESS;
 
             static byte[] CreateBindSessionRequest(byte[] hostKey, byte[] sessionId, byte[] signature, bool isForwarding)
             {
@@ -223,12 +198,28 @@ namespace Tmds.Ssh
 
         public void Dispose()
         {
-            _agentConnection?.Dispose();
+            // The connection owns the stream when it was created.
+            if (_agentConnection is not null)
+            {
+                _agentConnection.Dispose();
+            }
+            else
+            {
+                _stream?.Dispose();
+            }
         }
 
         private StreamSshConnection GetAgentConnection()
         {
-            return _agentConnection ?? throw new InvalidOperationException("Not connected");
+            if (_agentConnection is null)
+            {
+                // Use a null logger so the agent protocol packets don't end up in the log.
+                var connectionLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
+
+                _agentConnection = new StreamSshConnection(connectionLogger, _sequencePool, Stream);
+                _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
+            }
+            return _agentConnection;
         }
 
         public async Task<List<Identity>> RequestIdentitiesAsync(CancellationToken ct)

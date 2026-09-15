@@ -425,25 +425,6 @@ public class SshConfigTests
         SshConfigParser config = await DetermineConfigAsync("ForwardAgent /tmp/my_agent.sock");
         Assert.Equal(true, config.ForwardAgent);
         Assert.Equal("/tmp/my_agent.sock", config.ForwardAgentAddress);
-
-        // Or the name of an environment variable that holds that path.
-        const string EnvvarName = "TMDS_SSH_TEST_AUTH_SOCK";
-        Environment.SetEnvironmentVariable(EnvvarName, "/tmp/my_other_agent.sock");
-        try
-        {
-            config = await DetermineConfigAsync($"ForwardAgent ${EnvvarName}");
-            Assert.Equal(true, config.ForwardAgent);
-            Assert.Equal("/tmp/my_other_agent.sock", config.ForwardAgentAddress);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(EnvvarName, null);
-        }
-
-        // When the environment variable is not set, the agent is not forwarded.
-        config = await DetermineConfigAsync($"ForwardAgent ${EnvvarName}");
-        Assert.Equal(false, config.ForwardAgent);
-        Assert.Null(config.ForwardAgentAddress);
     }
 
     private static async Task<SshConfigParser> DetermineConfigAsync(string config, string? username = null, string host = "", int? port = null, CancellationToken cancellationToken = default)

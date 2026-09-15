@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Tmds.Ssh.Tests;
@@ -57,6 +56,25 @@ public class AgentForwardingTests
     }
 
     [Fact]
+    public async Task NotForwardedWhenAgentIsNotAvailable()
+    {
+        // There is no agent at this address.
+        string address = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        using var client = await _sshServer.CreateClientAsync(settings =>
+        {
+            settings.ForwardAgent = true;
+            settings.ForwardAgentAddress = address;
+        });
+
+        // We don't announce forwarding to the server, so it doesn't set SSH_AUTH_SOCK.
+        using var process = await client.ExecuteAsync("echo \"SSH_AUTH_SOCK=[$SSH_AUTH_SOCK]\"");
+        (string stdout, _) = await process.ReadToEndAsStringAsync();
+
+        Assert.Contains("SSH_AUTH_SOCK=[]", stdout);
+    }
+
+    [Fact]
     public async Task SessionBindIsAcceptedByAgent()
     {
         // Verifies the 'session-bind@openssh.com' request we send on forwarded agent
@@ -67,8 +85,9 @@ public class AgentForwardingTests
 
         using var client = await _sshServer.CreateClientAsync();
 
-        using Stream agentStream = await SshAgent.OpenStreamAsync(agent.Address, default);
-        bool bound = await SshAgent.TryBindSessionAsync(agentStream, client.ConnectionInfo, isForwarding: true, NullLogger<SshClient>.Instance, default);
+        using var sshAgent = new SshAgent(agent.Address, new SequencePool());
+        await sshAgent.ConnectAsync(default);
+        bool bound = await sshAgent.TryBindSessionAsync(client.ConnectionInfo, isForwarding: true, default);
 
         Assert.True(bound);
     }

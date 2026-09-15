@@ -531,11 +531,10 @@ sealed class SshConfigParser
                     }
                     else
                     {
-                        // The value may also be the path of the agent socket, or the name of an
-                        // environment variable (prefixed with '$') that holds that path.
-                        string? address = value.StartsWith("$")
-                            ? Environment.GetEnvironmentVariable(value.Slice(1).ToString())
-                            : TildeExpand(value);
+                        // The value is the path of the agent socket.
+                        // TODO: the value may also be the name of an environment variable (prefixed
+                        // with '$') that holds that path. We don't support envvar expansion (yet).
+                        string? address = TildeExpand(value);
                         config.ForwardAgent = !string.IsNullOrEmpty(address);
                         config.ForwardAgentAddress = string.IsNullOrEmpty(address) ? null : address;
                     }

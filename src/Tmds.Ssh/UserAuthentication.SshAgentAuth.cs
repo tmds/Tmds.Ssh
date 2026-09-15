@@ -19,17 +19,24 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            using var sshAgent = new SshAgent(address, context.SequencePool, logger);
+            using var sshAgent = new SshAgent(address, context.SequencePool);
 
+            bool bound;
             try
             {
-                await sshAgent.ConnectAsync(connectionInfo, ct).ConfigureAwait(false);
+                await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
+
+                bound = await sshAgent.TryBindSessionAsync(connectionInfo, isForwarding: false, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 logger.CannotConnectToSshAgent(ex);
 
                 return AuthResult.None;
+            }
+            if (!bound)
+            {
+                logger.SshAgentSessionBindFailed();
             }
 
             List<SshAgent.Identity> keys = await sshAgent.RequestIdentitiesAsync(ct).ConfigureAwait(false);
