@@ -706,10 +706,10 @@ sealed partial class SshSession
         Debug.Assert(_forwardAgentAddress is not null);
         CancellationToken ct = _abortCts.Token;
 
-        SshAgent agent;
+        Stream agentStream;
         try
         {
-            agent = await ConnectToForwardAgentAsync(ct).ConfigureAwait(false);
+            agentStream = await ConnectToForwardAgentAsync(ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -724,14 +724,16 @@ sealed partial class SshSession
 
         try
         {
-            using (agent)
+            using (agentStream)
             {
+                Logger.ForwardingAgentChannel();
+
                 SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize: null, onAbort: null, remoteChannel, sendMaxPacket, sendWindow);
                 channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
 
                 using SshDataStream stream = new SshDataStream(channel);
 
-                await ForwardStreamsAsync(stream, agent.Stream).ConfigureAwait(false);
+                await ForwardStreamsAsync(stream, agentStream).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -750,28 +752,27 @@ sealed partial class SshSession
 
         try
         {
-            using SshAgent agent = new SshAgent(_forwardAgentAddress, _sequencePool);
-            await agent.ConnectAsync(ct).ConfigureAwait(false);
+            using Stream agentStream = await SshAgent.ConnectAsync(_forwardAgentAddress, ct).ConfigureAwait(false);
 
             return true;
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            Logger.CannotConnectToSshAgent(ex);
+            Logger.SkippingAgentForwarding(ex);
 
             return false;
         }
     }
 
     // Connects to the SSH agent that gets forwarded.
-    private async ValueTask<SshAgent> ConnectToForwardAgentAsync(CancellationToken ct)
+    private async ValueTask<Stream> ConnectToForwardAgentAsync(CancellationToken ct)
     {
         Debug.Assert(_forwardAgentAddress is not null);
 
-        SshAgent agent = new SshAgent(_forwardAgentAddress, _sequencePool);
+        Stream agentStream = await SshAgent.ConnectAsync(_forwardAgentAddress, ct).ConfigureAwait(false);
         try
         {
-            await agent.ConnectAsync(ct).ConfigureAwait(false);
+            using SshAgent agent = new SshAgent(agentStream, _sequencePool, ownsStream: false);
 
             // Binding tells the agent this connection is forwarded, which enables it to
             // apply the constraints of keys that are restricted to specific destinations.
@@ -781,11 +782,11 @@ sealed partial class SshSession
                 Logger.SshAgentSessionBindFailed();
             }
 
-            return agent;
+            return agentStream;
         }
         catch
         {
-            agent.Dispose();
+            agentStream.Dispose();
             throw;
         }
     }
@@ -1067,6 +1068,8 @@ sealed partial class SshSession
         // Only announce agent forwarding when there is an agent we can forward.
         if (_forwardAgentAddress is not null && await CanConnectToForwardAgentAsync(cancellationToken).ConfigureAwait(false))
         {
+            Logger.EnablingAgentForwarding();
+
             // Like 'ssh' we don't wait for a reply.
             // When the server refuses, it will not open any agent channels.
             channel.TrySendAuthAgentRequestMessage();

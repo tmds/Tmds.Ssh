@@ -15,6 +15,7 @@ sealed class StreamSshConnection : SshConnection
 
     private readonly ILogger<SshClient> _logger;
     private readonly Stream _stream;
+    private readonly bool _ownsStream;
     private readonly Sequence _receiveBuffer;
     private readonly Sequence _sendBuffer;
     private IPacketDecryptor _decryptor;
@@ -79,7 +80,7 @@ sealed class StreamSshConnection : SshConnection
         _keepAliveCallback();
     }
 
-    public StreamSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Stream stream) :
+    public StreamSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Stream stream, bool ownsStream = true) :
         base(sequencePool)
     {
         if (!stream.CanRead || !stream.CanWrite)
@@ -89,6 +90,7 @@ sealed class StreamSshConnection : SshConnection
 
         _logger = logger;
         _stream = stream;
+        _ownsStream = ownsStream;
         _receiveBuffer = sequencePool.RentSequence();
         _sendBuffer = sequencePool.RentSequence();
         _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, new EncryptionCryptoTransform.EncryptionCryptoTransformNone(), new HMac.HMacNone());
@@ -251,6 +253,9 @@ sealed class StreamSshConnection : SshConnection
         _sendBuffer.Dispose();
         _encryptor.Dispose();
         _decryptor.Dispose();
-        _stream.Dispose();
+        if (_ownsStream)
+        {
+            _stream.Dispose();
+        }
     }
 }

@@ -70,8 +70,8 @@ partial class UserAuthentication
                     SshAgent? sshAgent = null;
                     try
                     {
-                        sshAgent = new SshAgent(address, sequencePool);
-                        await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
+                        Stream stream = await SshAgent.ConnectAsync(address, ct).ConfigureAwait(false);
+                        sshAgent = new SshAgent(stream, sequencePool, ownsStream: true);
                         if (!await sshAgent.TryBindSessionAsync(connectionInfo, isForwarding: false, ct).ConfigureAwait(false))
                         {
                             logger.SshAgentSessionBindFailed();

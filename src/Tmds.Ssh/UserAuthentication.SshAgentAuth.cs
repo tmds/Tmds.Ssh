@@ -19,14 +19,10 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            using var sshAgent = new SshAgent(address, context.SequencePool);
-
-            bool bound;
+            Stream stream;
             try
             {
-                await sshAgent.ConnectAsync(ct).ConfigureAwait(false);
-
-                bound = await sshAgent.TryBindSessionAsync(connectionInfo, isForwarding: false, ct).ConfigureAwait(false);
+                stream = await SshAgent.ConnectAsync(address, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -34,7 +30,10 @@ partial class UserAuthentication
 
                 return AuthResult.None;
             }
-            if (!bound)
+
+            using var sshAgent = new SshAgent(stream, context.SequencePool, ownsStream: true);
+
+            if (!await sshAgent.TryBindSessionAsync(connectionInfo, isForwarding: false, ct).ConfigureAwait(false))
             {
                 logger.SshAgentSessionBindFailed();
             }

@@ -371,6 +371,24 @@ static partial class SshClientLogger
         Message = "SSH Agent did not accept the session bind request. Destination constraints of keys will not apply to this connection.")]
     public static partial void SshAgentSessionBindFailed(this ILogger<SshClient> logger);
 
+    [LoggerMessage(
+        EventId = 43,
+        Level = LogLevel.Information,
+        Message = "Skipping agent forwarding, cannot connect to SSH agent")]
+    public static partial void SkippingAgentForwarding(this ILogger<SshClient> logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 44,
+        Level = LogLevel.Information,
+        Message = "Enabling agent forwarding")]
+    public static partial void EnablingAgentForwarding(this ILogger<SshClient> logger);
+
+    [LoggerMessage(
+        EventId = 45,
+        Level = LogLevel.Information,
+        Message = "Forwarding agent channel")]
+    public static partial void ForwardingAgentChannel(this ILogger<SshClient> logger);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;

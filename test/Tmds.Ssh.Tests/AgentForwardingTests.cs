@@ -85,8 +85,8 @@ public class AgentForwardingTests
 
         using var client = await _sshServer.CreateClientAsync();
 
-        using var sshAgent = new SshAgent(agent.Address, new SequencePool());
-        await sshAgent.ConnectAsync(default);
+        using Stream stream = await SshAgent.ConnectAsync(agent.Address, default);
+        using var sshAgent = new SshAgent(stream, new SequencePool(), ownsStream: false);
         bool bound = await sshAgent.TryBindSessionAsync(client.ConnectionInfo, isForwarding: true, default);
 
         Assert.True(bound);
