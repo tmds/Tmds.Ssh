@@ -14,8 +14,17 @@ sealed class StreamSshConnection : SshConnection
     private static ReadOnlySpan<byte> NewLine => new byte[] { (byte)'\r', (byte)'\n' };
 
     private readonly ILogger<SshClient> _logger;
+
+    public Stream InnerStream
+    {
+        get
+        {
+            // Check no data was buffered past the last protocol exchange that would be lost by bypassing the connection.
+            Debug.Assert(_receiveBuffer.AsReadOnlySequence().IsEmpty);
+            return _stream;
+        }
+    }
     private readonly Stream _stream;
-    private readonly bool _ownsStream;
     private readonly Sequence _receiveBuffer;
     private readonly Sequence _sendBuffer;
     private IPacketDecryptor _decryptor;
@@ -80,7 +89,7 @@ sealed class StreamSshConnection : SshConnection
         _keepAliveCallback();
     }
 
-    public StreamSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Stream stream, bool ownsStream = true) :
+    public StreamSshConnection(ILogger<SshClient> logger, SequencePool sequencePool, Stream stream) :
         base(sequencePool)
     {
         if (!stream.CanRead || !stream.CanWrite)
@@ -90,7 +99,6 @@ sealed class StreamSshConnection : SshConnection
 
         _logger = logger;
         _stream = stream;
-        _ownsStream = ownsStream;
         _receiveBuffer = sequencePool.RentSequence();
         _sendBuffer = sequencePool.RentSequence();
         _decryptor = new TransformAndHMacPacketDecryptor(SequencePool, new EncryptionCryptoTransform.EncryptionCryptoTransformNone(), new HMac.HMacNone());
@@ -253,9 +261,6 @@ sealed class StreamSshConnection : SshConnection
         _sendBuffer.Dispose();
         _encryptor.Dispose();
         _decryptor.Dispose();
-        if (_ownsStream)
-        {
-            _stream.Dispose();
-        }
+        _stream.Dispose();
     }
 }

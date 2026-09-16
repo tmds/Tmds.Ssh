@@ -45,22 +45,19 @@ namespace Tmds.Ssh
         }
 
         private readonly SequencePool _sequencePool;
-        private readonly StreamSshConnection _agentConnection;
+        private StreamSshConnection? _agentConnection;
 
-        public SshAgent(Stream stream, SequencePool sequencePool, bool ownsStream)
+        public Stream InnerStream => GetAgentConnection().InnerStream;
+
+        public SshAgent(SequencePool sequencePool)
         {
             _sequencePool = sequencePool;
-
-            // Use a null logger so the agent protocol packets don't end up in the log.
-            var connectionLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
-
-            _agentConnection = new StreamSshConnection(connectionLogger, sequencePool, stream, ownsStream);
-            _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(sequencePool), false, false);
         }
 
-        // Opens a connection to the SSH agent at 'address'.
-        public static async ValueTask<Stream> ConnectAsync(string address, CancellationToken cancellationToken)
+        public async ValueTask ConnectAsync(string address, CancellationToken cancellationToken)
         {
+            Debug.Assert(_agentConnection is null);
+
             Stream? stream = null;
             try
             {
@@ -108,7 +105,10 @@ namespace Tmds.Ssh
                     }
                 }
 
-                return stream;
+                // Use a null logger so the agent protocol packets don't end up in the log.
+                var connectionLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
+                _agentConnection = new StreamSshConnection(connectionLogger, _sequencePool, stream);
+                _agentConnection.SetEncryptorDecryptor(new SshAgentPacketEncryptor(), new SshAgentPacketDecryptor(_sequencePool), false, false);
             }
             catch
             {
@@ -134,6 +134,8 @@ namespace Tmds.Ssh
         */
         public async ValueTask<bool> TryBindSessionAsync(SshConnectionInfo connectionInfo, bool isForwarding, CancellationToken ct)
         {
+            var connection = GetAgentConnection();
+
             byte[]? hostKey = connectionInfo.InitialServerKey;
             byte[]? sessionId = connectionInfo.SessionId;
             byte[]? signature = connectionInfo.InitialExchangeHashSignature;
@@ -145,11 +147,11 @@ namespace Tmds.Ssh
             // SSH_AGENTC_EXTENSION
             {
                 using var bindSessionMsg = CreateBindSessionMessage(_sequencePool, hostKey, sessionId, signature, isForwarding);
-                await _agentConnection.SendPacketAsync(bindSessionMsg.Move(), ct).ConfigureAwait(false);
+                await connection.SendPacketAsync(bindSessionMsg.Move(), ct).ConfigureAwait(false);
             }
             // SSH_AGENT_SUCCESS
             {
-                using var response = await _agentConnection.ReceivePacketAsync(ct, MaxPacketSize);
+                using var response = await connection.ReceivePacketAsync(ct, MaxPacketSize);
                 // Agents that don't support the extension respond with SSH_AGENT_FAILURE.
                 return response.GetReader().ReadMessageId() == SSH_AGENT_SUCCESS;
             }
@@ -170,32 +172,39 @@ namespace Tmds.Ssh
 
         public async Task<byte[]?> TrySignAsync(Name algorithm, ReadOnlyMemory<byte> publicKey, byte[] data, CancellationToken ct)
         {
+            var connection = GetAgentConnection();
             // SSH_AGENTC_SIGN_REQUEST
             {
                 using var requestIdentitiesMsg = CreateSignRequestMessage(algorithm, _sequencePool, publicKey, data);
-                await _agentConnection.SendPacketAsync(requestIdentitiesMsg.Move(), ct).ConfigureAwait(false);
+                await connection.SendPacketAsync(requestIdentitiesMsg.Move(), ct).ConfigureAwait(false);
             }
             {
-                using var response = await _agentConnection.ReceivePacketAsync(ct, MaxPacketSize);
+                using var response = await connection.ReceivePacketAsync(ct, MaxPacketSize);
                 return TryGetSignature(response);
             }
         }
 
         public void Dispose()
         {
-            _agentConnection.Dispose();
+            _agentConnection?.Dispose();
+        }
+
+        private StreamSshConnection GetAgentConnection()
+        {
+            return _agentConnection ?? throw new InvalidOperationException("Not connected");
         }
 
         public async Task<List<Identity>> RequestIdentitiesAsync(CancellationToken ct)
         {
+            var connection = GetAgentConnection();
             // SSH_AGENTC_REQUEST_IDENTITIES
             {
                 using var requestIdentitiesMsg = CreateRequestIdentitiesMessage(_sequencePool);
-                await _agentConnection.SendPacketAsync(requestIdentitiesMsg.Move(), ct).ConfigureAwait(false);
+                await connection.SendPacketAsync(requestIdentitiesMsg.Move(), ct).ConfigureAwait(false);
             }
             // SSH_AGENT_IDENTITIES_ANSWER
             {
-                using var response = await _agentConnection.ReceivePacketAsync(ct, MaxPacketSize);
+                using var response = await connection.ReceivePacketAsync(ct, MaxPacketSize);
                 return GetIdentities(response);
             }
         }

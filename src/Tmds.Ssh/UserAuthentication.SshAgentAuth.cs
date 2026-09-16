@@ -2,7 +2,6 @@
 // See file LICENSE for full license details.
 
 using System.Diagnostics;
-using System.Net;
 using Microsoft.Extensions.Logging;
 
 namespace Tmds.Ssh;
@@ -19,10 +18,10 @@ partial class UserAuthentication
                 return AuthResult.None;
             }
 
-            Stream stream;
+            using var sshAgent = new SshAgent(context.SequencePool);
             try
             {
-                stream = await SshAgent.ConnectAsync(address, ct).ConfigureAwait(false);
+                await sshAgent.ConnectAsync(address, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -30,8 +29,6 @@ partial class UserAuthentication
 
                 return AuthResult.None;
             }
-
-            using var sshAgent = new SshAgent(stream, context.SequencePool, ownsStream: true);
 
             if (!await sshAgent.TryBindSessionAsync(connectionInfo, isForwarding: false, ct).ConfigureAwait(false))
             {
