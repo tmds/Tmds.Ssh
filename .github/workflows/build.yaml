@@ -38,7 +38,8 @@ jobs:
 
     - name: Run tests
       run: |
-        dotnet test --project test/Tmds.Ssh.Tests
+        dotnet test
+      working-directory: test/Tmds.Ssh.Tests
 
     - name: Build packages
       run: |
