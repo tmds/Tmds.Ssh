@@ -191,11 +191,11 @@ sealed class WaypipeForward : IDisposable
         sb.Append(QuoteArgument(RemoteSocketPath));
         // waypipe places a display name in XDG_RUNTIME_DIR. When the server doesn't set XDG_RUNTIME_DIR (e.g. no login session manager),
         // use an absolute path instead. RemoteDisplay only contains [a-z0-9-] so it doesn't need to be quoted.
-        sb.Append(" --display \"${XDG_RUNTIME_DIR:+");
+        sb.Append(" --display \"$([ -n \"$XDG_RUNTIME_DIR\" ] && printf '%s' '");
         sb.Append(RemoteDisplay);
-        sb.Append("}${XDG_RUNTIME_DIR:-/tmp/");
+        sb.Append("' || printf '%s' '/tmp/");
         sb.Append(RemoteDisplay);
-        sb.Append("}\"");
+        sb.Append("')\"");
         // The socket is created by the SSH server for the forward, remove it when waypipe exits.
         sb.Append(" --unlink-socket");
         if (command is null)
