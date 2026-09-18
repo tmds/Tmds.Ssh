@@ -1,3 +1,4 @@
+using System.Text;
 using Xunit;
 
 namespace Tmds.Ssh.Tests;
@@ -129,5 +130,64 @@ public class TerminalPixelDimensionTests
         Assert.Equal(0u, reader.ReadUInt32());
         Assert.Equal(0u, reader.ReadUInt32());
         reader.ReadEnd();
+    }
+
+    [Fact]
+    public void SetTerminalSize_RejectsNegativeWidthPixels()
+    {
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => process.SetTerminalSize(80, 24, -1, 0));
+    }
+
+    [Fact]
+    public void SetTerminalSize_RejectsNegativeHeightPixels()
+    {
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => process.SetTerminalSize(80, 24, 0, -1));
+    }
+
+    private static global::Tmds.Ssh.RemoteProcess CreateProcessWithTerminal() =>
+        new(
+            new StubChannel(),
+            Encoding.UTF8,
+            Encoding.UTF8,
+            Encoding.UTF8,
+            hasTty: true);
+
+    private sealed class StubChannel : ISshChannel
+    {
+        public int ReceiveMaxPacket => 32 * 1024;
+        public int SendMaxPacket => 32 * 1024;
+        public int WindowSize => 0;
+        public CancellationToken ChannelAborted => CancellationToken.None;
+        public int? ExitCode => null;
+        public string? ExitSignal => null;
+        public bool EofSent => false;
+
+        public void Dispose() { }
+        public void Abort(Exception exception) { }
+
+        public ValueTask<(ChannelReadType ReadType, int BytesRead)> ReadAsync(
+            Memory<byte>? stdoutBuffer,
+            Memory<byte>? stderrBuffer,
+            CancellationToken cancellationToken,
+            bool forStream = false) =>
+            throw new NotSupportedException();
+
+        public ValueTask WriteAsync(
+            ReadOnlyMemory<byte> data,
+            CancellationToken cancellationToken,
+            bool forStream = false) =>
+            throw new NotSupportedException();
+
+        public void WriteEof(bool noThrow, bool forStream) { }
+
+        public bool ChangeTerminalSize(int width, int height, int widthPixels, int heightPixels) => true;
+
+        public bool SendSignal(string signalName) => true;
+
+        public SshException CreateCloseException() => new("closed");
     }
 }

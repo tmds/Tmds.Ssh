@@ -369,6 +369,8 @@ public sealed class RemoteProcess : IDisposable
     /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
     public bool SetTerminalSize(int width, int height, int widthPixels, int heightPixels)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(widthPixels);
+        ArgumentOutOfRangeException.ThrowIfNegative(heightPixels);
         ThrowIfNotHasTerminal();
 
         return _channel.ChangeTerminalSize(width, height, widthPixels, heightPixels);
