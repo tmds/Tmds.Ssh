@@ -353,11 +353,25 @@ public sealed class RemoteProcess : IDisposable
     /// <param name="width">The terminal width in characters.</param>
     /// <param name="height">The terminal height in characters.</param>
     /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
+    /// <remarks>
+    /// Pixel dimensions are sent as 0 (unspecified). Use the overload that takes pixel dimensions to supply them.
+    /// </remarks>
     public bool SetTerminalSize(int width, int height)
+        => SetTerminalSize(width, height, 0, 0);
+
+    /// <summary>
+    /// Sets the terminal window size.
+    /// </summary>
+    /// <param name="width">The terminal width in characters.</param>
+    /// <param name="height">The terminal height in characters.</param>
+    /// <param name="widthPixels">The terminal width in pixels. Use 0 when unspecified.</param>
+    /// <param name="heightPixels">The terminal height in pixels. Use 0 when unspecified.</param>
+    /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
+    public bool SetTerminalSize(int width, int height, int widthPixels, int heightPixels)
     {
         ThrowIfNotHasTerminal();
 
-        return _channel.ChangeTerminalSize(width, height);
+        return _channel.ChangeTerminalSize(width, height, widthPixels, heightPixels);
     }
 
     /// <summary>

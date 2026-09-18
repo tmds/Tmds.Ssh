@@ -19,6 +19,8 @@ public sealed class ExecuteOptions
     private string _term = "xterm-256color";
     private int _termWidth = 80;
     private int _termHeight = 24;
+    private int _termWidthPixels = 0;
+    private int _termHeightPixels = 0;
     private Dictionary<string, string>? _environmentVariables;
     private int? _windowSize;
 
@@ -101,6 +103,40 @@ public sealed class ExecuteOptions
         {
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0);
             _termHeight = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the terminal width in pixels.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to 0, which means the pixel size is unspecified.
+    /// Tmds.Ssh does not compute a pixel size; the caller supplies it.
+    /// </remarks>
+    public int TerminalWidthPixels
+    {
+        get => _termWidthPixels;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _termWidthPixels = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the terminal height in pixels.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to 0, which means the pixel size is unspecified.
+    /// Tmds.Ssh does not compute a pixel size; the caller supplies it.
+    /// </remarks>
+    public int TerminalHeightPixels
+    {
+        get => _termHeightPixels;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _termHeightPixels = value;
         }
     }
 

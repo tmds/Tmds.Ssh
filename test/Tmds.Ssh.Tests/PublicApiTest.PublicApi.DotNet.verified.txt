@@ -66,9 +66,11 @@ namespace Tmds.Ssh
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
         public int TerminalHeight { get; set; }
+        public int TerminalHeightPixels { get; set; }
         public Tmds.Ssh.TerminalSettings TerminalSettings { get; }
         public string TerminalType { get; set; }
         public int TerminalWidth { get; set; }
+        public int TerminalWidthPixels { get; set; }
         public int? WindowSize { get; set; }
     }
     public sealed class FileEntryAttributes
@@ -272,7 +274,7 @@ namespace Tmds.Ssh
                 "IsError",
                 "Content"})]
         public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<bool, string>> ReadAllLinesAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__53))]
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__54))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "IsError",
                 "Content"})]
@@ -307,6 +309,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default) { }
         public bool SendSignal(string signalName) { }
         public bool SetTerminalSize(int width, int height) { }
+        public bool SetTerminalSize(int width, int height, int widthPixels, int heightPixels) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<char> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(string value, System.Threading.CancellationToken cancellationToken = default) { }
