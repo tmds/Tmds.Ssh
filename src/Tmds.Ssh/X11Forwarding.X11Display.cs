@@ -50,7 +50,9 @@ partial class X11Forwarding
             }
         }
 
-        private string DisplayAndScreen => Name.Substring(Name.LastIndexOf(':') + 1);
+        private string DisplayAndScreen => ScreenNumber == 0
+    ? DisplayNumber.ToString()
+    : $"{DisplayNumber}.{ScreenNumber}";
 
         public static bool TryParse(string name, [NotNullWhen(true)] out X11Display? display)
         {
