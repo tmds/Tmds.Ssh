@@ -24,7 +24,7 @@ public class X11DisplayTests
     [InlineData("/private/tmp/com.apple.launchd.abc/org.xquartz:0.1", null, "/private/tmp/com.apple.launchd.abc/org.xquartz:0", 0, 1)]
     public void Parse(string name, string? host, string? socketPath, int displayNumber, int screenNumber)
     {
-        Assert.True(X11Display.TryParse(name, out X11Display? display));
+        Assert.True(X11Forwarding.X11Display.TryParse(name, out X11Forwarding.X11Display? display));
         Assert.Equal(name, display.Name);
         Assert.Equal(host, display.Host);
         Assert.Equal(socketPath, display.SocketPath);
@@ -43,7 +43,7 @@ public class X11DisplayTests
     [InlineData(":60000")]
     public void ParseInvalid(string name)
     {
-        Assert.False(X11Display.TryParse(name, out _));
+        Assert.False(X11Forwarding.X11Display.TryParse(name, out _));
     }
 
     [Theory]
@@ -53,7 +53,7 @@ public class X11DisplayTests
     [InlineData("/tmp/launchd/org.xquartz:0", ":0")]
     public void XAuthDisplayName(string name, string expected)
     {
-        Assert.True(X11Display.TryParse(name, out X11Display? display));
+        Assert.True(X11Forwarding.X11Display.TryParse(name, out X11Forwarding.X11Display? display));
         Assert.Equal(expected, display.XAuthDisplayName);
     }
 }
@@ -66,49 +66,49 @@ public class XAuthorityTests
     public void FindsCookieForDisplayNumberAndAddress()
     {
         byte[] content = Serialize(
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("otherhost"), "0", XAuthority.MitMagicCookie, [9, 9]),
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("myhost"), "1", XAuthority.MitMagicCookie, [8, 8]),
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("myhost"), "0", "XDM-AUTHORIZATION-1", [7, 7]),
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("myhost"), "0", XAuthority.MitMagicCookie, Cookie));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("otherhost"), "0", X11Forwarding.AuthenticationProtocol, [9, 9]),
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("myhost"), "1", X11Forwarding.AuthenticationProtocol, [8, 8]),
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("myhost"), "0", "XDM-AUTHORIZATION-1", [7, 7]),
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("myhost"), "0", X11Forwarding.AuthenticationProtocol, Cookie));
 
-        List<XAuthority.Entry> entries = XAuthority.ParseEntries(content);
+        List<X11Forwarding.XAuthorityEntry> entries = X11Forwarding.ParseXAuthorityEntries(content);
 
         Assert.Equal(4, entries.Count);
-        Assert.Equal(Cookie, XAuthority.FindCookie(entries, 0, [(XAuthority.FamilyLocal, Ascii("myhost"))]));
-        Assert.Equal([8, 8], XAuthority.FindCookie(entries, 1, [(XAuthority.FamilyLocal, Ascii("myhost"))]));
-        Assert.Null(XAuthority.FindCookie(entries, 2, [(XAuthority.FamilyLocal, Ascii("myhost"))]));
-        Assert.Null(XAuthority.FindCookie(entries, 0, [(XAuthority.FamilyInternet, [127, 0, 0, 1])]));
+        Assert.Equal(Cookie, X11Forwarding.FindCookie(entries, 0, [(X11Forwarding.FamilyLocal, Ascii("myhost"))]));
+        Assert.Equal([8, 8], X11Forwarding.FindCookie(entries, 1, [(X11Forwarding.FamilyLocal, Ascii("myhost"))]));
+        Assert.Null(X11Forwarding.FindCookie(entries, 2, [(X11Forwarding.FamilyLocal, Ascii("myhost"))]));
+        Assert.Null(X11Forwarding.FindCookie(entries, 0, [(X11Forwarding.FamilyInternet, [127, 0, 0, 1])]));
     }
 
     [Fact]
     public void FindsCookieForInternetAddress()
     {
         byte[] content = Serialize(
-            new XAuthority.Entry(XAuthority.FamilyInternet, [10, 0, 0, 1], "3", XAuthority.MitMagicCookie, [9, 9]),
-            new XAuthority.Entry(XAuthority.FamilyInternet, [127, 0, 0, 1], "3", XAuthority.MitMagicCookie, Cookie));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyInternet, [10, 0, 0, 1], "3", X11Forwarding.AuthenticationProtocol, [9, 9]),
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyInternet, [127, 0, 0, 1], "3", X11Forwarding.AuthenticationProtocol, Cookie));
 
-        Assert.Equal(Cookie, XAuthority.FindCookie(XAuthority.ParseEntries(content), 3, [(XAuthority.FamilyInternet, [127, 0, 0, 1])]));
+        Assert.Equal(Cookie, X11Forwarding.FindCookie(X11Forwarding.ParseXAuthorityEntries(content), 3, [(X11Forwarding.FamilyInternet, [127, 0, 0, 1])]));
     }
 
     [Fact]
     public void WildFamilyMatchesAnyAddress()
     {
         byte[] content = Serialize(
-            new XAuthority.Entry(XAuthority.FamilyWild, [], "0", XAuthority.MitMagicCookie, Cookie));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyWild, [], "0", X11Forwarding.AuthenticationProtocol, Cookie));
 
-        Assert.Equal(Cookie, XAuthority.FindCookie(XAuthority.ParseEntries(content), 0, [(XAuthority.FamilyLocal, Ascii("myhost"))]));
+        Assert.Equal(Cookie, X11Forwarding.FindCookie(X11Forwarding.ParseXAuthorityEntries(content), 0, [(X11Forwarding.FamilyLocal, Ascii("myhost"))]));
     }
 
     [Fact]
     public void ParseIgnoresTruncatedEntry()
     {
         byte[] content = Serialize(
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("myhost"), "0", XAuthority.MitMagicCookie, Cookie),
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii("myhost"), "1", XAuthority.MitMagicCookie, Cookie));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("myhost"), "0", X11Forwarding.AuthenticationProtocol, Cookie),
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii("myhost"), "1", X11Forwarding.AuthenticationProtocol, Cookie));
 
-        List<XAuthority.Entry> entries = XAuthority.ParseEntries(content.AsSpan(0, content.Length - 1));
+        List<X11Forwarding.XAuthorityEntry> entries = X11Forwarding.ParseXAuthorityEntries(content.AsSpan(0, content.Length - 1));
 
-        XAuthority.Entry entry = Assert.Single(entries);
+        X11Forwarding.XAuthorityEntry entry = Assert.Single(entries);
         Assert.Equal("0", entry.Number);
     }
 
@@ -117,21 +117,21 @@ public class XAuthorityTests
     {
         using TempFile file = new TempFile(Path.GetTempFileName());
         File.WriteAllBytes(file.Path, Serialize(
-            new XAuthority.Entry(XAuthority.FamilyLocal, Ascii(Dns.GetHostName()), "5", XAuthority.MitMagicCookie, Cookie)));
-        Assert.True(X11Display.TryParse(":5.0", out X11Display? display));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyLocal, Ascii(Dns.GetHostName()), "5", X11Forwarding.AuthenticationProtocol, Cookie)));
+        Assert.True(X11Forwarding.X11Display.TryParse(":5.0", out X11Forwarding.X11Display? display));
 
-        Assert.Equal(Cookie, await XAuthority.FindCookieAsync(file.Path, display, default));
+        Assert.Equal(Cookie, await X11Forwarding.FindCookieAsync(file.Path, display, default));
     }
 
     [Fact]
     public async Task FindCookieAsyncReturnsNullForMissingFile()
     {
-        Assert.True(X11Display.TryParse(":0", out X11Display? display));
+        Assert.True(X11Forwarding.X11Display.TryParse(":0", out X11Forwarding.X11Display? display));
 
-        Assert.Null(await XAuthority.FindCookieAsync(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()), display, default));
+        Assert.Null(await X11Forwarding.FindCookieAsync(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()), display, default));
     }
 
-    internal static byte[] Serialize(params XAuthority.Entry[] entries)
+    internal static byte[] Serialize(params X11Forwarding.XAuthorityEntry[] entries)
     {
         using var stream = new MemoryStream();
         foreach (var entry in entries)
@@ -169,26 +169,26 @@ public class X11AuthenticationTests
     [InlineData(false)]
     public void ReplacesFakeCookie(bool bigEndian)
     {
-        var forwarding = new X11Forwarding(NullLogger<SshClient>.Instance, default);
-        X11Forwarding.Target otherTarget = forwarding.AddTarget(ParseDisplay(":1"), isTrusted: true, RandomNumberGenerator.GetBytes(16));
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding otherAuthBinding = forwarding.AddAuthBinding(isTrusted: true, RandomNumberGenerator.GetBytes(16));
         byte[] cookie = RandomNumberGenerator.GetBytes(16);
-        X11Forwarding.Target target = forwarding.AddTarget(ParseDisplay(":0"), isTrusted: true, cookie);
-        byte[] setupMessage = CreateSetupMessage(bigEndian, XAuthority.MitMagicCookie, target.FakeCookie);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: true, cookie);
+        byte[] setupMessage = CreateSetupMessage(bigEndian, X11Forwarding.AuthenticationProtocol, authBinding.FakeCookie);
 
-        Assert.Same(target, forwarding.Authenticate(setupMessage));
+        Assert.Same(authBinding, forwarding.Authenticate(setupMessage));
 
         Assert.Equal(cookie, GetAuthenticationData(setupMessage));
-        Assert.NotEqual(otherTarget.FakeCookie, target.FakeCookie);
-        Assert.Equal(Convert.ToHexString(target.FakeCookie).ToLowerInvariant(), target.FakeCookieHex);
+        Assert.NotEqual(otherAuthBinding.FakeCookie, authBinding.FakeCookie);
+        Assert.Equal(Convert.ToHexString(authBinding.FakeCookie).ToLowerInvariant(), authBinding.FakeCookieHex);
     }
 
     [Fact]
     public void RejectsUnknownCookie()
     {
-        var forwarding = new X11Forwarding(NullLogger<SshClient>.Instance, default);
-        X11Forwarding.Target target = forwarding.AddTarget(ParseDisplay(":0"), isTrusted: true, RandomNumberGenerator.GetBytes(16));
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: true, RandomNumberGenerator.GetBytes(16));
         byte[] data = RandomNumberGenerator.GetBytes(16);
-        byte[] setupMessage = CreateSetupMessage(bigEndian: false, XAuthority.MitMagicCookie, data);
+        byte[] setupMessage = CreateSetupMessage(bigEndian: false, X11Forwarding.AuthenticationProtocol, data);
 
         Assert.Null(forwarding.Authenticate(setupMessage));
 
@@ -198,9 +198,9 @@ public class X11AuthenticationTests
     [Fact]
     public void RejectsOtherProtocol()
     {
-        var forwarding = new X11Forwarding(NullLogger<SshClient>.Instance, default);
-        X11Forwarding.Target target = forwarding.AddTarget(ParseDisplay(":0"), isTrusted: true, RandomNumberGenerator.GetBytes(16));
-        byte[] setupMessage = CreateSetupMessage(bigEndian: false, "XDM-AUTHORIZATION-1", target.FakeCookie);
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: true, RandomNumberGenerator.GetBytes(16));
+        byte[] setupMessage = CreateSetupMessage(bigEndian: false, "XDM-AUTHORIZATION-1", authBinding.FakeCookie);
 
         Assert.Null(forwarding.Authenticate(setupMessage));
     }
@@ -208,9 +208,9 @@ public class X11AuthenticationTests
     [Fact]
     public void RejectsInvalidSetupMessage()
     {
-        var forwarding = new X11Forwarding(NullLogger<SshClient>.Instance, default);
-        X11Forwarding.Target target = forwarding.AddTarget(ParseDisplay(":0"), isTrusted: true, RandomNumberGenerator.GetBytes(16));
-        byte[] setupMessage = CreateSetupMessage(bigEndian: false, XAuthority.MitMagicCookie, target.FakeCookie);
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: true, RandomNumberGenerator.GetBytes(16));
+        byte[] setupMessage = CreateSetupMessage(bigEndian: false, X11Forwarding.AuthenticationProtocol, authBinding.FakeCookie);
 
         byte[] invalidByteOrder = setupMessage.ToArray();
         invalidByteOrder[0] = (byte)'x';
@@ -221,18 +221,12 @@ public class X11AuthenticationTests
     }
 
     [Fact]
-    public void RejectsExpiredTarget()
+    public void RejectsExpiredAuthBinding()
     {
-        var forwarding = new X11Forwarding(NullLogger<SshClient>.Instance, default);
-        X11Forwarding.Target target = forwarding.AddTarget(ParseDisplay(":0"), isTrusted: false, RandomNumberGenerator.GetBytes(16), refuseTimestamp: 1);
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: false, RandomNumberGenerator.GetBytes(16), refuseTimestamp: 1);
 
-        Assert.True(target.IsExpired);
-    }
-
-    private static X11Display ParseDisplay(string name)
-    {
-        Assert.True(X11Display.TryParse(name, out X11Display? display));
-        return display;
+        Assert.True(authBinding.IsExpired);
     }
 
     internal static byte[] CreateSetupMessage(bool bigEndian, string authenticationProtocol, byte[] authenticationData)
@@ -288,7 +282,7 @@ public class X11ForwardingTests
         byte[] cookie = RandomNumberGenerator.GetBytes(16);
         using TempFile xauthorityFile = new TempFile(Path.GetTempFileName());
         File.WriteAllBytes(xauthorityFile.Path, XAuthorityTests.Serialize(
-            new XAuthority.Entry(XAuthority.FamilyInternet, [127, 0, 0, 1], xServer.DisplayNumber.ToString(CultureInfo.InvariantCulture), XAuthority.MitMagicCookie, cookie)));
+            new X11Forwarding.XAuthorityEntry(X11Forwarding.FamilyInternet, [127, 0, 0, 1], xServer.DisplayNumber.ToString(CultureInfo.InvariantCulture), X11Forwarding.AuthenticationProtocol, cookie)));
 
         using var client = await _sshServer.CreateClientAsync(settings =>
         {
@@ -363,7 +357,7 @@ public class X11ForwardingTests
             settings.X11Display = "invalid";
         });
 
-        await Assert.ThrowsAsync<SshOperationException>(() => client.ExecuteAsync("echo", new ExecuteOptions() { ForwardX11 = ForwardMode.Require }));
+        await Assert.ThrowsAsync<SshChannelException>(() => client.ExecuteAsync("echo", new ExecuteOptions() { ForwardX11 = ForwardMode.Require }));
 
         // When enabled through the settings, the process starts without X11 forwarding.
         using var process = await client.ExecuteAsync("echo \"${DISPLAY:-none}\"");
@@ -381,8 +375,9 @@ public class X11ForwardingTests
             settings.XAuthLocation = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName(), "xauth");
         });
 
-        var exception = await Assert.ThrowsAsync<SshOperationException>(() => client.ExecuteAsync("echo", new ExecuteOptions() { ForwardX11 = ForwardMode.Require }));
-        Assert.NotNull(exception.InnerException);
+        var exception = await Assert.ThrowsAsync<SshChannelException>(() => client.ExecuteAsync("echo", new ExecuteOptions() { ForwardX11 = ForwardMode.Require }));
+        Assert.IsType<SshOperationException>(exception.InnerException);
+        Assert.NotNull(exception.InnerException.InnerException);
     }
 
     // Connects to the forwarded X11 display on the server and sends the X11 connection setup message.

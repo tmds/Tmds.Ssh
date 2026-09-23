@@ -4,7 +4,7 @@
 namespace Tmds.Ssh;
 
 /// <summary>
-/// Specifies whether X11 forwarding is enabled and how setup failures are handled.
+/// Specifies whether forwarding is enabled and how setup failures are handled.
 /// </summary>
 public enum ForwardMode
 {
@@ -19,7 +19,7 @@ public enum ForwardMode
     Request,
 
     /// <summary>
-    /// Forward. Throw when setup fails.
+    /// Forward. Fail when setup fails.
     /// </summary>
     Require,
 }

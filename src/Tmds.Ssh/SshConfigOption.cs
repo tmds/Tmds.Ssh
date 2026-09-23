@@ -170,17 +170,17 @@ public enum SshConfigOption
     ForwardAgent,
 
     /// <summary>
-    /// Whether X11 connections are forwarded for remote processes.
+    /// Whether to forward X11 connections.
     /// </summary>
     ForwardX11,
 
     /// <summary>
-    /// Whether remote X11 clients have full access to the local X11 display.
+    /// Whether to give remote X11 clients full access to the local X11 display.
     /// </summary>
     ForwardX11Trusted,
 
     /// <summary>
-    /// Timeout for untrusted X11 forwarding. X11 connections received after this time are refused.
+    /// Timeout for untrusted X11 forwarding.
     /// </summary>
     ForwardX11Timeout,
 

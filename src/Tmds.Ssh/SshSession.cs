@@ -36,7 +36,7 @@ sealed partial class SshSession
     private Dictionary<ListenAddress, RemoteListenerInfo>? _remoteListeners;
     private string? _forwardAgentAddress;  // Address of the agent to forward, or 'null' when agent forwarding is disabled.
     private X11Forwarding? _x11Forwarding;
-    private static readonly ExecuteOptions NoX11ForwardingOptions = new() { ForwardX11 = ForwardMode.Off }; // Used for the sftp subsystem, which doesn't need X11 forwarding.
+    private static readonly ExecuteOptions SftpExecuteOptions = new() { ForwardX11 = ForwardMode.Off }; // Used for the sftp subsystem, which doesn't need X11 forwarding.
 
     record struct ListenAddress(Name ForwardType, string Address, ushort Port)
     { }
@@ -676,11 +676,11 @@ sealed partial class SshSession
             X11Forwarding? x11Forwarding = _x11Forwarding;
 
             // Only accept X11 channels when we've requested X11 forwarding.
-            if (x11Forwarding?.HasTargets == true)
+            if (x11Forwarding?.HasAuthBindings == true)
             {
                 SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize: null, onAbort: null, remoteChannel, checked((int)maxPacketSize), checked((int)initialWindowSize));
                 channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
-                x11Forwarding.HandleConnection(new SshDataStream(channel), originatorAddress, originatorPort);
+                x11Forwarding.HandleConnection(new SshDataStream(channel), originatorAddress, originatorPort, _abortCts.Token);
                 return;
             }
         }
@@ -1165,7 +1165,7 @@ sealed partial class SshSession
     }
 
     public async Task<ISshChannel> OpenSftpClientChannelAsync(Action<SshChannel> onAbort, int? windowSize, CancellationToken cancellationToken)
-        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", NoX11ForwardingOptions, windowSize, cancellationToken).ConfigureAwait(false);
+        => await OpenSubsystemChannelAsync(typeof(SftpChannel), onAbort, "sftp", SftpExecuteOptions, windowSize, cancellationToken).ConfigureAwait(false);
 
     public async Task<ISshChannel> OpenRemoteSubsystemChannelAsync(Type channelType, string subsystem, ExecuteOptions? options, CancellationToken cancellationToken)
         => await OpenSubsystemChannelAsync(channelType, null, subsystem, options, windowSize: null, cancellationToken).ConfigureAwait(false);
@@ -1175,23 +1175,28 @@ sealed partial class SshSession
         Debug.Assert(_settings is not null);
 
         X11Forwarding x11Forwarding;
-        lock (_gate)
-        {
-            x11Forwarding = _x11Forwarding ??= new X11Forwarding(Logger, _abortCts.Token);
-        }
-
-        X11Forwarding.Target target;
+        X11Forwarding.AuthBinding authBinding;
         try
         {
-            target = await x11Forwarding.GetTargetAsync(_settings, cancellationToken).ConfigureAwait(false);
+            lock (_gate)
+            {
+                x11Forwarding = _x11Forwarding ??= new X11Forwarding(_settings.X11Display, Logger);
+            }
+
+            authBinding = await x11Forwarding.GetOrCreateAuthBindingAsync(_settings.ForwardX11Trusted, _settings.XAuthorityFilePath, _settings.XAuthLocation, _settings.ForwardX11Timeout, cancellationToken).ConfigureAwait(false);
         }
-        catch (SshOperationException ex) when (!isRequired)
+        catch (SshOperationException ex)
         {
+            if (isRequired)
+            {
+                // There is no usable channel.
+                throw new SshChannelException(ex.Message, ex);
+            }
             Logger.X11ForwardingSetupFailed(ex);
             return;
         }
 
-        channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, target.FakeCookieHex, target.Display.ScreenNumber);
+        channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, authBinding.FakeCookieHex, x11Forwarding.Display.ScreenNumber);
         try
         {
             await channel.ReceiveChannelRequestSuccessAsync("Failed to request X11 forwarding.", cancellationToken).ConfigureAwait(false);

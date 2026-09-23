@@ -539,7 +539,7 @@ public sealed partial class SshClientSettings
     }
 
     /// <summary>
-    /// Gets or sets whether to request X11 forwarding for remote processes.
+    /// Gets or sets whether to forward X11 connections.
     /// </summary>
     /// <remarks>
     /// <para>Defaults to <see cref="ForwardMode.Off"/>. This can be overridden per remote process using <see cref="ExecuteOptions.ForwardX11"/>.</para>
@@ -549,7 +549,7 @@ public sealed partial class SshClientSettings
     public ForwardMode ForwardX11 { get; set; } = ForwardMode.Off;
 
     /// <summary>
-    /// Gets or sets whether remote X11 clients have full access to the local X11 display.
+    /// Gets or sets whether to give remote X11 clients full access to the local X11 display.
     /// </summary>
     /// <remarks>
     /// <para>Defaults to <see langword="false"/>.</para>
