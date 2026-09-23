@@ -100,7 +100,7 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateWindowChangeRequestMessage(this SequencePool sequencePool, uint remoteChannel, int columns, int rows)
+    public static Packet CreateWindowChangeRequestMessage(this SequencePool sequencePool, uint remoteChannel, int columns, int rows, int widthPixels, int heightPixels)
     {
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
@@ -120,8 +120,8 @@ static class SshSequencePoolExtensions
         writer.WriteBoolean(false);
         writer.WriteUInt32(columns);
         writer.WriteUInt32(rows);
-        writer.WriteUInt32(0);
-        writer.WriteUInt32(0);
+        writer.WriteUInt32(widthPixels);
+        writer.WriteUInt32(heightPixels);
         return packet.Move();
     }
 
@@ -205,7 +205,7 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows, byte[] terminalMode)
+    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows, int widthPixels, int heightPixels, byte[] terminalMode)
     {
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
@@ -229,8 +229,8 @@ static class SshSequencePoolExtensions
         writer.WriteString(term);
         writer.WriteUInt32(columns);
         writer.WriteUInt32(rows);
-        writer.WriteUInt32(0);
-        writer.WriteUInt32(0);
+        writer.WriteUInt32(widthPixels);
+        writer.WriteUInt32(heightPixels);
         writer.WriteString(terminalMode);
         return packet.Move();
     }

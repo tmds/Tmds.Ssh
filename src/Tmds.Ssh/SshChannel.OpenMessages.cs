@@ -19,8 +19,8 @@ sealed partial class SshChannel : ISshChannel
     public void TrySendChannelOpenSessionMessage()
         => TrySendPacket(_sequencePool.CreateChannelOpenSessionMessage(LocalChannel, (uint)_receiveWindow, (uint)ReceiveMaxPacket));
 
-    public void TrySendChannelPtyRequestMessage(string term, int columns, int rows, byte[] terminalMode)
-        => TrySendPacket(_sequencePool.CreateChannelPtyRequestMessage(RemoteChannel, term, columns, rows, terminalMode));
+    public void TrySendChannelPtyRequestMessage(string term, int columns, int rows, int widthPixels, int heightPixels, byte[] terminalMode)
+        => TrySendPacket(_sequencePool.CreateChannelPtyRequestMessage(RemoteChannel, term, columns, rows, widthPixels, heightPixels, terminalMode));
 
     public void TrySendExecCommandMessage(string command)
         => TrySendPacket(_sequencePool.CreateExecCommandMessage(RemoteChannel, command));
