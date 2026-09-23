@@ -1182,6 +1182,10 @@ sealed partial class SshSession
             {
                 x11Forwarding = _x11Forwarding ??= new X11Forwarding(_settings.X11Display, Logger);
             }
+            if (!x11Forwarding.HasDisplay)
+            {
+                throw new SshOperationException("X11 forwarding requires a display: DISPLAY is not set or can not be parsed.");
+            }
 
             authBinding = await x11Forwarding.GetOrCreateAuthBindingAsync(_settings.ForwardX11Trusted, _settings.XAuthorityFilePath, _settings.XAuthLocation, _settings.ForwardX11Timeout, cancellationToken).ConfigureAwait(false);
         }
@@ -1196,7 +1200,7 @@ sealed partial class SshSession
             return;
         }
 
-        channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, authBinding.FakeCookieHex, x11Forwarding.Display.ScreenNumber);
+        channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, authBinding.FakeCookieHex, x11Forwarding.ScreenNumber);
         try
         {
             await channel.ReceiveChannelRequestSuccessAsync("Failed to request X11 forwarding.", cancellationToken).ConfigureAwait(false);

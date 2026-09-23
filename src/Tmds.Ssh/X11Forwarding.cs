@@ -53,9 +53,10 @@ sealed partial class X11Forwarding
     internal readonly record struct XAuthorityEntry(ushort Family, byte[] Address, string Number, string Name, byte[] Data); // internal for testing
 
     private readonly ILogger<SshClient> _logger;
-    private readonly Lock _gate = new();
+    private readonly X11Display? _display; // 'null' when DISPLAY is not set or can not be parsed.
     private readonly SemaphoreSlim _authBindingSemaphore = new(initialCount: 1); // Serializes GetOrCreateAuthBindingAsync.
-    private readonly List<AuthBinding> _authBindings = new();
+    private AuthBinding? _trustedAuthBinding;
+    private AuthBinding? _untrustedAuthBinding;
 
     // displayName: the display to forward to, or 'null' to use the DISPLAY environment variable.
     public X11Forwarding(string? displayName, ILogger<SshClient> logger)
@@ -64,29 +65,25 @@ sealed partial class X11Forwarding
         {
             displayName = Environment.GetEnvironmentVariable("DISPLAY");
         }
-        if (string.IsNullOrEmpty(displayName))
+        if (!string.IsNullOrEmpty(displayName) && X11Display.TryParse(displayName, out X11Display? display))
         {
-            throw new SshOperationException("X11 forwarding requires a display: DISPLAY is not set.");
+            _display = display;
         }
-        if (!X11Display.TryParse(displayName, out X11Display? display))
-        {
-            throw new SshOperationException($"X11 forwarding failed: can not parse display '{displayName}'.");
-        }
-
-        Display = display;
         _logger = logger;
     }
 
-    public X11Display Display { get; }
+    public bool HasDisplay => _display is not null;
 
-    public bool HasAuthBindings
+    public int ScreenNumber => Display.ScreenNumber;
+
+    public bool HasAuthBindings => _trustedAuthBinding is not null || _untrustedAuthBinding is not null;
+
+    private X11Display Display
     {
         get
         {
-            lock (_gate)
-            {
-                return _authBindings.Count > 0;
-            }
+            Debug.Assert(_display is not null);
+            return _display;
         }
     }
 
@@ -96,18 +93,10 @@ sealed partial class X11Forwarding
         await _authBindingSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            lock (_gate)
+            AuthBinding? authBinding = isTrusted ? _trustedAuthBinding : _untrustedAuthBinding;
+            if (authBinding is not null && !authBinding.IsExpired)
             {
-                // Connections for expired bindings are refused, so they no longer need to be kept.
-                _authBindings.RemoveAll(authBinding => authBinding.IsExpired);
-
-                foreach (var authBinding in _authBindings)
-                {
-                    if (authBinding.IsTrusted == isTrusted && !authBinding.IsExpired)
-                    {
-                        return authBinding;
-                    }
-                }
+                return authBinding;
             }
 
             byte[]? cookie;
@@ -156,9 +145,14 @@ sealed partial class X11Forwarding
             FakeCookie = RandomNumberGenerator.GetBytes(cookie.Length),
             RefuseTimestamp = refuseTimestamp
         };
-        lock (_gate)
+        // This replaces an expired binding. Connections for it are refused, so it no longer needs to be kept.
+        if (isTrusted)
         {
-            _authBindings.Add(authBinding);
+            _trustedAuthBinding = authBinding;
+        }
+        else
+        {
+            _untrustedAuthBinding = authBinding;
         }
         return authBinding;
     }
@@ -270,15 +264,12 @@ sealed partial class X11Forwarding
             return null;
         }
 
-        lock (_gate)
+        foreach (AuthBinding? authBinding in (ReadOnlySpan<AuthBinding?>)[_trustedAuthBinding, _untrustedAuthBinding])
         {
-            foreach (var authBinding in _authBindings)
+            if (authBinding is not null && CryptographicOperations.FixedTimeEquals(data, authBinding.FakeCookie))
             {
-                if (CryptographicOperations.FixedTimeEquals(data, authBinding.FakeCookie))
-                {
-                    authBinding.Cookie.CopyTo(data);
-                    return authBinding;
-                }
+                authBinding.Cookie.CopyTo(data);
+                return authBinding;
             }
         }
 

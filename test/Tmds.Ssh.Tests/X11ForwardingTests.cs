@@ -48,7 +48,8 @@ public class X11DisplayTests
 
     [Theory]
     [InlineData(":0", ":0")]
-    [InlineData("localhost:10.0", "unix:10.0")]
+    [InlineData("localhost:10.0", "unix:10")]
+    [InlineData("localhost:10.1", "unix:10.1")]
     [InlineData("host:1", "host:1")]
     [InlineData("/tmp/launchd/org.xquartz:0", ":0")]
     public void XAuthDisplayName(string name, string expected)
@@ -170,7 +171,7 @@ public class X11AuthenticationTests
     public void ReplacesFakeCookie(bool bigEndian)
     {
         var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
-        X11Forwarding.AuthBinding otherAuthBinding = forwarding.AddAuthBinding(isTrusted: true, RandomNumberGenerator.GetBytes(16));
+        X11Forwarding.AuthBinding otherAuthBinding = forwarding.AddAuthBinding(isTrusted: false, RandomNumberGenerator.GetBytes(16));
         byte[] cookie = RandomNumberGenerator.GetBytes(16);
         X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: true, cookie);
         byte[] setupMessage = CreateSetupMessage(bigEndian, X11Forwarding.AuthenticationProtocol, authBinding.FakeCookie);
@@ -218,6 +219,27 @@ public class X11AuthenticationTests
         Assert.Null(forwarding.Authenticate(invalidByteOrder));
 
         Assert.Null(forwarding.Authenticate(setupMessage.AsSpan(0, setupMessage.Length - 1)));
+    }
+
+    [Theory]
+    [InlineData(":0", true)]
+    [InlineData("foo", false)]
+    public void HasDisplay(string displayName, bool expected)
+    {
+        var forwarding = new X11Forwarding(displayName, NullLogger<SshClient>.Instance);
+
+        Assert.Equal(expected, forwarding.HasDisplay);
+    }
+
+    [Fact]
+    public void ReplacesAuthBinding()
+    {
+        var forwarding = new X11Forwarding(":0", NullLogger<SshClient>.Instance);
+        X11Forwarding.AuthBinding expiredAuthBinding = forwarding.AddAuthBinding(isTrusted: false, RandomNumberGenerator.GetBytes(16), refuseTimestamp: 1);
+        X11Forwarding.AuthBinding authBinding = forwarding.AddAuthBinding(isTrusted: false, RandomNumberGenerator.GetBytes(16));
+
+        Assert.Null(forwarding.Authenticate(CreateSetupMessage(bigEndian: false, X11Forwarding.AuthenticationProtocol, expiredAuthBinding.FakeCookie)));
+        Assert.Same(authBinding, forwarding.Authenticate(CreateSetupMessage(bigEndian: false, X11Forwarding.AuthenticationProtocol, authBinding.FakeCookie)));
     }
 
     [Fact]
