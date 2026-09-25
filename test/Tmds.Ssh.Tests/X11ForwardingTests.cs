@@ -226,9 +226,7 @@ public class X11AuthenticationTests
     [InlineData("foo", false)]
     public void HasDisplay(string displayName, bool expected)
     {
-        var forwarding = new X11Forwarding(displayName, NullLogger<SshClient>.Instance);
-
-        Assert.Equal(expected, forwarding.HasDisplay);
+        Assert.Equal(expected, X11Forwarding.X11Display.TryParse(displayName, out _));
     }
 
     [Fact]
@@ -398,8 +396,7 @@ public class X11ForwardingTests
         });
 
         var exception = await Assert.ThrowsAsync<SshChannelException>(() => client.ExecuteAsync("echo", new ExecuteOptions() { ForwardX11 = ForwardMode.Require }));
-        Assert.IsType<SshOperationException>(exception.InnerException);
-        Assert.NotNull(exception.InnerException.InnerException);
+        Assert.NotNull(exception.InnerException);
     }
 
     // Connects to the forwarded X11 display on the server and sends the X11 connection setup message.

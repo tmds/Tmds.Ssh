@@ -187,29 +187,29 @@ public class SshServer : IDisposable
 
         static int PickFreePort(IPAddress interfaceAddress)
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                using var s = new Socket(interfaceAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                s.Bind(new IPEndPoint(interfaceAddress, 0));
-                return (s.LocalEndPoint as IPEndPoint)!.Port;
-            }
-
             // On Windows, pick a port below the dynamic port range (49152+) because Docker Desktop
             // may fail to publish ports from that range.
-            const int MinPort = 20000;
-            const int MaxPort = 40000;
-            while (true)
+            if (OperatingSystem.IsWindows())
             {
-                int port = Random.Shared.Next(MinPort, MaxPort);
-                using var s = new Socket(interfaceAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                try
+                const int MinPort = 20000;
+                const int MaxPort = 40000;
+                while (true)
                 {
-                    s.Bind(new IPEndPoint(interfaceAddress, port));
-                    return port;
+                    int port = Random.Shared.Next(MinPort, MaxPort);
+                    using var socket = new Socket(interfaceAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                    try
+                    {
+                        socket.Bind(new IPEndPoint(interfaceAddress, port));
+                        return port;
+                    }
+                    catch (SocketException)
+                    { }
                 }
-                catch (SocketException)
-                { }
             }
+
+            using var s = new Socket(interfaceAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            s.Bind(new IPEndPoint(interfaceAddress, 0));
+            return (s.LocalEndPoint as IPEndPoint)!.Port;
         }
 
         string WriteKnownHostsFile(string host, int port)

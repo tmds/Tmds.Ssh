@@ -60,9 +60,9 @@ partial class SshClientSettings
 
     private static int DefaultKeepAliveCountMax => 3;
 
-    internal static TimeSpan DefaultForwardX11Timeout => TimeSpan.FromMinutes(20);
+    private static TimeSpan DefaultForwardX11Timeout => TimeSpan.FromMinutes(20);
 
-    internal const string DefaultXAuthLocation = "xauth";
+    private const string DefaultXAuthLocation = "xauth";
 
     // Algorithms are in **order of preference**.
     private readonly static List<Name> EmptyList = [];

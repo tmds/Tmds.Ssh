@@ -545,6 +545,9 @@ public sealed partial class SshClientSettings
     /// <para>Defaults to <see cref="ForwardMode.Off"/>. This can be overridden per remote process using <see cref="ExecuteOptions.ForwardX11"/>.</para>
     /// <para>When set to <see cref="ForwardMode.Request"/>, X11 setup failures are logged and the remote process is started without X11 forwarding.</para>
     /// <para>When set to <see cref="ForwardMode.Require"/>, X11 setup failures fail the operation.</para>
+    /// <para>X11 forwarding should be enabled with caution. Users who can bypass file permissions on the remote host
+    /// (for the user's X11 authorization database) can access the local X11 display through the forwarded connection.
+    /// When <see cref="ForwardX11Trusted"/> is also enabled, an attacker may be able to perform activities such as keystroke monitoring.</para>
     /// </remarks>
     public ForwardMode ForwardX11 { get; set; } = ForwardMode.Off;
 

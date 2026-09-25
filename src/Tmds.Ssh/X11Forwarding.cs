@@ -1,6 +1,7 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
@@ -21,12 +22,14 @@ sealed partial class X11Forwarding
     public const string AuthenticationProtocol = "MIT-MAGIC-COOKIE-1";
 
     // Address families from Xauth.h.
-    internal const ushort FamilyInternet = 0; // internal for testing
-    internal const ushort FamilyInternet6 = 6; // internal for testing
-    internal const ushort FamilyLocal = 256; // internal for testing
-    internal const ushort FamilyWild = 65535; // internal for testing
+    // internal for testing.
+    internal const ushort FamilyInternet = 0;
+    internal const ushort FamilyInternet6 = 6;
+    internal const ushort FamilyLocal = 256;
+    internal const ushort FamilyWild = 65535;
 
     private const int SetupHeaderLength = 12;
+    private const int MaxSetupMessageLength = 1024;
     private const int FakeCookieLength = 16;
     private const int BaseTcpPort = 6000;
     private const string UnixSocketDirectory = "/tmp/.X11-unix";
@@ -34,9 +37,8 @@ sealed partial class X11Forwarding
     // Like OpenSSH, the xauth timeout is extended so the cookie outlives ForwardX11Timeout.
     private const int UntrustedTimeoutSlackSeconds = 60;
 
-    private static TimeSpan XAuthTimeout => TimeSpan.FromSeconds(30);
 
-    private static readonly byte[] AuthenticationProtocolBytes = Encoding.ASCII.GetBytes(AuthenticationProtocol);
+    private static ReadOnlySpan<byte> AuthenticationProtocolBytes => "MIT-MAGIC-COOKIE-1"u8;
 
     internal sealed class AuthBinding
     {
@@ -50,10 +52,12 @@ sealed partial class X11Forwarding
         public bool IsExpired => RefuseTimestamp != 0 && Stopwatch.GetTimestamp() >= RefuseTimestamp;
     }
 
-    internal readonly record struct XAuthorityEntry(ushort Family, byte[] Address, string Number, string Name, byte[] Data); // internal for testing
+    // internal for testing.
+    internal readonly record struct XAuthorityEntry(ushort Family, byte[] Address, string Number, string Name, byte[] Data);
 
     private readonly ILogger<SshClient> _logger;
     private readonly X11Display? _display; // 'null' when DISPLAY is not set or can not be parsed.
+    private readonly string _defaultXAuthorityFilePath;
     private readonly SemaphoreSlim _authBindingSemaphore = new(initialCount: 1); // Serializes GetOrCreateAuthBindingAsync.
     private AuthBinding? _trustedAuthBinding;
     private AuthBinding? _untrustedAuthBinding;
@@ -70,9 +74,8 @@ sealed partial class X11Forwarding
             _display = display;
         }
         _logger = logger;
+        _defaultXAuthorityFilePath = GetDefaultXAuthorityFilePath();
     }
-
-    public bool HasDisplay => _display is not null;
 
     public int ScreenNumber => Display.ScreenNumber;
 
@@ -89,12 +92,16 @@ sealed partial class X11Forwarding
 
     public async Task<AuthBinding> GetOrCreateAuthBindingAsync(bool isTrusted, string? xauthorityFilePath, string xauthLocation, TimeSpan timeout, CancellationToken cancellationToken)
     {
+        if (_display is null)
+        {
+            throw new InvalidOperationException("DISPLAY is not set or can not be parsed.");
+        }
+
         // Serialize so concurrent calls share a single binding instead of each generating authentication data.
         await _authBindingSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            AuthBinding? authBinding = isTrusted ? _trustedAuthBinding : _untrustedAuthBinding;
-            if (authBinding is not null && !authBinding.IsExpired)
+            if ((isTrusted ? _trustedAuthBinding : _untrustedAuthBinding) is { IsExpired: false } authBinding)
             {
                 return authBinding;
             }
@@ -103,25 +110,18 @@ sealed partial class X11Forwarding
             long refuseTimestamp = 0;
             if (isTrusted)
             {
-                xauthorityFilePath ??= GetDefaultXAuthorityFilePath();
+                xauthorityFilePath ??= _defaultXAuthorityFilePath;
                 cookie = await FindCookieAsync(xauthorityFilePath, Display, cancellationToken).ConfigureAwait(false);
                 if (cookie is null)
                 {
                     // Like OpenSSH, use random data. The X server may accept the connection when it doesn't require authentication.
-                    _logger.X11NoAuthenticationData(Display.Name, xauthorityFilePath);
+                    _logger.X11ForwardNoAuthenticationData(Display.Name, xauthorityFilePath);
                     cookie = RandomNumberGenerator.GetBytes(FakeCookieLength);
                 }
             }
             else
             {
-                try
-                {
-                    cookie = await GenerateUntrustedCookieAsync(xauthLocation, Display, timeout, cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    throw new SshOperationException($"Untrusted X11 forwarding setup failed: can not generate authentication data for display '{Display.Name}' using '{xauthLocation}'.", ex);
-                }
+                cookie = await GenerateUntrustedCookieAsync(xauthLocation, Display, timeout, cancellationToken).ConfigureAwait(false);
                 if (timeout > TimeSpan.Zero)
                 {
                     refuseTimestamp = Stopwatch.GetTimestamp() + (long)Math.Min(timeout.TotalSeconds * Stopwatch.Frequency, long.MaxValue / 2);
@@ -136,6 +136,7 @@ sealed partial class X11Forwarding
         }
     }
 
+    // internal for testing.
     internal AuthBinding AddAuthBinding(bool isTrusted, byte[] cookie, long refuseTimestamp = 0)
     {
         var authBinding = new AuthBinding()
@@ -157,65 +158,70 @@ sealed partial class X11Forwarding
         return authBinding;
     }
 
-    public void HandleConnection(SshDataStream channelStream, string originatorAddress, uint originatorPort, CancellationToken connectionAborting)
-        => _ = ForwardConnectionAsync(channelStream, $"{originatorAddress}:{originatorPort}", connectionAborting);
+    public void HandleConnection(SshDataStream channelStream, string originatorAddress, uint originatorPort, CancellationToken cancellationToken)
+        => _ = ForwardConnectionAsync(channelStream, $"{originatorAddress}:{originatorPort}", cancellationToken);
 
-    private async Task ForwardConnectionAsync(SshDataStream channelStream, string sourceAddress, CancellationToken connectionAborting)
+    private async Task ForwardConnectionAsync(SshDataStream channelStream, string sourceAddress, CancellationToken cancellationToken)
     {
-        // Don't block the SshSession receive loop.
-        await Task.Yield();
-
         Stream? displayStream = null;
-        string? displayName = null;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(MaxSetupMessageLength);
         try
         {
-            byte[] header = new byte[SetupHeaderLength];
-            await channelStream.ReadExactlyAsync(header, connectionAborting).ConfigureAwait(false);
-            if (!TryGetAuthenticationLengths(header, out int nameLength, out int dataLength))
+            // Read the X11 connection setup message.
+            await channelStream.ReadExactlyAsync(buffer.AsMemory(0, SetupHeaderLength), cancellationToken).ConfigureAwait(false);
+            if (!TryGetAuthenticationLengths(buffer, out int nameLength, out int dataLength))
             {
-                _logger.X11ConnectionRejected(sourceAddress, "invalid connection setup message");
+                _logger.X11ForwardConnectionRejected(sourceAddress, "invalid connection setup message");
                 return;
             }
-            byte[] setupMessage = new byte[GetSetupMessageLength(nameLength, dataLength)];
-            header.CopyTo(setupMessage, 0);
-            await channelStream.ReadExactlyAsync(setupMessage.AsMemory(SetupHeaderLength), connectionAborting).ConfigureAwait(false);
+            int setupLength = GetSetupMessageLength(nameLength, dataLength);
+            if (setupLength > MaxSetupMessageLength)
+            {
+                _logger.X11ForwardConnectionRejected(sourceAddress, "connection setup message too large");
+                return;
+            }
+            await channelStream.ReadExactlyAsync(buffer.AsMemory(SetupHeaderLength, setupLength - SetupHeaderLength), cancellationToken).ConfigureAwait(false);
 
-            AuthBinding? authBinding = Authenticate(setupMessage);
+            // Authenticate: verify the fake cookie and replace it with the real one.
+            AuthBinding? authBinding = Authenticate(buffer.AsSpan(0, setupLength));
             if (authBinding is null)
             {
-                _logger.X11ConnectionRejected(sourceAddress, "authentication data does not match");
+                _logger.X11ForwardConnectionRejected(sourceAddress, "authentication data does not match");
                 return;
             }
             if (authBinding.IsExpired)
             {
-                _logger.X11ConnectionRejected(sourceAddress, "ForwardX11Timeout expired");
+                _logger.X11ForwardConnectionRejected(sourceAddress, "ForwardX11Timeout expired");
                 return;
             }
 
-            displayName = Display.Name;
-            _logger.X11ConnectionForward(sourceAddress, displayName);
-            displayStream = await ConnectToDisplayAsync(Display, connectionAborting).ConfigureAwait(false);
-            await displayStream.WriteAsync(setupMessage, connectionAborting).ConfigureAwait(false);
+            // Connect to the local display and forward the setup message.
+            _logger.X11ForwardConnection(sourceAddress, Display.Name);
+            displayStream = await ConnectToDisplayAsync(Display, cancellationToken).ConfigureAwait(false);
+            await displayStream.WriteAsync(buffer.AsMemory(0, setupLength), cancellationToken).ConfigureAwait(false);
+
+            ArrayPool<byte>.Shared.Return(buffer);
+            buffer = null!;
 
             await SshSession.ForwardStreamsAsync(channelStream, displayStream).ConfigureAwait(false);
 
-            _logger.X11ConnectionClosed(sourceAddress, displayName);
+            _logger.X11ForwardConnectionClosed(sourceAddress, Display.Name);
         }
-        catch (EndOfStreamException) when (displayName is null)
+        catch (EndOfStreamException)
         {
             // The X11 client closed the connection before completing the connection setup.
-            _logger.X11ConnectionRejected(sourceAddress, "connection closed during connection setup");
+            _logger.X11ForwardConnectionRejected(sourceAddress, "connection closed during connection setup");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException) // Don't log when the forwarding is stopped.
         {
-            // Don't log when the connection is aborting.
-            if (!connectionAborting.IsCancellationRequested)
-            {
-                _logger.X11ConnectionAborted(sourceAddress, displayName, ex);
-            }
+            _logger.X11ForwardConnectionAborted(sourceAddress, Display.Name, ex);
         }
         finally
         {
+            if (buffer is not null)
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
             channelStream.Dispose();
             displayStream?.Dispose();
         }
@@ -249,7 +255,8 @@ sealed partial class X11Forwarding
     }
 
     // Finds the binding for the fake authentication data of the setup message and replaces it with the real data.
-    internal AuthBinding? Authenticate(Span<byte> setupMessage) // internal for testing
+    // internal for testing.
+    internal AuthBinding? Authenticate(Span<byte> setupMessage)
     {
         if (!TryGetAuthenticationLengths(setupMessage, out int nameLength, out int dataLength) ||
             setupMessage.Length != GetSetupMessageLength(nameLength, dataLength))
@@ -276,7 +283,8 @@ sealed partial class X11Forwarding
         return null;
     }
 
-    internal static bool TryGetAuthenticationLengths(ReadOnlySpan<byte> setupMessage, out int nameLength, out int dataLength) // internal for testing
+    // internal for testing.
+    internal static bool TryGetAuthenticationLengths(ReadOnlySpan<byte> setupMessage, out int nameLength, out int dataLength)
     {
         /*
             X11 connection setup:
@@ -313,7 +321,8 @@ sealed partial class X11Forwarding
         }
     }
 
-    internal static int GetSetupMessageLength(int nameLength, int dataLength) // internal for testing
+    // internal for testing.
+    internal static int GetSetupMessageLength(int nameLength, int dataLength)
         => SetupHeaderLength + Pad4(nameLength) + Pad4(dataLength);
 
     private static int Pad4(int length)
@@ -326,12 +335,13 @@ sealed partial class X11Forwarding
     }
 
     // Returns the MIT-MAGIC-COOKIE-1 data for the display from the Xauthority file, or 'null' when there is none.
-    internal static async Task<byte[]?> FindCookieAsync(string xauthorityFilePath, X11Display display, CancellationToken cancellationToken) // internal for testing
+    // internal for testing.
+    internal static async Task<byte[]?> FindCookieAsync(string xauthorityFilePath, X11Display display, CancellationToken cancellationToken)
     {
         byte[] content;
         try
         {
-            content = await File.ReadAllBytesAsync(xauthorityFilePath, cancellationToken).ConfigureAwait(false);
+            content = File.ReadAllBytes(xauthorityFilePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -342,7 +352,8 @@ sealed partial class X11Forwarding
         return FindCookie(ParseXAuthorityEntries(content), display.DisplayNumber, addresses);
     }
 
-    internal static byte[]? FindCookie(IEnumerable<XAuthorityEntry> entries, int displayNumber, List<(ushort Family, byte[] Address)> addresses) // internal for testing
+    // internal for testing.
+    internal static byte[]? FindCookie(IEnumerable<XAuthorityEntry> entries, int displayNumber, List<(ushort Family, byte[] Address)> addresses)
     {
         foreach (var entry in entries)
         {
@@ -368,7 +379,8 @@ sealed partial class X11Forwarding
         return null;
     }
 
-    internal static List<XAuthorityEntry> ParseXAuthorityEntries(ReadOnlySpan<byte> content) // internal for testing
+    // internal for testing.
+    internal static List<XAuthorityEntry> ParseXAuthorityEntries(ReadOnlySpan<byte> content)
     {
         /*
             Each entry is (integers are big-endian):
@@ -453,7 +465,7 @@ sealed partial class X11Forwarding
         return addresses;
     }
 
-    private static async Task<byte[]> GenerateUntrustedCookieAsync(string xauthLocation, X11Display display, TimeSpan timeout, CancellationToken cancellationToken)
+    private static async Task<byte[]> GenerateUntrustedCookieAsync(string xauthLocation, X11Display display, TimeSpan forwardTimeout, CancellationToken cancellationToken)
     {
         DirectoryInfo directory = Directory.CreateTempSubdirectory("tmds-ssh-xauth-");
         try
@@ -468,18 +480,19 @@ sealed partial class X11Forwarding
                 RedirectStandardError = true,
                 UseShellExecute = false
             };
-            if (timeout > TimeSpan.Zero)
+            if (forwardTimeout > TimeSpan.Zero)
             {
-                double seconds = Math.Min(uint.MaxValue, Math.Ceiling(timeout.TotalSeconds) + UntrustedTimeoutSlackSeconds);
+                double seconds = Math.Min(uint.MaxValue, Math.Ceiling(forwardTimeout.TotalSeconds) + UntrustedTimeoutSlackSeconds);
                 psi.ArgumentList.Add("timeout");
                 psi.ArgumentList.Add(((uint)seconds).ToString(CultureInfo.InvariantCulture));
             }
 
             using Process process = Process.Start(psi)!;
             process.StandardInput.Close();
-            // xauth connects to the X server, don't wait indefinitely when it is unreachable.
+            // Timeout for the xauth process. It connects to the X server and may hang when it is unreachable.
+            const int XAuthTimeoutSeconds = 30;
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(XAuthTimeout);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(XAuthTimeoutSeconds));
             Task<string> readStdout = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
             Task<string> readStderr = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             try
@@ -496,7 +509,7 @@ sealed partial class X11Forwarding
                 { }
 
                 cancellationToken.ThrowIfCancellationRequested();
-                throw new TimeoutException($"'{xauthLocation}' did not complete within {XAuthTimeout.TotalSeconds} seconds.");
+                throw new TimeoutException($"'{xauthLocation}' timed out.");
             }
             await readStdout.ConfigureAwait(false);
             string stderr = await readStderr.ConfigureAwait(false);

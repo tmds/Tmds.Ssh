@@ -759,7 +759,7 @@ sealed partial class SshSession
                     Logger.SshAgentSessionBindFailed();
                 }
 
-                Logger.ForwardingAgentChannel();
+                Logger.AgentForwardConnection();
 
                 SshChannel channel = CreateChannel(typeof(SshDataStream), windowSize: null, onAbort: null, remoteChannel, sendMaxPacket, sendWindow);
                 channel.TrySendChannelOpenConfirmationMessage(remoteChannel);
@@ -767,13 +767,15 @@ sealed partial class SshSession
                 using SshDataStream stream = new SshDataStream(channel);
 
                 await ForwardStreamsAsync(stream, agent.InnerStream).ConfigureAwait(false);
+
+                Logger.AgentForwardConnectionClosed();
             }
         }
         catch (Exception ex)
         {
             if (!ct.IsCancellationRequested)
             {
-                Logger.AgentChannelFailed(ex);
+                Logger.AgentForwardConnectionAborted(ex);
             }
         }
     }
@@ -792,7 +794,7 @@ sealed partial class SshSession
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            Logger.SkippingAgentForwarding(ex);
+            Logger.AgentForwardSetupFailed(ex);
 
             return false;
         }
@@ -1075,8 +1077,6 @@ sealed partial class SshSession
         // Only announce agent forwarding when there is an agent we can forward.
         if (_forwardAgentAddress is not null && await CanConnectToForwardAgentAsync(cancellationToken).ConfigureAwait(false))
         {
-            Logger.EnablingAgentForwarding();
-
             // Like 'ssh' we don't wait for a reply.
             // When the server refuses, it will not open any agent channels.
             channel.TrySendAuthAgentRequestMessage();
@@ -1174,40 +1174,26 @@ sealed partial class SshSession
     {
         Debug.Assert(_settings is not null);
 
-        X11Forwarding x11Forwarding;
-        X11Forwarding.AuthBinding authBinding;
         try
         {
+            X11Forwarding x11Forwarding;
             lock (_gate)
             {
                 x11Forwarding = _x11Forwarding ??= new X11Forwarding(_settings.X11Display, Logger);
             }
-            if (!x11Forwarding.HasDisplay)
-            {
-                throw new SshOperationException("X11 forwarding requires a display: DISPLAY is not set or can not be parsed.");
-            }
 
-            authBinding = await x11Forwarding.GetOrCreateAuthBindingAsync(_settings.ForwardX11Trusted, _settings.XAuthorityFilePath, _settings.XAuthLocation, _settings.ForwardX11Timeout, cancellationToken).ConfigureAwait(false);
-        }
-        catch (SshOperationException ex)
-        {
-            if (isRequired)
-            {
-                // There is no usable channel.
-                throw new SshChannelException(ex.Message, ex);
-            }
-            Logger.X11ForwardingSetupFailed(ex);
-            return;
-        }
+            X11Forwarding.AuthBinding authBinding = await x11Forwarding.GetOrCreateAuthBindingAsync(_settings.ForwardX11Trusted, _settings.XAuthorityFilePath, _settings.XAuthLocation, _settings.ForwardX11Timeout, cancellationToken).ConfigureAwait(false);
 
-        channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, authBinding.FakeCookieHex, x11Forwarding.ScreenNumber);
-        try
-        {
+            channel.TrySendX11RequestMessage(X11Forwarding.AuthenticationProtocol, authBinding.FakeCookieHex, x11Forwarding.ScreenNumber);
             await channel.ReceiveChannelRequestSuccessAsync("Failed to request X11 forwarding.", cancellationToken).ConfigureAwait(false);
         }
-        catch (SshChannelException) when (!isRequired)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Logger.X11ForwardingRequestFailed();
+            Logger.X11ForwardSetupFailed(ex.Message);
+            if (isRequired)
+            {
+                throw ex is SshChannelException ? ex : new SshChannelException("X11 forwarding setup failed.", ex);
+            }
         }
     }
 

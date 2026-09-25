@@ -345,7 +345,7 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
 | `ForwardAgent` | `false` | Forward the local SSH agent to the server. |
 | `ForwardAgentAddress` | | Address of the SSH agent to forward. When unset, the default SSH agent is used. |
-| `ForwardX11` | `Off` | Request X11 forwarding for remote processes. It can be overridden per operation using `ExecuteOptions.ForwardX11`. `Request` logs setup failures and starts the remote process without forwarding, `Require` fails the operation. |
+| `ForwardX11` | `Off` | Whether to forward X11 connections for remote processes. Can be overridden per operation using `ExecuteOptions.ForwardX11`. |
 | `ForwardX11Timeout` | 20 minutes | Timeout for untrusted X11 forwarding. X11 connections received after this time are refused. `TimeSpan.Zero` disables the timeout. |
 | `ForwardX11Trusted` | `false` | Give remote X11 clients full access to the local X11 display. |
 | `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
@@ -515,20 +515,6 @@ using var process = await sshClient.ExecuteAsync("top", options);
 The terminal type can be set with <xref:Tmds.Ssh.ExecuteOptions.TerminalType>. You can check whether a terminal was allocated using <xref:Tmds.Ssh.RemoteProcess.HasTerminal>, and resize it with <xref:Tmds.Ssh.RemoteProcess.SetTerminalSize(System.Int32,System.Int32)>.
 
 When a terminal is allocated, standard error is merged into standard output.
-
-### Forwarding X11
-
-To run a remote graphical program on the local X11 display, set <xref:Tmds.Ssh.ExecuteOptions.ForwardX11> to `Require`:
-
-```csharp
-using var process = await sshClient.ExecuteAsync("xterm", new ExecuteOptions { ForwardX11 = ForwardMode.Require });
-```
-
-The display that connections are forwarded to defaults to the `DISPLAY` environment variable. It can be set using <xref:Tmds.Ssh.SshClientSettings.X11Display>.
-
-Remote X11 clients are untrusted by default: their authentication data is generated using xauth (see <xref:Tmds.Ssh.SshClientSettings.XAuthLocation>), and connections are refused after <xref:Tmds.Ssh.SshClientSettings.ForwardX11Timeout>. Set <xref:Tmds.Ssh.SshClientSettings.ForwardX11Trusted> to `true` to give the remote clients full access to the display.
-
-X11 forwarding can be enabled for all remote processes using <xref:Tmds.Ssh.SshClientSettings.ForwardX11>. The effective mode is `ExecuteOptions.ForwardX11 ?? SshClientSettings.ForwardX11`. When the effective mode is `Request` and X11 forwarding can not be set up, the remote process is started without it. When it is `Require`, the operation fails.
 
 ### Sending signals
 
