@@ -358,8 +358,7 @@ sealed partial class X11Forwarding
         foreach (var entry in entries)
         {
             if (entry.Name != AuthenticationProtocol ||
-                !int.TryParse(entry.Number, NumberStyles.None, CultureInfo.InvariantCulture, out int entryDisplayNumber) ||
-                entryDisplayNumber != displayNumber ||
+                (entry.Number.Length > 0 && (!int.TryParse(entry.Number, NumberStyles.None, CultureInfo.InvariantCulture, out int entryDisplayNumber) || entryDisplayNumber != displayNumber)) ||
                 entry.Data.Length == 0)
             {
                 continue;
