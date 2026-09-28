@@ -100,7 +100,7 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateWindowChangeRequestMessage(this SequencePool sequencePool, uint remoteChannel, int columns, int rows, int widthPixels, int heightPixels)
+    public static Packet CreateWindowChangeRequestMessage(this SequencePool sequencePool, uint remoteChannel, TerminalSize size)
     {
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
@@ -118,10 +118,10 @@ static class SshSequencePoolExtensions
         writer.WriteUInt32(remoteChannel);
         writer.WriteString("window-change");
         writer.WriteBoolean(false);
-        writer.WriteUInt32(columns);
-        writer.WriteUInt32(rows);
-        writer.WriteUInt32(widthPixels);
-        writer.WriteUInt32(heightPixels);
+        writer.WriteUInt32(size.Columns);
+        writer.WriteUInt32(size.Rows);
+        writer.WriteUInt32(size.WidthPixels);
+        writer.WriteUInt32(size.HeightPixels);
         return packet.Move();
     }
 
@@ -205,7 +205,7 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, int columns, int rows, int widthPixels, int heightPixels, byte[] terminalMode)
+    public static Packet CreateChannelPtyRequestMessage(this SequencePool sequencePool, uint remoteChannel, string term, TerminalSize size, byte[] terminalMode)
     {
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
@@ -227,10 +227,10 @@ static class SshSequencePoolExtensions
         writer.WriteString("pty-req");
         writer.WriteBoolean(true); // want_reply
         writer.WriteString(term);
-        writer.WriteUInt32(columns);
-        writer.WriteUInt32(rows);
-        writer.WriteUInt32(widthPixels);
-        writer.WriteUInt32(heightPixels);
+        writer.WriteUInt32(size.Columns);
+        writer.WriteUInt32(size.Rows);
+        writer.WriteUInt32(size.WidthPixels);
+        writer.WriteUInt32(size.HeightPixels);
         writer.WriteString(terminalMode);
         return packet.Move();
     }

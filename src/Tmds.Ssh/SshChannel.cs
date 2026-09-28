@@ -204,13 +204,13 @@ sealed partial class SshChannel : ISshChannel
         }
     }
 
-    public bool ChangeTerminalSize(int width, int height, int widthPixels, int heightPixels)
+    public bool ChangeTerminalSize(TerminalSize size)
     {
          bool isOpen = IsOpen();
 
         if (isOpen)
         {
-            TrySendWindowChange(width, height, widthPixels, heightPixels);
+            TrySendWindowChange(size);
         }
 
         return isOpen;
@@ -713,8 +713,8 @@ sealed partial class SshChannel : ISshChannel
     private void TrySendEofMessage()
         => TrySendPacket(_sequencePool.CreateChannelEofMessage(RemoteChannel));
 
-    private void TrySendWindowChange(int width, int height, int widthPixels, int heightPixels)
-        => TrySendPacket(_sequencePool.CreateWindowChangeRequestMessage(RemoteChannel, width, height, widthPixels, heightPixels));
+    private void TrySendWindowChange(TerminalSize size)
+        => TrySendPacket(_sequencePool.CreateWindowChangeRequestMessage(RemoteChannel, size));
 
     private void TrySendSignal(string signalName)
         => TrySendPacket(_sequencePool.CreateSendSignalRequestMessage(RemoteChannel, signalName));

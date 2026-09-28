@@ -65,12 +65,9 @@ namespace Tmds.Ssh
         public System.Text.Encoding StandardErrorEncoding { get; set; }
         public System.Text.Encoding StandardInputEncoding { get; set; }
         public System.Text.Encoding StandardOutputEncoding { get; set; }
-        public int TerminalHeight { get; set; }
-        public int TerminalHeightPixels { get; set; }
         public Tmds.Ssh.TerminalSettings TerminalSettings { get; }
+        public Tmds.Ssh.TerminalSize TerminalSize { get; set; }
         public string TerminalType { get; set; }
-        public int TerminalWidth { get; set; }
-        public int TerminalWidthPixels { get; set; }
         public int? WindowSize { get; set; }
     }
     public sealed class FileEntryAttributes
@@ -267,6 +264,7 @@ namespace Tmds.Ssh
         public bool HasTerminal { get; }
         public System.IO.Stream StandardInputStream { get; }
         public System.IO.StreamWriter StandardInputWriter { get; }
+        public Tmds.Ssh.TerminalSize TerminalSize { get; }
         public void Dispose() { }
         public System.Threading.Tasks.ValueTask<int> GetExitCodeAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteProcess.ExitStatus> GetExitStatusAsync(System.Threading.CancellationToken cancellationToken = default) { }
@@ -274,7 +272,7 @@ namespace Tmds.Ssh
                 "IsError",
                 "Content"})]
         public System.Collections.Generic.IAsyncEnumerable<System.ValueTuple<bool, string>> ReadAllLinesAsync(System.Threading.CancellationToken cancellationToken = default) { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__54))]
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Tmds.Ssh.RemoteProcess.<ReadAllLinesAsync>d__56))]
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "IsError",
                 "Content"})]
@@ -308,8 +306,7 @@ namespace Tmds.Ssh
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.IO.Stream? stdoutStream, System.IO.Stream? stderrStream, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask ReadToEndAsync(System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default) { }
         public bool SendSignal(string signalName) { }
-        public bool SetTerminalSize(int width, int height) { }
-        public bool SetTerminalSize(int width, int height, int widthPixels, int heightPixels) { }
+        public bool SetTerminalSize(Tmds.Ssh.TerminalSize size) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<char> buffer, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WriteAsync(string value, System.Threading.CancellationToken cancellationToken = default) { }
@@ -764,6 +761,14 @@ namespace Tmds.Ssh
         public byte StopOutputCharacter { get; set; }
         public byte SuspendCharacter { get; set; }
         public byte ToggleOutputDiscardCharacter { get; set; }
+    }
+    public readonly struct TerminalSize
+    {
+        public TerminalSize(int columns, int rows, int widthPixels = 0, int heightPixels = 0) { }
+        public int Columns { get; }
+        public int HeightPixels { get; }
+        public int Rows { get; }
+        public int WidthPixels { get; }
     }
     [System.Flags]
     public enum UnixFilePermissions : short

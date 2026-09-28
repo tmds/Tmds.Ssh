@@ -3,39 +3,53 @@ using Xunit;
 
 namespace Tmds.Ssh.Tests;
 
-public class TerminalPixelDimensionTests
+public class TerminalSizeTests
 {
     [Fact]
-    public void ExecuteOptions_PixelDimensionsDefaultToZero()
+    public void ExecuteOptions_TerminalSizeDefaults()
     {
         var options = new ExecuteOptions();
 
-        Assert.Equal(0, options.TerminalWidthPixels);
-        Assert.Equal(0, options.TerminalHeightPixels);
+        Assert.Equal(80, options.TerminalSize.Columns);
+        Assert.Equal(24, options.TerminalSize.Rows);
+        Assert.Equal(0, options.TerminalSize.WidthPixels);
+        Assert.Equal(0, options.TerminalSize.HeightPixels);
     }
 
     [Fact]
-    public void ExecuteOptions_PixelDimensionsAcceptZero()
+    public void TerminalSize_AcceptsUnspecifiedPixels()
     {
-        var options = new ExecuteOptions
-        {
-            TerminalWidthPixels = 0,
-            TerminalHeightPixels = 0
-        };
+        var size = new TerminalSize(80, 24, widthPixels: 0, heightPixels: 0);
 
-        Assert.Equal(0, options.TerminalWidthPixels);
-        Assert.Equal(0, options.TerminalHeightPixels);
+        Assert.Equal(80, size.Columns);
+        Assert.Equal(24, size.Rows);
+        Assert.Equal(0, size.WidthPixels);
+        Assert.Equal(0, size.HeightPixels);
     }
 
     [Fact]
-    public void ExecuteOptions_RejectsNegativePixelDimensions()
+    public void TerminalSize_AcceptsUnspecifiedDimensions()
     {
-        var options = new ExecuteOptions();
+        var size = new TerminalSize(0, 0);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => options.TerminalWidthPixels = -1);
-        Assert.Throws<ArgumentOutOfRangeException>(() => options.TerminalHeightPixels = -1);
-        Assert.Equal(0, options.TerminalWidthPixels);
-        Assert.Equal(0, options.TerminalHeightPixels);
+        Assert.Equal(0, size.Columns);
+        Assert.Equal(0, size.Rows);
+        Assert.Equal(0, size.WidthPixels);
+        Assert.Equal(0, size.HeightPixels);
+    }
+
+    [Fact]
+    public void TerminalSize_RejectsNegativeDimensions()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(-1, 24));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, -1));
+    }
+
+    [Fact]
+    public void TerminalSize_RejectsNegativePixelDimensions()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, 24, -1, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, 24, 0, -1));
     }
 
     [Fact]
@@ -44,10 +58,7 @@ public class TerminalPixelDimensionTests
         using Packet packet = new SequencePool().CreateChannelPtyRequestMessage(
             remoteChannel: 7,
             term: "xterm-256color",
-            columns: 100,
-            rows: 30,
-            widthPixels: 900,
-            heightPixels: 540,
+            size: new TerminalSize(100, 30, 900, 540),
             terminalMode: [0]);
 
         SequenceReader reader = packet.GetReader();
@@ -70,10 +81,7 @@ public class TerminalPixelDimensionTests
         using Packet packet = new SequencePool().CreateChannelPtyRequestMessage(
             remoteChannel: 1,
             term: "xterm",
-            columns: 80,
-            rows: 24,
-            widthPixels: 0,
-            heightPixels: 0,
+            size: new TerminalSize(80, 24),
             terminalMode: []);
 
         SequenceReader reader = packet.GetReader();
@@ -86,6 +94,8 @@ public class TerminalPixelDimensionTests
         Assert.Equal(24u, reader.ReadUInt32());
         Assert.Equal(0u, reader.ReadUInt32());
         Assert.Equal(0u, reader.ReadUInt32());
+        Assert.Empty(reader.ReadStringAsByteArray());
+        reader.ReadEnd();
     }
 
     [Fact]
@@ -93,10 +103,7 @@ public class TerminalPixelDimensionTests
     {
         using Packet packet = new SequencePool().CreateWindowChangeRequestMessage(
             remoteChannel: 3,
-            columns: 100,
-            rows: 30,
-            widthPixels: 900,
-            heightPixels: 540);
+            size: new TerminalSize(100, 30, 900, 540));
 
         SequenceReader reader = packet.GetReader();
         Assert.Equal(MessageId.SSH_MSG_CHANNEL_REQUEST, reader.ReadMessageId());
@@ -115,10 +122,7 @@ public class TerminalPixelDimensionTests
     {
         using Packet packet = new SequencePool().CreateWindowChangeRequestMessage(
             remoteChannel: 3,
-            columns: 100,
-            rows: 30,
-            widthPixels: 0,
-            heightPixels: 0);
+            size: new TerminalSize(100, 30));
 
         SequenceReader reader = packet.GetReader();
         reader.ReadMessageId();
@@ -133,31 +137,74 @@ public class TerminalPixelDimensionTests
     }
 
     [Fact]
-    public void SetTerminalSize_RejectsNegativeWidthPixels()
+    public void TerminalSize_IsInitialTerminalSize()
     {
-        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal();
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal(out _);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => process.SetTerminalSize(80, 24, -1, 0));
+        Assert.Equal(80, process.TerminalSize.Columns);
+        Assert.Equal(24, process.TerminalSize.Rows);
+        Assert.Equal(0, process.TerminalSize.WidthPixels);
+        Assert.Equal(0, process.TerminalSize.HeightPixels);
     }
 
     [Fact]
-    public void SetTerminalSize_RejectsNegativeHeightPixels()
+    public void SetTerminalSize_UpdatesTerminalSizeProperty()
     {
-        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal();
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal(out _);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => process.SetTerminalSize(80, 24, 0, -1));
+        Assert.True(process.SetTerminalSize(new TerminalSize(120, 40, 1200, 800)));
+        Assert.Equal(120, process.TerminalSize.Columns);
+        Assert.Equal(40, process.TerminalSize.Rows);
+        Assert.Equal(1200, process.TerminalSize.WidthPixels);
+        Assert.Equal(800, process.TerminalSize.HeightPixels);
     }
 
-    private static global::Tmds.Ssh.RemoteProcess CreateProcessWithTerminal() =>
+    [Fact]
+    public void SetTerminalSize_WhenChannelIsClosed_DoesNotUpdateTerminalSize()
+    {
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithTerminal(out StubChannel channel);
+        channel.ChangeTerminalSizeResult = false;
+
+        Assert.False(process.SetTerminalSize(new TerminalSize(120, 40, 1200, 800)));
+        Assert.Equal(80, process.TerminalSize.Columns);
+        Assert.Equal(24, process.TerminalSize.Rows);
+        Assert.Equal(0, process.TerminalSize.WidthPixels);
+        Assert.Equal(0, process.TerminalSize.HeightPixels);
+    }
+
+    [Fact]
+    public void SetTerminalSize_WithoutTerminalThrows()
+    {
+        using global::Tmds.Ssh.RemoteProcess process = CreateProcessWithoutTerminal();
+
+        Assert.Throws<InvalidOperationException>(() => process.SetTerminalSize(new TerminalSize(80, 24)));
+    }
+
+    private static global::Tmds.Ssh.RemoteProcess CreateProcessWithTerminal(out StubChannel channel, TerminalSize? terminalSize = null)
+    {
+        channel = new StubChannel();
+        return new(
+            channel,
+            Encoding.UTF8,
+            Encoding.UTF8,
+            Encoding.UTF8,
+            hasTty: true,
+            terminalSize: terminalSize ?? new TerminalSize(80, 24));
+    }
+
+    private static global::Tmds.Ssh.RemoteProcess CreateProcessWithoutTerminal() =>
         new(
             new StubChannel(),
             Encoding.UTF8,
             Encoding.UTF8,
             Encoding.UTF8,
-            hasTty: true);
+            hasTty: false,
+            terminalSize: default);
 
     private sealed class StubChannel : ISshChannel
     {
+        public bool ChangeTerminalSizeResult { get; set; } = true;
+
         public int ReceiveMaxPacket => 32 * 1024;
         public int SendMaxPacket => 32 * 1024;
         public int WindowSize => 0;
@@ -184,7 +231,7 @@ public class TerminalPixelDimensionTests
 
         public void WriteEof(bool noThrow, bool forStream) { }
 
-        public bool ChangeTerminalSize(int width, int height, int widthPixels, int heightPixels) => true;
+        public bool ChangeTerminalSize(TerminalSize size) => ChangeTerminalSizeResult;
 
         public bool SendSignal(string signalName) => true;
 
