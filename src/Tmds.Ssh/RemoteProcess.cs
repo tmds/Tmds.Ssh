@@ -316,14 +316,14 @@ public sealed class RemoteProcess : IDisposable
     /// </summary>
     /// <remarks>
     /// This is the size the terminal was allocated with, updated by <see cref="SetTerminalSize(TerminalSize)"/>.
-    /// When <see cref="HasTerminal"/> is <see langword="false"/>, the size is unspecified.
+    /// Throws <see cref="InvalidOperationException"/> when <see cref="HasTerminal"/> is <see langword="false"/>.
     /// </remarks>
     public TerminalSize TerminalSize
     {
         get
         {
             ThrowIfDisposed();
-
+            ThrowIfNotHasTerminal();
             return _terminalSize;
         }
     }
