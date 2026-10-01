@@ -21,7 +21,7 @@ interface ISshChannel
 
     ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken, bool forStream = false);
     void WriteEof(bool noThrow, bool forStream);
-    bool ChangeTerminalSize(int width, int height);
+    bool ChangeTerminalSize(TerminalSize size);
     bool SendSignal(string signalName);
 
     SshException CreateCloseException();

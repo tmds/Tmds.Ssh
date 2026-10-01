@@ -137,8 +137,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
         executeOptions = new()
         {
             AllocateTerminal = true,
-            TerminalWidth = Console.WindowWidth,
-            TerminalHeight = Console.WindowHeight,
+            TerminalSize = new(Console.WindowWidth, Console.WindowHeight),
         };
         if (Environment.GetEnvironmentVariable("TERM") is string term)
         {
@@ -203,7 +202,7 @@ static async Task<int> ExecuteAsync(string destination, string[] command, bool f
             {
                 try
                 {
-                    process.SetTerminalSize(width, height);
+                    process.SetTerminalSize(new(width, height));
                 }
                 catch
                 { }

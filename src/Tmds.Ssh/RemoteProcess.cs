@@ -41,6 +41,7 @@ public sealed class RemoteProcess : IDisposable
     private readonly Encoding _standardErrorEncoding;
     private readonly Encoding _standardOutputEncoding;
     private readonly bool _hasTty;
+    private TerminalSize _terminalSize;
     private StreamWriter? _stdInWriter;
     private byte[]? _byteBuffer;
 
@@ -273,7 +274,8 @@ public sealed class RemoteProcess : IDisposable
                             Encoding standardInputEncoding,
                             Encoding standardErrorEncoding,
                             Encoding standardOutputEncoding,
-                            bool hasTty
+                            bool hasTty,
+                            TerminalSize terminalSize
     )
     {
         _channel = channel;
@@ -281,6 +283,7 @@ public sealed class RemoteProcess : IDisposable
         _standardErrorEncoding = standardErrorEncoding;
         _standardOutputEncoding = standardOutputEncoding;
         _hasTty = hasTty;
+        _terminalSize = terminalSize;
     }
 
     private void EnsureExited()
@@ -305,6 +308,23 @@ public sealed class RemoteProcess : IDisposable
             ThrowIfDisposed();
 
             return _hasTty;
+        }
+    }
+
+    /// <summary>
+    /// Gets the size of the terminal.
+    /// </summary>
+    /// <remarks>
+    /// This is the size the terminal was allocated with, updated by <see cref="SetTerminalSize(TerminalSize)"/>.
+    /// Throws <see cref="InvalidOperationException"/> when <see cref="HasTerminal"/> is <see langword="false"/>.
+    /// </remarks>
+    public TerminalSize TerminalSize
+    {
+        get
+        {
+            ThrowIfDisposed();
+            ThrowIfNotHasTerminal();
+            return _terminalSize;
         }
     }
 
@@ -350,14 +370,19 @@ public sealed class RemoteProcess : IDisposable
     /// <summary>
     /// Sets the terminal window size.
     /// </summary>
-    /// <param name="width">The terminal width in characters.</param>
-    /// <param name="height">The terminal height in characters.</param>
+    /// <param name="size">The terminal size.</param>
     /// <returns><see langword="false"/> if the remote process had already terminated; otherwise <see langword="true"/>.</returns>
-    public bool SetTerminalSize(int width, int height)
+    public bool SetTerminalSize(TerminalSize size)
     {
         ThrowIfNotHasTerminal();
 
-        return _channel.ChangeTerminalSize(width, height);
+        if (!_channel.ChangeTerminalSize(size))
+        {
+            return false;
+        }
+
+        _terminalSize = size;
+        return true;
     }
 
     /// <summary>

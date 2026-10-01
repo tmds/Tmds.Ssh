@@ -505,14 +505,13 @@ Some programs need to run with a terminal. To allocate one, set <xref:Tmds.Ssh.E
 var options = new ExecuteOptions
 {
     AllocateTerminal = true,
-    TerminalWidth = 120,
-    TerminalHeight = 40,
+    TerminalSize = new(120, 40),
 };
 
 using var process = await sshClient.ExecuteAsync("top", options);
 ```
 
-The terminal type can be set with <xref:Tmds.Ssh.ExecuteOptions.TerminalType>. You can check whether a terminal was allocated using <xref:Tmds.Ssh.RemoteProcess.HasTerminal>, and resize it with <xref:Tmds.Ssh.RemoteProcess.SetTerminalSize(System.Int32,System.Int32)>.
+The terminal type can be set with <xref:Tmds.Ssh.ExecuteOptions.TerminalType>. You can check whether a terminal was allocated using <xref:Tmds.Ssh.RemoteProcess.HasTerminal>. The current size can be retrieved using <xref:Tmds.Ssh.RemoteProcess.TerminalSize>, and resized using <xref:Tmds.Ssh.RemoteProcess.SetTerminalSize(Tmds.Ssh.TerminalSize)>.
 
 When a terminal is allocated, standard error is merged into standard output.
 

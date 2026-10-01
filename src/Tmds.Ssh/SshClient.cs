@@ -420,11 +420,13 @@ public sealed partial class SshClient : IDisposable
         Encoding standardErrorEncoding = options?.StandardErrorEncoding ?? ExecuteOptions.DefaultEncoding;
         Encoding standardOutputEncoding = options?.StandardOutputEncoding ?? ExecuteOptions.DefaultEncoding;
         bool hasTty = options?.AllocateTerminal ?? false;
+        TerminalSize terminalSize = hasTty ? options!.TerminalSize : default;
         return new RemoteProcess(channel,
             standardInputEncoding,
             standardErrorEncoding,
             standardOutputEncoding,
-            hasTty);
+            hasTty,
+            terminalSize);
     }
 
     /// <summary>

@@ -17,8 +17,6 @@ public sealed class ExecuteOptions
     private Encoding _stdoutEncoding = DefaultEncoding;
     private Encoding _stderrEncoding = DefaultEncoding;
     private string _term = "xterm-256color";
-    private int _termWidth = 80;
-    private int _termHeight = 24;
     private Dictionary<string, string>? _environmentVariables;
     private int? _windowSize;
 
@@ -73,36 +71,12 @@ public sealed class ExecuteOptions
     public bool AllocateTerminal { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the terminal width in characters.
+    /// Gets or sets the size of the terminal.
     /// </summary>
     /// <remarks>
-    /// Defaults to 80.
+    /// Defaults to 80 columns by 24 rows, without a pixel size.
     /// </remarks>
-    public int TerminalWidth
-    {
-        get => _termWidth;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0);
-            _termWidth = value;
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the terminal height in characters.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to 24.
-    /// </remarks>
-    public int TerminalHeight
-    {
-        get => _termHeight;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0);
-            _termHeight = value;
-        }
-    }
+    public TerminalSize TerminalSize { get; set; } = new(columns: 80, rows: 24);
 
     /// <summary>
     /// Gets or sets the terminal type.
