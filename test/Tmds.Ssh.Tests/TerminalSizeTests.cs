@@ -28,14 +28,10 @@ public class TerminalSizeTests
     }
 
     [Fact]
-    public void TerminalSize_AcceptsUnspecifiedDimensions()
+    public void TerminalSize_RejectsZeroDimensions()
     {
-        var size = new TerminalSize(0, 0);
-
-        Assert.Equal(0, size.Columns);
-        Assert.Equal(0, size.Rows);
-        Assert.Equal(0, size.WidthPixels);
-        Assert.Equal(0, size.HeightPixels);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(0, 24));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, 0));
     }
 
     [Fact]
@@ -50,6 +46,36 @@ public class TerminalSizeTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, 24, -1, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new TerminalSize(80, 24, 0, -1));
+    }
+
+    [Fact]
+    public void TerminalSize_Equality()
+    {
+        var size = new TerminalSize(80, 24, 800, 600);
+
+        Assert.Equal(size, new TerminalSize(80, 24, 800, 600));
+
+        Assert.NotEqual(size, new TerminalSize(81, 24, 800, 600));
+        Assert.NotEqual(size, new TerminalSize(80, 25, 800, 600));
+        Assert.NotEqual(size, new TerminalSize(80, 24, 801, 600));
+        Assert.NotEqual(size, new TerminalSize(80, 24, 800, 601));
+    }
+
+    [Theory]
+    [InlineData(80, 24, 0, 0, "80x24")]
+    [InlineData(80, 24, 800, 600, "80x24 (800x600)")]
+    [InlineData(80, 24, 800, 0, "80x24 (800x0)")]
+    [InlineData(80, 24, 0, 600, "80x24 (0x600)")]
+    public void TerminalSize_ToString(
+        int columns,
+        int rows,
+        int widthPixels,
+        int heightPixels,
+        string expected)
+    {
+        var size = new TerminalSize(columns, rows, widthPixels, heightPixels);
+
+        Assert.Equal(expected, size.ToString());
     }
 
     [Fact]

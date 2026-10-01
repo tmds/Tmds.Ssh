@@ -762,13 +762,17 @@ namespace Tmds.Ssh
         public byte SuspendCharacter { get; set; }
         public byte ToggleOutputDiscardCharacter { get; set; }
     }
-    public readonly struct TerminalSize
+    public readonly struct TerminalSize : System.IEquatable<Tmds.Ssh.TerminalSize>
     {
         public TerminalSize(int columns, int rows, int widthPixels = 0, int heightPixels = 0) { }
         public int Columns { get; }
         public int HeightPixels { get; }
         public int Rows { get; }
         public int WidthPixels { get; }
+        public bool Equals(Tmds.Ssh.TerminalSize other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+        public override string ToString() { }
     }
     [System.Flags]
     public enum UnixFilePermissions : short

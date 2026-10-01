@@ -506,7 +506,7 @@ var options = new ExecuteOptions
 using var process = await sshClient.ExecuteAsync("top", options);
 ```
 
-The terminal type can be set with <xref:Tmds.Ssh.ExecuteOptions.TerminalType>. You can check whether a terminal was allocated using <xref:Tmds.Ssh.RemoteProcess.HasTerminal>, and resize it with <xref:Tmds.Ssh.RemoteProcess.SetTerminalSize(Tmds.Ssh.TerminalSize)>.
+The terminal type can be set with <xref:Tmds.Ssh.ExecuteOptions.TerminalType>. You can check whether a terminal was allocated using <xref:Tmds.Ssh.RemoteProcess.HasTerminal>. The current size can be retrieved using <xref:Tmds.Ssh.RemoteProcess.TerminalSize>, and resized using <xref:Tmds.Ssh.RemoteProcess.SetTerminalSize(Tmds.Ssh.TerminalSize)>.
 
 When a terminal is allocated, standard error is merged into standard output.
 
