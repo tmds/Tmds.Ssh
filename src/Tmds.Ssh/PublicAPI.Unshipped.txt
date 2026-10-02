@@ -1,0 +1,822 @@
+#nullable enable
+const Tmds.Ssh.SftpClient.DefaultCreateDirectoryPermissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead -> Tmds.Ssh.UnixFilePermissions
+const Tmds.Ssh.SftpClient.DefaultCreateFilePermissions = Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead -> Tmds.Ssh.UnixFilePermissions
+const Tmds.Ssh.SftpProgressHandler.MaxConcurrentTransferEntries = 64 -> int
+const Tmds.Ssh.SignalName.ABRT = "ABRT" -> string!
+const Tmds.Ssh.SignalName.ALRM = "ALRM" -> string!
+const Tmds.Ssh.SignalName.FPE = "FPE" -> string!
+const Tmds.Ssh.SignalName.HUP = "HUP" -> string!
+const Tmds.Ssh.SignalName.ILL = "ILL" -> string!
+const Tmds.Ssh.SignalName.INT = "INT" -> string!
+const Tmds.Ssh.SignalName.KILL = "KILL" -> string!
+const Tmds.Ssh.SignalName.PIPE = "PIPE" -> string!
+const Tmds.Ssh.SignalName.QUIT = "QUIT" -> string!
+const Tmds.Ssh.SignalName.SEGV = "SEGV" -> string!
+const Tmds.Ssh.SignalName.TERM = "TERM" -> string!
+const Tmds.Ssh.SignalName.USR1 = "USR1" -> string!
+const Tmds.Ssh.SignalName.USR2 = "USR2" -> string!
+const Tmds.Ssh.TerminalSettings.DisableCharacter = 255 -> byte
+override Tmds.Ssh.PublicKey.GetHashCode() -> int
+override Tmds.Ssh.PublicKey.ToString() -> string!
+override Tmds.Ssh.RemoteHostEndPoint.ToString() -> string!
+override Tmds.Ssh.RemoteIPEndPoint.ToString() -> string!
+override Tmds.Ssh.RemoteIPListenEndPoint.ToString() -> string!
+override Tmds.Ssh.RemoteUnixEndPoint.ToString() -> string!
+override Tmds.Ssh.SftpFile.CanRead.get -> bool
+override Tmds.Ssh.SftpFile.CanSeek.get -> bool
+override Tmds.Ssh.SftpFile.CanWrite.get -> bool
+override Tmds.Ssh.SftpFile.Flush() -> void
+override Tmds.Ssh.SftpFile.Length.get -> long
+override Tmds.Ssh.SftpFile.Position.get -> long
+override Tmds.Ssh.SftpFile.Position.set -> void
+override Tmds.Ssh.SftpFile.Read(byte[]! buffer, int offset, int count) -> int
+override Tmds.Ssh.SftpFile.ReadAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+override Tmds.Ssh.SftpFile.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+override Tmds.Ssh.SftpFile.Seek(long offset, System.IO.SeekOrigin origin) -> long
+override Tmds.Ssh.SftpFile.SetLength(long value) -> void
+override Tmds.Ssh.SftpFile.Write(byte[]! buffer, int offset, int count) -> void
+override Tmds.Ssh.SftpFile.WriteAsync(byte[]! buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Tmds.Ssh.SftpFile.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+override Tmds.Ssh.SshDataStream.CanRead.get -> bool
+override Tmds.Ssh.SshDataStream.CanSeek.get -> bool
+override Tmds.Ssh.SshDataStream.CanWrite.get -> bool
+override Tmds.Ssh.SshDataStream.Close() -> void
+override Tmds.Ssh.SshDataStream.Flush() -> void
+override Tmds.Ssh.SshDataStream.FlushAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Tmds.Ssh.SshDataStream.Length.get -> long
+override Tmds.Ssh.SshDataStream.Position.get -> long
+override Tmds.Ssh.SshDataStream.Position.set -> void
+override Tmds.Ssh.SshDataStream.Read(byte[]! buffer, int offset, int count) -> int
+override Tmds.Ssh.SshDataStream.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+override Tmds.Ssh.SshDataStream.Seek(long offset, System.IO.SeekOrigin origin) -> long
+override Tmds.Ssh.SshDataStream.SetLength(long value) -> void
+override Tmds.Ssh.SshDataStream.Write(byte[]! buffer, int offset, int count) -> void
+override Tmds.Ssh.SshDataStream.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+override Tmds.Ssh.TerminalSize.Equals(object? obj) -> bool
+override Tmds.Ssh.TerminalSize.GetHashCode() -> int
+override Tmds.Ssh.TerminalSize.ToString() -> string!
+static Tmds.Ssh.Proxy.Chain(params Tmds.Ssh.Proxy![]! proxies) -> Tmds.Ssh.Proxy?
+static Tmds.Ssh.SftpDirectoryExtensions.CreateDirectoryAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.CreateNewDirectoryAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.CreateNewFileAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+static Tmds.Ssh.SftpDirectoryExtensions.DeleteDirectoryAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.DownloadDirectoryEntriesAsync(this Tmds.Ssh.ISftpDirectory! directory, string! remoteDirPath, string! localDirPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.DownloadFileAsync(this Tmds.Ssh.ISftpDirectory! directory, string! remoteFilePath, string! localFilePath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.GetAttributesAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, bool followLinks, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?>
+static Tmds.Ssh.SftpDirectoryExtensions.GetAttributesAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?>
+static Tmds.Ssh.SftpDirectoryExtensions.GetDirectoryEntriesAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, Tmds.Ssh.EnumerationOptions? options = null) -> System.Collections.Generic.IAsyncEnumerable<(string! Path, Tmds.Ssh.FileEntryAttributes! Attributes)>!
+static Tmds.Ssh.SftpDirectoryExtensions.OpenFileAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?>
+static Tmds.Ssh.SftpDirectoryExtensions.OpenOrCreateFileAsync(this Tmds.Ssh.ISftpDirectory! directory, string! path, System.IO.FileAccess access, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+static Tmds.Ssh.SftpDirectoryExtensions.UploadDirectoryEntriesAsync(this Tmds.Ssh.ISftpDirectory! directory, string! localDirPath, string! remoteDirPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.UploadFileAsync(this Tmds.Ssh.ISftpDirectory! directory, string! localFilePath, string! remoteFilePath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SftpDirectoryExtensions.UploadFileAsync(this Tmds.Ssh.ISftpDirectory! directory, System.IO.Stream! source, string! remoteFilePath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+static Tmds.Ssh.SshClientSettings.DefaultCredentials.get -> System.Collections.Generic.IReadOnlyList<Tmds.Ssh.Credential!>!
+static Tmds.Ssh.SshClientSettings.DefaultGlobalKnownHostsFilePaths.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tmds.Ssh.SshClientSettings.DefaultUserKnownHostsFilePaths.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tmds.Ssh.SshConfig.GetHosts() -> System.Collections.Generic.ISet<string!>!
+static Tmds.Ssh.SshConfig.GetHosts(System.Collections.Generic.IReadOnlyList<string!>! configFilePaths) -> System.Collections.Generic.ISet<string!>!
+static Tmds.Ssh.SshConfigOptionValue.implicit operator Tmds.Ssh.SshConfigOptionValue(string! value) -> Tmds.Ssh.SshConfigOptionValue
+static Tmds.Ssh.SshConfigSettings.DefaultConfig.get -> Tmds.Ssh.SshConfigSettings!
+static Tmds.Ssh.SshConfigSettings.DefaultConfigFilePaths.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tmds.Ssh.SshConfigSettings.NoConfig.get -> Tmds.Ssh.SshConfigSettings!
+static Tmds.Ssh.StderrHandler.Ignore.get -> Tmds.Ssh.StderrHandler
+static Tmds.Ssh.StderrHandler.implicit operator Tmds.Ssh.StderrHandler(System.IO.Stream! stream) -> Tmds.Ssh.StderrHandler
+static Tmds.Ssh.StderrHandler.implicit operator Tmds.Ssh.StderrHandler(System.Text.StringBuilder! stringBuilder) -> Tmds.Ssh.StderrHandler
+static Tmds.Ssh.UnixFilePermissionsExtensions.ToUnixFileMode(this Tmds.Ssh.UnixFilePermissions permissions) -> System.IO.UnixFileMode
+static Tmds.Ssh.UnixFilePermissionsExtensions.ToUnixFilePermissions(this System.IO.UnixFileMode mode) -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.AlgorithmList
+Tmds.Ssh.AlgorithmList.Add(string! item) -> void
+Tmds.Ssh.AlgorithmList.AlgorithmList() -> void
+Tmds.Ssh.AlgorithmList.Clear() -> void
+Tmds.Ssh.AlgorithmList.Contains(string! item) -> bool
+Tmds.Ssh.AlgorithmList.CopyTo(string![]! array, int arrayIndex) -> void
+Tmds.Ssh.AlgorithmList.Count.get -> int
+Tmds.Ssh.AlgorithmList.GetEnumerator() -> System.Collections.Generic.IEnumerator<string!>!
+Tmds.Ssh.AlgorithmList.IndexOf(string! item) -> int
+Tmds.Ssh.AlgorithmList.Insert(int index, string! item) -> void
+Tmds.Ssh.AlgorithmList.IsReadOnly.get -> bool
+Tmds.Ssh.AlgorithmList.Remove(string! item) -> bool
+Tmds.Ssh.AlgorithmList.RemoveAt(int index) -> void
+Tmds.Ssh.AlgorithmList.this[int index].get -> string!
+Tmds.Ssh.AlgorithmList.this[int index].set -> void
+Tmds.Ssh.BannerHandler
+Tmds.Ssh.BannerMessageContext
+Tmds.Ssh.BannerMessageContext.BannerMessageContext() -> void
+Tmds.Ssh.BannerMessageContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
+Tmds.Ssh.BannerMessageContext.Message.get -> string!
+Tmds.Ssh.CertificateCredential
+Tmds.Ssh.CertificateCredential.CertificateCredential(string! path, Tmds.Ssh.PrivateKeyCredential! privateKey) -> void
+Tmds.Ssh.Credential
+Tmds.Ssh.DownloadEntriesOptions
+Tmds.Ssh.DownloadEntriesOptions.DownloadEntriesOptions() -> void
+Tmds.Ssh.DownloadEntriesOptions.FileTypeFilter.get -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.DownloadEntriesOptions.FileTypeFilter.set -> void
+Tmds.Ssh.DownloadEntriesOptions.FollowDirectoryLinks.get -> bool
+Tmds.Ssh.DownloadEntriesOptions.FollowDirectoryLinks.set -> void
+Tmds.Ssh.DownloadEntriesOptions.FollowFileLinks.get -> bool
+Tmds.Ssh.DownloadEntriesOptions.FollowFileLinks.set -> void
+Tmds.Ssh.DownloadEntriesOptions.IncludeSubdirectories.get -> bool
+Tmds.Ssh.DownloadEntriesOptions.IncludeSubdirectories.set -> void
+Tmds.Ssh.DownloadEntriesOptions.MaxConcurrentEntries.get -> int
+Tmds.Ssh.DownloadEntriesOptions.MaxConcurrentEntries.set -> void
+Tmds.Ssh.DownloadEntriesOptions.Overwrite.get -> bool
+Tmds.Ssh.DownloadEntriesOptions.Overwrite.set -> void
+Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters
+Tmds.Ssh.DownloadEntriesOptions.ReplaceInvalidCharacters.get -> Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters!
+Tmds.Ssh.DownloadEntriesOptions.ReplaceInvalidCharacters.set -> void
+Tmds.Ssh.DownloadEntriesOptions.ShouldInclude.get -> Tmds.Ssh.SftpFileEntryPredicate?
+Tmds.Ssh.DownloadEntriesOptions.ShouldInclude.set -> void
+Tmds.Ssh.DownloadEntriesOptions.ShouldRecurse.get -> Tmds.Ssh.SftpFileEntryPredicate?
+Tmds.Ssh.DownloadEntriesOptions.ShouldRecurse.set -> void
+Tmds.Ssh.DownloadEntriesOptions.TargetDirectoryCreation.get -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.DownloadEntriesOptions.TargetDirectoryCreation.set -> void
+Tmds.Ssh.EnumerationOptions
+Tmds.Ssh.EnumerationOptions.EnumerationOptions() -> void
+Tmds.Ssh.EnumerationOptions.ExtendedAttributes.get -> string![]?
+Tmds.Ssh.EnumerationOptions.ExtendedAttributes.set -> void
+Tmds.Ssh.EnumerationOptions.FileTypeFilter.get -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.EnumerationOptions.FileTypeFilter.set -> void
+Tmds.Ssh.EnumerationOptions.FollowDirectoryLinks.get -> bool
+Tmds.Ssh.EnumerationOptions.FollowDirectoryLinks.set -> void
+Tmds.Ssh.EnumerationOptions.FollowFileLinks.get -> bool
+Tmds.Ssh.EnumerationOptions.FollowFileLinks.set -> void
+Tmds.Ssh.EnumerationOptions.RecurseSubdirectories.get -> bool
+Tmds.Ssh.EnumerationOptions.RecurseSubdirectories.set -> void
+Tmds.Ssh.EnumerationOptions.ShouldInclude.get -> Tmds.Ssh.SftpFileEntryPredicate?
+Tmds.Ssh.EnumerationOptions.ShouldInclude.set -> void
+Tmds.Ssh.EnumerationOptions.ShouldRecurse.get -> Tmds.Ssh.SftpFileEntryPredicate?
+Tmds.Ssh.EnumerationOptions.ShouldRecurse.set -> void
+Tmds.Ssh.ExecuteOptions
+Tmds.Ssh.ExecuteOptions.AllocateTerminal.get -> bool
+Tmds.Ssh.ExecuteOptions.AllocateTerminal.set -> void
+Tmds.Ssh.ExecuteOptions.EnvironmentVariables.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Tmds.Ssh.ExecuteOptions.EnvironmentVariables.set -> void
+Tmds.Ssh.ExecuteOptions.ExecuteOptions() -> void
+Tmds.Ssh.ExecuteOptions.ForwardX11.get -> Tmds.Ssh.ForwardMode?
+Tmds.Ssh.ExecuteOptions.ForwardX11.set -> void
+Tmds.Ssh.ExecuteOptions.StandardErrorEncoding.get -> System.Text.Encoding!
+Tmds.Ssh.ExecuteOptions.StandardErrorEncoding.set -> void
+Tmds.Ssh.ExecuteOptions.StandardInputEncoding.get -> System.Text.Encoding!
+Tmds.Ssh.ExecuteOptions.StandardInputEncoding.set -> void
+Tmds.Ssh.ExecuteOptions.StandardOutputEncoding.get -> System.Text.Encoding!
+Tmds.Ssh.ExecuteOptions.StandardOutputEncoding.set -> void
+Tmds.Ssh.ExecuteOptions.TerminalSettings.get -> Tmds.Ssh.TerminalSettings!
+Tmds.Ssh.ExecuteOptions.TerminalSize.get -> Tmds.Ssh.TerminalSize
+Tmds.Ssh.ExecuteOptions.TerminalSize.set -> void
+Tmds.Ssh.ExecuteOptions.TerminalType.get -> string!
+Tmds.Ssh.ExecuteOptions.TerminalType.set -> void
+Tmds.Ssh.ExecuteOptions.WindowSize.get -> int?
+Tmds.Ssh.ExecuteOptions.WindowSize.set -> void
+Tmds.Ssh.FileEntryAttributes
+Tmds.Ssh.FileEntryAttributes.ExtendedAttributes.get -> System.Collections.Generic.Dictionary<string!, byte[]!>?
+Tmds.Ssh.FileEntryAttributes.ExtendedAttributes.set -> void
+Tmds.Ssh.FileEntryAttributes.FileEntryAttributes() -> void
+Tmds.Ssh.FileEntryAttributes.FileType.get -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.FileEntryAttributes.FileType.set -> void
+Tmds.Ssh.FileEntryAttributes.Gid.get -> int
+Tmds.Ssh.FileEntryAttributes.Gid.set -> void
+Tmds.Ssh.FileEntryAttributes.LastAccessTime.get -> System.DateTimeOffset
+Tmds.Ssh.FileEntryAttributes.LastAccessTime.set -> void
+Tmds.Ssh.FileEntryAttributes.LastWriteTime.get -> System.DateTimeOffset
+Tmds.Ssh.FileEntryAttributes.LastWriteTime.set -> void
+Tmds.Ssh.FileEntryAttributes.Length.get -> long
+Tmds.Ssh.FileEntryAttributes.Length.set -> void
+Tmds.Ssh.FileEntryAttributes.Permissions.get -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.FileEntryAttributes.Permissions.set -> void
+Tmds.Ssh.FileEntryAttributes.Uid.get -> int
+Tmds.Ssh.FileEntryAttributes.Uid.set -> void
+Tmds.Ssh.FileOpenOptions
+Tmds.Ssh.FileOpenOptions.CacheLength.get -> bool
+Tmds.Ssh.FileOpenOptions.CacheLength.set -> void
+Tmds.Ssh.FileOpenOptions.CreatePermissions.get -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.FileOpenOptions.CreatePermissions.set -> void
+Tmds.Ssh.FileOpenOptions.FileOpenOptions() -> void
+Tmds.Ssh.FileOpenOptions.OpenMode.get -> Tmds.Ssh.OpenMode
+Tmds.Ssh.FileOpenOptions.OpenMode.set -> void
+Tmds.Ssh.FileOpenOptions.Seekable.get -> bool
+Tmds.Ssh.FileOpenOptions.Seekable.set -> void
+Tmds.Ssh.ForwardMode
+Tmds.Ssh.ForwardMode.Off = 0 -> Tmds.Ssh.ForwardMode
+Tmds.Ssh.ForwardMode.Request = 1 -> Tmds.Ssh.ForwardMode
+Tmds.Ssh.ForwardMode.Require = 2 -> Tmds.Ssh.ForwardMode
+Tmds.Ssh.HostAuthentication
+Tmds.Ssh.HostAuthenticationContext
+Tmds.Ssh.HostAuthenticationContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
+Tmds.Ssh.HostAuthenticationContext.HostAuthenticationContext() -> void
+Tmds.Ssh.HostAuthenticationContext.IsBatchMode.get -> bool
+Tmds.Ssh.HostAuthenticationContext.KnownHostResult.get -> Tmds.Ssh.KnownHostResult
+Tmds.Ssh.HostCertificateInfo
+Tmds.Ssh.HostCertificateInfo.Identifier.get -> string!
+Tmds.Ssh.HostCertificateInfo.IssuerKey.get -> Tmds.Ssh.PublicKey!
+Tmds.Ssh.HostCertificateInfo.SerialNumber.get -> ulong
+Tmds.Ssh.HostCertificateInfo.Type.get -> string!
+Tmds.Ssh.HostKey
+Tmds.Ssh.HostKey.CertificateInfo.get -> Tmds.Ssh.HostCertificateInfo?
+Tmds.Ssh.HostKey.Key.get -> Tmds.Ssh.PublicKey!
+Tmds.Ssh.ISftpDirectory
+Tmds.Ssh.ISftpDirectory.CopyFileAsync(string! sourcePath, string! destinationPath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.CreateDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.CreateNewDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.CreateNewFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.ISftpDirectory.CreateSymbolicLinkAsync(string! linkPath, string! targetPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.DeleteDirectoryAsync(string! path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.DeleteFileAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.DownloadDirectoryEntriesAsync(string! remoteDirPath, string! localDirPath, Tmds.Ssh.DownloadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.DownloadFileAsync(string! remoteFilePath, string! localFilePath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.DownloadFileAsync(string! remoteFilePath, System.IO.Stream! destination, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.GetAttributesAsync(string! path, bool followLinks, string![]? filter, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?>
+Tmds.Ssh.ISftpDirectory.GetDirectory(string! path) -> Tmds.Ssh.ISftpDirectory!
+Tmds.Ssh.ISftpDirectory.GetDirectoryEntriesAsync<T>(string! path, Tmds.Ssh.SftpFileEntryTransform<T>! transform, Tmds.Ssh.EnumerationOptions? options = null) -> System.Collections.Generic.IAsyncEnumerable<T>!
+Tmds.Ssh.ISftpDirectory.GetLinkTargetAsync(string! linkPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.ISftpDirectory.GetRealPathAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.ISftpDirectory.OpenFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?>
+Tmds.Ssh.ISftpDirectory.OpenOrCreateFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.ISftpDirectory.Path.get -> string!
+Tmds.Ssh.ISftpDirectory.RenameAsync(string! oldPath, string! newPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.SetAttributesAsync(string! path, Tmds.Ssh.UnixFilePermissions? permissions = null, (System.DateTimeOffset LastAccess, System.DateTimeOffset LastWrite)? times = null, long? length = null, (int Uid, int Gid)? ids = null, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.UploadDirectoryEntriesAsync(string! localDirPath, string! remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.UploadFileAsync(string! localFilePath, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions? createPermissions = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.ISftpDirectory.UploadFileAsync(System.IO.Stream! source, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions createPermissions = Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.KerberosCredential
+Tmds.Ssh.KerberosCredential.KerberosCredential(System.Net.NetworkCredential? credential = null, bool delegateCredential = false, string? targetName = null) -> void
+Tmds.Ssh.KnownHostResult
+Tmds.Ssh.KnownHostResult.Changed = 2 -> Tmds.Ssh.KnownHostResult
+Tmds.Ssh.KnownHostResult.Revoked = 1 -> Tmds.Ssh.KnownHostResult
+Tmds.Ssh.KnownHostResult.Trusted = 0 -> Tmds.Ssh.KnownHostResult
+Tmds.Ssh.KnownHostResult.Unknown = 3 -> Tmds.Ssh.KnownHostResult
+Tmds.Ssh.LocalFileEntry
+Tmds.Ssh.LocalFileEntry.LocalFileEntry() -> void
+Tmds.Ssh.LocalFileEntry.ToFullPath() -> string!
+Tmds.Ssh.LocalFileEntryPredicate
+Tmds.Ssh.LocalForward
+Tmds.Ssh.LocalForward.Dispose() -> void
+Tmds.Ssh.LocalForward.ListenEndPoint.get -> System.Net.EndPoint!
+Tmds.Ssh.LocalForward.Stopped.get -> System.Threading.CancellationToken
+Tmds.Ssh.LocalForward.ThrowIfStopped() -> void
+Tmds.Ssh.NoCredential
+Tmds.Ssh.NoCredential.NoCredential() -> void
+Tmds.Ssh.OpenMode
+Tmds.Ssh.OpenMode.Append = 1 -> Tmds.Ssh.OpenMode
+Tmds.Ssh.OpenMode.Default = 0 -> Tmds.Ssh.OpenMode
+Tmds.Ssh.OpenMode.Truncate = 2 -> Tmds.Ssh.OpenMode
+Tmds.Ssh.PasswordCredential
+Tmds.Ssh.PasswordCredential.PasswordCredential(string! password) -> void
+Tmds.Ssh.PasswordCredential.PasswordCredential(Tmds.Ssh.PasswordPrompt! passwordPrompt) -> void
+Tmds.Ssh.PasswordPrompt
+Tmds.Ssh.PasswordPromptContext
+Tmds.Ssh.PasswordPromptContext.Attempt.get -> int
+Tmds.Ssh.PasswordPromptContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
+Tmds.Ssh.PasswordPromptContext.IsBatchMode.get -> bool
+Tmds.Ssh.PasswordPromptContext.PasswordPromptContext() -> void
+Tmds.Ssh.PrivateKeyCredential
+Tmds.Ssh.PrivateKeyCredential.Key
+Tmds.Ssh.PrivateKeyCredential.Key.Dispose() -> void
+Tmds.Ssh.PrivateKeyCredential.Key.Key() -> void
+Tmds.Ssh.PrivateKeyCredential.Key.Key(System.ReadOnlyMemory<char> rawKey, string? password = null) -> void
+Tmds.Ssh.PrivateKeyCredential.Key.Key(System.ReadOnlyMemory<char> rawKey, System.Func<string?>! passwordPrompt, bool queryKey = true) -> void
+Tmds.Ssh.PrivateKeyCredential.Key.Key(System.Security.Cryptography.ECDsa! ecdsa) -> void
+Tmds.Ssh.PrivateKeyCredential.Key.Key(System.Security.Cryptography.RSA! rsa) -> void
+Tmds.Ssh.PrivateKeyCredential.PrivateKeyCredential(char[]! rawKey, string? password = null, string! identifier = "[raw key]") -> void
+Tmds.Ssh.PrivateKeyCredential.PrivateKeyCredential(char[]! rawKey, System.Func<string?>! passwordPrompt, bool queryKey = true, string! identifier = "[raw key]") -> void
+Tmds.Ssh.PrivateKeyCredential.PrivateKeyCredential(string! path, string? password = null, string? identifier = null) -> void
+Tmds.Ssh.PrivateKeyCredential.PrivateKeyCredential(string! path, System.Func<string?>! passwordPrompt, bool queryKey = true, string? identifier = null) -> void
+Tmds.Ssh.PrivateKeyCredential.PrivateKeyCredential(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tmds.Ssh.PrivateKeyCredential.Key>>! loadKey, string! identifier) -> void
+Tmds.Ssh.Proxy
+Tmds.Ssh.Proxy.Proxy() -> void
+Tmds.Ssh.PublicKey
+Tmds.Ssh.PublicKey.Equals(Tmds.Ssh.PublicKey? other) -> bool
+Tmds.Ssh.PublicKey.SHA256FingerPrint.get -> string!
+Tmds.Ssh.PublicKey.Type.get -> string!
+Tmds.Ssh.RemoteConnection
+Tmds.Ssh.RemoteConnection.Dispose() -> void
+Tmds.Ssh.RemoteConnection.HasStream.get -> bool
+Tmds.Ssh.RemoteConnection.MoveStream() -> Tmds.Ssh.SshDataStream!
+Tmds.Ssh.RemoteConnection.RemoteConnection() -> void
+Tmds.Ssh.RemoteConnection.RemoteEndPoint.get -> Tmds.Ssh.RemoteEndPoint?
+Tmds.Ssh.RemoteConnection.Stream.get -> Tmds.Ssh.SshDataStream?
+Tmds.Ssh.RemoteEndPoint
+Tmds.Ssh.RemoteForward
+Tmds.Ssh.RemoteForward.Dispose() -> void
+Tmds.Ssh.RemoteForward.ListenEndPoint.get -> Tmds.Ssh.RemoteEndPoint!
+Tmds.Ssh.RemoteForward.Stopped.get -> System.Threading.CancellationToken
+Tmds.Ssh.RemoteForward.ThrowIfStopped() -> void
+Tmds.Ssh.RemoteHostEndPoint
+Tmds.Ssh.RemoteHostEndPoint.Host.get -> string!
+Tmds.Ssh.RemoteHostEndPoint.Port.get -> int
+Tmds.Ssh.RemoteHostEndPoint.RemoteHostEndPoint(string! host, int port) -> void
+Tmds.Ssh.RemoteIPEndPoint
+Tmds.Ssh.RemoteIPEndPoint.Address.get -> System.Net.IPAddress!
+Tmds.Ssh.RemoteIPEndPoint.Port.get -> int
+Tmds.Ssh.RemoteIPEndPoint.RemoteIPEndPoint(System.Net.IPAddress! address, int port) -> void
+Tmds.Ssh.RemoteIPListenEndPoint
+Tmds.Ssh.RemoteIPListenEndPoint.Address.get -> string!
+Tmds.Ssh.RemoteIPListenEndPoint.Port.get -> int
+Tmds.Ssh.RemoteIPListenEndPoint.RemoteIPListenEndPoint(string! address, int port) -> void
+Tmds.Ssh.RemoteListener
+Tmds.Ssh.RemoteListener.AcceptAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteConnection>
+Tmds.Ssh.RemoteListener.Dispose() -> void
+Tmds.Ssh.RemoteListener.ListenEndPoint.get -> Tmds.Ssh.RemoteEndPoint!
+Tmds.Ssh.RemoteListener.Stop() -> void
+Tmds.Ssh.RemoteProcess
+Tmds.Ssh.RemoteProcess.Dispose() -> void
+Tmds.Ssh.RemoteProcess.ExecutionAborted.get -> System.Threading.CancellationToken
+Tmds.Ssh.RemoteProcess.ExitStatus
+Tmds.Ssh.RemoteProcess.ExitStatus.Deconstruct(out int exitCode, out string? exitSignal) -> void
+Tmds.Ssh.RemoteProcess.ExitStatus.ExitCode.get -> int
+Tmds.Ssh.RemoteProcess.ExitStatus.ExitCode.init -> void
+Tmds.Ssh.RemoteProcess.ExitStatus.ExitSignal.get -> string?
+Tmds.Ssh.RemoteProcess.ExitStatus.ExitSignal.init -> void
+Tmds.Ssh.RemoteProcess.ExitStatus.ExitStatus() -> void
+Tmds.Ssh.RemoteProcess.GetExitCodeAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+Tmds.Ssh.RemoteProcess.GetExitStatusAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.RemoteProcess.ExitStatus>
+Tmds.Ssh.RemoteProcess.HasTerminal.get -> bool
+Tmds.Ssh.RemoteProcess.ReadAllLinesAsync(bool readStdout, bool readStderr, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<(bool IsError, string! Content)>!
+Tmds.Ssh.RemoteProcess.ReadAllLinesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<(bool IsError, string! Content)>!
+Tmds.Ssh.RemoteProcess.ReadAsStream(Tmds.Ssh.StderrHandler stderrHandler) -> System.IO.Stream!
+Tmds.Ssh.RemoteProcess.ReadAsStreamReader(Tmds.Ssh.StderrHandler stderrHandler, int bufferSize = -1) -> System.IO.StreamReader!
+Tmds.Ssh.RemoteProcess.ReadAsync(System.Memory<byte>? stdoutBuffer, System.Memory<byte>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(bool IsError, int BytesRead)>
+Tmds.Ssh.RemoteProcess.ReadAsync(System.Memory<char>? stdoutBuffer, System.Memory<char>? stderrBuffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(bool IsError, int BytesRead)>
+Tmds.Ssh.RemoteProcess.ReadLineAsync(bool readStdout, bool readStderr, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(bool IsError, string? Content)>
+Tmds.Ssh.RemoteProcess.ReadLineAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(bool IsError, string? Content)>
+Tmds.Ssh.RemoteProcess.ReadToEndAsStringAsync(bool readStdout, bool readStderr, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(string! StandardOutput, string! StandardError)>
+Tmds.Ssh.RemoteProcess.ReadToEndAsStringAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<(string! StandardOutput, string! StandardError)>
+Tmds.Ssh.RemoteProcess.ReadToEndAsync(System.Func<System.Memory<byte>, object?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStdout, object? stdoutContext, System.Func<System.Memory<byte>, object?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? handleStderr, object? stderrContext, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.ReadToEndAsync(System.IO.Stream? stdoutStream, System.IO.Stream? stderrStream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.SendSignal(string! signalName) -> bool
+Tmds.Ssh.RemoteProcess.SetTerminalSize(Tmds.Ssh.TerminalSize size) -> bool
+Tmds.Ssh.RemoteProcess.StandardInputStream.get -> System.IO.Stream!
+Tmds.Ssh.RemoteProcess.StandardInputWriter.get -> System.IO.StreamWriter!
+Tmds.Ssh.RemoteProcess.TerminalSize.get -> Tmds.Ssh.TerminalSize
+Tmds.Ssh.RemoteProcess.WriteAsync(string! value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.WriteAsync(System.ReadOnlyMemory<char> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.WriteEof() -> void
+Tmds.Ssh.RemoteProcess.WriteLineAsync(string? value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteProcess.WriteLineAsync(System.ReadOnlyMemory<char> buffer = default(System.ReadOnlyMemory<char>), System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.RemoteUnixEndPoint
+Tmds.Ssh.RemoteUnixEndPoint.Path.get -> string!
+Tmds.Ssh.RemoteUnixEndPoint.RemoteUnixEndPoint(string! path) -> void
+Tmds.Ssh.SftpClient
+Tmds.Ssh.SftpClient.ConnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Tmds.Ssh.SftpClient.CopyFileAsync(string! sourcePath, string! destinationPath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.CreateDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.CreateNewDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.CreateNewFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.SftpClient.CreateSymbolicLinkAsync(string! linkPath, string! targetPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.DeleteDirectoryAsync(string! path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.DeleteFileAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.Dispose() -> void
+Tmds.Ssh.SftpClient.DownloadDirectoryEntriesAsync(string! remoteDirPath, string! localDirPath, Tmds.Ssh.DownloadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.DownloadFileAsync(string! remoteFilePath, string! localFilePath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.DownloadFileAsync(string! remoteFilePath, System.IO.Stream! destination, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.GetAttributesAsync(string! path, bool followLinks, string![]? filter, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?>
+Tmds.Ssh.SftpClient.GetDirectory(string! path) -> Tmds.Ssh.SftpDirectory!
+Tmds.Ssh.SftpClient.GetDirectoryEntriesAsync<T>(string! path, Tmds.Ssh.SftpFileEntryTransform<T>! transform, Tmds.Ssh.EnumerationOptions? options = null) -> System.Collections.Generic.IAsyncEnumerable<T>!
+Tmds.Ssh.SftpClient.GetLinkTargetAsync(string! linkPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.SftpClient.GetRealPathAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.SftpClient.OpenFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?>
+Tmds.Ssh.SftpClient.OpenOrCreateFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.SftpClient.RenameAsync(string! oldPath, string! newPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.SetAttributesAsync(string! path, Tmds.Ssh.UnixFilePermissions? permissions = null, (System.DateTimeOffset LastAccess, System.DateTimeOffset LastWrite)? times = null, long? length = null, (int Uid, int Gid)? ids = null, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.SftpClient(string! destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) -> void
+Tmds.Ssh.SftpClient.SftpClient(string! destination, Tmds.Ssh.SshConfigSettings! configSettings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) -> void
+Tmds.Ssh.SftpClient.SftpClient(Tmds.Ssh.SshClient! client, Tmds.Ssh.SftpClientOptions? options = null) -> void
+Tmds.Ssh.SftpClient.SftpClient(Tmds.Ssh.SshClientSettings! settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null, Tmds.Ssh.SftpClientOptions? options = null) -> void
+Tmds.Ssh.SftpClient.UploadDirectoryEntriesAsync(string! localDirPath, string! remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.UploadFileAsync(string! localFilePath, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions? createPermissions = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.UploadFileAsync(System.IO.Stream! source, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions createPermissions = Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpClient.WorkingDirectory.get -> Tmds.Ssh.SftpDirectory!
+Tmds.Ssh.SftpClientOptions
+Tmds.Ssh.SftpClientOptions.SftpClientOptions() -> void
+Tmds.Ssh.SftpClientOptions.WindowSize.get -> int?
+Tmds.Ssh.SftpClientOptions.WindowSize.set -> void
+Tmds.Ssh.SftpDirectory
+Tmds.Ssh.SftpDirectory.CopyFileAsync(string! sourcePath, string! destinationPath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.CreateDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.CreateNewDirectoryAsync(string! path, bool createParents = false, Tmds.Ssh.UnixFilePermissions permissions = Tmds.Ssh.UnixFilePermissions.OtherExecute | Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupExecute | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserExecute | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.CreateNewFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.SftpDirectory.CreateSymbolicLinkAsync(string! linkPath, string! targetPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.DeleteDirectoryAsync(string! path, bool recursive = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.DeleteFileAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.DownloadDirectoryEntriesAsync(string! remoteDirPath, string! localDirPath, Tmds.Ssh.DownloadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.DownloadFileAsync(string! remoteFilePath, string! localFilePath, bool overwrite = false, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.DownloadFileAsync(string! remoteFilePath, System.IO.Stream! destination, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.GetAttributesAsync(string! path, bool followLinks, string![]? filter, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes?>
+Tmds.Ssh.SftpDirectory.GetDirectory(string! path) -> Tmds.Ssh.SftpDirectory!
+Tmds.Ssh.SftpDirectory.GetDirectoryEntriesAsync<T>(string! path, Tmds.Ssh.SftpFileEntryTransform<T>! transform, Tmds.Ssh.EnumerationOptions? options = null) -> System.Collections.Generic.IAsyncEnumerable<T>!
+Tmds.Ssh.SftpDirectory.GetLinkTargetAsync(string! linkPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.SftpDirectory.GetRealPathAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<string!>
+Tmds.Ssh.SftpDirectory.OpenFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile?>
+Tmds.Ssh.SftpDirectory.OpenOrCreateFileAsync(string! path, System.IO.FileAccess access, Tmds.Ssh.FileOpenOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.SftpFile!>
+Tmds.Ssh.SftpDirectory.Path.get -> string!
+Tmds.Ssh.SftpDirectory.RenameAsync(string! oldPath, string! newPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.SetAttributesAsync(string! path, Tmds.Ssh.UnixFilePermissions? permissions = null, (System.DateTimeOffset LastAccess, System.DateTimeOffset LastWrite)? times = null, long? length = null, (int Uid, int Gid)? ids = null, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.UploadDirectoryEntriesAsync(string! localDirPath, string! remoteDirPath, Tmds.Ssh.UploadEntriesOptions? options = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.UploadFileAsync(string! localFilePath, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions? createPermissions = null, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectory.UploadFileAsync(System.IO.Stream! source, string! remoteFilePath, bool overwrite = false, Tmds.Ssh.UnixFilePermissions createPermissions = Tmds.Ssh.UnixFilePermissions.OtherWrite | Tmds.Ssh.UnixFilePermissions.OtherRead | Tmds.Ssh.UnixFilePermissions.GroupWrite | Tmds.Ssh.UnixFilePermissions.GroupRead | Tmds.Ssh.UnixFilePermissions.UserWrite | Tmds.Ssh.UnixFilePermissions.UserRead, Tmds.Ssh.SftpProgressHandler? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpDirectoryExtensions
+Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.BadMessage = 5 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.Eof = 1 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.Failure = 4 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.None = 0 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.NoSuchFile = 2 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.PermissionDenied = 3 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpError.Unsupported = 8 -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpException
+Tmds.Ssh.SftpException.Error.get -> Tmds.Ssh.SftpError
+Tmds.Ssh.SftpFile
+Tmds.Ssh.SftpFile.CloseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpFile.GetAttributesAsync(string![]? filter, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes!>
+Tmds.Ssh.SftpFile.GetAttributesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tmds.Ssh.FileEntryAttributes!>
+Tmds.Ssh.SftpFile.GetLengthAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
+Tmds.Ssh.SftpFile.ReadAtAsync(System.Memory<byte> buffer, long offset, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<int>
+Tmds.Ssh.SftpFile.SetAttributesAsync(Tmds.Ssh.UnixFilePermissions? permissions = null, (System.DateTimeOffset LastAccess, System.DateTimeOffset LastWrite)? times = null, long? length = null, (int Uid, int Gid)? ids = null, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, System.Memory<byte>>>? extendedAttributes = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpFile.SetLengthAsync(long length, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpFile.WriteAtAsync(System.ReadOnlyMemory<byte> buffer, long offset, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Tmds.Ssh.SftpFileEntry
+Tmds.Ssh.SftpFileEntry.FileName.get -> System.ReadOnlySpan<char>
+Tmds.Ssh.SftpFileEntry.FileType.get -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.SftpFileEntry.Gid.get -> int
+Tmds.Ssh.SftpFileEntry.LastAccessTime.get -> System.DateTimeOffset
+Tmds.Ssh.SftpFileEntry.LastWriteTime.get -> System.DateTimeOffset
+Tmds.Ssh.SftpFileEntry.Length.get -> long
+Tmds.Ssh.SftpFileEntry.Path.get -> System.ReadOnlySpan<char>
+Tmds.Ssh.SftpFileEntry.Permissions.get -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.SftpFileEntry.SftpFileEntry() -> void
+Tmds.Ssh.SftpFileEntry.ToAttributes() -> Tmds.Ssh.FileEntryAttributes!
+Tmds.Ssh.SftpFileEntry.ToPath() -> string!
+Tmds.Ssh.SftpFileEntry.Uid.get -> int
+Tmds.Ssh.SftpFileEntryPredicate
+Tmds.Ssh.SftpFileEntryTransform<T>
+Tmds.Ssh.SftpProgressHandler
+Tmds.Ssh.SftpProgressHandler.Entry
+Tmds.Ssh.SftpProgressHandler.Entry.Entry() -> void
+Tmds.Ssh.SftpProgressHandler.Entry.Entry(string! sourcePath, long? sourceLength) -> void
+Tmds.Ssh.SftpProgressHandler.Entry.SourceLength.get -> long?
+Tmds.Ssh.SftpProgressHandler.Entry.SourcePath.get -> string!
+Tmds.Ssh.SftpProgressHandler.SftpProgressHandler() -> void
+Tmds.Ssh.SignalName
+Tmds.Ssh.SocksForward
+Tmds.Ssh.SocksForward.Dispose() -> void
+Tmds.Ssh.SocksForward.ListenEndPoint.get -> System.Net.EndPoint!
+Tmds.Ssh.SocksForward.Stopped.get -> System.Threading.CancellationToken
+Tmds.Ssh.SocksForward.ThrowIfStopped() -> void
+Tmds.Ssh.SshAgentCredentials
+Tmds.Ssh.SshAgentCredentials.SshAgentCredentials() -> void
+Tmds.Ssh.SshChannelClosedException
+Tmds.Ssh.SshChannelException
+Tmds.Ssh.SshClient
+Tmds.Ssh.SshClient.ConnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Tmds.Ssh.SshClient.Disconnected.get -> System.Threading.CancellationToken
+Tmds.Ssh.SshClient.Dispose() -> void
+Tmds.Ssh.SshClient.ExecuteAsync(string! command, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ExecuteAsync(string! command, Tmds.Ssh.ExecuteOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ExecuteShellAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ExecuteShellAsync(Tmds.Ssh.ExecuteOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ExecuteSubsystemAsync(string! subsystem, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ExecuteSubsystemAsync(string! subsystem, Tmds.Ssh.ExecuteOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteProcess!>!
+Tmds.Ssh.SshClient.ListenTcpAsync(string! address, int port, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener!>!
+Tmds.Ssh.SshClient.ListenTcpAsync(string! address, int port, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener!>!
+Tmds.Ssh.SshClient.ListenUnixAsync(string! path, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener!>!
+Tmds.Ssh.SshClient.ListenUnixAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteListener!>!
+Tmds.Ssh.SshClient.OpenSftpClientAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SftpClient!>!
+Tmds.Ssh.SshClient.OpenSftpClientAsync(Tmds.Ssh.SftpClientOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SftpClient!>!
+Tmds.Ssh.SshClient.OpenTcpConnectionAsync(string! host, int port, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream!>!
+Tmds.Ssh.SshClient.OpenTcpConnectionAsync(string! host, int port, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream!>!
+Tmds.Ssh.SshClient.OpenUnixConnectionAsync(string! path, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream!>!
+Tmds.Ssh.SshClient.OpenUnixConnectionAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SshDataStream!>!
+Tmds.Ssh.SshClient.SshClient(string! destination, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
+Tmds.Ssh.SshClient.SshClient(string! destination, Tmds.Ssh.SshConfigSettings! sshConfigOptions, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
+Tmds.Ssh.SshClient.SshClient(Tmds.Ssh.SshClientSettings! settings, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
+Tmds.Ssh.SshClient.StartForwardAsync(System.Net.EndPoint! bindEP, Tmds.Ssh.RemoteEndPoint! remoteEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.LocalForward!>!
+Tmds.Ssh.SshClient.StartForwardAsync(System.Net.EndPoint! bindEP, Tmds.Ssh.RemoteEndPoint! remoteEP, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.LocalForward!>!
+Tmds.Ssh.SshClient.StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint! bindEP, System.Net.EndPoint! localEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward!>!
+Tmds.Ssh.SshClient.StartRemoteForwardAsync(Tmds.Ssh.RemoteEndPoint! bindEP, System.Net.EndPoint! localEP, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.RemoteForward!>!
+Tmds.Ssh.SshClient.StartSocksForwardAsync(System.Net.EndPoint! bindEP, int? windowSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SocksForward!>!
+Tmds.Ssh.SshClient.StartSocksForwardAsync(System.Net.EndPoint! bindEP, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tmds.Ssh.SocksForward!>!
+Tmds.Ssh.SshClientSettings
+Tmds.Ssh.SshClientSettings.AutoConnect.get -> bool
+Tmds.Ssh.SshClientSettings.AutoConnect.set -> void
+Tmds.Ssh.SshClientSettings.AutoReconnect.get -> bool
+Tmds.Ssh.SshClientSettings.AutoReconnect.set -> void
+Tmds.Ssh.SshClientSettings.BannerHandler.get -> Tmds.Ssh.BannerHandler?
+Tmds.Ssh.SshClientSettings.BannerHandler.set -> void
+Tmds.Ssh.SshClientSettings.BatchMode.get -> bool
+Tmds.Ssh.SshClientSettings.BatchMode.set -> void
+Tmds.Ssh.SshClientSettings.ClientKeyAlgorithms.get -> Tmds.Ssh.AlgorithmList?
+Tmds.Ssh.SshClientSettings.ClientKeyAlgorithms.set -> void
+Tmds.Ssh.SshClientSettings.CompressionAlgorithmsClientToServer.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.CompressionAlgorithmsClientToServer.set -> void
+Tmds.Ssh.SshClientSettings.CompressionAlgorithmsServerToClient.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.CompressionAlgorithmsServerToClient.set -> void
+Tmds.Ssh.SshClientSettings.ConnectTimeout.get -> System.TimeSpan
+Tmds.Ssh.SshClientSettings.ConnectTimeout.set -> void
+Tmds.Ssh.SshClientSettings.Credentials.get -> System.Collections.Generic.List<Tmds.Ssh.Credential!>!
+Tmds.Ssh.SshClientSettings.Credentials.set -> void
+Tmds.Ssh.SshClientSettings.DefaultWindowSize.get -> int
+Tmds.Ssh.SshClientSettings.DefaultWindowSize.set -> void
+Tmds.Ssh.SshClientSettings.EnableBatchModeWhenConsoleIsRedirected.get -> bool
+Tmds.Ssh.SshClientSettings.EnableBatchModeWhenConsoleIsRedirected.set -> void
+Tmds.Ssh.SshClientSettings.EnableCompression.get -> bool
+Tmds.Ssh.SshClientSettings.EnableCompression.set -> void
+Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsClientToServer.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsClientToServer.set -> void
+Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsServerToClient.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsServerToClient.set -> void
+Tmds.Ssh.SshClientSettings.EnvironmentVariables.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Tmds.Ssh.SshClientSettings.EnvironmentVariables.set -> void
+Tmds.Ssh.SshClientSettings.ForwardAgent.get -> bool
+Tmds.Ssh.SshClientSettings.ForwardAgent.set -> void
+Tmds.Ssh.SshClientSettings.ForwardAgentAddress.get -> string?
+Tmds.Ssh.SshClientSettings.ForwardAgentAddress.set -> void
+Tmds.Ssh.SshClientSettings.ForwardX11.get -> Tmds.Ssh.ForwardMode
+Tmds.Ssh.SshClientSettings.ForwardX11.set -> void
+Tmds.Ssh.SshClientSettings.ForwardX11Timeout.get -> System.TimeSpan
+Tmds.Ssh.SshClientSettings.ForwardX11Timeout.set -> void
+Tmds.Ssh.SshClientSettings.ForwardX11Trusted.get -> bool
+Tmds.Ssh.SshClientSettings.ForwardX11Trusted.set -> void
+Tmds.Ssh.SshClientSettings.GlobalKnownHostsFilePaths.get -> System.Collections.Generic.List<string!>!
+Tmds.Ssh.SshClientSettings.GlobalKnownHostsFilePaths.set -> void
+Tmds.Ssh.SshClientSettings.HashKnownHosts.get -> bool
+Tmds.Ssh.SshClientSettings.HashKnownHosts.set -> void
+Tmds.Ssh.SshClientSettings.HostAuthentication.get -> Tmds.Ssh.HostAuthentication?
+Tmds.Ssh.SshClientSettings.HostAuthentication.set -> void
+Tmds.Ssh.SshClientSettings.HostName.get -> string!
+Tmds.Ssh.SshClientSettings.HostName.set -> void
+Tmds.Ssh.SshClientSettings.KeepAliveCountMax.get -> int
+Tmds.Ssh.SshClientSettings.KeepAliveCountMax.set -> void
+Tmds.Ssh.SshClientSettings.KeepAliveInterval.get -> System.TimeSpan
+Tmds.Ssh.SshClientSettings.KeepAliveInterval.set -> void
+Tmds.Ssh.SshClientSettings.KeyExchangeAlgorithms.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.KeyExchangeAlgorithms.set -> void
+Tmds.Ssh.SshClientSettings.MacAlgorithmsClientToServer.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.MacAlgorithmsClientToServer.set -> void
+Tmds.Ssh.SshClientSettings.MacAlgorithmsServerToClient.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.MacAlgorithmsServerToClient.set -> void
+Tmds.Ssh.SshClientSettings.MinimumRSAKeySize.get -> int
+Tmds.Ssh.SshClientSettings.MinimumRSAKeySize.set -> void
+Tmds.Ssh.SshClientSettings.Port.get -> int
+Tmds.Ssh.SshClientSettings.Port.set -> void
+Tmds.Ssh.SshClientSettings.Proxy.get -> Tmds.Ssh.Proxy?
+Tmds.Ssh.SshClientSettings.Proxy.set -> void
+Tmds.Ssh.SshClientSettings.ServerHostKeyAlgorithms.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.ServerHostKeyAlgorithms.set -> void
+Tmds.Ssh.SshClientSettings.ServerHostKeyCertificateAlgorithms.get -> Tmds.Ssh.AlgorithmList!
+Tmds.Ssh.SshClientSettings.ServerHostKeyCertificateAlgorithms.set -> void
+Tmds.Ssh.SshClientSettings.SshClientSettings() -> void
+Tmds.Ssh.SshClientSettings.SshClientSettings(string! destination) -> void
+Tmds.Ssh.SshClientSettings.TcpKeepAlive.get -> bool
+Tmds.Ssh.SshClientSettings.TcpKeepAlive.set -> void
+Tmds.Ssh.SshClientSettings.UpdateKnownHostsFileAfterAuthentication.get -> bool
+Tmds.Ssh.SshClientSettings.UpdateKnownHostsFileAfterAuthentication.set -> void
+Tmds.Ssh.SshClientSettings.UserKnownHostsFilePaths.get -> System.Collections.Generic.List<string!>!
+Tmds.Ssh.SshClientSettings.UserKnownHostsFilePaths.set -> void
+Tmds.Ssh.SshClientSettings.UserName.get -> string!
+Tmds.Ssh.SshClientSettings.UserName.set -> void
+Tmds.Ssh.SshClientSettings.X11Display.get -> string?
+Tmds.Ssh.SshClientSettings.X11Display.set -> void
+Tmds.Ssh.SshClientSettings.XAuthLocation.get -> string!
+Tmds.Ssh.SshClientSettings.XAuthLocation.set -> void
+Tmds.Ssh.SshConfig
+Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.BatchMode = 29 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.CASignatureAlgorithms = 26 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.CertificateFile = 27 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.Ciphers = 16 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.Compression = 35 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ConnectTimeout = 3 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ForwardAgent = 30 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ForwardX11 = 31 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ForwardX11Timeout = 33 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ForwardX11Trusted = 32 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.GlobalKnownHostsFile = 4 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.GSSAPIAuthentication = 11 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.GSSAPIDelegateCredentials = 12 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.GSSAPIServerIdentity = 13 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.HashKnownHosts = 6 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.HostKeyAlgorithms = 17 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.Hostname = 0 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.IdentitiesOnly = 24 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.IdentityFile = 10 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.KexAlgorithms = 18 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.MACs = 19 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.PasswordAuthentication = 28 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.Port = 2 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.PreferredAuthentications = 8 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ProxyJump = 25 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.PubkeyAcceptedAlgorithms = 20 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.PubkeyAuthentication = 9 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.RequiredRSASize = 14 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.SendEnv = 15 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ServerAliveCountMax = 22 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.ServerAliveInterval = 23 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.StrictHostKeyChecking = 7 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.TCPKeepAlive = 21 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.User = 1 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.UserKnownHostsFile = 5 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOption.XAuthLocation = 34 -> Tmds.Ssh.SshConfigOption
+Tmds.Ssh.SshConfigOptionValue
+Tmds.Ssh.SshConfigOptionValue.FirstValue.get -> string?
+Tmds.Ssh.SshConfigOptionValue.IsEmpty.get -> bool
+Tmds.Ssh.SshConfigOptionValue.IsSingleValue.get -> bool
+Tmds.Ssh.SshConfigOptionValue.SshConfigOptionValue() -> void
+Tmds.Ssh.SshConfigOptionValue.SshConfigOptionValue(string! value) -> void
+Tmds.Ssh.SshConfigOptionValue.SshConfigOptionValue(System.Collections.Generic.IEnumerable<string!>! values) -> void
+Tmds.Ssh.SshConfigOptionValue.Values.get -> System.Collections.Generic.IEnumerable<string!>!
+Tmds.Ssh.SshConfigSettings
+Tmds.Ssh.SshConfigSettings.AutoConnect.get -> bool
+Tmds.Ssh.SshConfigSettings.AutoConnect.set -> void
+Tmds.Ssh.SshConfigSettings.AutoReconnect.get -> bool
+Tmds.Ssh.SshConfigSettings.AutoReconnect.set -> void
+Tmds.Ssh.SshConfigSettings.BannerHandler.get -> Tmds.Ssh.BannerHandler?
+Tmds.Ssh.SshConfigSettings.BannerHandler.set -> void
+Tmds.Ssh.SshConfigSettings.ConfigFilePaths.get -> System.Collections.Generic.List<string!>!
+Tmds.Ssh.SshConfigSettings.ConfigFilePaths.set -> void
+Tmds.Ssh.SshConfigSettings.ConnectTimeout.get -> System.TimeSpan
+Tmds.Ssh.SshConfigSettings.ConnectTimeout.set -> void
+Tmds.Ssh.SshConfigSettings.HostAuthentication.get -> Tmds.Ssh.HostAuthentication?
+Tmds.Ssh.SshConfigSettings.HostAuthentication.set -> void
+Tmds.Ssh.SshConfigSettings.Options.get -> System.Collections.Generic.Dictionary<Tmds.Ssh.SshConfigOption, Tmds.Ssh.SshConfigOptionValue>!
+Tmds.Ssh.SshConfigSettings.Options.set -> void
+Tmds.Ssh.SshConfigSettings.PasswordPrompt.get -> Tmds.Ssh.PasswordPrompt?
+Tmds.Ssh.SshConfigSettings.PasswordPrompt.set -> void
+Tmds.Ssh.SshConfigSettings.PostConfigure.get -> System.Action<Tmds.Ssh.SshConfigSettings.PostConfigureContext>?
+Tmds.Ssh.SshConfigSettings.PostConfigure.set -> void
+Tmds.Ssh.SshConfigSettings.PostConfigureContext
+Tmds.Ssh.SshConfigSettings.PostConfigureContext.IsProxy.get -> bool
+Tmds.Ssh.SshConfigSettings.PostConfigureContext.PostConfigureContext() -> void
+Tmds.Ssh.SshConfigSettings.PostConfigureContext.Settings.get -> Tmds.Ssh.SshClientSettings!
+Tmds.Ssh.SshConfigSettings.SshConfigSettings() -> void
+Tmds.Ssh.SshConnectionClosedException
+Tmds.Ssh.SshConnectionException
+Tmds.Ssh.SshConnectionInfo
+Tmds.Ssh.SshConnectionInfo.HostName.get -> string!
+Tmds.Ssh.SshConnectionInfo.IsProxy.get -> bool
+Tmds.Ssh.SshConnectionInfo.Port.get -> int
+Tmds.Ssh.SshConnectionInfo.ServerKey.get -> Tmds.Ssh.HostKey!
+Tmds.Ssh.SshConnectionInfo.UserName.get -> string!
+Tmds.Ssh.SshDataStream
+Tmds.Ssh.SshDataStream.StreamAborted.get -> System.Threading.CancellationToken
+Tmds.Ssh.SshDataStream.WriteEof() -> void
+Tmds.Ssh.SshException
+Tmds.Ssh.SshOperationException
+Tmds.Ssh.SshProxy
+Tmds.Ssh.SshProxy.SshProxy(string! destination) -> void
+Tmds.Ssh.SshProxy.SshProxy(string! destination, Tmds.Ssh.SshConfigSettings! configSettings) -> void
+Tmds.Ssh.SshProxy.SshProxy(Tmds.Ssh.SshClientSettings! settings) -> void
+Tmds.Ssh.StderrHandler
+Tmds.Ssh.StderrHandler.StderrHandler() -> void
+Tmds.Ssh.StderrHandler.StderrHandler(System.Func<System.ReadOnlyMemory<byte>, object?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! handler, object? context = null) -> void
+Tmds.Ssh.StderrHandler.StderrHandler(System.Func<System.ReadOnlyMemory<char>, object?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! handler, bool lineByLine, object? context = null) -> void
+Tmds.Ssh.StderrHandler.StderrHandler(System.IO.Stream! stream) -> void
+Tmds.Ssh.StderrHandler.StderrHandler(System.Text.StringBuilder! stringBuilder) -> void
+Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.TargetDirectoryCreation.Create = 1 -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.TargetDirectoryCreation.CreateNew = 3 -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.TargetDirectoryCreation.CreateWithParents = 2 -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.TargetDirectoryCreation.None = 0 -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.TerminalSettings
+Tmds.Ssh.TerminalSettings.AdditionalEndOfLineCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.AdditionalEndOfLineCharacter.set -> void
+Tmds.Ssh.TerminalSettings.AdditionalEndOfLineCharacter2.get -> byte
+Tmds.Ssh.TerminalSettings.AdditionalEndOfLineCharacter2.set -> void
+Tmds.Ssh.TerminalSettings.DelayedSuspendCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.DelayedSuspendCharacter.set -> void
+Tmds.Ssh.TerminalSettings.DisableFlushOnInterrupt.get -> bool
+Tmds.Ssh.TerminalSettings.DisableFlushOnInterrupt.set -> void
+Tmds.Ssh.TerminalSettings.Echo.get -> bool
+Tmds.Ssh.TerminalSettings.Echo.set -> void
+Tmds.Ssh.TerminalSettings.EchoControlCharacters.get -> bool
+Tmds.Ssh.TerminalSettings.EchoControlCharacters.set -> void
+Tmds.Ssh.TerminalSettings.EchoErase.get -> bool
+Tmds.Ssh.TerminalSettings.EchoErase.set -> void
+Tmds.Ssh.TerminalSettings.EchoEraseLine.get -> bool
+Tmds.Ssh.TerminalSettings.EchoEraseLine.set -> void
+Tmds.Ssh.TerminalSettings.EchoEraseLineAllCharacters.get -> bool
+Tmds.Ssh.TerminalSettings.EchoEraseLineAllCharacters.set -> void
+Tmds.Ssh.TerminalSettings.EchoNl.get -> bool
+Tmds.Ssh.TerminalSettings.EchoNl.set -> void
+Tmds.Ssh.TerminalSettings.EnableInputSignals.get -> bool
+Tmds.Ssh.TerminalSettings.EnableInputSignals.set -> void
+Tmds.Ssh.TerminalSettings.EnableOutputControlFlow.get -> bool
+Tmds.Ssh.TerminalSettings.EnableOutputControlFlow.set -> void
+Tmds.Ssh.TerminalSettings.EndOfFileCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.EndOfFileCharacter.set -> void
+Tmds.Ssh.TerminalSettings.EraseCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.EraseCharacter.set -> void
+Tmds.Ssh.TerminalSettings.EraseToLineStartCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.EraseToLineStartCharacter.set -> void
+Tmds.Ssh.TerminalSettings.EraseWordCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.EraseWordCharacter.set -> void
+Tmds.Ssh.TerminalSettings.InputEnableExtensions.get -> bool
+Tmds.Ssh.TerminalSettings.InputEnableExtensions.set -> void
+Tmds.Ssh.TerminalSettings.InputIgnoreCr.get -> bool
+Tmds.Ssh.TerminalSettings.InputIgnoreCr.set -> void
+Tmds.Ssh.TerminalSettings.InputLineByLine.get -> bool
+Tmds.Ssh.TerminalSettings.InputLineByLine.set -> void
+Tmds.Ssh.TerminalSettings.InputMapCrToNl.get -> bool
+Tmds.Ssh.TerminalSettings.InputMapCrToNl.set -> void
+Tmds.Ssh.TerminalSettings.InputMapNlToCr.get -> bool
+Tmds.Ssh.TerminalSettings.InputMapNlToCr.set -> void
+Tmds.Ssh.TerminalSettings.InputRestartOnAnyChar.get -> bool
+Tmds.Ssh.TerminalSettings.InputRestartOnAnyChar.set -> void
+Tmds.Ssh.TerminalSettings.InterruptCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.InterruptCharacter.set -> void
+Tmds.Ssh.TerminalSettings.IsUtf8.get -> bool?
+Tmds.Ssh.TerminalSettings.IsUtf8.set -> void
+Tmds.Ssh.TerminalSettings.LiteralNextCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.LiteralNextCharacter.set -> void
+Tmds.Ssh.TerminalSettings.OutputEnableProcessing.get -> bool
+Tmds.Ssh.TerminalSettings.OutputEnableProcessing.set -> void
+Tmds.Ssh.TerminalSettings.OutputMapCrToNl.get -> bool
+Tmds.Ssh.TerminalSettings.OutputMapCrToNl.set -> void
+Tmds.Ssh.TerminalSettings.OutputMapNlToCrNl.get -> bool
+Tmds.Ssh.TerminalSettings.OutputMapNlToCrNl.set -> void
+Tmds.Ssh.TerminalSettings.QuitCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.QuitCharacter.set -> void
+Tmds.Ssh.TerminalSettings.ReprintLineCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.ReprintLineCharacter.set -> void
+Tmds.Ssh.TerminalSettings.StartOutputCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.StartOutputCharacter.set -> void
+Tmds.Ssh.TerminalSettings.StopBackgroundProcessesOnOutput.get -> bool
+Tmds.Ssh.TerminalSettings.StopBackgroundProcessesOnOutput.set -> void
+Tmds.Ssh.TerminalSettings.StopOutputCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.StopOutputCharacter.set -> void
+Tmds.Ssh.TerminalSettings.SuspendCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.SuspendCharacter.set -> void
+Tmds.Ssh.TerminalSettings.ToggleOutputDiscardCharacter.get -> byte
+Tmds.Ssh.TerminalSettings.ToggleOutputDiscardCharacter.set -> void
+Tmds.Ssh.TerminalSize
+Tmds.Ssh.TerminalSize.Columns.get -> int
+Tmds.Ssh.TerminalSize.Equals(Tmds.Ssh.TerminalSize other) -> bool
+Tmds.Ssh.TerminalSize.HeightPixels.get -> int
+Tmds.Ssh.TerminalSize.Rows.get -> int
+Tmds.Ssh.TerminalSize.TerminalSize() -> void
+Tmds.Ssh.TerminalSize.TerminalSize(int columns, int rows, int widthPixels = 0, int heightPixels = 0) -> void
+Tmds.Ssh.TerminalSize.WidthPixels.get -> int
+Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.GroupExecute = 8 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.GroupRead = 32 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.GroupWrite = 16 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.None = 0 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.OtherExecute = 1 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.OtherRead = 4 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.OtherWrite = 2 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.SetGroup = 1024 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.SetUser = 2048 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.StickyBit = 512 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.UserExecute = 64 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.UserRead = 256 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissions.UserWrite = 128 -> Tmds.Ssh.UnixFilePermissions
+Tmds.Ssh.UnixFilePermissionsExtensions
+Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.BlockDevice = 4102 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.CharacterDevice = 2050 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.Directory = 516 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.Fifo = 16385 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.RegularFile = 264 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.Socket = 8204 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.SymbolicLink = 1034 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileType.WeirdFile = -32768 -> Tmds.Ssh.UnixFileType
+Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.BlockDevice = 16 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.CharacterDevice = 8 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.Directory = 2 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.Fifo = 64 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.RegularFile = 1 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.Socket = 32 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.SymbolicLink = 4 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UnixFileTypeFilter.WeirdFile = 128 -> Tmds.Ssh.UnixFileTypeFilter
+Tmds.Ssh.UploadEntriesOptions
+Tmds.Ssh.UploadEntriesOptions.FollowDirectoryLinks.get -> bool
+Tmds.Ssh.UploadEntriesOptions.FollowDirectoryLinks.set -> void
+Tmds.Ssh.UploadEntriesOptions.FollowFileLinks.get -> bool
+Tmds.Ssh.UploadEntriesOptions.FollowFileLinks.set -> void
+Tmds.Ssh.UploadEntriesOptions.IncludeSubdirectories.get -> bool
+Tmds.Ssh.UploadEntriesOptions.IncludeSubdirectories.set -> void
+Tmds.Ssh.UploadEntriesOptions.MaxConcurrentEntries.get -> int
+Tmds.Ssh.UploadEntriesOptions.MaxConcurrentEntries.set -> void
+Tmds.Ssh.UploadEntriesOptions.Overwrite.get -> bool
+Tmds.Ssh.UploadEntriesOptions.Overwrite.set -> void
+Tmds.Ssh.UploadEntriesOptions.ShouldInclude.get -> Tmds.Ssh.LocalFileEntryPredicate?
+Tmds.Ssh.UploadEntriesOptions.ShouldInclude.set -> void
+Tmds.Ssh.UploadEntriesOptions.ShouldRecurse.get -> Tmds.Ssh.LocalFileEntryPredicate?
+Tmds.Ssh.UploadEntriesOptions.ShouldRecurse.set -> void
+Tmds.Ssh.UploadEntriesOptions.TargetDirectoryCreation.get -> Tmds.Ssh.TargetDirectoryCreation
+Tmds.Ssh.UploadEntriesOptions.TargetDirectoryCreation.set -> void
+Tmds.Ssh.UploadEntriesOptions.UploadEntriesOptions() -> void
+virtual Tmds.Ssh.BannerHandler.Invoke(Tmds.Ssh.BannerMessageContext context) -> void
+virtual Tmds.Ssh.DownloadEntriesOptions.ReplaceCharacters.Invoke(System.ReadOnlySpan<char> invalidPath, System.ReadOnlySpan<char> invalidChars, System.Span<char> buffer) -> System.ReadOnlySpan<char>
+virtual Tmds.Ssh.HostAuthentication.Invoke(Tmds.Ssh.HostAuthenticationContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+virtual Tmds.Ssh.LocalFileEntryPredicate.Invoke(ref Tmds.Ssh.LocalFileEntry entry) -> bool
+virtual Tmds.Ssh.PasswordPrompt.Invoke(Tmds.Ssh.PasswordPromptContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+virtual Tmds.Ssh.SftpFileEntryPredicate.Invoke(ref Tmds.Ssh.SftpFileEntry entry) -> bool
+virtual Tmds.Ssh.SftpFileEntryTransform<T>.Invoke(ref Tmds.Ssh.SftpFileEntry entry) -> T
+virtual Tmds.Ssh.SftpProgressHandler.Completed(System.Exception? exception) -> void
+virtual Tmds.Ssh.SftpProgressHandler.DataTransferred(int index, long bytesTransferred, long offset) -> void
+virtual Tmds.Ssh.SftpProgressHandler.EntriesDiscovered() -> void
+virtual Tmds.Ssh.SftpProgressHandler.EntryCompleted(int index, Tmds.Ssh.UnixFileType type) -> void
+virtual Tmds.Ssh.SftpProgressHandler.EntrySkipped(int index, Tmds.Ssh.UnixFileType type) -> void
+virtual Tmds.Ssh.SftpProgressHandler.EntryStart(int index, Tmds.Ssh.UnixFileType type, Tmds.Ssh.SftpProgressHandler.Entry entry) -> void
+virtual Tmds.Ssh.SftpProgressHandler.Start(int maxConcurrentEntries) -> void

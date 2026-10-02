@@ -16,6 +16,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Treat missing XML documentation as errors -->
     <WarningsAsErrors>CS1591</WarningsAsErrors>
+    <!-- Suppress PublicApiAnalyzers backcompat warnings — we don't use Shipped/Unshipped distinction -->
+    <NoWarn>RS0022;RS0024;RS0025;RS0026;RS0027</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -35,6 +37,7 @@
 
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
