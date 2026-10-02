@@ -144,19 +144,6 @@ sealed partial class Sequence : IDisposable
         _endSegment!.Advance(length);
     }
 
-    // Appends the data, filling up the current buffer before allocating a new one.
-    public void Append(ReadOnlySpan<byte> data)
-    {
-        while (!data.IsEmpty)
-        {
-            Span<byte> span = AllocGetSpan(1);
-            int length = Math.Min(span.Length, data.Length);
-            data.Slice(0, length).CopyTo(span);
-            AppendAlloced(length);
-            data = data.Slice(length);
-        }
-    }
-
     public void Remove(long consumed)
     {
         while (consumed > 0)

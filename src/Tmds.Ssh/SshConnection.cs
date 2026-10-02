@@ -25,6 +25,6 @@ abstract class SshConnection : IDisposable
     public abstract void Dispose();
     public abstract void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero);
 
-    // Starts compressing and decompressing when compression was delayed until after user authentication ('zlib@openssh.com').
-    public abstract void EnableDelayedCompression();
+    public abstract void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient);
+    public abstract void EnableCompression();
 }

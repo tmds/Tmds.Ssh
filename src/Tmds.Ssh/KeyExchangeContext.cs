@@ -79,6 +79,9 @@ sealed class KeyExchangeContext
     public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor, bool resetSequenceNumbers, bool throwIfReceiveSNZero)
         => _connection.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers, throwIfReceiveSNZero);
 
+    public void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient)
+        => _connection.SetCompressionAlgorithms(clientToServer, serverToClient);
+
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
     public required List<Name> CASignatureAlgorithms { get; init; }
@@ -92,8 +95,6 @@ sealed class KeyExchangeContext
     public required List<Name> LanguagesServerToClient { get; init; }
     public required IHostKeyAuthentication HostKeyAuthentication { get; init; }
     public required int MinimumRSAKeySize { get; init; }
-    // Whether the user is authenticated. Compression that is delayed until after authentication starts immediately when rekeying.
-    public required bool IsAuthenticated { get; init; }
     public bool IsInitialKex { get; }
 
     // Unconditionally enable strict key exchange on the first key exchange as described in https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.

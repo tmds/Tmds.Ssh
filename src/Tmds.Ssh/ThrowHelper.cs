@@ -56,9 +56,9 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolCompressionError(string message, Exception innerException)
+    public static void ThrowProtocolDecompressionError(string message, Exception innerException)
     {
-        throw new ProtocolException($"Compression error: {message}", innerException);
+        throw new ProtocolException($"Error occurred while decompressing: {message}", innerException);
     }
 
     public static void ThrowProtocolPacketTooLong()

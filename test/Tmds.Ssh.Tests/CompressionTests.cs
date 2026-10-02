@@ -5,9 +5,6 @@ namespace Tmds.Ssh.Tests;
 [Collection(nameof(SshServerCollection))]
 public class CompressionTests
 {
-    // OpenSSH server only offers 'zlib@openssh.com'.
-    private const string ServerCompressionAlgorithm = "zlib@openssh.com";
-
     private readonly SshServer _sshServer;
 
     public CompressionTests(SshServer sshServer)
@@ -15,12 +12,17 @@ public class CompressionTests
         _sshServer = sshServer;
     }
 
-    [Fact]
-    public async Task ConnectWithCompressionEnabled()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public async Task ConnectWithCompressionEnabled(string algorithm)
     {
-        // Enabling compression is all that is needed, the default algorithms include 'zlib@openssh.com'.
         using var _ = await _sshServer.CreateClientAsync(
-            settings => settings.EnableCompression = true
+            settings =>
+            {
+                settings.EnableCompression = true;
+                settings.CompressionAlgorithmsClientToServer = [ algorithm, "none" ];
+                settings.CompressionAlgorithmsServerToClient = [ algorithm, "none" ];
+            }
         );
     }
 
@@ -37,39 +39,42 @@ public class CompressionTests
         );
     }
 
-    [Fact]
-    public async Task ConnectWithCompressionClientToServer()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public async Task ConnectWithCompressionClientToServer(string algorithm)
     {
         using var _ = await _sshServer.CreateClientAsync(
             settings =>
             {
                 settings.EnableCompression = true;
-                settings.CompressionAlgorithmsClientToServer = [ ServerCompressionAlgorithm, "none" ];
+                settings.CompressionAlgorithmsClientToServer = [ algorithm, "none" ];
             }
         );
     }
 
-    [Fact]
-    public async Task ConnectWithCompressionServerToClient()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public async Task ConnectWithCompressionServerToClient(string algorithm)
     {
         using var _ = await _sshServer.CreateClientAsync(
             settings =>
             {
                 settings.EnableCompression = true;
-                settings.CompressionAlgorithmsServerToClient = [ ServerCompressionAlgorithm, "none" ];
+                settings.CompressionAlgorithmsServerToClient = [ algorithm, "none" ];
             }
         );
     }
 
-    [Fact]
-    public async Task ConnectWithCompressionSkipsUnknown()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public async Task ConnectWithCompressionSkipsUnknown(string algorithm)
     {
         using var _ = await _sshServer.CreateClientAsync(
             settings =>
             {
                 settings.EnableCompression = true;
-                settings.CompressionAlgorithmsClientToServer = [ "dummy-algorithm", ServerCompressionAlgorithm, "none" ];
-                settings.CompressionAlgorithmsServerToClient = [ "dummy-algorithm", ServerCompressionAlgorithm, "none" ];
+                settings.CompressionAlgorithmsClientToServer = [ "dummy-algorithm", algorithm, "none" ];
+                settings.CompressionAlgorithmsServerToClient = [ "dummy-algorithm", algorithm, "none" ];
             }
         );
     }
@@ -88,11 +93,10 @@ public class CompressionTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task DataRoundTrips(bool compressible)
+    [MemberData(nameof(CompressionAlgorithmsAndCompressibility))]
+    public async Task DataRoundTrips(string algorithm, bool compressible)
     {
-        using var client = await CreateCompressingClientAsync();
+        using var client = await CreateCompressingClientAsync(algorithm);
 
         using var process = await client.ExecuteAsync("cat");
 
@@ -131,12 +135,13 @@ public class CompressionTests
         }
     }
 
-    [Fact]
-    public async Task CompressionStartsAfterAuthentication()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public async Task CompressionStartsAfterAuthentication(string algorithm)
     {
         // 'zlib@openssh.com' only starts compressing after the user has authenticated.
         // Verify the messages that are exchanged before and after that point.
-        using var client = await CreateCompressingClientAsync();
+        using var client = await CreateCompressingClientAsync(algorithm);
 
         using var process = await client.ExecuteAsync("echo hello");
 
@@ -173,13 +178,24 @@ public class CompressionTests
         Assert.Equal("hello\n", stdout);
     }
 
-    private Task<SshClient> CreateCompressingClientAsync()
+    private Task<SshClient> CreateCompressingClientAsync(string algorithm)
         => _sshServer.CreateClientAsync(
             settings =>
             {
                 settings.EnableCompression = true;
-                settings.CompressionAlgorithmsClientToServer = [ ServerCompressionAlgorithm, "none" ];
-                settings.CompressionAlgorithmsServerToClient = [ ServerCompressionAlgorithm, "none" ];
+                settings.CompressionAlgorithmsClientToServer = [ algorithm, "none" ];
+                settings.CompressionAlgorithmsServerToClient = [ algorithm, "none" ];
             }
         );
+
+    public static IEnumerable<object[]> CompressionAlgorithms()
+        => SshClientSettings.SupportedCompressionAlgorithms
+            .Where(name => name != AlgorithmNames.None)
+            .Select(name => new object[] { name.ToString() });
+
+    public static IEnumerable<object[]> CompressionAlgorithmsAndCompressibility()
+        => CompressionAlgorithms().SelectMany(args => new[] {
+            new object[] { args[0], true },
+            new object[] { args[0], false }
+        });
 }

@@ -55,12 +55,11 @@ public sealed partial class SshClientSettings
         => _macAlgorithmsClientToServer?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
     internal List<Name> MacAlgorithmsServerToClientOrDefault
         => _macAlgorithmsServerToClient?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
-    // The compression algorithms are only used when compression is enabled.
-    internal List<Name> CompressionAlgorithmsClientToServerOrDefault
-        => !EnableCompression ? DisableCompressionAlgorithms
+    internal List<Name> EnabledCompressionAlgorithmsClientToServer
+        => !EnableCompression ? CompressionAlgorithmsDisabled
             : _compressionAlgorithmsClientToServer?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
-    internal List<Name> CompressionAlgorithmsServerToClientOrDefault
-        => !EnableCompression ? DisableCompressionAlgorithms
+    internal List<Name> EnabledCompressionAlgorithmsServerToClient
+        => !EnableCompression ? CompressionAlgorithmsDisabled
             : _compressionAlgorithmsServerToClient?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
     internal List<Name> ServerHostKeyCertificateAlgorithmsOrDefault
         => _caSignatureAlgorithms?.AsNameList(SupportedServerHostKeyCertificateAlgorithms) ?? DefaultServerHostKeyCertificateAlgorithms;
@@ -691,12 +690,8 @@ public sealed partial class SshClientSettings
     }
 
     /// <summary>
-    /// Gets or sets whether to compress the data that is sent over the connection.
+    /// Gets or sets whether to use compression.
     /// </summary>
-    /// <remarks>
-    /// <para>Defaults to <see langword="false"/>, like OpenSSH.</para>
-    /// <para>When this is <see langword="false"/>, the packets are not compressed and <see cref="CompressionAlgorithmsClientToServer"/> and <see cref="CompressionAlgorithmsServerToClient"/> are not used.</para>
-    /// </remarks>
     public bool EnableCompression { get; set; } = false;
 
     /// <summary>
@@ -704,7 +699,6 @@ public sealed partial class SshClientSettings
     /// </summary>
     /// <remarks>
     /// These algorithms are only used when <see cref="EnableCompression"/> is <see langword="true"/>.
-    /// <c>zlib@openssh.com</c> starts compressing after the user has authenticated.
     /// </remarks>
     public AlgorithmList CompressionAlgorithmsClientToServer
     {
@@ -717,7 +711,6 @@ public sealed partial class SshClientSettings
     /// </summary>
     /// <remarks>
     /// These algorithms are only used when <see cref="EnableCompression"/> is <see langword="true"/>.
-    /// <c>zlib@openssh.com</c> starts compressing after the user has authenticated.
     /// </remarks>
     public AlgorithmList CompressionAlgorithmsServerToClient
     {

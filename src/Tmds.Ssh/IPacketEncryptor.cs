@@ -7,10 +7,6 @@ interface IPacketEncryptor : IDisposable
 {
     public void Encrypt(uint sequenceNumber, Packet packet, Sequence buffer);
 
-    // Starts compressing when compression was delayed until after user authentication ('zlib@openssh.com').
-    public void EnableDelayedCompression()
-    { }
-
     protected static byte DeterminePaddingLength(uint length, uint multipleOf)
     {
         uint mask = multipleOf - 1;

@@ -29,6 +29,10 @@ sealed class StreamSshConnection : SshConnection
     private readonly Sequence _sendBuffer;
     private IPacketDecryptor _decryptor;
     private IPacketEncryptor _encryptor;
+    private ICompressor? _compressor;
+    private IDecompressor? _decompressor;
+    private CompressionAlgorithm? _compressorAlgorithm;
+    private CompressionAlgorithm? _decompressorAlgorithm;
     private uint _sendSequenceNumber;
     private uint _receiveSequenceNumber;
     private int _keepAlivePeriod;
@@ -179,6 +183,14 @@ sealed class StreamSshConnection : SshConnection
 
                 _receiveSequenceNumber++;
 
+                if (_decompressor is IDecompressor decompressor)
+                {
+                    using var compressed = packet;
+                    Sequence decompressedSequence = SequencePool.RentSequence();
+                    packet = new Packet(decompressedSequence);
+                    decompressor.Decompress(compressed.Payload, decompressedSequence, maxLength);
+                }
+
                 using Packet p = packet;
                 _logger.PacketReceived(packet);
                 return p.Move();
@@ -202,6 +214,14 @@ sealed class StreamSshConnection : SshConnection
     public override async ValueTask SendPacketAsync(Packet packet, CancellationToken ct)
     {
         _logger.PacketSend(packet);
+
+        if (_compressor is ICompressor compressor)
+        {
+            using var uncompressed = packet;
+            Sequence compressedSequence = SequencePool.RentSequence();
+            packet = new Packet(compressedSequence);
+            compressor.Compress(uncompressed.Payload, compressedSequence);
+        }
 
         _encryptor.Encrypt(_sendSequenceNumber, packet.Move(), _sendBuffer);
         var encryptedData = _sendBuffer.AsReadOnlySequence();
@@ -228,10 +248,29 @@ sealed class StreamSshConnection : SshConnection
         await _stream.WriteAsync(Encoding.UTF8.GetBytes(line), ct).ConfigureAwait(false);
     }
 
-    public override void EnableDelayedCompression()
+    public override void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient)
     {
-        _encryptor.EnableDelayedCompression();
-        _decryptor.EnableDelayedCompression();
+        _compressor?.Dispose();
+        _compressor = null;
+        _decompressor?.Dispose();
+        _decompressor = null;
+        _compressorAlgorithm = clientToServer;
+        _decompressorAlgorithm = serverToClient;
+    }
+
+    public override void EnableCompression()
+    {
+        Debug.Assert(_compressor is null);
+        Debug.Assert(_decompressor is null);
+
+        if (_compressorAlgorithm is not null)
+        {
+            _compressor = _compressorAlgorithm.CreateCompressor();
+        }
+        if (_decompressorAlgorithm is not null)
+        {
+            _decompressor = _decompressorAlgorithm.CreateDecompressor();
+        }
     }
 
     public override void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero)
@@ -267,6 +306,8 @@ sealed class StreamSshConnection : SshConnection
         _sendBuffer.Dispose();
         _encryptor.Dispose();
         _decryptor.Dispose();
+        _compressor?.Dispose();
+        _decompressor?.Dispose();
         _stream.Dispose();
     }
 }

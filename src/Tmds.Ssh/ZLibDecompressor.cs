@@ -6,11 +6,11 @@ using System.IO.Compression;
 
 namespace Tmds.Ssh;
 
-// Decompresses payloads with zlib (RFC 1950) as described in https://tools.ietf.org/html/rfc4253#section-6.2.
-// A single zlib stream spans all the payloads decompressed by this instance.
-sealed class ZLibDecompressor : IDisposable
+sealed class ZLibDecompressor : IDecompressor
 {
-    // Matches how System.IO.Compression reads this switch. It is disabled by default.
+    // When this .NET switch is enabled, ZLibStream requires each block to be terminated with a zlib end marker.
+    // SSH compression sync-flushes without ending, so ZLibStream throws InvalidDataException at each packet boundary.
+    // This doesn't affect the default (switch off) where Read returns 0.
     private static readonly bool s_useStrictValidation =
         AppContext.TryGetSwitch("System.IO.Compression.UseStrictValidation", out bool strictValidation) && strictValidation;
 
@@ -27,30 +27,28 @@ sealed class ZLibDecompressor : IDisposable
     // 'maxLength' bounds the decompressed length so a peer can not force us to allocate an arbitrary amount of memory.
     public void Decompress(ReadOnlySequence<byte> payload, Sequence destination, int maxLength)
     {
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(Constants.PreferredBufferSize);
         _source.Data = payload;
         try
         {
             long decompressedLength = 0;
             while (true)
             {
-                int bytesRead;
+                // AllocGetSpan(1) fills existing segments before allocating new ones.
+                // This is required because the Packet header occupies the start of the first segment
+                // and Packet.MessageId reads from FirstSpan.
+                Span<byte> span = destination.AllocGetSpan(1);
+                int bytesRead = 0;
                 try
                 {
-                    bytesRead = _inflater.Read(buffer, 0, buffer.Length);
+                    bytesRead = _inflater.Read(span);
                 }
                 catch (InvalidDataException) when (s_useStrictValidation && decompressedLength > 0)
                 {
-                    // The peer flushed the zlib stream instead of ending it, so the read that finds no
-                    // more data considers the stream truncated when strict validation is enabled.
-                    // The decompressed data was returned by the preceding reads. Data that decompresses
-                    // to nothing is not a payload we flushed through, so that is still treated as an error.
                     break;
                 }
                 catch (InvalidDataException e)
                 {
-                    ThrowHelper.ThrowProtocolCompressionError(e.Message, e);
-                    throw;
+                    ThrowHelper.ThrowProtocolDecompressionError(e.Message, e);
                 }
 
                 if (bytesRead == 0)
@@ -58,19 +56,18 @@ sealed class ZLibDecompressor : IDisposable
                     break;
                 }
 
+                destination.AppendAlloced(bytesRead);
+
                 decompressedLength += bytesRead;
                 if (decompressedLength > maxLength)
                 {
                     ThrowHelper.ThrowProtocolPacketTooLong();
                 }
-
-                destination.Append(buffer.AsSpan(0, bytesRead));
             }
         }
         finally
         {
             _source.Data = default;
-            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

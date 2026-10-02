@@ -113,9 +113,6 @@ sealed partial class SshSession
 
             if (authResult == AuthResult.Success)
             {
-                _isAuthenticated = true;
-                // Compression that was delayed until after authentication ('zlib@openssh.com') starts with the next packet.
-                connection.EnableDelayedCompression();
                 return;
             }
 

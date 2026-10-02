@@ -190,7 +190,7 @@ public enum SshConfigOption
     XAuthLocation,
 
     /// <summary>
-    /// Whether to compress the data that is sent over the connection.
+    /// Whether to use compression.
     /// </summary>
     Compression
 }

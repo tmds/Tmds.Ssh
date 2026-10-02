@@ -82,8 +82,7 @@ partial class SshClientSettings
         AlgorithmNames.HMacSha2_256
     ];
     internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.ZLibOpenSsh, AlgorithmNames.None ];
-    // Used instead of the configured algorithms when SshClientSettings.EnableCompression is false.
-    internal readonly static List<Name> DisableCompressionAlgorithms = [ AlgorithmNames.None ];
+    internal readonly static List<Name> CompressionAlgorithmsDisabled = [ AlgorithmNames.None ];
     internal readonly static List<Name> DefaultKeyExchangeAlgorithms = SupportedKeyExchangeAlgorithms;
     internal readonly static List<Name> DefaultServerHostKeyAlgorithms = SupportedServerHostKeyAlgorithms;
     internal readonly static List<Name>? DefaultClientKeyAlgorithms = null; // Do not restrict.

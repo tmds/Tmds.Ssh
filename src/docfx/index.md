@@ -82,7 +82,7 @@ Encryption algorithms:
 Message authentication code algorithms:
 - none
 
-Compression algorithms (only used when <xref:Tmds.Ssh.SshClientSettings.EnableCompression> is set):
+Compression algorithms:
 - zlib@openssh.com
 - none
 
@@ -390,6 +390,8 @@ var settings = new SshClientSettings("user@example.com")
     KeyExchangeAlgorithms = [ "mlkem768x25519-sha256", "sntrup761x25519-sha512" ],
 };
 ```
+
+To enable the use of compression algorithms (`CompressionAlgorithmsClientToServer`, `CompressionAlgorithmsServerToClient`), <xref:Tmds.Ssh.SshClientSettings.EnableCompression> must be set to `true`.
 
 ### Logging
 

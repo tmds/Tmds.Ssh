@@ -3,14 +3,15 @@ using Xunit;
 
 namespace Tmds.Ssh.Tests;
 
-public class ZLibCompressionTests
+public class CompressionAlgorithmTests
 {
     private const int MaxLength = 4 * 1024 * 1024;
 
-    [Fact]
-    public void RoundTripsPayloads()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void RoundTripsPayloads(string algorithmName)
     {
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         foreach (int length in new[] { 1, 5, 100, 4096, 8192, 33000, 100_000 })
         {
@@ -19,10 +20,11 @@ public class ZLibCompressionTests
         }
     }
 
-    [Fact]
-    public void RoundTripsIncompressiblePayloads()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void RoundTripsIncompressiblePayloads(string algorithmName)
     {
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         // The compressed data is larger than the payload for random data.
         // These lengths make the decompressed data a multiple of the internal buffer size.
@@ -34,10 +36,11 @@ public class ZLibCompressionTests
         }
     }
 
-    [Fact]
-    public void RetainsCompressionContextAcrossPayloads()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void RetainsCompressionContextAcrossPayloads(string algorithmName)
     {
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         byte[] payload = CompressibleData(200);
 
@@ -48,20 +51,22 @@ public class ZLibCompressionTests
         Assert.True(secondLength < firstLength, $"Expected the second payload ({secondLength}) to be smaller than the first ({firstLength}).");
     }
 
-    [Fact]
-    public void DecompressThrowsWhenDecompressedDataExceedsMaxLength()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void DecompressThrowsWhenDecompressedDataExceedsMaxLength(string algorithmName)
     {
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         byte[] compressed = session.Compress(CompressibleData(100_000));
 
         Assert.Throws<ProtocolException>(() => session.Decompress(compressed, maxLength: 35000));
     }
 
-    [Fact]
-    public void DecompressThrowsForInvalidData()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void DecompressThrowsForInvalidData(string algorithmName)
     {
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         byte[] invalid = new byte[100];
         Random.Shared.NextBytes(invalid);
@@ -69,11 +74,12 @@ public class ZLibCompressionTests
         Assert.Throws<ProtocolException>(() => session.Decompress(invalid, MaxLength));
     }
 
-    [Fact]
-    public void DecompressedPacketPayloadIsReadable()
+    [Theory]
+    [MemberData(nameof(CompressionAlgorithms))]
+    public void DecompressedPacketPayloadIsReadable(string algorithmName)
     {
         // The decompressed data spans multiple buffers. Verify the packet header and the message id remain readable.
-        using var session = new CompressionSession();
+        using var session = new CompressionSession(algorithmName);
 
         byte[] payload = CompressibleData(20_000);
         payload[0] = (byte)MessageId.SSH_MSG_CHANNEL_DATA;
@@ -97,11 +103,23 @@ public class ZLibCompressionTests
         return data;
     }
 
+    public static IEnumerable<object[]> CompressionAlgorithms()
+        => SshClientSettings.SupportedCompressionAlgorithms
+            .Where(name => name != AlgorithmNames.None)
+            .Select(name => new object[] { name.ToString() });
+
     private sealed class CompressionSession : IDisposable
     {
         private readonly SequencePool _sequencePool = new SequencePool();
-        private readonly ZLibCompressor _compressor = new ZLibCompressor();
-        private readonly ZLibDecompressor _decompressor = new ZLibDecompressor();
+        private readonly ICompressor _compressor;
+        private readonly IDecompressor _decompressor;
+
+        public CompressionSession(string algorithmName)
+        {
+            var algorithm = CompressionAlgorithm.Find(new Name(algorithmName))!;
+            _compressor = algorithm.CreateCompressor();
+            _decompressor = algorithm.CreateDecompressor();
+        }
 
         public byte[] Compress(byte[] payload)
         {
@@ -120,7 +138,7 @@ public class ZLibCompressionTests
         public Packet DecompressToPacket(byte[] compressed)
         {
             Sequence sequence = _sequencePool.RentSequence();
-            Packet packet = new Packet(sequence); // Reserves the packet header.
+            Packet packet = new Packet(sequence);
             _decompressor.Decompress(new ReadOnlySequence<byte>(compressed), sequence, MaxLength);
             return packet;
         }
