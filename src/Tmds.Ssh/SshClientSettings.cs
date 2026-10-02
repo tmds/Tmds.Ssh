@@ -55,10 +55,12 @@ public sealed partial class SshClientSettings
         => _macAlgorithmsClientToServer?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
     internal List<Name> MacAlgorithmsServerToClientOrDefault
         => _macAlgorithmsServerToClient?.AsNameList(SupportedMacAlgorithms) ?? DefaultMacAlgorithms;
-    internal List<Name> CompressionAlgorithmsClientToServerOrDefault
-        => _compressionAlgorithmsClientToServer?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
-    internal List<Name> CompressionAlgorithmsServerToClientOrDefault
-        => _compressionAlgorithmsServerToClient?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
+    internal List<Name> EnabledCompressionAlgorithmsClientToServer
+        => !EnableCompression ? CompressionAlgorithmsDisabled
+            : _compressionAlgorithmsClientToServer?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
+    internal List<Name> EnabledCompressionAlgorithmsServerToClient
+        => !EnableCompression ? CompressionAlgorithmsDisabled
+            : _compressionAlgorithmsServerToClient?.AsNameList(SupportedCompressionAlgorithms) ?? DefaultCompressionAlgorithms;
     internal List<Name> ServerHostKeyCertificateAlgorithmsOrDefault
         => _caSignatureAlgorithms?.AsNameList(SupportedServerHostKeyCertificateAlgorithms) ?? DefaultServerHostKeyCertificateAlgorithms;
 
@@ -688,9 +690,17 @@ public sealed partial class SshClientSettings
     }
 
     /// <summary>
+    /// Gets or sets whether to use compression.
+    /// </summary>
+    public bool EnableCompression { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets the permitted compression algorithms for client to server communication in order of preference.
     /// </summary>
-    internal AlgorithmList CompressionAlgorithmsClientToServer
+    /// <remarks>
+    /// These algorithms are only used when <see cref="EnableCompression"/> is <see langword="true"/>.
+    /// </remarks>
+    public AlgorithmList CompressionAlgorithmsClientToServer
     {
         get => _compressionAlgorithmsClientToServer ??= new AlgorithmList(DefaultCompressionAlgorithms);
         set => _compressionAlgorithmsClientToServer = value;
@@ -699,7 +709,10 @@ public sealed partial class SshClientSettings
     /// <summary>
     /// Gets or sets the permitted compression algorithms for server to client communication in order of preference.
     /// </summary>
-    internal AlgorithmList CompressionAlgorithmsServerToClient
+    /// <remarks>
+    /// These algorithms are only used when <see cref="EnableCompression"/> is <see langword="true"/>.
+    /// </remarks>
+    public AlgorithmList CompressionAlgorithmsServerToClient
     {
         get => _compressionAlgorithmsServerToClient ??= new AlgorithmList(DefaultCompressionAlgorithms);
         set => _compressionAlgorithmsServerToClient = value;

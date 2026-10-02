@@ -81,7 +81,8 @@ partial class SshClientSettings
         // We add a MAC here to workaround an issue with Apache MINA SSHD server disconnecting when there is no common MAC algorithm (https://github.com/apache/mina-sshd/issues/664).
         AlgorithmNames.HMacSha2_256
     ];
-    internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.None ];
+    internal readonly static List<Name> SupportedCompressionAlgorithms = [ AlgorithmNames.ZLibOpenSsh, AlgorithmNames.None ];
+    internal readonly static List<Name> CompressionAlgorithmsDisabled = [ AlgorithmNames.None ];
     internal readonly static List<Name> DefaultKeyExchangeAlgorithms = SupportedKeyExchangeAlgorithms;
     internal readonly static List<Name> DefaultServerHostKeyAlgorithms = SupportedServerHostKeyAlgorithms;
     internal readonly static List<Name>? DefaultClientKeyAlgorithms = null; // Do not restrict.
@@ -89,8 +90,6 @@ partial class SshClientSettings
     internal readonly static List<Name> DefaultMacAlgorithms = SupportedMacAlgorithms;
     internal readonly static List<Name> DefaultCompressionAlgorithms = SupportedCompressionAlgorithms;
     internal readonly static List<Name> DefaultServerHostKeyCertificateAlgorithms = SupportedServerHostKeyCertificateAlgorithms;
-    internal readonly static List<Name> DisableCompressionAlgorithms = [ AlgorithmNames.None ];
-    internal readonly static List<Name> EnableCompressionAlgorithms = DisableCompressionAlgorithms; // no compression algorithms implemented.
 
     private static IReadOnlyList<Credential> CreateDefaultCredentials()
     {

@@ -47,6 +47,8 @@ static class AlgorithmNames
     public static Name Aes128Gcm => Name.FromKnownNameString(KnownNameStrings.Aes128Gcm);
     public static Name Aes256Gcm => Name.FromKnownNameString(KnownNameStrings.Aes256Gcm);
     public static Name ChaCha20Poly1305 => Name.FromKnownNameString(KnownNameStrings.ChaCha20Poly1305);
+    // Compression algorithms
+    public static Name ZLibOpenSsh => Name.FromKnownNameString(KnownNameStrings.ZLibOpenSsh);
     // KDF algorithms
     public static Name BCrypt => Name.FromKnownNameString(KnownNameStrings.BCrypt);
     // MAC Algorithms

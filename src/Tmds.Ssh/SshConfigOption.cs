@@ -187,5 +187,10 @@ public enum SshConfigOption
     /// <summary>
     /// Path of the xauth program.
     /// </summary>
-    XAuthLocation
+    XAuthLocation,
+
+    /// <summary>
+    /// Whether to use compression.
+    /// </summary>
+    Compression
 }

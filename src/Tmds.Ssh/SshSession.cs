@@ -236,6 +236,9 @@ sealed partial class SshSession
 
             await AuthenticateAsync(connection, connectCts.Token).ConfigureAwait(false);
 
+            // Supported compression algorithms enable compression only after auth completed successfully.
+            connection.EnableCompression();
+
             // Allow sending.
             var sendQueue = Channel.CreateUnbounded<Packet>(new UnboundedChannelOptions
             {
@@ -490,6 +493,7 @@ sealed partial class SshSession
                     try
                     {
                         await PerformKeyExchangeAsync(context, serverKexInitMsg: packet, clientKexInitMsg, abortToken).ConfigureAwait(false);
+                        connection.EnableCompression();
                     }
                     finally
                     {

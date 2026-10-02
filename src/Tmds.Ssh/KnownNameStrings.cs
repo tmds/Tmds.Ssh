@@ -54,6 +54,7 @@ static class KnownNameStrings
     internal const string ForwardStreamLocal = "forwarded-streamlocal@openssh.com";
     internal const string AuthAgent = "auth-agent@openssh.com";
     internal const string X11 = "x11";
+    internal const string ZLibOpenSsh = "zlib@openssh.com";
 
     public static string? FindKnownName(ReadOnlySpan<char> name)
     {
@@ -111,6 +112,7 @@ static class KnownNameStrings
             case ForwardStreamLocal: return ForwardStreamLocal;
             case AuthAgent: return AuthAgent;
             case X11: return X11;
+            case ZLibOpenSsh: return ZLibOpenSsh;
             default: return null;
         }
     }

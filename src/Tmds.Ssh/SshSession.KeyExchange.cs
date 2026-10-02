@@ -36,6 +36,8 @@ sealed partial class SshSession
 
         var encC2SAlg = PacketEncryptionAlgorithm.Find(encC2S);
         var encS2CAlg = PacketEncryptionAlgorithm.Find(encS2C);
+        var comC2SAlg = CompressionAlgorithm.Find(comC2S);
+        var comS2CAlg = CompressionAlgorithm.Find(comS2C);
 
         if ((!encC2SAlg.IsAuthenticated && macC2S.IsEmpty) ||
             (!encS2CAlg.IsAuthenticated && macS2C.IsEmpty))
@@ -165,6 +167,8 @@ sealed partial class SshSession
 
         context.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers, throwIfReceiveSNZero);
 
+        context.SetCompressionAlgorithms(comC2SAlg, comS2CAlg);
+
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {
             for (int i = 0; i < localList.Count; i++)
@@ -293,8 +297,8 @@ sealed partial class SshSession
             EncryptionAlgorithmsServerToClient = _settings.EncryptionAlgorithmsServerToClientOrDefault,
             MacAlgorithmsClientToServer = _settings.MacAlgorithmsClientToServerOrDefault,
             MacAlgorithmsServerToClient = _settings.MacAlgorithmsServerToClientOrDefault,
-            CompressionAlgorithmsClientToServer = _settings.CompressionAlgorithmsClientToServerOrDefault,
-            CompressionAlgorithmsServerToClient = _settings.CompressionAlgorithmsServerToClientOrDefault,
+            CompressionAlgorithmsClientToServer = _settings.EnabledCompressionAlgorithmsClientToServer,
+            CompressionAlgorithmsServerToClient = _settings.EnabledCompressionAlgorithmsServerToClient,
             LanguagesClientToServer = _settings.LanguagesClientToServer,
             LanguagesServerToClient = _settings.LanguagesServerToClient,
             HostKeyAuthentication = hostKeyAuthentication,

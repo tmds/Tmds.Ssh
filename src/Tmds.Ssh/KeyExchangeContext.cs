@@ -79,6 +79,9 @@ sealed class KeyExchangeContext
     public void SetEncryptorDecryptor(IPacketEncryptor encryptor, IPacketDecryptor decryptor, bool resetSequenceNumbers, bool throwIfReceiveSNZero)
         => _connection.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers, throwIfReceiveSNZero);
 
+    public void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient)
+        => _connection.SetCompressionAlgorithms(clientToServer, serverToClient);
+
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
     public required List<Name> CASignatureAlgorithms { get; init; }

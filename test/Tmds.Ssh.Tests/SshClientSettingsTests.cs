@@ -33,8 +33,9 @@ public class ClientSettingsTests
         Assert.Equal(new[] { new Name("aes256-gcm@openssh.com"), new Name("aes128-gcm@openssh.com"), new Name("chacha20-poly1305@openssh.com") }, settings.EncryptionAlgorithmsServerToClient.AsNameList());
         Assert.Equal(new[] { new Name("hmac-sha2-256") }, settings.MacAlgorithmsClientToServer.AsNameList());
         Assert.Equal(new[] { new Name("hmac-sha2-256") }, settings.MacAlgorithmsServerToClient.AsNameList());
-        Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsClientToServer.AsNameList());
-        Assert.Equal(new[] { new Name("none") }, settings.CompressionAlgorithmsServerToClient.AsNameList());
+        Assert.False(settings.EnableCompression);
+        Assert.Equal(new[] { new Name("zlib@openssh.com"), new Name("none") }, settings.CompressionAlgorithmsClientToServer.AsNameList());
+        Assert.Equal(new[] { new Name("zlib@openssh.com"), new Name("none") }, settings.CompressionAlgorithmsServerToClient.AsNameList());
         Assert.Equal(Array.Empty<Name>(), settings.LanguagesClientToServer);
         Assert.Equal(Array.Empty<Name>(), settings.LanguagesServerToClient);
         Assert.Equal(3, settings.KeepAliveCountMax);

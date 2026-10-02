@@ -26,7 +26,6 @@ partial class SshClientSettings
         List<Name> kexAlgorithms = DetermineAlgorithms(sshConfig.KexAlgorithms, DefaultKeyExchangeAlgorithms, SupportedKeyExchangeAlgorithms);
         List<Name> macs = DetermineAlgorithms(sshConfig.Macs, DefaultMacAlgorithms, SupportedMacAlgorithms);
         List<Name> caSignatureAlgorithms = DetermineAlgorithms(sshConfig.CASignatureAlgorithms, DefaultServerHostKeyCertificateAlgorithms, SupportedServerHostKeyCertificateAlgorithms);
-        List<Name> compressionAlgorithms = sshConfig.Compression == true ? EnableCompressionAlgorithms : DisableCompressionAlgorithms;
         List<Name>? publicKeyAcceptedAlgorithms =
             // Do not restrict if not specified.
             !sshConfig.PublicKeyAcceptedAlgorithms.HasValue ? null :
@@ -46,8 +45,7 @@ partial class SshClientSettings
             EncryptionAlgorithmsServerToClient = new AlgorithmList(ciphers),
             MacAlgorithmsClientToServer = new AlgorithmList(macs),
             MacAlgorithmsServerToClient = new AlgorithmList(macs),
-            CompressionAlgorithmsClientToServer = new AlgorithmList(compressionAlgorithms),
-            CompressionAlgorithmsServerToClient = new AlgorithmList(compressionAlgorithms),
+            EnableCompression = sshConfig.Compression ?? false,
             ServerHostKeyCertificateAlgorithms = new AlgorithmList(caSignatureAlgorithms),
             MinimumRSAKeySize = sshConfig.RequiredRSASize ?? DefaultMinimumRSAKeySize,
             Credentials = DetermineCredentials(sshConfig, options),
