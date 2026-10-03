@@ -55,7 +55,7 @@ partial class SshClientSettings
             KeepAliveInterval = sshConfig.ServerAliveInterval > 0 ? TimeSpan.FromSeconds(sshConfig.ServerAliveInterval.Value) : TimeSpan.Zero,
             Proxy = DetermineProxy(sshConfig.ProxyJump, options),
             BatchMode = sshConfig.BatchMode ?? false,
-            ForwardAgent = sshConfig.ForwardAgent ?? false,
+            ForwardAgent = sshConfig.ForwardAgent ?? ForwardMode.Off,
             ForwardAgentAddress = sshConfig.ForwardAgentAddress,
             BannerHandler = options.BannerHandler,
             ForwardX11 = sshConfig.ForwardX11 ?? ForwardMode.Off,

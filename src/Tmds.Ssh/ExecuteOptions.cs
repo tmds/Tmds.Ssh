@@ -117,6 +117,17 @@ public sealed class ExecuteOptions
     }
 
     /// <summary>
+    /// Gets or sets whether to request agent forwarding.
+    /// </summary>
+    /// <remarks>
+    /// <para>When <see langword="null"/> (the default), <see cref="SshClientSettings.ForwardAgent"/> is used.</para>
+    /// <para>When set to <see cref="ForwardMode.Request"/>, agent forwarding setup failures are logged and the remote process is started without agent forwarding.
+    /// When set to <see cref="ForwardMode.Require"/>, the operation fails if setup fails or the server refuses agent forwarding.</para>
+    /// <para>The agent to forward is configured using <see cref="SshClientSettings.ForwardAgentAddress"/>.</para>
+    /// </remarks>
+    public ForwardMode? ForwardAgent { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to request X11 forwarding.
     /// </summary>
     /// <remarks>

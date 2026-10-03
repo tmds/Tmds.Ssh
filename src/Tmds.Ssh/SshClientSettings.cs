@@ -440,19 +440,24 @@ public sealed partial class SshClientSettings
     /// Gets or sets whether to forward the SSH agent to the server.
     /// </summary>
     /// <remarks>
-    /// <para>Defaults to <see langword="false"/>.</para>
+    /// <para>Defaults to <see cref="ForwardMode.Off"/>.</para>
+    /// <para>When set to <see cref="ForwardMode.Request"/>, agent forwarding setup failures (e.g., no agent available) are logged and the remote process is started without agent forwarding.
+    /// When set to <see cref="ForwardMode.Require"/>, the operation fails if setup fails or the server refuses agent forwarding.</para>
+    /// <para>Can be overridden per command using <see cref="ExecuteOptions.ForwardAgent"/>.</para>
     /// <para>When enabled, remote processes started through <see cref="SshClient.ExecuteAsync(string, CancellationToken)"/> and
     /// related methods can use the keys of the local SSH agent to authenticate with other servers.</para>
     /// <para>The agent channels opened by the server are proxied to the SSH agent identified by <see cref="ForwardAgentAddress"/>.</para>
     /// <para>Enabling this gives users who can access the agent socket on the server (including the administrator) full control
     /// over the local agent for the duration of the connection. Besides using keys to authenticate, this includes operations that
     /// change the agent, like removing keys. Only enable this for servers that are trusted.</para>
-    /// <para>The server may refuse to forward the agent (OpenSSH: <c>AllowAgentForwarding no</c>). Then no agent channels are opened.</para>
+    /// <para>The server may refuse to forward the agent (OpenSSH: <c>AllowAgentForwarding no</c>).
+    /// With <see cref="ForwardMode.Request"/>, no agent channels are opened.
+    /// With <see cref="ForwardMode.Require"/>, the operation fails.</para>
     /// </remarks>
-    public bool ForwardAgent { get; set; } = false;
+    public ForwardMode ForwardAgent { get; set; } = ForwardMode.Off;
 
     /// <summary>
-    /// Gets or sets the address of the SSH agent that is forwarded when <see cref="ForwardAgent"/> is enabled.
+    /// Gets or sets the address of the SSH agent that is forwarded when <see cref="ForwardAgent"/> is not <see cref="ForwardMode.Off"/>.
     /// </summary>
     /// <remarks>
     /// <para>Defaults to <see langword="null"/>.</para>

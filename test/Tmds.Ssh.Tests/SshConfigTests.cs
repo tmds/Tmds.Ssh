@@ -114,7 +114,7 @@ public class SshConfigTests
         Assert.Equal(7, config.ServerAliveCountMax);
         Assert.Equal(20, config.ServerAliveInterval);
         Assert.Equal(true, config.IdentitiesOnly);
-        Assert.Equal(true, config.ForwardAgent);
+        Assert.Equal(ForwardMode.Request, config.ForwardAgent);
     }
 
     [Fact]
@@ -493,7 +493,7 @@ public class SshConfigTests
     {
         // The value may be a path to the agent socket.
         SshConfigParser config = await DetermineConfigAsync("ForwardAgent /tmp/my_agent.sock");
-        Assert.Equal(true, config.ForwardAgent);
+        Assert.Equal(ForwardMode.Request, config.ForwardAgent);
         Assert.Equal("/tmp/my_agent.sock", config.ForwardAgentAddress);
     }
 

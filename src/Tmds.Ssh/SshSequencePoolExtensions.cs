@@ -468,7 +468,7 @@ static class SshSequencePoolExtensions
         return packet.Move();
     }
 
-    public static Packet CreateAuthAgentRequestMessage(this SequencePool sequencePool, uint remoteChannel)
+    public static Packet CreateAuthAgentRequestMessage(this SequencePool sequencePool, uint remoteChannel, bool wantReply)
     {
         /*
             byte      SSH_MSG_CHANNEL_REQUEST
@@ -482,9 +482,7 @@ static class SshSequencePoolExtensions
         writer.WriteMessageId(MessageId.SSH_MSG_CHANNEL_REQUEST);
         writer.WriteUInt32(remoteChannel);
         writer.WriteString("auth-agent-req@openssh.com");
-        // Like the OpenSSH client we don't wait for a reply.
-        // When the server doesn't allow agent forwarding, it will not open any agent channels.
-        writer.WriteBoolean(false);
+        writer.WriteBoolean(wantReply);
         return packet.Move();
     }
 }
