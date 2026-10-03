@@ -203,7 +203,7 @@ sealed partial class X11Forwarding
             ArrayPool<byte>.Shared.Return(buffer);
             buffer = null!;
 
-            await SshSession.ForwardStreamsAsync(channelStream, displayStream).ConfigureAwait(false);
+            await ForwardHelper.ForwardStreamsAsync(channelStream, displayStream).ConfigureAwait(false);
 
             _logger.X11ForwardConnectionClosed(sourceAddress, Display.Name);
         }
