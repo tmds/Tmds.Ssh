@@ -82,6 +82,9 @@ sealed class KeyExchangeContext
     public void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient)
         => _connection.SetCompressionAlgorithms(clientToServer, serverToClient);
 
+    public void EnableCompression(bool authenticated)
+        => _connection.EnableCompression(authenticated);
+
     public required List<Name> KeyExchangeAlgorithms { get; init; }
     public required List<Name> ServerHostKeyAlgorithms { get; init; }
     public required List<Name> CASignatureAlgorithms { get; init; }

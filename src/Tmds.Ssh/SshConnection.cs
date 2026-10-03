@@ -26,5 +26,5 @@ abstract class SshConnection : IDisposable
     public abstract void SetEncryptorDecryptor(IPacketEncryptor packetEncoder, IPacketDecryptor packetDecoder, bool resetSequenceNumbers, bool throwIfReceiveSNZero);
 
     public abstract void SetCompressionAlgorithms(CompressionAlgorithm? clientToServer, CompressionAlgorithm? serverToClient);
-    public abstract void EnableCompression();
+    public abstract void EnableCompression(bool authenticated);
 }
