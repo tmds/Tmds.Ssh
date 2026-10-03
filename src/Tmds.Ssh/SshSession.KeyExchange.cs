@@ -168,6 +168,7 @@ sealed partial class SshSession
         context.SetEncryptorDecryptor(encryptor, decryptor, resetSequenceNumbers, throwIfReceiveSNZero);
 
         context.SetCompressionAlgorithms(comC2SAlg, comS2CAlg);
+        context.EnableCompression(authenticated: !context.IsInitialKex);
 
         static Name ChooseAlgorithm(List<Name> localList, Name[] remoteList)
         {

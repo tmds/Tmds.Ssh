@@ -258,8 +258,14 @@ sealed class StreamSshConnection : SshConnection
         _decompressorAlgorithm = serverToClient;
     }
 
-    public override void EnableCompression()
+    public override void EnableCompression(bool authenticated)
     {
+        // All supported compression algorithms enable compression only after auth completed successfully.
+        if (!authenticated)
+        {
+            return;
+        }
+
         Debug.Assert(_compressor is null);
         Debug.Assert(_decompressor is null);
 
