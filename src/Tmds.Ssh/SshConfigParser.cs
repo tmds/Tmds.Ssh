@@ -70,7 +70,7 @@ sealed class SshConfigParser
     public int? ServerAliveCountMax { get; set; }
     public int? ServerAliveInterval { get; set; }
     public string? ProxyJump { get; set; }
-    public bool? ForwardAgent { get; set; }
+    public ForwardMode? ForwardAgent { get; set; }
     public string? ForwardAgentAddress { get; set; }
     public ForwardMode? ForwardX11 { get; set; }
     public bool? ForwardX11Trusted { get; set; }
@@ -527,11 +527,11 @@ sealed class SshConfigParser
                     ReadOnlySpan<char> value = GetKeywordValue(keyword, ref remainder);
                     if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
                     {
-                        config.ForwardAgent = false;
+                        config.ForwardAgent = ForwardMode.Off;
                     }
                     else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
                     {
-                        config.ForwardAgent = true;
+                        config.ForwardAgent = ForwardMode.Request;
                     }
                     else
                     {
@@ -539,7 +539,7 @@ sealed class SshConfigParser
                         // TODO: the value may also be the name of an environment variable (prefixed
                         // with '$') that holds that path. We don't support envvar expansion (yet).
                         string? address = TildeExpand(value);
-                        config.ForwardAgent = !string.IsNullOrEmpty(address);
+                        config.ForwardAgent = string.IsNullOrEmpty(address) ? ForwardMode.Off : ForwardMode.Request;
                         config.ForwardAgentAddress = string.IsNullOrEmpty(address) ? null : address;
                     }
                 }

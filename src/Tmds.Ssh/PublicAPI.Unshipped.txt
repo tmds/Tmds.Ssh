@@ -152,6 +152,8 @@ Tmds.Ssh.ExecuteOptions.AllocateTerminal.set -> void
 Tmds.Ssh.ExecuteOptions.EnvironmentVariables.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Tmds.Ssh.ExecuteOptions.EnvironmentVariables.set -> void
 Tmds.Ssh.ExecuteOptions.ExecuteOptions() -> void
+Tmds.Ssh.ExecuteOptions.ForwardAgent.get -> Tmds.Ssh.ForwardMode?
+Tmds.Ssh.ExecuteOptions.ForwardAgent.set -> void
 Tmds.Ssh.ExecuteOptions.ForwardX11.get -> Tmds.Ssh.ForwardMode?
 Tmds.Ssh.ExecuteOptions.ForwardX11.set -> void
 Tmds.Ssh.ExecuteOptions.StandardErrorEncoding.get -> System.Text.Encoding!
@@ -526,7 +528,7 @@ Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsServerToClient.get -> Tmds.Ssh.Al
 Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsServerToClient.set -> void
 Tmds.Ssh.SshClientSettings.EnvironmentVariables.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Tmds.Ssh.SshClientSettings.EnvironmentVariables.set -> void
-Tmds.Ssh.SshClientSettings.ForwardAgent.get -> bool
+Tmds.Ssh.SshClientSettings.ForwardAgent.get -> Tmds.Ssh.ForwardMode
 Tmds.Ssh.SshClientSettings.ForwardAgent.set -> void
 Tmds.Ssh.SshClientSettings.ForwardAgentAddress.get -> string?
 Tmds.Ssh.SshClientSettings.ForwardAgentAddress.set -> void

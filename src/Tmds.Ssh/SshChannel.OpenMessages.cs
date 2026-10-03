@@ -31,8 +31,8 @@ sealed partial class SshChannel : ISshChannel
     public void TrySendShellRequestMessage()
         => TrySendPacket(_sequencePool.CreateShellMessage(RemoteChannel));
 
-    public void TrySendAuthAgentRequestMessage()
-        => TrySendPacket(_sequencePool.CreateAuthAgentRequestMessage(RemoteChannel));
+    public void TrySendAuthAgentRequestMessage(bool wantReply)
+        => TrySendPacket(_sequencePool.CreateAuthAgentRequestMessage(RemoteChannel, wantReply));
 
     public void TrySendExecSubsystemMessage(string subsystem)
         => TrySendPacket(_sequencePool.CreateExecSubsystemMessage(RemoteChannel, subsystem));

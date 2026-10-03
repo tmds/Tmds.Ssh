@@ -32,7 +32,7 @@ public class AgentForwardingTests
 
         using var client = await _sshServer.CreateClientAsync(settings =>
         {
-            settings.ForwardAgent = true;
+            settings.ForwardAgent = ForwardMode.Request;
             settings.ForwardAgentAddress = agent.Address;
         });
 
@@ -63,7 +63,7 @@ public class AgentForwardingTests
 
         using var client = await _sshServer.CreateClientAsync(settings =>
         {
-            settings.ForwardAgent = true;
+            settings.ForwardAgent = ForwardMode.Request;
             settings.ForwardAgentAddress = address;
         });
 

@@ -34,9 +34,10 @@ sealed partial class SshSession
     private int _keepAliveMax;
     private int _keepAliveCount;
     private Dictionary<ListenAddress, RemoteListenerInfo>? _remoteListeners;
-    private string? _forwardAgentAddress;  // Address of the agent to forward, or 'null' when agent forwarding is disabled.
+    private string? _forwardAgentAddress;  // Address of the agent to forward, or 'null' when no agent address could be determined.
+    private bool _forwardAgentChannels;
     private X11Forwarding? _x11Forwarding;
-    private static readonly ExecuteOptions SftpExecuteOptions = new() { ForwardX11 = ForwardMode.Off }; // Used for the sftp subsystem, which doesn't need X11 forwarding.
+    private static readonly ExecuteOptions SftpExecuteOptions = new() { ForwardAgent = ForwardMode.Off, ForwardX11 = ForwardMode.Off };
 
     record struct ListenAddress(Name ForwardType, string Address, ushort Port)
     { }
@@ -190,14 +191,9 @@ sealed partial class SshSession
             ConnectionInfo.IsBatchMode = _settings.BatchMode || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
             ConnectionInfo.IsProxy = isProxy;
 
-            // Determine the agent to forward. It remains 'null' when the user didn't ask for
-            // agent forwarding, or when we don't know which agent to forward.
-            if (_settings.ForwardAgent)
-            {
-                _forwardAgentAddress = string.IsNullOrEmpty(_settings.ForwardAgentAddress)
-                    ? SshAgent.DefaultAddress
-                    : _settings.ForwardAgentAddress;
-            }
+            _forwardAgentAddress = string.IsNullOrEmpty(_settings.ForwardAgentAddress)
+                ? SshAgent.DefaultAddress
+                : _settings.ForwardAgentAddress;
 
             // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
             TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;
@@ -657,7 +653,7 @@ sealed partial class SshSession
         else if (channelType == AlgorithmNames.AuthAgent)
         {
             // The server opens these channels in response to 'auth-agent-req@openssh.com'.
-            if (_forwardAgentAddress is not null)
+            if (_forwardAgentChannels)
             {
                 // Connecting to the agent is async, so don't handle the channel on the receive loop.
                 // The channel gets confirmed when we're connected to the agent, and refused when we're not.
@@ -781,26 +777,6 @@ sealed partial class SshSession
             {
                 Logger.AgentForwardConnectionAborted(ex);
             }
-        }
-    }
-
-    // Checks there is an agent we can forward before we announce agent forwarding to the server.
-    private async ValueTask<bool> CanConnectToForwardAgentAsync(CancellationToken ct)
-    {
-        Debug.Assert(_forwardAgentAddress is not null);
-
-        try
-        {
-            using SshAgent agent = new SshAgent(_sequencePool);
-            await agent.ConnectAsync(_forwardAgentAddress, ct).ConfigureAwait(false);
-
-            return true;
-        }
-        catch (Exception ex) when (!ct.IsCancellationRequested)
-        {
-            Logger.AgentForwardSetupFailed(ex);
-
-            return false;
         }
     }
 
@@ -1078,12 +1054,10 @@ sealed partial class SshSession
             await channel.ReceiveChannelOpenConfirmationAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        // Only announce agent forwarding when there is an agent we can forward.
-        if (_forwardAgentAddress is not null && await CanConnectToForwardAgentAsync(cancellationToken).ConfigureAwait(false))
+        ForwardMode forwardAgent = options?.ForwardAgent ?? _settings.ForwardAgent;
+        if (forwardAgent != ForwardMode.Off)
         {
-            // Like 'ssh' we don't wait for a reply.
-            // When the server refuses, it will not open any agent channels.
-            channel.TrySendAuthAgentRequestMessage();
+            await RequestAgentForwardingAsync(channel, isRequired: forwardAgent == ForwardMode.Require, cancellationToken).ConfigureAwait(false);
         }
 
         string? term = null;
@@ -1197,6 +1171,41 @@ sealed partial class SshSession
             if (isRequired)
             {
                 throw ex is SshChannelException ? ex : new SshChannelException("X11 forwarding setup failed.", ex);
+            }
+        }
+    }
+
+    private async Task RequestAgentForwardingAsync(SshChannel channel, bool isRequired, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_forwardAgentAddress is null)
+            {
+                var ex = new SshChannelException("Agent forwarding setup failed: no agent available.");
+                Logger.AgentForwardSetupFailed(ex);
+                if (isRequired)
+                {
+                    throw ex;
+                }
+                return;
+            }
+
+            using SshAgent agent = new SshAgent(_sequencePool);
+            await agent.ConnectAsync(_forwardAgentAddress, cancellationToken).ConfigureAwait(false);
+
+            channel.TrySendAuthAgentRequestMessage(wantReply: isRequired);
+            if (isRequired)
+            {
+                await channel.ReceiveChannelRequestSuccessAsync("Server refused agent forwarding.", cancellationToken).ConfigureAwait(false);
+            }
+            _forwardAgentChannels = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.AgentForwardSetupFailed(ex);
+            if (isRequired)
+            {
+                throw ex is SshChannelException ? ex : new SshChannelException("Agent forwarding setup failed.", ex);
             }
         }
     }
