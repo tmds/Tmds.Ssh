@@ -119,7 +119,7 @@ sealed partial class SshSession
         await task;
     }
 
-    private async Task<SshConnection> EstablishConnectionAsync(ConnectCallback? connect, ConnectContext? ctx, CancellationToken ct)
+    private async Task<SshConnection> EstablishConnectionAsync(ConnectCallback? connect, ConnectContext? ctx, ConnectCancellation connectCancellation, CancellationToken ct)
     {
         Debug.Assert(_settings is not null);
 
@@ -127,6 +127,8 @@ sealed partial class SshSession
         {
             ctx = new SshConnectContext(_settings, ConnectionInfo, _loggers);
         }
+
+        ctx.ConnectCancellation = connectCancellation;
 
         Stream stream = await Connect.ConnectAsync(connect, _settings.Proxy, ctx, ct).ConfigureAwait(false);
 
@@ -167,11 +169,7 @@ sealed partial class SshSession
             // * Dispose is called (_abortCts)
             // * CancellationToken parameter from ConnectAsync (connectCt)
             // * Timeout from connectTimeout, SshClientSettions.ConnectTimeout.
-            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(connectCt, _abortCts.Token);
-
-            // Start a timer that cancels after connectTimeout.
-            long startTime = Stopwatch.GetTimestamp();
-            using var timer = new Timer(cts => ((CancellationTokenSource)cts!).Cancel(), connectCts, connectTimeout, Timeout.InfiniteTimeSpan);
+            using var connectCancellation = new ConnectCancellation(connectTimeout, connectCt, _abortCts.Token, outer: connectContext?.ConnectCancellation);
 
             bool isProxy = connectContext is not null;
             Debug.Assert(!isProxy || connectContext is ProxyConnectContext);
@@ -180,7 +178,7 @@ sealed partial class SshSession
             {
                 Debug.Assert(_destination is not null);
                 Debug.Assert(_sshConfigOptions is not null);
-                _settings = await SshClientSettings.LoadFromConfigAsync(userName, host, port, _sshConfigOptions, connectCts.Token).ConfigureAwait(false);
+                _settings = await SshClientSettings.LoadFromConfigAsync(userName, host, port, _sshConfigOptions, connectCancellation.Token).ConfigureAwait(false);
                 _sshConfigOptions.PostConfigure?.Invoke(new SshConfigSettings.PostConfigureContext(isProxy, _settings));
             }
 
@@ -195,42 +193,33 @@ sealed partial class SshSession
                 ? SshAgent.DefaultAddress
                 : _settings.ForwardAgentAddress;
 
-            // Update the timer to cancel after _settings.ConnectTimeout taking into account the elapsed time.
+            // Update the timeout to _settings.ConnectTimeout taking into account the elapsed time.
             TimeSpan settingsConnectTimeout = _settings.ConnectTimeout;
             if (settingsConnectTimeout != connectTimeout)
             {
-                TimeSpan elapsedTime = Stopwatch.GetElapsedTime(startTime);
-                TimeSpan dueTime = settingsConnectTimeout - elapsedTime;
-                if (elapsedTime < connectTimeout && dueTime > TimeSpan.Zero)
-                {
-                    timer.Change(dueTime, Timeout.InfiniteTimeSpan);
-                }
-                else
-                {
-                    connectCts.Cancel();
-                }
+                connectCancellation.UpdateTimeout(settingsConnectTimeout);
             }
 
             // Connect to the remote host
-            connection = await EstablishConnectionAsync(connect, connectContext, connectCts.Token).ConfigureAwait(false);
+            connection = await EstablishConnectionAsync(connect, connectContext, connectCancellation, connectCancellation.Token).ConfigureAwait(false);
 
             // Setup ssh connection
-            await ProtocolVersionExchangeAsync(connection, connectCts.Token).ConfigureAwait(false);
+            await ProtocolVersionExchangeAsync(connection, connectCancellation.Token).ConfigureAwait(false);
 
-            KeyExchangeContext context = CreateKeyExchangeContext(connection);
+            KeyExchangeContext context = CreateKeyExchangeContext(connection, isInitialKex: true, connectCancellation: connectCancellation);
 
             using Packet localExchangeInitMsg = CreateKeyExchangeInitMessage(context);
-            await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCts.Token).ConfigureAwait(false);
+            await connection.SendPacketAsync(localExchangeInitMsg.Clone(), connectCancellation.Token).ConfigureAwait(false);
             {
-                using Packet remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCts.Token).ConfigureAwait(false);
+                using Packet remoteExchangeInitMsg = await connection.ReceivePacketAsync(connectCancellation.Token).ConfigureAwait(false);
                 if (remoteExchangeInitMsg.IsEmpty)
                 {
                     ThrowHelper.ThrowProtocolUnexpectedPeerClose();
                 }
-                await PerformKeyExchangeAsync(context, remoteExchangeInitMsg, localExchangeInitMsg, connectCts.Token).ConfigureAwait(false);
+                await PerformKeyExchangeAsync(context, remoteExchangeInitMsg, localExchangeInitMsg, connectCancellation.Token).ConfigureAwait(false);
             }
 
-            await AuthenticateAsync(connection, connectCts.Token).ConfigureAwait(false);
+            await AuthenticateAsync(connection, connectCancellation).ConfigureAwait(false);
 
             connection.EnableCompression(authenticated: true);
 
@@ -472,7 +461,7 @@ sealed partial class SshSession
                     // Key Re-Exchange: https://tools.ietf.org/html/rfc4253#section-9.
                     // The peer requested a key exchange. We queue a SSH_MSG_KEXINIT and when the send loop detects it
                     // it will stop sending other packets until we release the key exchange semaphore to signal the key exchange is completed.
-                    KeyExchangeContext context = CreateKeyExchangeContext(connection, isInitialKex: false);
+                    KeyExchangeContext context = CreateKeyExchangeContext(connection, isInitialKex: false, connectCancellation: null);
                     using Packet clientKexInitMsg = CreateKeyExchangeInitMessage(context);
 
                     // Assign _keyReExchangeSemaphore before sending packet through the send queue.

@@ -274,11 +274,17 @@ sealed partial class SshSession
         reader.ReadEnd();
     }
 
-    private KeyExchangeContext CreateKeyExchangeContext(SshConnection connection, bool isInitialKex = true)
+    private KeyExchangeContext CreateKeyExchangeContext(SshConnection connection, bool isInitialKex, ConnectCancellation? connectCancellation)
     {
         Debug.Assert(_settings is not null);
 
         TrustedHostKeys trustedKeys = GetKnownHostKeys();
+
+        // On rekey, also trust the key that was verified during initial key exchange.
+        if (!isInitialKex)
+        {
+            trustedKeys.AddTrustedKey(ConnectionInfo.ServerKey.Key.SshKeyData, isPatternMatch: false);
+        }
 
         // Sort algorithms to prefer those we have keys for.
         List<Name> serverHostKeyAlgorithms = new List<Name>(_settings.ServerHostKeyAlgorithmsOrDefault);
@@ -288,7 +294,7 @@ sealed partial class SshSession
         // Add keys to first KnownHostsFilePaths.
         IReadOnlyList<string> userKnownHostsFilePaths = _settings.UserKnownHostsFilePathsOrDefault;
         string? updateKnownHostsFile = _settings.UpdateKnownHostsFileAfterAuthentication && userKnownHostsFilePaths.Count > 0 ? userKnownHostsFilePaths[0] : null;
-        IHostKeyAuthentication hostKeyAuthentication = new HostKeyAuthentication(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger);
+        IHostKeyAuthentication hostKeyAuthentication = new HostKeyAuthentication(trustedKeys, _settings.HostAuthentication, updateKnownHostsFile, _settings.HashKnownHosts, Logger, isRekey: !isInitialKex, connectCancellation);
 
         return new KeyExchangeContext(connection, this, isInitialKex)
         {

@@ -317,11 +317,14 @@ static SshConfigSettings CreateSshConfigSettings(string[] options, bool forwardA
             return ValueTask.FromResult((string?)null);
         }
 
+        // Inform the user the previous attempt failed.
         if (ctx.Attempt > 1 && !Console.IsErrorRedirected)
         {
             Console.Error.WriteLine("Permission denied, please try again.");
         }
 
+        // Suspend the connect timeout while we're prompting.
+        ctx.SuspendConnectTimeout();
         string prompt = $"{ctx.ConnectionInfo.UserName}@{ctx.ConnectionInfo.HostName}'s password: ";
         return ReadPasswordFromConsole(prompt);
     };
@@ -337,6 +340,9 @@ static SshConfigSettings CreateSshConfigSettings(string[] options, bool forwardA
         {
             return false;
         }
+
+        // Suspend the connect timeout while we're prompting.
+        ctx.SuspendConnectTimeout();
 
         PublicKey key = ctx.ConnectionInfo.ServerKey.Key;
         string hostName = ctx.ConnectionInfo.HostName;

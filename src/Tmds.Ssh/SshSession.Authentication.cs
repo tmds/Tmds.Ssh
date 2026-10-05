@@ -9,9 +9,11 @@ namespace Tmds.Ssh;
 
 sealed partial class SshSession
 {
-    private async Task AuthenticateAsync(SshConnection connection, CancellationToken ct)
+    private async Task AuthenticateAsync(SshConnection connection, ConnectCancellation connectCancellation)
     {
         Debug.Assert(_settings is not null);
+
+        CancellationToken ct = connectCancellation.Token;
 
         Logger.Authenticating(ConnectionInfo.HostName, _settings.UserName);
 
@@ -61,7 +63,7 @@ sealed partial class SshSession
             {
                 if (TryMethod(AlgorithmNames.Password))
                 {
-                    authResult = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, ct).ConfigureAwait(false);
+                    authResult = await PasswordAuth.TryAuthenticate(passwordCredential, context, ConnectionInfo, Logger, connectCancellation).ConfigureAwait(false);
                 }
             }
             else if (credential is PrivateKeyCredential keyCredential)

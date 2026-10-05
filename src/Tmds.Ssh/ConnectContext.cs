@@ -20,6 +20,8 @@ class ConnectContext
 
     public bool TcpKeepAlive { get; protected set; }
 
+    internal ConnectCancellation? ConnectCancellation { get; set; }
+
     internal ConnectContext(ConnectEndPoint endPoint, ILoggerFactory loggerFactory)
     {
         EndPoint = endPoint;
@@ -31,6 +33,7 @@ class ConnectContext
         EndPoint = endPoint;
         Parent = parent;
         TcpKeepAlive = parent.TcpKeepAlive;
+        ConnectCancellation = parent.ConnectCancellation;
         LoggerFactory = parent.LoggerFactory;
     }
 
