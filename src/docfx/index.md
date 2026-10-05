@@ -282,12 +282,12 @@ A <xref:Tmds.Ssh.PasswordCredential> authenticates with a password. The password
 Credentials = [ new PasswordCredential("password") ]
 ```
 
-The callback receives a <xref:Tmds.Ssh.PasswordPromptContext> with connection info and batch mode state:
+The callback receives a <xref:Tmds.Ssh.PasswordPromptContext> with connection info and non-interactive state:
 
 ```csharp
 Credentials = [ new PasswordCredential((context, cancellationToken) =>
 {
-    if (context.IsBatchMode)
+    if (context.IsNonInteractive)
     {
         return ValueTask.FromResult((string?)null);
     }

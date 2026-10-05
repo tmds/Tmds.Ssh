@@ -263,7 +263,7 @@ public sealed partial class SshClient : IDisposable
                 }
                 else
                 {
-                    _connectingTask = DoConnectAsync(null, null, default);
+                    _connectingTask = DoConnectAsync(null, null, default, isNonInteractive: true);
                     return new ValueTask<SshSession>(_connectingTask.WaitAsync(cancellationToken));
                 }
             }
@@ -298,12 +298,12 @@ public sealed partial class SshClient : IDisposable
         }
     }
 
-    private async Task<SshSession> DoConnectAsync(ConnectCallback? connect, ConnectContext? context, CancellationToken cancellationToken)
+    private async Task<SshSession> DoConnectAsync(ConnectCallback? connect, ConnectContext? context, CancellationToken cancellationToken, bool isNonInteractive = false)
     {
         Debug.Assert(_gate.IsHeldByCurrentThread);
         Debug.Assert(_state == State.Connecting);
 
-        SshSession session = new SshSession(_settings, _destination, _sshConfigOptions, this, _loggers);
+        SshSession session = new SshSession(_settings, _destination, _sshConfigOptions, this, _loggers, isNonInteractive);
         _session = session;
 
         bool success = false;

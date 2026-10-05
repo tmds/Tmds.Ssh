@@ -9,13 +9,14 @@ namespace Tmds.Ssh;
 public struct HostAuthenticationContext
 {
     private readonly ConnectCancellation? _connectCancellation;
+    private readonly bool _isRekey;
 
     internal HostAuthenticationContext(KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, bool isRekey, ConnectCancellation? connectCancellation)
     {
         KnownHostResult = knownHostResult;
         ConnectionInfo = connectionInfo;
         _connectCancellation = connectCancellation;
-        IsKeyReExchange = isRekey;
+        _isRekey = isRekey;
     }
 
     /// <summary>
@@ -29,17 +30,14 @@ public struct HostAuthenticationContext
     public SshConnectionInfo ConnectionInfo { get; }
 
     /// <summary>
-    /// Returns whether this authentication is for a key re-exchange.
-    /// </summary>
-    public bool IsKeyReExchange { get; }
-
-    /// <summary>
-    /// Returns whether batch (non-interactive) mode is enabled or the authentication is for a key re-exchange.
+    /// Returns whether this authentication is non-interactive.
     /// </summary>
     /// <remarks>
-    /// In batch mode the <see cref="HostAuthentication"/> delegate mustn't make interactive prompts.
+    /// Returns <see langword="true"/> when the connection is in batch mode, when the authentication is for a key re-exchange,
+    /// or when the connection is an automatic reconnect.
+    /// When <see langword="true"/>, the <see cref="HostAuthentication"/> delegate mustn't make interactive prompts.
     /// </remarks>
-    public bool IsBatchMode => IsKeyReExchange || ConnectionInfo.IsBatchMode;
+    public bool IsNonInteractive => _isRekey || ConnectionInfo.IsNonInteractive;
 
     /// <summary>
     /// Suspends the connect timeout so it does not expire while waiting for user interaction.

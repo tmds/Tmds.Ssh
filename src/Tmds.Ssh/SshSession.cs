@@ -58,7 +58,7 @@ sealed partial class SshSession
     internal SshSession(
         SshClientSettings? settings,
         string? destination,
-        SshConfigSettings? configSettings, SshClient client, SshLoggers loggers)
+        SshConfigSettings? configSettings, SshClient client, SshLoggers loggers, bool isNonInteractive = false)
     {
         _abortCts = new CancellationTokenSource();
         _closedCts = new CancellationTokenSource();
@@ -68,6 +68,7 @@ sealed partial class SshSession
         _sshConfigOptions = configSettings;
 
         ConnectionInfo = new SshConnectionInfo();
+        ConnectionInfo.IsNonInteractive = isNonInteractive;
 
         _client = client;
         _loggers = loggers;
@@ -186,7 +187,9 @@ sealed partial class SshSession
             ConnectionInfo.HostName = _settings.HostName.ToLowerInvariant();
             ConnectionInfo.Port = _settings.Port;
             ConnectionInfo.UserName = _settings.UserName;
-            ConnectionInfo.IsBatchMode = _settings.BatchMode || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
+            ConnectionInfo.IsNonInteractive = ConnectionInfo.IsNonInteractive
+                || _settings.BatchMode
+                || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
             ConnectionInfo.IsProxy = isProxy;
 
             _forwardAgentAddress = string.IsNullOrEmpty(_settings.ForwardAgentAddress)
