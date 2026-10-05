@@ -8,10 +8,14 @@ namespace Tmds.Ssh;
 /// </summary>
 public struct HostAuthenticationContext
 {
-    internal HostAuthenticationContext(KnownHostResult knownHostResult, SshConnectionInfo connectionInfo)
+    private readonly ConnectCancellation? _connectCancellation;
+
+    internal HostAuthenticationContext(KnownHostResult knownHostResult, SshConnectionInfo connectionInfo, bool isRekey, ConnectCancellation? connectCancellation)
     {
         KnownHostResult = knownHostResult;
         ConnectionInfo = connectionInfo;
+        _connectCancellation = connectCancellation;
+        IsKeyReExchange = isRekey;
     }
 
     /// <summary>
@@ -25,12 +29,27 @@ public struct HostAuthenticationContext
     public SshConnectionInfo ConnectionInfo { get; }
 
     /// <summary>
-    /// Returns whether batch (non-interactive) mode is enabled.
+    /// Returns whether this authentication is for a key re-exchange.
+    /// </summary>
+    public bool IsKeyReExchange { get; }
+
+    /// <summary>
+    /// Returns whether batch (non-interactive) mode is enabled or the authentication is for a key re-exchange.
     /// </summary>
     /// <remarks>
     /// In batch mode the <see cref="HostAuthentication"/> delegate mustn't make interactive prompts.
     /// </remarks>
-    public bool IsBatchMode => ConnectionInfo.IsBatchMode;
+    public bool IsBatchMode => IsKeyReExchange || ConnectionInfo.IsBatchMode;
+
+    /// <summary>
+    /// Suspends the connect timeout so it does not expire while waiting for user interaction.
+    /// </summary>
+    public void SuspendConnectTimeout() => _connectCancellation?.SuspendTimeout();
+
+    /// <summary>
+    /// Resumes the connect timeout after it was suspended.
+    /// </summary>
+    public void ResumeConnectTimeout() => _connectCancellation?.ResumeTimeout();
 }
 
 /// <summary>

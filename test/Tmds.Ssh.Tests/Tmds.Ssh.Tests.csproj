@@ -26,6 +26,7 @@
   <ItemGroup>
     <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageReference Include="System.Linq.Async" Condition="'$(TargetFramework)' == 'net9.0'" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Tmds.ExecFunction" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>

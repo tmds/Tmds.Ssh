@@ -10,13 +10,16 @@ partial class UserAuthentication
     // https://datatracker.ietf.org/doc/html/rfc4252 - Password Authentication Method: "password"
     public sealed class PasswordAuth
     {
-        public static async Task<AuthResult> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, CancellationToken ct)
+        public static async Task<AuthResult> TryAuthenticate(PasswordCredential passwordCredential, UserAuthContext context, SshConnectionInfo connectionInfo, ILogger<SshClient> logger, ConnectCancellation connectCancellation)
         {
+            CancellationToken ct = connectCancellation.Token;
             int attempt = 0;
             while (true)
             {
-                var ctx = new PasswordPromptContext(connectionInfo, ++attempt);
-                string? password = await passwordCredential.GetPasswordAsync(ctx, ct).ConfigureAwait(false);
+                var ctx = new PasswordPromptContext(connectionInfo, ++attempt, connectCancellation);
+                string? password;
+                password = await passwordCredential.GetPasswordAsync(ctx, ct).ConfigureAwait(false);
+                connectCancellation.ResumeTimeout();
 
                 if (password is null)
                 {

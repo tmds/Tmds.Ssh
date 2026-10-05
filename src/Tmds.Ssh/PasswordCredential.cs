@@ -43,6 +43,8 @@ public sealed class PasswordCredential : Credential
 /// </summary>
 public struct PasswordPromptContext
 {
+    private readonly ConnectCancellation? _connectCancellation;
+
     /// <summary>
     /// Gets the SSH connection information.
     /// </summary>
@@ -61,9 +63,20 @@ public struct PasswordPromptContext
     /// </remarks>
     public bool IsBatchMode => ConnectionInfo.IsBatchMode;
 
-    internal PasswordPromptContext(SshConnectionInfo connectionInfo, int attempt)
+    /// <summary>
+    /// Suspends the connect timeout so it does not expire while waiting for user interaction.
+    /// </summary>
+    public void SuspendConnectTimeout() => _connectCancellation?.SuspendTimeout();
+
+    /// <summary>
+    /// Resumes the connect timeout after it was suspended.
+    /// </summary>
+    public void ResumeConnectTimeout() => _connectCancellation?.ResumeTimeout();
+
+    internal PasswordPromptContext(SshConnectionInfo connectionInfo, int attempt, ConnectCancellation connectCancellation)
     {
         ConnectionInfo = connectionInfo;
         Attempt = attempt;
+        _connectCancellation = connectCancellation;
     }
 }

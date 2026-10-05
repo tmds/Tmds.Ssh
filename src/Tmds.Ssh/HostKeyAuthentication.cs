@@ -13,14 +13,18 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
     private readonly TrustedHostKeys _knownHostKeys;
     private readonly bool _hashKnownHosts;
     private readonly ILogger<SshClient> _logger;
+    private readonly ConnectCancellation? _connectCancellation;
+    private readonly bool _isRekey;
 
-    public HostKeyAuthentication(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile, bool hashKnownHost, ILogger<SshClient> logger)
+    public HostKeyAuthentication(TrustedHostKeys knownHostKeys, HostAuthentication? hostAuthentication, string? updateKnownHostsFile, bool hashKnownHost, ILogger<SshClient> logger, bool isRekey, ConnectCancellation? connectCancellation)
     {
         _knownHostKeys = knownHostKeys;
         _hostAuthentication = hostAuthentication;
         _updateKnownHostsFile = updateKnownHostsFile;
         _hashKnownHosts = hashKnownHost;
         _logger = logger;
+        _connectCancellation = connectCancellation;
+        _isRekey = isRekey;
     }
 
     public async ValueTask AuthenticateAsync(SshConnectionInfo connectionInfo, CancellationToken ct)
@@ -46,8 +50,9 @@ sealed class HostKeyAuthentication : IHostKeyAuthentication
         {
             if (_hostAuthentication is not null)
             {
-                var ctx = new HostAuthenticationContext(result, connectionInfo);
+                var ctx = new HostAuthenticationContext(result, connectionInfo, _isRekey, _connectCancellation);
                 isTrusted = await _hostAuthentication(ctx, ct);
+                _connectCancellation?.ResumeTimeout();
                 if (isTrusted)
                 {
                     _logger.ServerKeyIsApproved(serverKey.Key.Type, serverKey.Key.SHA256FingerPrint);

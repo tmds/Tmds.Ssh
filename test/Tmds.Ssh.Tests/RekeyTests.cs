@@ -12,18 +12,33 @@ public class RekeyTests
         _sshServer = sshServer;
     }
 
+    public static IEnumerable<object[]> HostKeyAlgorithms =>
+        SshClientSettings.SupportedServerHostKeyAlgorithms.Select(algorithm => new object[] { algorithm.ToString() });
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HandlesServerInitiatedRekey(bool useCompression)
+    [MemberData(nameof(HostKeyAlgorithms))]
+    public async Task HandlesServerInitiatedRekey(string algorithm)
     {
-        // Compression state is reset on each key exchange.
         using var client = await _sshServer.CreateClientAsync(settings =>
         {
-            settings.EnableCompression = useCompression;
+            settings.ServerHostKeyAlgorithms = [ algorithm ];
         });
+        await VerifyRekeyAsync(client);
+    }
 
-        // Use cat to echo back what we write
+    [Fact]
+    public async Task HandlesServerInitiatedRekeyWithCompression()
+    {
+        using var client = await _sshServer.CreateClientAsync(settings =>
+        {
+            settings.EnableCompression = true;
+        });
+        await VerifyRekeyAsync(client);
+    }
+
+    private static async Task VerifyRekeyAsync(SshClient client)
+    {
+        // Use cat to echo back what we write.
         using var process = await client.ExecuteAsync("cat");
 
         // Transfer data in a loop to trigger rekeying multiple times with the server configured RekeyLimit (16K).
@@ -57,7 +72,6 @@ public class RekeyTests
                 Assert.False(isError, "Expected stdout, got stderr");
                 Assert.True(bytesRead > 0, "Expected data, got 0 bytes");
 
-                // Verify we got the expected data
                 for (int i = 0; i < bytesRead; i++)
                 {
                     int expectedIndex = (totalBytesRead + i) % messageSize;
