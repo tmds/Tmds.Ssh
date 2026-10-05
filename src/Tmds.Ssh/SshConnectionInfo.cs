@@ -45,5 +45,5 @@ public sealed class SshConnectionInfo
     internal string? ClientIdentificationString { get; set; }
     internal string? ServerIdentificationString { get; set; }
     internal IPAddress? IPAddress { get; set; }
-    internal bool IsBatchMode { get; set; }
+    internal bool IsNonInteractive { get; set; }
 }

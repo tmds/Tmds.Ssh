@@ -389,7 +389,7 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
 
     configSettings.PasswordPrompt = (PasswordPromptContext ctx, CancellationToken ct) =>
     {
-        if (ctx.IsBatchMode)
+        if (ctx.IsNonInteractive)
         {
             return ValueTask.FromResult((string?)null);
         }
@@ -405,7 +405,7 @@ static SshConfigSettings CreateSshConfigSettings(string[] options)
 
     configSettings.HostAuthentication = (HostAuthenticationContext ctx, CancellationToken ct) =>
     {
-        if (ctx.IsBatchMode)
+        if (ctx.IsNonInteractive)
         {
             return ValueTask.FromResult(false);
         }

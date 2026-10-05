@@ -56,12 +56,13 @@ public struct PasswordPromptContext
     public int Attempt { get; }
 
     /// <summary>
-    /// Returns whether batch (non-interactive) mode is enabled.
+    /// Returns whether this prompt is non-interactive.
     /// </summary>
     /// <remarks>
-    /// In batch mode the <see cref="PasswordPrompt"/> delegate mustn't make interactive prompts.
+    /// Returns <see langword="true"/> when the connection is in batch mode or when the connection is an automatic reconnect.
+    /// When <see langword="true"/>, the <see cref="PasswordPrompt"/> delegate mustn't make interactive prompts.
     /// </remarks>
-    public bool IsBatchMode => ConnectionInfo.IsBatchMode;
+    public bool IsNonInteractive => ConnectionInfo.IsNonInteractive;
 
     /// <summary>
     /// Suspends the connect timeout so it does not expire while waiting for user interaction.
