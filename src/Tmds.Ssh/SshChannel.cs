@@ -141,6 +141,7 @@ sealed partial class SshChannel : ISshChannel
                 case MessageId.SSH_MSG_CHANNEL_EOF:
                     return (ChannelReadType.Eof, 0);
                 case MessageId.SSH_MSG_CHANNEL_CLOSE:
+                    Abort(AbortState.Closed);
                     return (ChannelReadType.Closed, 0);
                 case MessageId.SSH_MSG_CHANNEL_DATA:
                     _stdoutData = packet.MovePayload();
@@ -383,6 +384,10 @@ sealed partial class SshChannel : ISshChannel
         {
             Volatile.Write(ref _sendCloseOnDispose, 0);
         }
+        else if (state == AbortState.Closed)
+        {
+            _closeReceived = true;
+        }
 
         // Store the first abort reason. Do it before setting _abortState.
         Interlocked.CompareExchange(ref _abortReason, abortException, null);
@@ -499,7 +504,6 @@ sealed partial class SshChannel : ISshChannel
 
         if (closeReceived)
         {
-            _closeReceived = closeReceived;
             Abort(AbortState.Closed);
         }
     }
