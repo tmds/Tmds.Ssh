@@ -158,7 +158,7 @@ public class SshServer : IDisposable
                 if (stopwatch.Elapsed > timeout)
                 {
                     log = Run("podman", "logs", _containerId);
-                    throw new TimeoutException($"Timed out waiting for SSH server to start after {timeout.TotalSeconds} seconds. Container logs:{Environment.NewLine}{log}");
+                    throw new TimeoutException($"Timed out waiting for SSH server to start after {timeout.TotalSeconds} seconds. Container logs:{Environment.NewLine}{string.Join(Environment.NewLine, log)}");
                 }
             } while (true);
 
