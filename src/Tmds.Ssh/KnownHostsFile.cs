@@ -279,24 +279,22 @@ static class KnownHostsFile
                 return MatchType.NoMatch;
             }
 
-            using var hmac = new HMac(HashAlgorithmName.SHA1, 20, 20, salt);
             if (port != 22)
             {
                 host = $"[{host}]:{port}";
             }
-            hmac.AppendData(Encoding.UTF8.GetBytes(host));
-            if (hmac.CheckHashAndReset(hash))
+            if (VerifyHMacSha1(salt, Encoding.UTF8.GetBytes(host), hash))
             {
                 return MatchType.ExactMatch;
             }
+
             if (ip != null)
             {
                 if (port != 22)
                 {
                     ip = $"[{ip}]:{port}";
                 }
-                hmac.AppendData(Encoding.UTF8.GetBytes(ip));
-                if (hmac.CheckHashAndReset(hash))
+                if (VerifyHMacSha1(salt, Encoding.UTF8.GetBytes(ip), hash))
                 {
                     return MatchType.ExactMatch;
                 }
@@ -354,6 +352,17 @@ static class KnownHostsFile
                 return isMatch ? MatchType.ExactMatch : MatchType.NoMatch;
             }
         }
+    }
+
+    private static bool VerifyHMacSha1(byte[] key, byte[] data, byte[] hash)
+    {
+#if NET11_0_OR_GREATER
+        return HMACSHA1.Verify(key, data, hash);
+#else
+        using var hmac = new HMac(HashAlgorithmName.SHA1, 20, 20, key);
+        hmac.AppendData(data);
+        return hmac.CheckHashAndReset(hash);
+#endif
     }
 
     private enum MatchType
