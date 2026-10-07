@@ -7,5 +7,5 @@ namespace Tmds.Ssh;
 class ProtocolException : SshConnectionException
 {
     public ProtocolException(string message) : base(message) { }
-    public ProtocolException(string message, Exception inner) : base(message, inner) { }
+    public ProtocolException(string message, Exception? inner) : base(message, inner) { }
 }

@@ -2,12 +2,70 @@
 // See file LICENSE for full license details.
 
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.Compression;
 
 namespace Tmds.Ssh;
 
 sealed class ZLibDecompressor : IDecompressor
 {
+#if NET11_0_OR_GREATER
+    private readonly ZLibDecoder _decoder;
+
+    public ZLibDecompressor()
+    {
+        _decoder = new ZLibDecoder();
+    }
+
+    public void Decompress(ReadOnlySequence<byte> payload, Sequence destination, int maxLength)
+    {
+        long decompressedLength = 0;
+
+        foreach (ReadOnlyMemory<byte> segment in payload)
+        {
+            ReadOnlySpan<byte> source = segment.Span;
+            OperationStatus status;
+            do
+            {
+                // AllocGetSpan(1) fills existing segments before allocating new ones.
+                // This is required because the Packet header occupies the start of the first segment
+                // and Packet.MessageId reads from FirstSpan.
+                Span<byte> dest = destination.AllocGetSpan(1);
+                status = _decoder.Decompress(source, dest, out int consumed, out int written);
+                AssertStatus(status, written, dest.Length, consumed, source.Length);
+                destination.AppendAlloced(written);
+                source = source.Slice(consumed);
+
+                decompressedLength += written;
+                if (decompressedLength > maxLength)
+                {
+                    ThrowHelper.ThrowProtocolPacketTooLong();
+                }
+
+                // Done (StreamEnd) should not occur in SSH — the zlib stream is never finalized.
+                if (status == OperationStatus.InvalidData || status == OperationStatus.Done)
+                {
+                    ThrowHelper.ThrowProtocolDecompressionError("Invalid data.");
+                }
+            } while (status == OperationStatus.DestinationTooSmall);
+        }
+    }
+
+    public void Dispose()
+    {
+        _decoder.Dispose();
+    }
+
+    [Conditional("DEBUG")]
+    private static void AssertStatus(OperationStatus status, int written, int destLength, int consumed, int sourceLength)
+    {
+        // We assume zlib will fill the entire destination before reporting DestinationTooSmall.
+        Debug.Assert(status is not OperationStatus.DestinationTooSmall || written == destLength);
+
+        // We assume zlib will consume the entire source before reporting NeedMoreData.
+        Debug.Assert(status is not OperationStatus.NeedMoreData || consumed == sourceLength);
+    }
+#else
     // When this .NET switch is enabled, ZLibStream requires each block to be terminated with a zlib end marker.
     // SSH compression sync-flushes without ending, so ZLibStream throws InvalidDataException at each packet boundary.
     // This doesn't affect the default (switch off) where Read returns 0.
@@ -109,4 +167,5 @@ sealed class ZLibDecompressor : IDecompressor
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
+#endif
 }

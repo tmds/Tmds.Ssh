@@ -56,7 +56,7 @@ static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowProtocolDecompressionError(string message, Exception innerException)
+    public static void ThrowProtocolDecompressionError(string message, Exception? innerException = null)
     {
         throw new ProtocolException($"Error occurred while decompressing: {message}", innerException);
     }
