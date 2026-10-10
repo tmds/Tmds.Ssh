@@ -113,7 +113,6 @@ sealed class UserAuthContext
                    authentication is successful. */
 
                 BannerHandler? bannerHandler = _bannerHandler;
-                BannerMessageContext bannerMessageContext = default;
                 try
                 {
                     // Check the limit before parsing or invoking user code. Preserve the existing
@@ -125,17 +124,12 @@ sealed class UserAuthContext
 
                     if (bannerHandler is not null)
                     {
-                        bannerMessageContext = ParseBanner(packet, _connectionInfo);
+                        bannerHandler(ParseBanner(packet, _connectionInfo, _logger));
                     }
                 }
                 finally
                 {
                     packet.Dispose();
-                }
-
-                if (bannerHandler is not null)
-                {
-                    bannerHandler(bannerMessageContext);
                 }
             }
             else
@@ -232,7 +226,7 @@ sealed class UserAuthContext
         _authResult = AuthResult.Failure;
     }
 
-    internal static BannerMessageContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo)
+    internal static BannerMessageContext ParseBanner(ReadOnlyPacket packet, SshConnectionInfo connectionInfo, ILogger<SshClient> logger)
     {
         var reader = packet.GetReader();
         /*
@@ -245,7 +239,7 @@ sealed class UserAuthContext
         reader.SkipString(); // language tag
         reader.ReadEnd();
 
-        return new BannerMessageContext(EscapeControlCharacters(message), connectionInfo);
+        return new BannerMessageContext(EscapeControlCharacters(message), connectionInfo, logger);
     }
 
     // Built from ShouldEscape so the vectorized scan can never drift from the scalar predicate.

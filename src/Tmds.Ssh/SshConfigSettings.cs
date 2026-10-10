@@ -60,7 +60,7 @@ public sealed class SshConfigSettings
     private TimeSpan _connectTimeout = SshClientSettings.DefaultConnectTimeout;
     private HostAuthentication? _hostAuthentication;
     private PasswordPrompt? _passwordPrompt;
-    private BannerHandler? _bannerHandler;
+    private BannerHandler? _bannerHandler = SshClientSettings.DefaultBannerHandler;
     private Action<PostConfigureContext>? _postConfigure;
 
     // Avoid allocations from the public getters.
@@ -201,7 +201,9 @@ public sealed class SshConfigSettings
     /// Gets or sets the handler for banners sent by the server during authentication.
     /// </summary>
     /// <remarks>
-    /// When unset, banners are ignored.
+    /// <para>Defaults to a handler that logs the banner at <c>Information</c> level using <see cref="BannerMessageContext.Log"/>.</para>
+    /// <para>Custom handlers can call <see cref="BannerMessageContext.Log"/> to log the banner.</para>
+    /// <para>Set to <see langword="null"/> to ignore banners.</para>
     /// </remarks>
     public BannerHandler? BannerHandler
     {

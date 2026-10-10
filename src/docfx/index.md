@@ -338,7 +338,7 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 |----------|---------|-------------|
 | `AutoConnect` | `true` | Automatically connect on first operation. |
 | `AutoReconnect` | `false` | Reconnect automatically after an unexpected disconnect on the next operation. |
-| `BannerHandler` | | Called for each banner message the server sends during authentication; control characters are escaped. When unset, banners are ignored. |
+| `BannerHandler` | Log | Called for each banner message the server sends during authentication; control characters are escaped. The default handler logs at `Information` level. Set to `null` to ignore banners. |
 | `BatchMode` | `false` | Disable interactive prompts. |
 | `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `DefaultWindowSize` | 2 MB | SSH channel window size; larger values improve throughput on high-latency or high-bandwidth links at the cost of memory. It can be overridden per operation using `SftpClientOptions`, `ExecuteOptions`, or a `windowSize` method argument. |
@@ -409,7 +409,7 @@ using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 using var sshClient = new SshClient("user@example.com", loggerFactory);
 ```
 
-In production, the log level should be set to `Information` or higher. The `Debug` and `Trace` levels expose sensitive data including usernames, hostnames, key types, public keys, and file paths. At `Trace` level, all packets are logged.
+In production, the log level should be set to `Information` or higher. The default `BannerHandler` logs the banner at that level. The `Debug` and `Trace` levels expose sensitive data including usernames, hostnames, key types, public keys, and file paths. At `Trace` level, all packets are logged.
 
 ## Executing Commands, Shells and Subsystems
 

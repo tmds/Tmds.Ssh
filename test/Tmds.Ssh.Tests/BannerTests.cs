@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Tmds.Ssh.Tests;
@@ -31,6 +33,8 @@ public class BannerServerTests
 
 public class BannerTests
 {
+    private static readonly ILogger<SshClient> NullLogger = NullLoggerFactory.Instance.CreateLogger<SshClient>();
+
     [Theory]
     [InlineData("", "")]
     [InlineData("Welcome.", "")]
@@ -42,7 +46,7 @@ public class BannerTests
         using Packet packet = CreateBannerPacket(message, languageTag);
         var connectionInfo = new SshConnectionInfo() { HostName = "host", UserName = "user", Port = 22 };
 
-        BannerMessageContext context = UserAuthContext.ParseBanner(packet, connectionInfo);
+        BannerMessageContext context = UserAuthContext.ParseBanner(packet, connectionInfo, NullLogger);
 
         Assert.Equal(message, context.Message);
         Assert.Same(connectionInfo, context.ConnectionInfo);
@@ -57,7 +61,7 @@ public class BannerTests
             + "# To authenticate, visit: https://login.tailscale.com/a/0123456789ab\n";
 
         using Packet packet = CreateBannerPacket(message, languageTag: "");
-        BannerMessageContext context = UserAuthContext.ParseBanner(packet, new SshConnectionInfo());
+        BannerMessageContext context = UserAuthContext.ParseBanner(packet, new SshConnectionInfo(), NullLogger);
 
         Assert.Equal(message, context.Message);
     }
@@ -68,7 +72,7 @@ public class BannerTests
         using Packet packet = CreateBannerPacket("Welcome.", "", addTrailingByte: true);
 
         Assert.Throws<InvalidDataException>(
-            () => UserAuthContext.ParseBanner(packet, new SshConnectionInfo()));
+            () => UserAuthContext.ParseBanner(packet, new SshConnectionInfo(), NullLogger));
     }
 
     [Theory]

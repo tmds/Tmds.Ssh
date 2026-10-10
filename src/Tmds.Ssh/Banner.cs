@@ -1,6 +1,8 @@
 // This file is part of Tmds.Ssh which is released under MIT.
 // See file LICENSE for full license details.
 
+using Microsoft.Extensions.Logging;
+
 namespace Tmds.Ssh;
 
 /// <summary>
@@ -8,10 +10,13 @@ namespace Tmds.Ssh;
 /// </summary>
 public struct BannerMessageContext
 {
-    internal BannerMessageContext(string message, SshConnectionInfo connectionInfo)
+    private ILogger<SshClient> _logger;
+
+    internal BannerMessageContext(string message, SshConnectionInfo connectionInfo, ILogger<SshClient> logger)
     {
         Message = message;
         ConnectionInfo = connectionInfo;
+        _logger = logger;
     }
 
     /// <summary>
@@ -28,6 +33,14 @@ public struct BannerMessageContext
     /// Gets the SSH connection information.
     /// </summary>
     public SshConnectionInfo ConnectionInfo { get; }
+
+    /// <summary>
+    /// Logs the banner message at <c>Information</c> level.
+    /// </summary>
+    public void Log()
+    {
+        _logger?.Banner(Message);
+    }
 }
 
 /// <summary>

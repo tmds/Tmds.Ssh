@@ -431,10 +431,11 @@ public sealed partial class SshClientSettings
     /// Gets or sets the <see cref="Tmds.Ssh.BannerHandler"/> delegate.
     /// </summary>
     /// <remarks>
-    /// When set, the delegate is called for each banner the server sends during authentication.
-    /// When unset, banners are ignored.
+    /// <para>Defaults to a handler that logs the banner at <c>Information</c> level using <see cref="BannerMessageContext.Log"/>.</para>
+    /// <para>Custom handlers can call <see cref="BannerMessageContext.Log"/> to log the banner.</para>
+    /// <para>Set to <see langword="null"/> to ignore banners.</para>
     /// </remarks>
-    public BannerHandler? BannerHandler { get; set; }
+    public BannerHandler? BannerHandler { get; set; } = DefaultBannerHandler;
 
     /// <summary>
     /// Gets or sets whether to forward the SSH agent to the server.
