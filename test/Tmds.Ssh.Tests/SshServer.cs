@@ -150,15 +150,22 @@ public class SshServer : IDisposable
                 if (containers.Length == 0)
                 {
                     log = Run("podman", "logs", _containerId);
-                    throw new InvalidOperationException("Failed to start ssh server" + Environment.NewLine
-                                                            + string.Join(Environment.NewLine, log));
+                    string[] inspect = Run("podman", "inspect", "--format", "{{json .State}}", _containerId);
+                    throw new InvalidOperationException(
+                        "Failed to start ssh server."
+                        + Environment.NewLine + "Container state: " + string.Join(Environment.NewLine, inspect)
+                        + Environment.NewLine + "Container logs:" + Environment.NewLine + string.Join(Environment.NewLine, log));
                 }
 
                 // Check for timeout
                 if (stopwatch.Elapsed > timeout)
                 {
                     log = Run("podman", "logs", _containerId);
-                    throw new TimeoutException($"Timed out waiting for SSH server to start after {timeout.TotalSeconds} seconds. Container logs:{Environment.NewLine}{string.Join(Environment.NewLine, log)}");
+                    string[] inspect = Run("podman", "inspect", "--format", "{{json .State}}", _containerId);
+                    throw new TimeoutException(
+                        $"Timed out waiting for SSH server to start after {timeout.TotalSeconds} seconds."
+                        + Environment.NewLine + "Container state: " + string.Join(Environment.NewLine, inspect)
+                        + Environment.NewLine + "Container logs:" + Environment.NewLine + string.Join(Environment.NewLine, log));
                 }
             } while (true);
 
