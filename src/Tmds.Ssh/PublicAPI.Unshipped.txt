@@ -103,6 +103,7 @@ Tmds.Ssh.BannerHandler
 Tmds.Ssh.BannerMessageContext
 Tmds.Ssh.BannerMessageContext.BannerMessageContext() -> void
 Tmds.Ssh.BannerMessageContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
+Tmds.Ssh.BannerMessageContext.Log() -> void
 Tmds.Ssh.BannerMessageContext.Message.get -> string!
 Tmds.Ssh.CertificateCredential
 Tmds.Ssh.CertificateCredential.CertificateCredential(string! path, Tmds.Ssh.PrivateKeyCredential! privateKey) -> void

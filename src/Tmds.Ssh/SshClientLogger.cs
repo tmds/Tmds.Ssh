@@ -425,6 +425,12 @@ static partial class SshClientLogger
         Message = "Aborted X11 forwarded connection from '{SourceEndPoint}' to display '{Display}'")]
     public static partial void X11ForwardConnectionAborted(this ILogger<SshClient> logger, string sourceEndPoint, string? display, Exception exception);
 
+    [LoggerMessage(
+        EventId = 53,
+        Level = LogLevel.Information,
+        Message = "Banner: {BannerMessage}")]
+    public static partial void Banner(this ILogger<SshClient> logger, string bannerMessage);
+
     struct PacketPayload // TODO: implement ISpanFormattable
     {
         private static readonly int MaxDataLength = 2 * PrettyBytePrinter.BytesPerLine;

@@ -21,6 +21,7 @@ public class ClientSettingsTests
         Assert.Equal(new[] { DefaultKnownHostsFile }, settings.UserKnownHostsFilePaths);
         Assert.Equal(new[] { DefaultGlobalKnownHostsFile, $"{DefaultGlobalKnownHostsFile}2" }, settings.GlobalKnownHostsFilePaths);
         Assert.Null(settings.HostAuthentication);
+        Assert.Equal(SshClientSettings.DefaultBannerHandler, settings.BannerHandler);
         Assert.Equal(new[] { new Name("mlkem768x25519-sha256"), new Name("sntrup761x25519-sha512"), new Name("sntrup761x25519-sha512@openssh.com"), new Name("curve25519-sha256"), new Name("curve25519-sha256@libssh.org"), new Name("ecdh-sha2-nistp256"), new Name("ecdh-sha2-nistp384"), new Name("ecdh-sha2-nistp521") }, settings.KeyExchangeAlgorithms.AsNameList());
         Assert.Equal(new[] {
             new Name("ssh-ed25519-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp521-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp384-cert-v01@openssh.com"), new Name("ecdsa-sha2-nistp256-cert-v01@openssh.com"), new Name("rsa-sha2-512-cert-v01@openssh.com"), new Name("rsa-sha2-256-cert-v01@openssh.com"),

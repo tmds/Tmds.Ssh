@@ -62,6 +62,8 @@ partial class SshClientSettings
 
     private static TimeSpan DefaultForwardX11Timeout => TimeSpan.FromMinutes(20);
 
+    internal static readonly BannerHandler DefaultBannerHandler = static (context) => context.Log();
+
     private const string DefaultXAuthLocation = "xauth";
 
     // Algorithms are in **order of preference**.
