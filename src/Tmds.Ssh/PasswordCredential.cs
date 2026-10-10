@@ -64,6 +64,10 @@ public struct PasswordPromptContext
     /// </remarks>
     public bool IsNonInteractive => ConnectionInfo.IsNonInteractive;
 
+    /// <inheritdoc cref="IsNonInteractive"/>
+    [Obsolete($"Use {nameof(IsNonInteractive)} instead.")]
+    public bool IsBatchMode => IsNonInteractive;
+
     /// <summary>
     /// Suspends the connect timeout so it does not expire while waiting for user interaction.
     /// </summary>

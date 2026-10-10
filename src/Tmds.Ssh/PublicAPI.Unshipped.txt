@@ -206,6 +206,7 @@ Tmds.Ssh.HostAuthentication
 Tmds.Ssh.HostAuthenticationContext
 Tmds.Ssh.HostAuthenticationContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
 Tmds.Ssh.HostAuthenticationContext.HostAuthenticationContext() -> void
+Tmds.Ssh.HostAuthenticationContext.IsBatchMode.get -> bool
 Tmds.Ssh.HostAuthenticationContext.IsNonInteractive.get -> bool
 Tmds.Ssh.HostAuthenticationContext.KnownHostResult.get -> Tmds.Ssh.KnownHostResult
 Tmds.Ssh.HostAuthenticationContext.SuspendConnectTimeout() -> void
@@ -271,6 +272,7 @@ Tmds.Ssh.PasswordPrompt
 Tmds.Ssh.PasswordPromptContext
 Tmds.Ssh.PasswordPromptContext.Attempt.get -> int
 Tmds.Ssh.PasswordPromptContext.ConnectionInfo.get -> Tmds.Ssh.SshConnectionInfo!
+Tmds.Ssh.PasswordPromptContext.IsBatchMode.get -> bool
 Tmds.Ssh.PasswordPromptContext.IsNonInteractive.get -> bool
 Tmds.Ssh.PasswordPromptContext.PasswordPromptContext() -> void
 Tmds.Ssh.PasswordPromptContext.SuspendConnectTimeout() -> void
