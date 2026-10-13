@@ -341,10 +341,11 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 | `AutoConnect` | `true` | Automatically connect on first operation. |
 | `AutoReconnect` | `false` | Reconnect automatically after an unexpected disconnect on the next operation. |
 | `BannerHandler` | Log | Called for each banner message the server sends during authentication; control characters are escaped. The default handler logs at `Information` level. Set to `null` to ignore banners. |
-| `BatchMode` | `false` | Disable interactive prompts. |
+| `BatchMode` | `false` | Obsolete. Use `NonInteractive`. |
 | `ConnectTimeout` | 15 seconds | Maximum duration for establishing an authenticated connection. |
 | `DefaultWindowSize` | 2 MB | SSH channel window size; larger values improve throughput on high-latency or high-bandwidth links at the cost of memory. It can be overridden per operation using `SftpClientOptions`, `ExecuteOptions`, or a `windowSize` method argument. |
-| `EnableBatchModeWhenConsoleIsRedirected` | `true` | Automatically enable batch mode when the console is redirected. |
+| `EnableBatchModeWhenConsoleIsRedirected` | `true` | Obsolete. Use `SetNonInteractiveWhenConsoleIsRedirected`. |
+| `SetNonInteractiveWhenConsoleIsRedirected` | `true` | Automatically set non-interactive when the console is redirected. |
 | `EnvironmentVariables` | | Environment variables set for all remote processes. |
 | `ForwardAgent` | `false` | Forward the local SSH agent to the server. |
 | `ForwardAgentAddress` | | Address of the SSH agent to forward. When unset, the default SSH agent is used. |
@@ -354,6 +355,7 @@ When using <xref:Tmds.Ssh.SshConfigSettings>, the <xref:Tmds.Ssh.SshConfigSettin
 | `KeepAliveCountMax` | 3 | Max keep-alive messages before disconnecting. |
 | `KeepAliveInterval` | `TimeSpan.Zero` | Interval between SSH keep-alive messages. |
 | `MinimumRSAKeySize` | 2048 | Minimum RSA key size accepted. |
+| `NonInteractive` | `false` | Disable interactive prompts. |
 | `TcpKeepAlive` | `true` | Enable TCP keep-alive. |
 | `X11Display` | | Local X11 display that X11 connections are forwarded to. When unset, the `DISPLAY` environment variable is used. |
 | `XAuthLocation` | `xauth` | Path of the xauth program that is used to generate untrusted X11 authentication data. |

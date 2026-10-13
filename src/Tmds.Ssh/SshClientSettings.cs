@@ -493,20 +493,30 @@ public sealed partial class SshClientSettings
     public bool HashKnownHosts { get; set; } = DefaultHashKnownHosts;
 
     /// <summary>
-    /// Gets or sets whether to enable batch mode (no interactive prompts).
+    /// Gets or sets whether to allow interactive prompts during callbacks. This affects the <see cref="HostAuthenticationContext.IsNonInteractive"/> and <see cref="PasswordPromptContext.IsNonInteractive"/> properties.
     /// </summary>
     /// <remarks>
-    /// Defaults to <see langword="false"/>.
+    /// <para>Defaults to <see langword="false"/>.</para>
+    /// <para>When <see cref="SetNonInteractiveWhenConsoleIsRedirected"/> is <see langword="true"/> (the default), the connection is also non-interactive when the console is redirected.</para>
+    /// <para>Authentication callbacks also report non-interactive during implicit connects (including automatic reconnects) and key re-exchanges.</para>
     /// </remarks>
-    public bool BatchMode { get; set; } = false;
+    public bool NonInteractive { get; set; } = false;
+
+    /// <inheritdoc cref="NonInteractive"/>
+    [Obsolete($"Use {nameof(NonInteractive)} instead.")]
+    public bool BatchMode { get => NonInteractive; set => NonInteractive = value; }
 
     /// <summary>
-    /// Gets or sets whether to enable batch mode when console is redirected.
+    /// Gets or sets whether to disable interactive prompts when console is redirected.
     /// </summary>
     /// <remarks>
     /// Defaults to <see langword="true"/>.
     /// </remarks>
-    public bool EnableBatchModeWhenConsoleIsRedirected { get; set; } = true;
+    public bool SetNonInteractiveWhenConsoleIsRedirected { get; set; } = true;
+
+    /// <inheritdoc cref="SetNonInteractiveWhenConsoleIsRedirected"/>
+    [Obsolete($"Use {nameof(SetNonInteractiveWhenConsoleIsRedirected)} instead.")]
+    public bool EnableBatchModeWhenConsoleIsRedirected { get => SetNonInteractiveWhenConsoleIsRedirected; set => SetNonInteractiveWhenConsoleIsRedirected = value; }
 
     /// <summary>
     /// Gets or sets environment variables for all remote processes.

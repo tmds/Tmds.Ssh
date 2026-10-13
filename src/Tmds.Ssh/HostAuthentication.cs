@@ -33,8 +33,8 @@ public struct HostAuthenticationContext
     /// Returns whether this authentication is non-interactive.
     /// </summary>
     /// <remarks>
-    /// Returns <see langword="true"/> when the connection is in batch mode, when the authentication is for a key re-exchange,
-    /// or when the connection is an automatic reconnect.
+    /// Returns <see langword="true"/> when the connection is non-interactive, when the authentication is for a key re-exchange,
+    /// or when the connection is an implicit connect (including automatic reconnects).
     /// When <see langword="true"/>, the <see cref="HostAuthentication"/> delegate mustn't make interactive prompts.
     /// </remarks>
     public bool IsNonInteractive => _isRekey || ConnectionInfo.IsNonInteractive;
