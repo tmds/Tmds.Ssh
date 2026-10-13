@@ -84,7 +84,6 @@ Message authentication code algorithms:
 
 Compression algorithms:
 - zlib@openssh.com
-- none
 
 Authentication algorithms:
 - publickey (<xref:Tmds.Ssh.PrivateKeyCredential>)
@@ -291,6 +290,9 @@ Credentials = [ new PasswordCredential((context, cancellationToken) =>
     {
         return ValueTask.FromResult((string?)null);
     }
+
+    // Suspend the connect timeout while we're prompting.
+    context.SuspendConnectTimeout();
 
     string prompt = $"{context.ConnectionInfo.UserName}@{context.ConnectionInfo.HostName}'s password: ";
     Console.Write(prompt);
@@ -903,6 +905,8 @@ dotnet tool update -g ssh
 dotnet ssh user@example.com
 ```
 
+The `ssh` tool supports forwarding Wayland by passing ``--forward-wayland``. This depends on [waypipe](https://gitlab.freedesktop.org/mstoeckl/waypipe) and requires `waypipe` on the client and on the server. Wayland forwarding is implemented in the tool in [WaypipeForward.cs](https://github.com/tmds/Tmds.Ssh/blob/main/src/ssh/WaypipeForward.cs).
+
 ### ssh-cp
 
 `ssh-cp` copies files to and from remote hosts, similar to OpenSSH `scp`:
@@ -918,15 +922,3 @@ On .NET 8+, install it as a .NET tool:
 dotnet tool update -g ssh-cp
 dotnet ssh-cp localfile.txt user@example.com:/remote/path/
 ```
-
-### Wayland forwarding
-
-The `ssh` tool supports `--forward-wayland` to forward Wayland connections using [waypipe](https://gitlab.freedesktop.org/mstoeckl/waypipe), like `waypipe ssh` does:
-
-```
-ssh --forward-wayland myhost weston-terminal
-```
-
-This requires `waypipe` on the client and on the server, a local Wayland compositor, and a server that allows Unix socket (`streamlocal`) remote forwarding. waypipe runs on Linux/BSD; on Windows the client needs to run inside WSL (WSLg provides the compositor).
-
-Wayland forwarding is not a Tmds.Ssh library feature. It is implemented on top of the public API in [WaypipeForward.cs](https://github.com/tmds/Tmds.Ssh/blob/main/src/ssh/WaypipeForward.cs), which you can copy into your own application.
