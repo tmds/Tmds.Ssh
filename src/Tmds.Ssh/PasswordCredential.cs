@@ -59,7 +59,7 @@ public struct PasswordPromptContext
     /// Returns whether this prompt is non-interactive.
     /// </summary>
     /// <remarks>
-    /// Returns <see langword="true"/> when the connection is in batch mode or when the connection is an automatic reconnect.
+    /// Returns <see langword="true"/> when the connection is non-interactive or when the connection is an implicit connect (including automatic reconnects).
     /// When <see langword="true"/>, the <see cref="PasswordPrompt"/> delegate mustn't make interactive prompts.
     /// </remarks>
     public bool IsNonInteractive => ConnectionInfo.IsNonInteractive;

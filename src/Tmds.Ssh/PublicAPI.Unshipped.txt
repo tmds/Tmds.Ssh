@@ -513,6 +513,8 @@ Tmds.Ssh.SshClientSettings.BannerHandler.get -> Tmds.Ssh.BannerHandler?
 Tmds.Ssh.SshClientSettings.BannerHandler.set -> void
 Tmds.Ssh.SshClientSettings.BatchMode.get -> bool
 Tmds.Ssh.SshClientSettings.BatchMode.set -> void
+Tmds.Ssh.SshClientSettings.NonInteractive.get -> bool
+Tmds.Ssh.SshClientSettings.NonInteractive.set -> void
 Tmds.Ssh.SshClientSettings.ClientKeyAlgorithms.get -> Tmds.Ssh.AlgorithmList?
 Tmds.Ssh.SshClientSettings.ClientKeyAlgorithms.set -> void
 Tmds.Ssh.SshClientSettings.CompressionAlgorithmsClientToServer.get -> Tmds.Ssh.AlgorithmList!
@@ -527,6 +529,8 @@ Tmds.Ssh.SshClientSettings.DefaultWindowSize.get -> int
 Tmds.Ssh.SshClientSettings.DefaultWindowSize.set -> void
 Tmds.Ssh.SshClientSettings.EnableBatchModeWhenConsoleIsRedirected.get -> bool
 Tmds.Ssh.SshClientSettings.EnableBatchModeWhenConsoleIsRedirected.set -> void
+Tmds.Ssh.SshClientSettings.SetNonInteractiveWhenConsoleIsRedirected.get -> bool
+Tmds.Ssh.SshClientSettings.SetNonInteractiveWhenConsoleIsRedirected.set -> void
 Tmds.Ssh.SshClientSettings.EnableCompression.get -> bool
 Tmds.Ssh.SshClientSettings.EnableCompression.set -> void
 Tmds.Ssh.SshClientSettings.EncryptionAlgorithmsClientToServer.get -> Tmds.Ssh.AlgorithmList!

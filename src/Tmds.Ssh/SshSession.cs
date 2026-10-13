@@ -188,8 +188,8 @@ sealed partial class SshSession
             ConnectionInfo.Port = _settings.Port;
             ConnectionInfo.UserName = _settings.UserName;
             ConnectionInfo.IsNonInteractive = ConnectionInfo.IsNonInteractive
-                || _settings.BatchMode
-                || (_settings.EnableBatchModeWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
+                || _settings.NonInteractive
+                || (_settings.SetNonInteractiveWhenConsoleIsRedirected && (Console.IsInputRedirected || Console.IsOutputRedirected));
             ConnectionInfo.IsProxy = isProxy;
 
             _forwardAgentAddress = string.IsNullOrEmpty(_settings.ForwardAgentAddress)
