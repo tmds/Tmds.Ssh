@@ -20,7 +20,7 @@ Tmds.Ssh is a modern, open-source SSH client library for .NET.
 **Security First**
 - Secure cryptographic algorithms (no legacy/insecure algorithms)
 - Post-quantum key exchange support
-- Uses BCL and Bouncy Castle for cryptography—no custom crypto implementations
+- Cryptography is delegated to the .NET BCL and Bouncy Castle instead of rolling our own
 
 **Modern .NET**
 - Built from the ground up with C# `async`/`await` and `Task`/`ValueTask` for efficient asynchronous operations
@@ -31,14 +31,14 @@ Tmds.Ssh is a modern, open-source SSH client library for .NET.
 
 This section lists the supported algorithms. If you would like support for other algorithms, you can request it with [an issue in the repository](https://github.com/tmds/Tmds.Ssh/issues). If the requested algorithm is considered insecure by current practice, it is unlikely to be added.
 
-Private key formats*:
+**Private key formats\***
 - RSA, ECDSA, ED25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`) with encryption:
   - none
   - aes[128|192|256]-[cbc|ctr]
   - aes[128|256]-gcm@openssh.com
   - chacha20-poly1305@openssh.com
 
-Client key algorithms:
+**Client key algorithms**
 - ssh-ed25519-cert-v01@openssh.com
 - ecdsa-sha2-nistp521-cert-v01@openssh.com
 - ecdsa-sha2-nistp384-cert-v01@openssh.com
@@ -52,7 +52,7 @@ Client key algorithms:
 - rsa-sha2-512
 - rsa-sha2-256
 
-Server key algorithms:
+**Server key algorithms**
 - ssh-ed25519-cert-v01@openssh.com
 - ecdsa-sha2-nistp521-cert-v01@openssh.com
 - ecdsa-sha2-nistp384-cert-v01@openssh.com
@@ -66,7 +66,7 @@ Server key algorithms:
 - rsa-sha2-512
 - rsa-sha2-256
 
-Key exchange methods:
+**Key exchange methods\*\***
 - mlkem768x25519-sha256
 - sntrup761x25519-sha512, sntrup761x25519-sha512@openssh.com
 - curve25519-sha256, curve25519-sha256@libssh.org
@@ -74,18 +74,24 @@ Key exchange methods:
 - ecdh-sha2-nistp384
 - ecdh-sha2-nistp521
 
-Encryption algorithms:
+Only elliptic-curve and post-quantum key exchange methods are supported. Finite-field Diffie-Hellman groups (e.g. `diffie-hellman-group14-sha256`) are not supported because ECDH provides equivalent or better security with smaller keys and faster computation.
+
+**Encryption algorithms\*\***
 - aes256-gcm@openssh.com
 - aes128-gcm@openssh.com
 - chacha20-poly1305@openssh.com
 
-Message authentication code algorithms:
+Only AEAD ciphers are supported. AEAD ciphers perform encryption and integrity verification in a single step, removing the class of vulnerabilities that can arise from the interaction between separate encryption and MAC layers.
+
+**Message authentication code algorithms**
 - none
 
-Compression algorithms:
+Because all supported encryption algorithms are AEAD, a separate MAC algorithm is not needed.
+
+**Compression algorithms**
 - zlib@openssh.com
 
-Authentication algorithms:
+**Authentication methods**
 - publickey (<xref:Tmds.Ssh.PrivateKeyCredential>)
 - publickey from SSH Agent (<xref:Tmds.Ssh.SshAgentCredentials>)
 - publickey with OpenSSH certificate (<xref:Tmds.Ssh.CertificateCredential>)
@@ -93,7 +99,9 @@ Authentication algorithms:
 - gssapi-with-mic (<xref:Tmds.Ssh.KerberosCredential>)
 - none (<xref:Tmds.Ssh.NoCredential>)
 
-*: Please convert your keys (using `ssh-keygen`, `PuttyGen`, ...) to a supported format rather than suggesting the library should support an additional format. If you can motivate why the library should support a additional format, open an issue to request support.
+*: There are [too many private key formats](https://xkcd.com/927/). The library supports the OpenSSH format, which is the default for `ssh-keygen` and understood by all major SSH implementations. Tools like `ssh-keygen` and PuTTYgen can convert keys from other formats. If you can motivate why the library should support an additional format, open an issue to request support.
+
+**: SSH servers released in the last decade support at least one of these key exchange methods and ciphers.
 
 ### Sponsoring
 
@@ -144,20 +152,19 @@ For full control over the connection, pass an <xref:Tmds.Ssh.SshClientSettings> 
 string destination = "user@example.com";
 string privatekeyFile = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh/id_rsa");
-string trustedFingerprint = "BkEYx77wOyUBL8UZfgoYKPLkwLJ7XMrsTwAu5sQC4C8";
+string trustedKeyType = "ssh-ed25519";
+string trustedKeyFingerprint = "BkEYx77wOyUBL8UZfgoYKPLkwLJ7XMrsTwAu5sQC4C8";
 
 var settings = new SshClientSettings(destination)
 {
     Credentials = [ new PrivateKeyCredential(privatekeyFile) ],
+    ServerHostKeyAlgorithms = [ trustedKeyType ],
     UserKnownHostsFilePaths = [ ],
     HostAuthentication =
     (HostAuthenticationContext context, CancellationToken cancellationToken) =>
     {
-        if (context.ConnectionInfo.ServerKey.Key.SHA256FingerPrint == trustedFingerprint)
-        {
-            return ValueTask.FromResult(true);
-        }
-        return ValueTask.FromResult(false);
+        bool trusted = context.ConnectionInfo.ServerKey.Key.SHA256FingerPrint == trustedKeyFingerprint;
+        return ValueTask.FromResult(trusted);
     }
 };
 
@@ -413,7 +420,7 @@ using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 using var sshClient = new SshClient("user@example.com", loggerFactory);
 ```
 
-In production, the log level should be set to `Information` or higher. The default `BannerHandler` logs the banner at that level. The `Debug` and `Trace` levels expose sensitive data including usernames, hostnames, key types, public keys, and file paths. At `Trace` level, all packets are logged.
+The `Information` level logs connection details such as hostnames, usernames, key exchange algorithms, and authentication methods. This is sufficient to diagnose connection issues. The `Debug` and `Trace` levels expose additional sensitive data including key types, public keys, and file paths. At `Trace` level, all packets are logged.
 
 ## Executing Commands, Shells and Subsystems
 
@@ -619,6 +626,8 @@ using var listener = await sshClient.ListenUnixAsync("/tmp/my.sock");
 ## SSH File Transfer Protocol (SFTP)
 
 The <xref:Tmds.Ssh.SftpClient> provides methods for performing filesystem operations on remote servers using the SSH File Transfer Protocol (SFTP).
+
+> **Note:** The older SCP protocol is not supported — it has known security vulnerabilities. Tools like OpenSSH `scp` use SFTP under the hood. If you need to interact with a server that only speaks SCP, you can implement it on top of <xref:Tmds.Ssh.SshClient.ExecuteAsync(System.String,System.Threading.CancellationToken)>.
 
 The following example uploads a file to the server and downloads it back:
 
