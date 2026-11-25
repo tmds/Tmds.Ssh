@@ -25,7 +25,7 @@ public sealed partial class HostKey
     {
         ReceivedKeyType = sshKey.Type;
 
-        if (sshKey.Type.EndsWith(AlgorithmNames.CertSuffix))
+        if (AlgorithmNames.IsCertAlgorithm(sshKey.Type))
         {
             (PublicKey, CertificateInfo) = ParseCertificate(sshKey);
             Key = new PublicKey(CertificateInfo.SignedKey);

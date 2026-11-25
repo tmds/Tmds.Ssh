@@ -79,7 +79,8 @@ public class AgentForwardingTests
     {
         // Verifies the 'session-bind@openssh.com' request we send on forwarded agent
         // connections is accepted, which means its signature verifies against the host key.
-        using var agent = new LocalSshAgent();
+        // Use the container's ssh-agent so it can parse ML-DSA host keys.
+        using var agent = new LocalSshAgent(_sshServer.ContainerImageName);
         agent.Start();
         agent.Add(_sshServer.TestUserIdentityFile);
 

@@ -83,6 +83,10 @@ sealed class ClientCertificateParser
         {
             return ParsePublicKeyFromRsaCert(key);
         }
+        else if (type == AlgorithmNames.SshMlDsa44Ed25519Cert)
+        {
+            return ParsePublicKeyFromMlDsa44Ed25519Cert(key);
+        }
         else if (type == AlgorithmNames.EcdsaSha2Nistp256Cert ||
                  type == AlgorithmNames.EcdsaSha2Nistp384Cert ||
                  type == AlgorithmNames.EcdsaSha2Nistp521Cert)
@@ -170,6 +174,29 @@ sealed class ClientCertificateParser
         ReadOnlySequence<byte> pk = reader.ReadStringAsBytes();
         byte[] pkArray = pk.ToArray();
         return Ed25519PublicKey.DeterminePublicSshKey(pkArray);
+    }
+
+    private static SshKeyData ParsePublicKeyFromMlDsa44Ed25519Cert(SshKeyData key)
+    {
+        /*
+            string    "ssh-mldsa44-ed25519-cert"
+            string    nonce
+            string    pk (1344 bytes: mlDsaPk || ed25519Pk)
+            ...
+        */
+        var ros = new ReadOnlySequence<byte>(key.RawData);
+        var reader = new SequenceReader(ros);
+        reader.ReadName(AlgorithmNames.SshMlDsa44Ed25519Cert);
+        reader.SkipString(); // nonce
+        ReadOnlySequence<byte> pkBlob = reader.ReadStringAsBytes();
+        if (pkBlob.Length != MlDsa44Ed25519PublicKey.CompositePublicKeySize)
+        {
+            ThrowHelper.ThrowDataUnexpectedValue();
+        }
+        byte[] combined = pkBlob.ToArray();
+        byte[] mlDsaPk = combined.AsSpan(0, MlDsaKey.MlDsa44PublicKeySize).ToArray();
+        byte[] ed25519Pk = combined.AsSpan(MlDsaKey.MlDsa44PublicKeySize).ToArray();
+        return MlDsa44Ed25519PublicKey.DeterminePublicSshKey(mlDsaPk, ed25519Pk);
     }
 
     private static void ThrowUnknownCertificateType(Name name)

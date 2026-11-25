@@ -70,14 +70,14 @@ partial class SshClientSettings
     private readonly static List<Name> EmptyList = [];
     internal readonly static List<Name> SupportedKeyExchangeAlgorithms = [AlgorithmNames.MLKem768X25519Sha256, AlgorithmNames.SNtruP761X25519Sha512, AlgorithmNames.SNtruP761X25519Sha512OpenSsh, AlgorithmNames.Curve25519Sha256, AlgorithmNames.Curve25519Sha256LibSsh, AlgorithmNames.EcdhSha2Nistp256, AlgorithmNames.EcdhSha2Nistp384, AlgorithmNames.EcdhSha2Nistp521];
     internal readonly static List<Name> SupportedServerHostKeyAlgorithms = [
-        AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert,
-        AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256
+        AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert, AlgorithmNames.SshMlDsa44Ed25519Cert,
+        AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256, AlgorithmNames.SshMlDsa44Ed25519
     ];
     internal readonly static List<Name> SupportedEncryptionAlgorithms = CreatePreferredEncryptionAlgorithms();
     internal readonly static List<Name> SupportedClientKeyAlgorithms = [
-        AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert,
-        AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
-    internal readonly static List<Name> SupportedServerHostKeyCertificateAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256 ];
+        AlgorithmNames.SshEd25519Cert, AlgorithmNames.EcdsaSha2Nistp256Cert, AlgorithmNames.EcdsaSha2Nistp384Cert, AlgorithmNames.EcdsaSha2Nistp521Cert, AlgorithmNames.RsaSshSha2_512Cert, AlgorithmNames.RsaSshSha2_256Cert, AlgorithmNames.SshMlDsa44Ed25519Cert,
+        AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256, AlgorithmNames.SshMlDsa44Ed25519 ];
+    internal readonly static List<Name> SupportedServerHostKeyCertificateAlgorithms = [ AlgorithmNames.SshEd25519, AlgorithmNames.EcdsaSha2Nistp256, AlgorithmNames.EcdsaSha2Nistp384, AlgorithmNames.EcdsaSha2Nistp521, AlgorithmNames.RsaSshSha2_512, AlgorithmNames.RsaSshSha2_256, AlgorithmNames.SshMlDsa44Ed25519 ];
     internal readonly static List<Name> SupportedMacAlgorithms = [
         // The supported ciphers do not need a MAC.
         // We add a MAC here to workaround an issue with Apache MINA SSHD server disconnecting when there is no common MAC algorithm (https://github.com/apache/mina-sshd/issues/664).

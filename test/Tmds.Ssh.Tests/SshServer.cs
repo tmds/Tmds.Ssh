@@ -8,7 +8,7 @@ namespace Tmds.Ssh.Tests;
 
 public class SshServer : IDisposable
 {
-    private string ContainerImageName { get; }
+    internal string ContainerImageName { get; }
     private const string ContainerBuildContext = "sshd_container";
 
     public static bool HasKerberos = HasExecutable("kinit");
@@ -22,6 +22,7 @@ public class SshServer : IDisposable
     public string TestUserIdentityFileEcdsa384 => $"{ContainerBuildContext}/user_key_ecdsa_384";
     public string TestUserIdentityFileEcdsa521 => $"{ContainerBuildContext}/user_key_ecdsa_521";
     public string TestUserIdentityFileEd25519 => $"{ContainerBuildContext}/user_key_ed25519";
+    public string TestUserIdentityFileMlDsa44Ed25519 => $"{ContainerBuildContext}/user_key_mldsa44_ed25519";
     public string TestSubsystem = "test_subsystem";
     public string ServerHost => _host;
     public int ServerPort => _port;
@@ -68,7 +69,11 @@ public class SshServer : IDisposable
     private string EcdsaKeyNistp256PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp384.pub";
     private string EcdsaKeyNistp384PubFile = $"{ContainerBuildContext}/server_key_ecdsa_nistp521.pub";
     private string EcdsaKeyNistp521PubFile = $"{ContainerBuildContext}/server_key_ed25519.pub";
+    private string MlDsa44Ed25519KeyPubFile = $"{ContainerBuildContext}/server_key_mldsa44_ed25519.pub";
     public string CAPubFile = $"{ContainerBuildContext}/ca.pub";
+    public string CAEd25519PubFile = $"{ContainerBuildContext}/ca_ed25519.pub";
+    public string CAEcdsaPubFile = $"{ContainerBuildContext}/ca_ecdsa.pub";
+    public string CAMlDsa44Ed25519PubFile = $"{ContainerBuildContext}/ca_mldsa44_ed25519.pub";
 
     private string[] KeyPubFiles => new string[]
     {
@@ -77,6 +82,7 @@ public class SshServer : IDisposable
         EcdsaKeyNistp256PubFile,
         EcdsaKeyNistp384PubFile,
         EcdsaKeyNistp521PubFile,
+        MlDsa44Ed25519KeyPubFile,
     };
 
     private readonly string _containerId;
@@ -119,6 +125,7 @@ public class SshServer : IDisposable
             List<string> runArgs =
             [
                 "-d",
+                "--log-driver=k8s-file",
                 "-p", $"{_host}:{_port}:22",
                 "-p", $"{_host}:{kdcPort}:88/tcp", "-p", $"{_host}:{kdcPort}:88/udp",
                 "-h", "localhost"
@@ -394,6 +401,7 @@ public class SshServer : IDisposable
                                     "-i", TestUserIdentityFile,
                                     "-o", "BatchMode=yes",
                                     "-o", $"UserKnownHostsFile={KnownHostsFilePath}",
+                                    "-o", "HostKeyAlgorithms=ssh-ed25519",
                                     "-p", ServerPort.ToString(),
                                     $"{TestUser}@{ServerHost}",
                                     $"echo '{HelloWorld}'"

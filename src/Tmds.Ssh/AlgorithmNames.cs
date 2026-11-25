@@ -9,6 +9,9 @@ static class AlgorithmNames
 {
     public const string CertSuffix = "-cert-v01@openssh.com";
 
+    public static bool IsCertAlgorithm(Name name)
+        => name.EndsWith(CertSuffix) || name == SshMlDsa44Ed25519Cert;
+
     public static Name None => Name.FromKnownNameString(KnownNameStrings.None);
 
     // Key exchange algorithms
@@ -33,6 +36,8 @@ static class AlgorithmNames
     public static Name EcdsaSha2Nistp384 => Name.FromKnownNameString(KnownNameStrings.EcdsaSha2Nistp384);
     public static Name EcdsaSha2Nistp521 => Name.FromKnownNameString(KnownNameStrings.EcdsaSha2Nistp521);
     public static Name SshEd25519 => Name.FromKnownNameString(KnownNameStrings.SshEd25519);
+    public static Name SshMlDsa44Ed25519 => Name.FromKnownNameString(KnownNameStrings.SshMlDsa44Ed25519);
+    public static Name SshMlDsa44Ed25519Cert => Name.FromKnownNameString(KnownNameStrings.SshMlDsa44Ed25519Cert);
     public static Name EcdsaSha2Nistp256Cert => Name.FromKnownNameString(KnownNameStrings.EcdsaSha2Nistp256Cert);
     public static Name EcdsaSha2Nistp384Cert => Name.FromKnownNameString(KnownNameStrings.EcdsaSha2Nistp384Cert);
     public static Name EcdsaSha2Nistp521Cert => Name.FromKnownNameString(KnownNameStrings.EcdsaSha2Nistp521Cert);
@@ -81,13 +86,14 @@ static class AlgorithmNames
     internal static readonly Name[] EcdsaSha2Nistp384Algorithms = [ EcdsaSha2Nistp384 ];
     internal static readonly Name[] EcdsaSha2Nistp521Algorithms = [ EcdsaSha2Nistp521 ];
     internal static readonly Name[] SshEd25519Algorithms = [ SshEd25519 ];
+    internal static readonly Name[] SshMlDsa44Ed25519Algorithms = [ SshMlDsa44Ed25519 ];
 
     // Returns the signature algorithms supported by the public key.
     // Note: not implemented for certificate key types. The caller needs to pass in the public key that is signed by the certificate.
     public static Name[] GetSignatureAlgorithmsForKeyType(Name keyType)
     {
         // This method doesn't map cert host key types to signature algorithms.
-        Debug.Assert(!keyType.EndsWith(CertSuffix));
+        Debug.Assert(!IsCertAlgorithm(keyType));
 
         if (keyType == SshRsa)
         {
@@ -108,6 +114,10 @@ static class AlgorithmNames
         else if (keyType == SshEd25519)
         {
             return SshEd25519Algorithms;
+        }
+        else if (keyType == SshMlDsa44Ed25519)
+        {
+            return SshMlDsa44Ed25519Algorithms;
         }
         else
         {
@@ -140,6 +150,7 @@ static class AlgorithmNames
     internal static readonly Name[] EcdsaSha2Nistp384KnownHostAlgorithms = [ EcdsaSha2Nistp384Cert, EcdsaSha2Nistp384 ];
     internal static readonly Name[] EcdsaSha2Nistp521KnownHostAlgorithms = [ EcdsaSha2Nistp521Cert, EcdsaSha2Nistp521 ];
     internal static readonly Name[] SshEd25519KnownHostAlgorithms = [ SshEd25519Cert, SshEd25519 ];
+    internal static readonly Name[] SshMlDsa44Ed25519KnownHostAlgorithms = [ SshMlDsa44Ed25519Cert, SshMlDsa44Ed25519 ];
 
     // Returns the host key algorithms that this known_hosts key can be checked against.
     // The returned value includes certificate host algorithms compatible with the host key.
@@ -149,21 +160,25 @@ static class AlgorithmNames
         {
             return SshRsaKnownHostAlgorithms;
         }
-        if (knownHostKeyType == EcdsaSha2Nistp256)
+        else if (knownHostKeyType == EcdsaSha2Nistp256)
         {
             return EcdsaSha2Nistp256KnownHostAlgorithms;
         }
-        if (knownHostKeyType == EcdsaSha2Nistp384)
+        else if (knownHostKeyType == EcdsaSha2Nistp384)
         {
             return EcdsaSha2Nistp384KnownHostAlgorithms;
         }
-        if (knownHostKeyType == EcdsaSha2Nistp521)
+        else if (knownHostKeyType == EcdsaSha2Nistp521)
         {
             return EcdsaSha2Nistp521KnownHostAlgorithms;
         }
-        if (knownHostKeyType == SshEd25519)
+        else if (knownHostKeyType == SshEd25519)
         {
             return SshEd25519KnownHostAlgorithms;
+        }
+        else if (knownHostKeyType == SshMlDsa44Ed25519)
+        {
+            return SshMlDsa44Ed25519KnownHostAlgorithms;
         }
         else
         {

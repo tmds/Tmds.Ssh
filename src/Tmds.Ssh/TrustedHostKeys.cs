@@ -116,7 +116,7 @@ sealed class TrustedHostKeys
         {
             for (int i = 0; i < algorithms.Count; i++)
             {
-                bool isCertAlgorithm = algorithms[i].EndsWith(AlgorithmNames.CertSuffix);
+                bool isCertAlgorithm = AlgorithmNames.IsCertAlgorithm(algorithms[i]);
                 if (isCertAlgorithm)
                 {
                     if (sortedIdx != i)

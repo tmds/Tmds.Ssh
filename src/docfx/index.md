@@ -32,7 +32,7 @@ Tmds.Ssh is a modern, open-source SSH client library for .NET.
 This section lists the supported algorithms. If you would like support for other algorithms, you can request it with [an issue in the repository](https://github.com/tmds/Tmds.Ssh/issues). If the requested algorithm is considered insecure by current practice, it is unlikely to be added.
 
 **Private key formats\***
-- RSA, ECDSA, ED25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`) with encryption:
+- RSA, ECDSA, ED25519, ML-DSA-44+Ed25519 in `OPENSSH PRIVATE KEY` (`openssh-key-v1`) with encryption:
   - none
   - aes[128|192|256]-[cbc|ctr]
   - aes[128|256]-gcm@openssh.com
@@ -40,31 +40,35 @@ This section lists the supported algorithms. If you would like support for other
 
 **Client key algorithms**
 - ssh-ed25519-cert-v01@openssh.com
-- ecdsa-sha2-nistp521-cert-v01@openssh.com
-- ecdsa-sha2-nistp384-cert-v01@openssh.com
 - ecdsa-sha2-nistp256-cert-v01@openssh.com
+- ecdsa-sha2-nistp384-cert-v01@openssh.com
+- ecdsa-sha2-nistp521-cert-v01@openssh.com
 - rsa-sha2-512-cert-v01@openssh.com
 - rsa-sha2-256-cert-v01@openssh.com
+- ssh-mldsa44-ed25519-cert
 - ssh-ed25519
-- ecdsa-sha2-nistp521
-- ecdsa-sha2-nistp384
 - ecdsa-sha2-nistp256
+- ecdsa-sha2-nistp384
+- ecdsa-sha2-nistp521
 - rsa-sha2-512
 - rsa-sha2-256
+- ssh-mldsa44-ed25519
 
 **Server key algorithms**
 - ssh-ed25519-cert-v01@openssh.com
-- ecdsa-sha2-nistp521-cert-v01@openssh.com
-- ecdsa-sha2-nistp384-cert-v01@openssh.com
 - ecdsa-sha2-nistp256-cert-v01@openssh.com
+- ecdsa-sha2-nistp384-cert-v01@openssh.com
+- ecdsa-sha2-nistp521-cert-v01@openssh.com
 - rsa-sha2-512-cert-v01@openssh.com
 - rsa-sha2-256-cert-v01@openssh.com
+- ssh-mldsa44-ed25519-cert
 - ssh-ed25519
-- ecdsa-sha2-nistp521
-- ecdsa-sha2-nistp384
 - ecdsa-sha2-nistp256
+- ecdsa-sha2-nistp384
+- ecdsa-sha2-nistp521
 - rsa-sha2-512
 - rsa-sha2-256
+- ssh-mldsa44-ed25519
 
 **Key exchange methods\*\***
 - mlkem768x25519-sha256

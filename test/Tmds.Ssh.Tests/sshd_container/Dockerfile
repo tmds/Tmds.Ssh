@@ -1,6 +1,6 @@
 ARG PASSWORD=secret
 
-FROM quay.io/centos/centos:stream10
+FROM registry.fedoraproject.org/fedora:rawhide
 
 ARG PASSWORD
 
@@ -8,7 +8,7 @@ EXPOSE 88/tcp
 EXPOSE 88/udp
 
 # Install packages.
-RUN dnf install -y krb5-{libs,server,workstation} openssh-server openssh-clients passwd socat dos2unix xorg-x11-xauth && \
+RUN dnf install -y krb5-{libs,server,workstation} openssh-server openssh-clients socat dos2unix xorg-x11-xauth && \
     rm -rf /var/cache/yum/*
 
 # Add a user.
@@ -31,6 +31,7 @@ COPY user_key_ecdsa_256.pub /home/testuser/.ssh/user_key_ecdsa_256.pub
 COPY user_key_ecdsa_384.pub /home/testuser/.ssh/user_key_ecdsa_384.pub
 COPY user_key_ecdsa_521.pub /home/testuser/.ssh/user_key_ecdsa_521.pub
 COPY user_key_ed25519.pub /home/testuser/.ssh/user_key_ed25519.pub
+COPY user_key_mldsa44_ed25519.pub /home/testuser/.ssh/user_key_mldsa44_ed25519.pub
 RUN cat /home/testuser/.ssh/user_key_*.pub > /home/testuser/.ssh/authorized_keys
 RUN chown -R testuser:testuser /home/testuser/.ssh
 RUN chmod 600 /home/testuser/.ssh/authorized_keys

@@ -115,6 +115,10 @@ partial class PrivateKeyParser
         {
             return (publicKey, isEncrypted, ParseOpenSshEd25519Key(publicKey, reader));
         }
+        else if (keyType == AlgorithmNames.SshMlDsa44Ed25519)
+        {
+            return (publicKey, isEncrypted, ParseOpenSshMlDsa44Ed25519Key(publicKey, reader));
+        }
         else
         {
             throw new NotSupportedException($"The key type is unsupported: '{keyType}'.");
@@ -288,6 +292,43 @@ partial class PrivateKeyParser
         catch (Exception ex)
         {
             throw new InvalidDataException($"The data can not be parsed into an ED25519 key.", ex);
+        }
+    }
+
+    private static PrivateKey ParseOpenSshMlDsa44Ed25519Key(SshKeyData sshPublicKey, SequenceReader reader)
+    {
+        // Format: string pk_blob (1344 bytes: mlDsaPk || ed25519Pk)
+        //         string sk_blob (64 bytes: mlDsaSeed || ed25519Seed)
+        try
+        {
+            ReadOnlySequence<byte> pkBlob = reader.ReadStringAsBytes();
+            ReadOnlySequence<byte> skBlob = reader.ReadStringAsBytes();
+
+            if (pkBlob.Length != MlDsa44Ed25519PublicKey.CompositePublicKeySize)
+            {
+                throw new InvalidDataException($"Invalid ML-DSA-44+Ed25519 public key size: {pkBlob.Length}.");
+            }
+            if (skBlob.Length != 64) // mlDsaSeed(32) + ed25519Seed(32)
+            {
+                throw new InvalidDataException($"Invalid ML-DSA-44+Ed25519 private key size: {skBlob.Length}.");
+            }
+
+            byte[] sk = skBlob.ToArray();
+            byte[] mlDsaSeed = sk.AsSpan(0, 32).ToArray();
+            byte[] ed25519Seed = sk.AsSpan(32, 32).ToArray();
+
+            byte[] ed25519Pk = new byte[Org.BouncyCastle.Math.EC.Rfc8032.Ed25519.PublicKeySize];
+            Org.BouncyCastle.Math.EC.Rfc8032.Ed25519.GeneratePublicKey(ed25519Seed, 0, ed25519Pk, 0);
+
+            return new MlDsa44Ed25519PrivateKey(
+                mlDsaSeed,
+                ed25519Seed,
+                ed25519Pk,
+                sshPublicKey);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidDataException($"The data can not be parsed into an ML-DSA-44+Ed25519 key.", ex);
         }
     }
 
