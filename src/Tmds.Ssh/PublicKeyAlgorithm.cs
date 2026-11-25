@@ -24,6 +24,10 @@ abstract class PublicKeyAlgorithm
         {
             return Ed25519PublicKey.CreateFromSshKey(key.RawData);
         }
+        else if (name == AlgorithmNames.SshMlDsa44Ed25519)
+        {
+            return MlDsa44Ed25519PublicKey.CreateFromSshKey(key.RawData);
+        }
         else
         {
             ThrowHelper.ThrowDataUnexpectedValue();

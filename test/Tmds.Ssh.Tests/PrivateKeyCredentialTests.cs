@@ -201,6 +201,20 @@ public class PrivateKeyCredentialTests
         }, async (c) => await c.ConnectAsync());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("aes256-ctr")]
+    public async Task OpenSshMlDsa44Ed25519Key(string? cipher)
+    {
+        await RunWithKeyConversion(_sshServer.TestUserIdentityFileMlDsa44Ed25519, async (string localKey) =>
+        {
+            string? keyPass = string.IsNullOrWhiteSpace(cipher) ? null : TestPassword;
+            await EncryptSshKeyViaContainer(localKey, keyPass, cipher, _sshServer.ContainerImageName);
+
+            return new PrivateKeyCredential(localKey, keyPass);
+        }, async (c) => await c.ConnectAsync());
+    }
+
     [Fact]
     public async Task OpenSshKeyPromptNotCalledForPlaintextKey()
     {
@@ -320,6 +334,31 @@ public class PrivateKeyCredentialTests
             sshKeygenArgs.Add(cipher);
         }
         await RunBinary("ssh-keygen", sshKeygenArgs.ToArray());
+    }
+
+    private static async Task EncryptSshKeyViaContainer(string filePath, string? password, string? cipher, string containerImage)
+    {
+        string absPath = Path.GetFullPath(filePath);
+        string fileName = Path.GetFileName(absPath);
+        string subDir = Directory.CreateTempSubdirectory().FullName;
+        string subDirPath = Path.Combine(subDir, fileName);
+        File.Move(absPath, subDirPath);
+        try
+        {
+            List<string> args = ["run", "--rm", "-v", $"{subDir}:{subDir}:Z", containerImage,
+                "ssh-keygen", "-p", "-m", "RFC4716", "-f", subDirPath, "-N", password ?? string.Empty];
+            if (!string.IsNullOrWhiteSpace(cipher))
+            {
+                args.Add("-Z");
+                args.Add(cipher);
+            }
+            await RunBinary("podman", args.ToArray());
+        }
+        finally
+        {
+            File.Move(subDirPath, absPath);
+            Directory.Delete(subDir, recursive: true);
+        }
     }
 
     private static async Task RunBinary(string fileName, params string[] args)

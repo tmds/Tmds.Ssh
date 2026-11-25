@@ -33,6 +33,7 @@ public class CertificateCredentialTests
     public const string TestUserIdentityFileEcdsa384 = $"{ContainerBuildContext}/user_key_2_ecdsa_nistp384";
     public const string TestUserIdentityFileEcdsa521 = $"{ContainerBuildContext}/user_key_2_ecdsa_nistp521";
     public const string TestUserIdentityFileEd25519 = $"{ContainerBuildContext}/user_key_2_ed25519";
+    public const string TestUserIdentityFileMlDsa44Ed25519 = $"{ContainerBuildContext}/user_key_2_mldsa44_ed25519";
 
     private readonly SshServer _sshServer;
     public CertificateCredentialTests(SshServer sshServer)
@@ -46,6 +47,7 @@ public class CertificateCredentialTests
     [InlineData(TestUserIdentityFileEcdsa384)]
     [InlineData(TestUserIdentityFileEcdsa521)]
     [InlineData(TestUserIdentityFileEd25519)]
+    [InlineData(TestUserIdentityFileMlDsa44Ed25519)]
     public async Task Connect(string certIdentityFile)
     {
         using var client = await _sshServer.CreateClientAsync(

@@ -21,6 +21,8 @@ static class KnownNameStrings
     internal const string EcdsaSha2Nistp384 = "ecdsa-sha2-nistp384";
     internal const string EcdsaSha2Nistp521 = "ecdsa-sha2-nistp521";
     internal const string SshEd25519 = "ssh-ed25519";
+    internal const string SshMlDsa44Ed25519 = "ssh-mldsa44-ed25519";
+    internal const string SshMlDsa44Ed25519Cert = "ssh-mldsa44-ed25519-cert";
     internal const string SshRsaCert = "ssh-rsa-cert-v01@openssh.com";
     internal const string RsaSshSha2_256Cert = "rsa-sha2-256-cert-v01@openssh.com";
     internal const string RsaSshSha2_512Cert = "rsa-sha2-512-cert-v01@openssh.com";
@@ -79,6 +81,8 @@ static class KnownNameStrings
             case EcdsaSha2Nistp384: return EcdsaSha2Nistp384;
             case EcdsaSha2Nistp521: return EcdsaSha2Nistp521;
             case SshEd25519: return SshEd25519;
+            case SshMlDsa44Ed25519: return SshMlDsa44Ed25519;
+            case SshMlDsa44Ed25519Cert: return SshMlDsa44Ed25519Cert;
             case SshRsaCert: return SshRsaCert;
             case RsaSshSha2_256Cert: return RsaSshSha2_256Cert;
             case RsaSshSha2_512Cert: return RsaSshSha2_512Cert;

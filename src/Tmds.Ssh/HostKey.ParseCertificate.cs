@@ -23,6 +23,10 @@ partial class HostKey
         {
             return ParseRsaCert(key);
         }
+        else if (type == AlgorithmNames.SshMlDsa44Ed25519Cert)
+        {
+            return ParseMlDsa44Ed25519Cert(key);
+        }
         else if (type == AlgorithmNames.EcdsaSha2Nistp256Cert ||
                  type == AlgorithmNames.EcdsaSha2Nistp384Cert ||
                  type == AlgorithmNames.EcdsaSha2Nistp521Cert)
@@ -131,6 +135,35 @@ partial class HostKey
         PublicKeyAlgorithm publicKey = new Ed25519PublicKey(pkArray);
 
         SshKeyData signedKey = Ed25519PublicKey.DeterminePublicSshKey(pkArray);
+
+        HostCertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
+
+        return (publicKey, certificateInfo);
+    }
+
+    private static (PublicKeyAlgorithm, HostCertificateInfo) ParseMlDsa44Ed25519Cert(SshKeyData key)
+    {
+        /*
+            string    "ssh-mldsa44-ed25519-cert"
+            string    nonce
+            string    pk (1344 bytes: mlDsaPk || ed25519Pk)
+            ...
+        */
+        var ros = new ReadOnlySequence<byte>(key.RawData);
+        var reader = new SequenceReader(ros);
+        reader.ReadName(AlgorithmNames.SshMlDsa44Ed25519Cert);
+        reader.SkipString(); // nonce
+        ReadOnlySequence<byte> pkBlob = reader.ReadStringAsBytes();
+        if (pkBlob.Length != MlDsa44Ed25519PublicKey.CompositePublicKeySize)
+        {
+            ThrowHelper.ThrowDataUnexpectedValue();
+        }
+        byte[] combined = pkBlob.ToArray();
+        byte[] mlDsaPk = combined.AsSpan(0, MlDsaKey.MlDsa44PublicKeySize).ToArray();
+        byte[] ed25519Pk = combined.AsSpan(MlDsaKey.MlDsa44PublicKeySize).ToArray();
+        PublicKeyAlgorithm publicKey = new MlDsa44Ed25519PublicKey(mlDsaPk, ed25519Pk);
+
+        SshKeyData signedKey = MlDsa44Ed25519PublicKey.DeterminePublicSshKey(mlDsaPk, ed25519Pk);
 
         HostCertificateInfo certificateInfo = ParseCommonHostCertificateFields(key.RawData, reader, key, signedKey);
 
