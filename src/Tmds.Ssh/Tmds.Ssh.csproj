@@ -37,7 +37,10 @@
 
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" />
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" >
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
